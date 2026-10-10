@@ -2140,7 +2140,12 @@ class AnalysisWindow(QMainWindow):
             )
             if not accepted:
                 return
-            scope = {"Full image": "full", "Active ROI": "roi", "Both": "both"}[selected]
+            if selected == "Full image":
+                scope = "full"
+            elif selected == "Active ROI":
+                scope = "roi"
+            else:
+                scope = "both"
         parent = QFileDialog.getExistingDirectory(
             self, "Choose parent folder for a new IQA image export"
         )
