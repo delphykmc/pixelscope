@@ -233,6 +233,21 @@ When SUB discovers a generic gap, only a company-neutral requirement crosses ups
 MAIN implements and validates the generic host/contract change using public/synthetic
 evidence, merges it, and SUB consumes the newer exact MAIN SHA.
 
+### Reserved-root guard when running tests in PRIVATE SUB
+
+`tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main`
+checks the **Git-tracked tree of a PUBLIC MAIN commit**, never whether SUB-reserved
+directories exist in the worktree. Normal PUBLIC MAIN/PR runs inspect `HEAD`.
+For a downstream checkout containing SUB-owned files, set
+`PIXELSCOPE_PUBLIC_MAIN_SHA=<exact-40-character-merged-PUBLIC-MAIN-SHA>`
+before invoking the same tests (PowerShell:
+`$env:PIXELSCOPE_PUBLIC_MAIN_SHA = "<SHA>"`). The pinned commit must exist in
+local Git history and be an ancestor of the checkout's `HEAD`; fetch the exact
+PUBLIC MAIN commit when necessary. Missing Git metadata, unresolvable/stale
+pins, and reserved paths committed **in PUBLIC MAIN** fail the guard. Do not
+deselect the test or reinterpret SUB-owned files as violations. The separate
+Base-to-Enterprise import-direction tests remain active in either checkout.
+
 ## Revised Slice 6–8 sequencing
 
 Slice 6 proves physical separation in PUBLIC MAIN using the existing public
