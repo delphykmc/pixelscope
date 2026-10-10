@@ -71,11 +71,7 @@ def validate_release_bundle(
     if descriptor is None:
         extra = sorted(actual_names - expected_names)
     else:
-        owned_names = {
-            name
-            for name in actual_names
-            if name.startswith((f"{stem}-", f"{stem}."))
-        }
+        owned_names = {name for name in actual_names if name.startswith((f"{stem}-", f"{stem}."))}
         extra = sorted(owned_names - expected_names)
     if missing:
         raise ReleaseBundleError(f"release bundle is missing files: {missing}")
