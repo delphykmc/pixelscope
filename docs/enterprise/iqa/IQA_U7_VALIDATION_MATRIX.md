@@ -32,6 +32,8 @@ Use `& $py` in PowerShell (a bare `$py -m ...` is a parser error).
 Do **not** run from a PRIVATE SUB checkout to produce public approval logs.
 
 ```powershell
+# Initialize $py for this worktree; if its venv is shared, use that absolute path.
+$py = (Resolve-Path ".\.venv\Scripts\python.exe").Path
 git status --short
 git rev-parse HEAD
 $env:PYTHONPATH = "src"
