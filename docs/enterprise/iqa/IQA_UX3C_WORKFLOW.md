@@ -29,8 +29,13 @@ worker Qt mutations. Do not call it directly from PRIVATE SUB workers.
 
 Use `IqaJobSnapshot` with `job_id`, nonsecret `label`, `status`, and
 optionally `result` **only** for `completed`. Job IDs must identify distinct
-requests; the most recently updated status drives the persistent MAIN status
-cue. A `cancelled` status is a **reported outcome**, not evidence that
+requests and must **never be reused**, including retries. Because producer
+threads can publish delayed/out-of-order snapshots, the first delivered
+`completed`, `failed` or `cancelled` state for an ID is **absorbing**:
+subsequent snapshots for that same ID (including another contradictory
+terminal) are ignored. This preserves the original terminal result and prevents
+stale running/queued updates from re-enabling Cancel or changing View Result.
+The most recently **accepted** status drives the persistent MAIN status cue. A `cancelled` status is a **reported outcome**, not evidence that
 the user has permission or that the backend supports cancellation.
 
 ### Optional explicit cancellation
@@ -140,7 +145,10 @@ Remove-Item Env:PIXELSCOPE_RUN_IQA_REAL_HOST -ErrorAction SilentlyContinue
 
 Focused tests simulate queued → running → completed and failed/cancelled
 snapshots from a `threading.Thread` with no provider, remote service or
-confidential data. They validate visible status while the dock is hidden,
+confidential data. The queued-delivery regression also sends deliberately
+stale running/queued/contradictory-terminal snapshots **after** each terminal
+outcome, confirming that original results and controls remain authoritative.
+They validate visible status while the dock is hidden,
 explicit View Result, single Analysis Window, GUI-thread delivery, queued
 events discarded on shutdown and safe refusal of subsequent publication.
 
