@@ -98,9 +98,7 @@ def map_rgba(
     # Indexed array is the only full-sized map intermediate; no QGraphicsScene
     # screenshot or Python loop over 4K pixels.
     rgba = np.ascontiguousarray(colors[rows[:, None], columns[None, :]])
-    rgba[..., 3] = np.where(
-        inside_y[:, None] & inside_x[None, :], rgba[..., 3], 0
-    )
+    rgba[..., 3] = np.where(inside_y[:, None] & inside_x[None, :], rgba[..., 3], 0)
     return rgba
 
 
@@ -117,9 +115,7 @@ def _map_image(
     rgba = map_rgba(attribute, rect, effective_half_range)
     height, width, _channels = rgba.shape
     # The QImage must own its buffer before numpy releases the array.
-    return QImage(
-        rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888
-    ).copy()
+    return QImage(rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
 
 
 def write_visual_pngs(
@@ -164,9 +160,7 @@ def write_visual_pngs(
         raise ValueError("no source or selected spatial map is available to export")
     half_range = spatial_display_half_range(display_range, display_gain)
     full_clip: tuple[int, int] | None = (
-        clipped_cells(attribute.spatial, half_range)
-        if attribute.spatial is not None
-        else None
+        clipped_cells(attribute.spatial, half_range) if attribute.spatial is not None else None
     )
     map_info: dict[str, object] = {
         "attribute_id": attribute.attribute_id,
