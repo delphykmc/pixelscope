@@ -244,37 +244,42 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     win.close()
 
 
-def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> None:
-    """The chart/details share spare screen space and can be resized by drag."""
+def test_ux1_tabbed_inspector_full_height_and_metric_explanations(qtbot: object) -> None:
+    """Attributes fill the available height; Details never shrink its chart."""
 
     from PySide6.QtWidgets import QApplication, QLabel
 
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
-    win.resize(1600, 800)
-    # UX-1 measures the Inspector independently of the optional UX-2C dock.
-    # Hide only AFTER the first show: UX-2C intentionally restores a hidden
-    # saved dock to visible on first presentation for discoverability.
-    win.present_result(make_synthetic_result("fhd-inspector"))
+    win.resize(1366, 768)
+    win.present_result(make_synthetic_result("compact-inspector"))
     win.show()
     QApplication.processEvents()
-    win.spatial_dock.hide()
+    # The spatial dock remains usable at startup, even with the compact tabs.
+    win.spatial_dock.show()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: win.inspector_splitter.height() > 350 and win._fit_pending_result_id is None,
-        timeout=4000,
+        lambda: win.inspector_tabs.height() >= 150 and win._fit_pending_result_id is None,
+        timeout=5000,
     )
-    splitter = win.inspector_splitter
-    initial_height = splitter.height()
-    win.resize(1920, 1080)
+    tabs = win.inspector_tabs
+    assert tabs.objectName() == "enterpriseIqaInspectorTabs"
+    assert tabs.count() == 2
+    assert [tabs.tabText(i) for i in range(tabs.count())] == ["Attributes", "Details"]
+    assert tabs.currentIndex() == 0
+    assert tabs.widget(0) is win.group_scroll
+    assert tabs.widget(1) is win.details_scroll
+    assert win.group_scroll.isVisible()
+    assert not win.details_scroll.isVisible()
+    assert win.group_scroll.height() >= 100
+    assert win.roi_brief_label.text() == "ROI: none"
+    assert win.clear_roi_button.isEnabled() is False
+
+    # Switching tabs must not change Attribute, ROI, numeric data or ranges.
+    state = win.current_analysis_state()
+    tabs.setCurrentIndex(1)
     QApplication.processEvents()
-    assert splitter.height() > initial_height
-    assert splitter.orientation() == Qt.Orientation.Vertical
-    assert splitter.childrenCollapsible() is False
-    assert splitter.widget(0) is win.group_scroll
-    assert splitter.widget(1).objectName() == "enterpriseIqaInspectorDetails"
-    assert splitter.handleWidth() >= 6
-    assert splitter.widget(0).height() >= 140
-    assert splitter.widget(1).height() >= 175
+    assert win.details_scroll.isVisible()
+    assert not win.group_scroll.isVisible()
     for name, phrase in (
         ("enterpriseIqaOfficialExplanation", "entire image pair"),
         ("enterpriseIqaRoiExplanation", "not a full-pair measurement"),
@@ -286,22 +291,29 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
         assert label.wordWrap()
     assert "Synthetic attribute" in win.detail_context.text()
 
-    # Splitter resize is independent of selection, ROI and analysis data.
-    state = win.current_analysis_state()
-    splitter.setSizes([520, 180])
+    win._set_roi(64, 128, 512, 512)
+    assert win.roi_brief_label.text() == "ROI: (64, 128)  ·  512×512 px"
+    assert win.clear_roi_button.isEnabled()
+    assert "Grid-derived ROI estimate" in win.roi_label.text()
+    tabs.setCurrentIndex(0)
     QApplication.processEvents()
-    chart_large = splitter.sizes()
-    assert chart_large[0] > chart_large[1]
-    splitter.setSizes([180, 520])
-    QApplication.processEvents()
-    detail_large = splitter.sizes()
-    assert detail_large[1] > detail_large[0]
-    assert win.current_analysis_state() == state
+    assert win.group_scroll.isVisible()
+    assert win.current_roi == (64, 128, 512, 512)
+    assert win.current_analysis_state()["ranges"] == state["ranges"]
 
-    # A different result/metric still updates the detail context.
+    # The same full-pair chart occupies additional space in larger windows.
+    small_height = win.group_scroll.height()
+    win.spatial_dock.hide()
+    win.resize(1600, 900)
+    QApplication.processEvents()
+    assert win.group_scroll.height() > small_height
+    assert win.inspector_tabs.currentIndex() == 0
     _select_attribute(win, 10)
     assert "Synthetic attribute 11" in win.detail_context.text()
-    assert splitter.widget(0) is win.group_scroll
+    assert tabs.currentIndex() == 0
+    win.clear_roi_button.click()
+    assert win.current_roi is None
+    assert win.roi_brief_label.text() == "ROI: none"
     win.close()
 
 
