@@ -91,8 +91,7 @@ class IqaWindowContribution:
         dock = QDockWidget("IQA Jobs", window)
         dock.setObjectName("enterpriseIqaJobsDock")
         dock.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea
-            | Qt.DockWidgetArea.RightDockWidgetArea
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
         dock.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable
