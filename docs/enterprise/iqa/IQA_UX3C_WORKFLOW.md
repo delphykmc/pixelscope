@@ -30,7 +30,28 @@ worker Qt mutations. Do not call it directly from PRIVATE SUB workers.
 Use `IqaJobSnapshot` with `job_id`, nonsecret `label`, `status`, and
 optionally `result` **only** for `completed`. Job IDs must identify distinct
 requests; the most recently updated status drives the persistent MAIN status
-cue. `queued`, `running`, `completed`, `failed` and `cancelled` are
+cue. A `cancelled` status is a **reported outcome**, not evidence that
+the user has permission or that the backend supports cancellation.
+
+### Optional explicit cancellation
+
+PRIVATE SUB may also inject `cancel_job(job_id)` **only** when it actually
+supports asynchronous cancellation requests. Each live snapshot independently
+advertises `can_cancel=True` only while `queued` or `running`, based on
+verified job/provider capability. Both the global callback and the per-job
+flag are required before a cancellation control appears/enables.
+
+With capability available, `IQA > Cancel Selected IQA Job` is beside
+`Run IQA`; the Jobs Dock also provides `Cancel selected job`. Neither
+control implies Cancel All; selection resolves a stable Job ID. Clicking it
+passes exactly that ID to the callback, blocks duplicate requests and
+**does not change the displayed job status to `cancelled`**. Only a later
+trusted provider snapshot may confirm `cancelled`, `completed` or `failed`.
+Synchronous callback errors re-enable the action while preserving the current
+status. Real service submission and asynchronous rejection/retry policies
+remain SUB-owned. If no cancellation callback is provided, neither UI
+control is installed; the dock may still display externally reported
+`cancelled` states. `queued`, `running`, `completed`, `failed` and `cancelled` are
 presentation statuses. Whether cancellation, retry, durable readiness, or
 client-to-server correlation is actually supported remains a provider
 contract obligation in #140 and the PRIVATE SUB adapter. No fake success,
@@ -69,7 +90,8 @@ $env:PYTHONPATH = "src"
 The window title explicitly says SYNTHETIC. It uses the genuine MAIN
 `MainWindow`, `IqaWindowContribution` menus/Jobs dock/status button,
 real `post_job()` queued Qt delivery from a disposable Python worker and
-the real Enterprise Analysis Window. The selected MAIN paths are **ignored**:
+the real Enterprise Analysis Window. It also installs a **synthetic cancel
+callback** that only asks its own demo worker to stop. The selected MAIN paths are **ignored**:
 nothing is uploaded or analyzed. Optional `--rgb` creates local 4K synthetic
 A/B images in a temporary directory for the analysis view.
 
@@ -81,8 +103,12 @@ A/B images in a temporary directory for the analysis view.
 3. Click the status button or `View > Show IQA Jobs`, select job #1, and click
    `View selected result`. The **same** independent Analysis Window opens
    with public-safe synthetic attributes/maps/RGB.
-4. Run again to observe #2 `failed`, then #3 `cancelled`: these jobs never
-   enable View Result. Runs #4+ repeat completed/failed/cancelled.
+4. Run again: job #2 ends `failed`. Run a third time: job #3 stays
+   `running` until you select it and press either `IQA > Cancel Selected
+   IQA Job` or the Jobs Dock's `Cancel selected job`. It then reports
+   `cancelled`; **before clicking Cancel, it does not cancel itself**.
+   Failed/cancelled jobs never enable View Result. Runs #4+ repeat the
+   completed/failed/await-cancel sequence.
 5. Hide/reopen Jobs via `View`, continue using MAIN while statuses update,
    then close MAIN to exercise contribution shutdown.
 
