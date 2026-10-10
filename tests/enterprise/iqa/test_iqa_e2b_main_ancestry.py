@@ -33,6 +33,15 @@ OWNED_LEAVES = (
     "enterprise/iqa/",
 )
 SHARED_INIT = "src/pixelscope_enterprise/__init__.py"
+# E2B authors these exact files *after* creating the reviewed two-parent
+# integration commit. Only these may legitimately differ from the E2A parent.
+E2B_OWNED_CHANGES = frozenset(
+    {
+        "tests/enterprise/iqa/test_iqa_e2b_main_ancestry.py",
+        "docs/enterprise/iqa/IQA_UX3E_E2B_MAIN_SYNC.md",
+        "docs/enterprise/iqa/IQA_UX3E_E2_TRANSFER_ACCEPTANCE.md",
+    }
+)
 
 pytestmark = pytest.mark.skipif(
     os.environ.get(RUN_FLAG) != "1",
@@ -103,11 +112,24 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
     actual_public = {p: v for p, v in actual_entries.items() if not _is_enterprise(p)}
     assert actual_public == main_public, "combined branch alters pinned PUBLIC MAIN tree"
 
-    # All previously reviewed Enterprise Git blob identities are retained.
+    # The *merge commit itself* must preserve every E2A Enterprise mode/blob,
+    # proving the PUBLIC import never modifies previously approved IQA files.
     old_enterprise = {p: v for p, v in old_entries.items() if _is_enterprise(p)}
-    assert all(
-        actual_entries.get(p) == v for p, v in old_enterprise.items()
-    ), "previous Handoff IQA blobs were modified, removed or had modes changed"
+    merged_enterprise = {p: v for p, v in _entries(merger).items() if _is_enterprise(p)}
+    assert merged_enterprise == old_enterprise, (
+        "upstream MAIN merge changed an E2A Enterprise blob or mode"
+    )
+
+    # The E2B feature authors new tests/docs *after* that merge commit.
+    # Compare against the exact E2A baseline excluding only those known paths,
+    # not every path under the Enterprise root (which would mask regressions).
+    for path in set(old_enterprise) | {
+        p for p in actual_entries if _is_enterprise(p)
+    }:
+        if path not in E2B_OWNED_CHANGES:
+            assert actual_entries.get(path) == old_enterprise.get(path), (
+                f"unapproved Enterprise content change after MAIN sync: {path}"
+            )
 
     # New Enterprise-only documents/tests are allowed, not new unowned SUB
     # siblings or private files outside the reviewed IQA leaf scope.
