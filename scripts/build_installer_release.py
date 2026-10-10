@@ -143,6 +143,10 @@ def installer_command(
                 _ispp_define("TargetExeName", descriptor.executable),
                 _ispp_define("TargetAppDir", descriptor.app_dir),
                 _ispp_define("AppIdValue", identity),
+                _ispp_define(
+                    "TargetRegistryAppId", app_id if app_id is not None
+                    else descriptor.installer_app_id,
+                ),
             )
         )
     elif app_id is not None:
