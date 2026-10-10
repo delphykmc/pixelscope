@@ -122,7 +122,7 @@ def run_provider_conformance(
     workspace: Path,
     intent: IqaSubmissionIntent,
     drive_to_terminal: TerminalDriver | None = None,
-    budget: ConformanceBudget = ConformanceBudget(),
+    budget: ConformanceBudget | None = None,
     expected_terminal: IqaJobState = IqaJobState.COMPLETED,
     overlap_calls: int = 8,
 ) -> ConformanceReport:
@@ -142,6 +142,7 @@ def run_provider_conformance(
         raise ValueError("conformance terminal must be completed or failed")
     if overlap_calls < 0 or overlap_calls > 64:
         raise ValueError("overlap_calls must be between 0 and 64")
+    effective_budget = budget if budget is not None else ConformanceBudget()
     provider = factory(workspace)
     assert isinstance(provider, IqaExecutionPort), "provider lacks execution port"
     assert isinstance(provider, IqaResultAccessPort), "provider lacks result port"
@@ -155,12 +156,14 @@ def run_provider_conformance(
         # Concurrency matters because Client workers may share one provider
         # instance; status snapshots need not be identical during transitions.
         with ThreadPoolExecutor(max_workers=min(overlap_calls, 8)) as executor:
-            snapshots = tuple(executor.map(lambda _: provider.get_status(job), range(overlap_calls)))
+            snapshots = tuple(
+                executor.map(lambda _: provider.get_status(job), range(overlap_calls))
+            )
         for snapshot in snapshots:
             _check_snapshot(snapshot, job)
 
     terminal, observed = _wait_for_terminal(
-        provider, job, drive_to_terminal=drive_to_terminal, budget=budget
+        provider, job, drive_to_terminal=drive_to_terminal, budget=effective_budget
     )
     assert terminal.state is expected_terminal, "unexpected terminal IQA job state"
 
