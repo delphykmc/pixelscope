@@ -12,8 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QDockWidget,
     QHBoxLayout,
     QLabel,
@@ -175,6 +176,9 @@ class IqaWindowContribution:
         """Update presentation only; never own the worker or open results."""
         if self._closed or self.jobs_list is None:
             raise RuntimeError("IQA contribution not available")
+        app = QApplication.instance()
+        if app is None or QThread.currentThread() != app.thread():
+            raise RuntimeError("IQA job updates must be dispatched onto the Qt GUI thread")
         self._records[snapshot.job_id] = snapshot
         # Store stable IDs in UserRole; display labels may change.
         item = next(
