@@ -20,11 +20,11 @@ from scripts.distribution_contract import (  # noqa: E402
 )
 from scripts.package_target_descriptor import (  # noqa: E402
     PackageTargetDescriptor,
-    PRODUCTION_APP_ID as _PUBLIC_PRODUCTION_APP_ID,
     load_target_descriptor,
 )
 from scripts.release_contract import (  # noqa: E402
     APP_DIR,
+    PUBLIC_INSTALLER_APP_ID,
     REPO_ROOT,
     release_version,
     windows_version_tuple,
@@ -32,7 +32,7 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
-PRODUCTION_APP_ID = _PUBLIC_PRODUCTION_APP_ID
+PRODUCTION_APP_ID = PUBLIC_INSTALLER_APP_ID
 SMOKE_APP_ID = "PixelScope.P7B.Smoke"
 _SUPPORTED_INNO_MAJORS = frozenset({6, 7})
 
