@@ -87,18 +87,19 @@ class FakeGit:
                 raise handoff.HandoffError("unknown synthetic commit or tag")
             return (sha + "\n").encode("ascii")
         if args[0] == "show":
-            assert args[1] == (
-                f"{self.main}:src/pixelscope/remote/iqa_public_contract.py"
-            )
+            assert args[1] == (f"{self.main}:src/pixelscope/remote/iqa_public_contract.py")
             return b"IQA_PUBLIC_CONTRACT_REVISION = 1\n"
         raise AssertionError(f"unexpected synthetic Git call: {args}")
 
     def ancestor(self, _root: Path, earlier: str, later: str) -> bool:
         if earlier == later:
             return True
-        return earlier == self.main and later in (
-            self.v1, self.v2, self.parallel
-        ) or earlier == self.v1 and later == self.v2
+        return (
+            earlier == self.main
+            and later in (self.v1, self.v2, self.parallel)
+            or earlier == self.v1
+            and later == self.v2
+        )
 
     def tree(self, _root: Path, sha: str) -> dict[str, tuple[str, str]]:
         return dict(self.snapshots[sha])
@@ -123,14 +124,16 @@ def _make_manifest(
 ) -> tuple[Path, dict[str, object]]:
     evidence = tmp_path / f"synthetic-evidence-v{version}.json"
     evidence.write_text(
-        json.dumps([
-            {
-                "command": "synthetic manifest unit test",
-                "platform": "in-memory",
-                "python": "3.10",
-                "outcome": "pass",
-            }
-        ]),
+        json.dumps(
+            [
+                {
+                    "command": "synthetic manifest unit test",
+                    "platform": "in-memory",
+                    "python": "3.10",
+                    "outcome": "pass",
+                }
+            ]
+        ),
         encoding="utf-8",
     )
     tag = {
@@ -172,33 +175,29 @@ def test_first_approved_manifest_import_keeps_downstream_siblings(
     assert planned and all(action == "write" for action, _, _, _ in planned)
     assert not (destination / "enterprise/iqa/README.md").exists()
     handoff.apply_import(planned)
-    assert (destination / "enterprise/other_team/sibling.py").read_text() == (
-        "dont_touch = 1\n"
-    )
+    assert (destination / "enterprise/other_team/sibling.py").read_text() == ("dont_touch = 1\n")
     assert (destination / "tests/enterprise/other_team/test_sibling.py").exists()
     assert (destination / "src/pixelscope_enterprise/iqa/a.py").read_text() == "a = True\n"
     assert handoff.plan_import(tmp_path, destination, manifest) == []
 
 
-def test_incremental_explicit_update_and_deletion(
-    tmp_path: Path, fake_git: FakeGit
-) -> None:
+def test_incremental_explicit_update_and_deletion(tmp_path: Path, fake_git: FakeGit) -> None:
     old_path, old = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
     destination = tmp_path / "sub"
     destination.mkdir()
     _write(destination, "docs/enterprise/unrelated.md", "retain me\n")
     handoff.apply_import(handoff.plan_import(tmp_path, destination, old))
 
-    _, new = _make_manifest(
-        tmp_path, fake_git, fake_git.v2, 2, previous=old_path
-    )
+    _, new = _make_manifest(tmp_path, fake_git, fake_git.v2, 2, previous=old_path)
     assert new["previous_approved_handoff_sha"] == fake_git.v1
     with pytest.raises(handoff.HandoffError, match="requires previous approved manifest"):
         handoff.plan_import(tmp_path, destination, new)
-    assert new["removed_paths"] == [{
-        "path": "src/pixelscope_enterprise/iqa/a.py",
-        "previous_sha256": hashlib.sha256(b"a = True\n").hexdigest(),
-    }]
+    assert new["removed_paths"] == [
+        {
+            "path": "src/pixelscope_enterprise/iqa/a.py",
+            "previous_sha256": hashlib.sha256(b"a = True\n").hexdigest(),
+        }
+    ]
     operations = handoff.plan_import(tmp_path, destination, new, old)
     assert any(kind == "delete" for kind, _, _, _ in operations)
     handoff.apply_import(operations)
@@ -230,28 +229,24 @@ def test_private_collisions_and_tampered_manifest_are_rejected(
     assert not handoff._owned_path("enterprise/iqa/CON.txt")
 
 
-def test_nonancestor_history_merge_and_wrong_tag_fail(
-    tmp_path: Path, fake_git: FakeGit
-) -> None:
+def test_nonancestor_history_merge_and_wrong_tag_fail(tmp_path: Path, fake_git: FakeGit) -> None:
     old_path, _ = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
     with pytest.raises(handoff.HandoffError, match="history-merge requires"):
         _make_manifest(
-            tmp_path, fake_git, fake_git.parallel, 3,
-            previous=old_path, mode="history-merge",
+            tmp_path,
+            fake_git,
+            fake_git.parallel,
+            3,
+            previous=old_path,
+            mode="history-merge",
         )
-    _, manifest = _make_manifest(
-        tmp_path, fake_git, fake_git.parallel, 3, previous=old_path
-    )
+    _, manifest = _make_manifest(tmp_path, fake_git, fake_git.parallel, 3, previous=old_path)
     manifest["approved_tag"] = "handoff/iqa/v1"
     with pytest.raises(handoff.HandoffError, match="approved tag"):
-        handoff.plan_import(
-            tmp_path, tmp_path / "sub", manifest, handoff._read(old_path)
-        )
+        handoff.plan_import(tmp_path, tmp_path / "sub", manifest, handoff._read(old_path))
 
 
-def test_symlink_parent_is_not_a_transfer_target(
-    tmp_path: Path, fake_git: FakeGit
-) -> None:
+def test_symlink_parent_is_not_a_transfer_target(tmp_path: Path, fake_git: FakeGit) -> None:
     _, manifest = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
     destination = tmp_path / "sub"
     destination.mkdir()
