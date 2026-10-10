@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from scripts.release_contract import REPO_ROOT
+from scripts.release_contract import PUBLIC_INSTALLER_APP_ID, REPO_ROOT
 
 _SLUG = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _BASENAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
@@ -22,7 +22,6 @@ _EXE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}\.exe$", re.IGNORECASE)
 _APP_ID = re.compile(r"^\{[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$")
 # Inno Setup AppId is the uninstall/upgrade identity, not merely a display name.
 # Downstream descriptors must never alias the public production installation.
-PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 _WINDOWS_DEVICE_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{index}" for index in range(1, 10)}
@@ -136,7 +135,7 @@ def load_target_descriptor(path: Path) -> PackageTargetDescriptor:
     app_id = data.get("installer_app_id")
     if not isinstance(app_id, str) or not _APP_ID.fullmatch(app_id):
         raise ValueError("invalid target descriptor installer_app_id GUID")
-    if app_id.casefold() == PRODUCTION_APP_ID.casefold():
+    if app_id.casefold() == PUBLIC_INSTALLER_APP_ID.casefold():
         raise ValueError("target descriptor installer_app_id collides with public production AppId")
     req = data.get("runtime_requirements")
     return PackageTargetDescriptor(
