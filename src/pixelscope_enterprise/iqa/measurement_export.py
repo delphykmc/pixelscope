@@ -58,8 +58,10 @@ def _number(value: float | int | None) -> str:
 def build_measurements_csv(result: AnalysisResult, roi: Roi | None = None) -> str:
     """Return deterministic RFC-4180-style CSV from immutable scientific data.
 
-    A numeric 0.0 remains an actual zero. A missing/failed/invalid GRID value
-    stays empty. ROI rows are included only if a valid source-coordinate ROI
+    A numeric 0.0 remains an actual zero only for available full-pair values.
+    Partial/missing/failed full-pair values export as blank with unchanged
+    availability, even if the adapter carried a partial scalar. An invalid
+    GRID value stays empty. ROI rows require a valid source-coordinate ROI
     and an Attribute's grid are available. Never infer a full-pair score for an ROI.
     """
 
@@ -99,7 +101,11 @@ def build_measurements_csv(result: AnalysisResult, roi: Roi | None = None) -> st
                 *shared,
                 "FULL_PAIR_COMPARISON",
                 *meta,
-                _number(attribute.official_value),
+                _number(
+                    attribute.official_value
+                    if attribute.official_availability == "available"
+                    else None
+                ),
                 attribute.official_availability,
                 *("",) * 7,
             )
