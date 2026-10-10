@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -144,6 +146,58 @@ def test_injected_synthetic_provider_also_handles_concurrent_status_calls(
     assert report.overlap_calls == 8
     assert report.terminal_state is IqaJobState.COMPLETED
     assert report.result_id == "fixture-minimal"
+
+
+class RegressingTerminalAdapter(PollingSyntheticAdapter):
+    """Violate terminal stability on the immediate verification status read."""
+
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
+        self._terminal_observed = False
+
+    def get_status(self, reference: IqaJobReference) -> IqaJobSnapshot:
+        snapshot = super().get_status(reference)
+        if snapshot.state.terminal:
+            if self._terminal_observed:
+                return IqaJobSnapshot(
+                    reference, IqaJobState.RUNNING, snapshot.progress, snapshot.message
+                )
+            self._terminal_observed = True
+        return snapshot
+
+
+def test_terminal_state_regression_is_detected_on_extra_status_read(tmp_path: Path) -> None:
+    with pytest.raises(AssertionError, match="terminal job state changed"):
+        run_provider_conformance(
+            RegressingTerminalAdapter,
+            workspace=tmp_path / "regressing-provider",
+            intent=_intent(tmp_path),
+            budget=ConformanceBudget(max_polls=4, timeout_seconds=2, interval_seconds=0),
+            overlap_calls=0,
+        )
+
+
+def test_optimized_python_cannot_produce_false_conformance_success() -> None:
+    """A subprocess is needed because __debug__ is fixed at interpreter startup."""
+    program = (
+        "from pathlib import Path\n"
+        "from pixelscope.remote.iqa_provider_conformance import run_provider_conformance\n"
+        "try:\n"
+        "    run_provider_conformance(lambda root: object(), workspace=Path('.'), intent=None)\n"
+        "except RuntimeError as exc:\n"
+        "    if 'optimized execution is unsupported' not in str(exc):\n"
+        "        raise SystemExit(42)\n"
+        "else:\n"
+        "    raise SystemExit(43)\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-O", "-c", program],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_bounded_conformance_fails_closed_on_never_terminal_provider(
