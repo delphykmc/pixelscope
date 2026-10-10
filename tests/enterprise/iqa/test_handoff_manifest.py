@@ -77,9 +77,7 @@ def approved_repo(
     return _fixture(tmp_path_factory.mktemp("iqa_handoff_template"))
 
 
-def _clone_fixture(
-    tmp_path: Path, approved_repo: tuple[Path, str, str]
-) -> tuple[Path, str, str]:
+def _clone_fixture(tmp_path: Path, approved_repo: tuple[Path, str, str]) -> tuple[Path, str, str]:
     """Copy the tiny fixture history only for tests that write Git commits."""
     template, base, approved = approved_repo
     root = tmp_path / "repo"
