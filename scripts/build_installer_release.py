@@ -18,6 +18,10 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     write_payload_manifest,
 )
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
+)
 from scripts.release_contract import (  # noqa: E402
     APP_DIR,
     REPO_ROOT,
@@ -25,10 +29,6 @@ from scripts.release_contract import (  # noqa: E402
     windows_version_tuple,
 )
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
-from scripts.package_target_descriptor import (  # noqa: E402
-    PackageTargetDescriptor,
-    load_target_descriptor,
-)
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
 PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
