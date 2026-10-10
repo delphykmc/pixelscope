@@ -12,8 +12,8 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.release_contract import EXECUTABLE_PATH  # noqa: E402
 from scripts.package_target_descriptor import load_target_descriptor  # noqa: E402
+from scripts.release_contract import EXECUTABLE_PATH  # noqa: E402
 
 WM_CLOSE = 0x0010
 
