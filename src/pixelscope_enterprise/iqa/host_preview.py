@@ -4,8 +4,9 @@ Run from the source tree with:
     python -m pixelscope_enterprise.iqa.host_preview --rgb
 
 The selected MAIN files are NEVER submitted or evaluated. Each IQA > Run IQA
-schedules an independent synthetic job (complete / fail / cancel, repeating)
-so the operator can inspect the genuine Enterprise contributed job UI.
+schedules an independent synthetic job. Runs 1/2 complete/fail; run 3 waits
+for explicit operator cancellation, then acknowledges cancelled. The same
+three-state pattern repeats for subsequent runs.
 Do not register this developer-only module as a production executable.
 """
 
@@ -58,6 +59,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             result = replace(result, source_a=source_a, source_b=source_b)
 
         next_job = 0
+        cancel_events: dict[str, Event] = {}
 
         def run_synthetic(_selected_sources: tuple[Path | None, ...]) -> None:
             """Demo callback only: selected files are intentionally ignored."""
@@ -68,39 +70,78 @@ def main(arguments: Sequence[str] | None = None) -> int:
             job_id = f"synthetic-host-{ordinal:03d}"
             terminal = ("completed", "failed", "cancelled")[(ordinal - 1) % 3]
             label = f"Synthetic demo #{ordinal} (NOT real IQA)"
+            cancellation = Event()
+            cancel_events[job_id] = cancellation
             host.statusBar().showMessage(
                 "Synthetic preview: selected files were NOT evaluated", 9000
             )
 
             def worker() -> None:
-                """Use the real queued cross-thread boundary, not GUI mutation."""
+                """Publish verified synthetic states, not a fabricated Cancel acknowledgement."""
 
-                for state in ("queued", "running", terminal):
+                def emit(state: str, *, active: bool = False) -> bool:
                     if stop.is_set():
-                        return
-                    snapshot = IqaJobSnapshot(
-                        job_id=job_id,
-                        label=label,
-                        status=state,
-                        result=replace(result, result_id=job_id) if state == "completed" else None,
-                    )
+                        return False
                     try:
-                        contribution.post_job(snapshot)
+                        contribution.post_job(
+                            IqaJobSnapshot(
+                                job_id=job_id,
+                                label=label,
+                                status=state,
+                                result=replace(result, result_id=job_id)
+                                if state == "completed"
+                                else None,
+                                can_cancel=active,
+                            )
+                        )
                     except RuntimeError:
                         # MAIN shutdown may race with this synthetic producer.
-                        return
-                    if state != terminal and stop.wait(0.8):
-                        return
+                        return False
+                    return True
+
+                if not emit("queued", active=True):
+                    return
+                if cancellation.wait(0.8):
+                    emit("cancelled")
+                    return
+                if not emit("running", active=True):
+                    return
+
+                if terminal == "cancelled":
+                    # Job #3 (and every third job) stays running until user
+                    # actually requests cancellation for THIS job.
+                    while not stop.is_set() and not cancellation.wait(0.1):
+                        pass
+                else:
+                    cancellation.wait(0.8)
+
+                if stop.is_set():
+                    return
+                emit("cancelled" if cancellation.is_set() else terminal)
 
             thread = Thread(target=worker, name=f"iqa-host-preview-{ordinal}", daemon=True)
             workers.append(thread)
             thread.start()
 
+        def cancel_synthetic(job_id: str) -> None:
+            """Request cancellation; worker alone acknowledges the terminal state."""
+
+            cancellation = cancel_events.get(job_id)
+            if cancellation is None:
+                raise ValueError("unknown synthetic job")
+            cancellation.set()
+            host.statusBar().showMessage(
+                f"Synthetic cancellation requested: {job_id} (awaiting confirmation)",
+                9000,
+            )
+
         def private_preview_settings() -> QSettings:
             return QSettings(str(root / "iqa.ini"), QSettings.Format.IniFormat)
 
         contribution = IqaWindowContribution(
-            start_job=run_synthetic, settings_factory=private_preview_settings
+            start_job=run_synthetic,
+            cancel_job=cancel_synthetic,
+            settings_factory=private_preview_settings,
         )
         host = MainWindow(
             settings,
@@ -113,9 +154,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         app.aboutToQuit.connect(stop.set)  # type: ignore[attr-defined]
         host.show()
         print(
-            "UX-3C synthetic host: IQA > Run IQA, status-bar IQA Jobs, "
-            "View > Show IQA Jobs, then View selected result. "
-            "Runs 1/2/3 complete/fail/cancel; no actual image evaluation."
+            "UX-3C synthetic host: IQA > Run IQA / Cancel Selected IQA Job, "
+            "View > Show IQA Jobs, then select a job. "
+            "Runs 1/2 complete/fail; run 3 awaits explicit cancellation. "
+            "No actual image evaluation."
         )
         try:
             return app.exec()
