@@ -73,6 +73,24 @@ def documentation_python() -> Path:
     return dev_python if dev_python.is_file() else Path(sys.executable)
 
 
+def _prepare_custom_output(descriptor: PackageTargetDescriptor) -> None:
+    """Preclean only the validated custom onedir, never public dist siblings.
+
+    A stale valid tree must not satisfy validation after a mismatched spec
+    builds a different COLLECT name. Reject reparse/junction/symlink targets
+    before removing any files.
+    """
+
+    output = descriptor.output_root
+    dist_root = DIST_ROOT.resolve()
+    if output.parent.resolve() != dist_root or output.is_symlink():
+        raise RuntimeError("unsafe custom package output directory")
+    if output.exists():
+        if not output.is_dir() or output.resolve().parent != dist_root:
+            raise RuntimeError("unsafe custom package output directory")
+        shutil.rmtree(output)
+
+
 def build_public_target(
     target: str = "core", *, descriptor: PackageTargetDescriptor | None = None
 ) -> Path:
@@ -105,7 +123,16 @@ def build_public_target(
         if target == "core"
         else pyinstaller_command(target)
     )
+    if descriptor is not None:
+        _prepare_custom_output(descriptor)
     subprocess.run(command, cwd=REPO_ROOT, check=True)
+    if descriptor is not None:
+        executable = app_dir / executable_name
+        if not executable.is_file() or executable.stat().st_size == 0:
+            raise RuntimeError(
+                "custom PyInstaller spec did not produce the expected onedir executable: "
+                f"{executable}"
+            )
 
     # The frozen Help lookup is executable-relative, not a PyInstaller _MEIPASS
     # resource. Copy after COLLECT and before artifact/manifest validation.
