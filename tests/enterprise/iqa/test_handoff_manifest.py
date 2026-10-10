@@ -231,16 +231,17 @@ def test_private_collisions_and_tampered_manifest_are_rejected(
 
 def test_nonancestor_history_merge_and_wrong_tag_fail(tmp_path: Path, fake_git: FakeGit) -> None:
     old_path, _ = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
-    with pytest.raises(handoff.HandoffError, match="history-merge requires"):
-        _make_manifest(
-            tmp_path,
-            fake_git,
-            fake_git.parallel,
-            3,
-            previous=old_path,
-            mode="history-merge",
-        )
-    _, manifest = _make_manifest(tmp_path, fake_git, fake_git.parallel, 3, previous=old_path)
+    for mode in ("manifest-delta", "history-merge"):
+        with pytest.raises(handoff.HandoffError, match="must descend from prior approved SHA"):
+            _make_manifest(
+                tmp_path,
+                fake_git,
+                fake_git.parallel,
+                3,
+                previous=old_path,
+                mode=mode,
+            )
+    _, manifest = _make_manifest(tmp_path, fake_git, fake_git.v2, 2, previous=old_path)
     manifest["approved_tag"] = "handoff/iqa/v1"
     with pytest.raises(handoff.HandoffError, match="approved tag"):
         handoff.plan_import(tmp_path, tmp_path / "sub", manifest, handoff._read(old_path))
