@@ -61,9 +61,7 @@ def test_repeated_analysis_show_hide_close_and_normal_gc(
         gc.collect()
 
 
-def test_running_spatial_future_quiesces_on_manager_shutdown(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_running_spatial_future_quiesces_on_manager_shutdown(qtbot: object, tmp_path: Path) -> None:
     """A RUNNING Future can complete after close without refreshing disposed UI."""
 
     path = tmp_path / "busy-close.ini"
