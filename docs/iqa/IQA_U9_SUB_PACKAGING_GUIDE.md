@@ -2,8 +2,7 @@
 
 Status: **PUBLIC-safe integration/acceptance instructions**, not a working
 PRIVATE SUB executable, a confidential launcher, or a production release
-approval. This document complements [the U2 descriptor contract]
-(IQA_U2_TARGET_DESCRIPTOR.md). The generic U2 plumbing was merged into
+approval. This document complements [the U2 descriptor contract](IQA_U2_TARGET_DESCRIPTOR.md). The generic U2 plumbing was merged into
 PUBLIC `main` by [PR #167](https://github.com/delphykmc/pixelscope/pull/167)
 at exact `4a85285c49bb97d90f92fdb6edfc81702242a269`. Any SUB integration
 must pin and verify the actual MAIN SHA selected for its release.
