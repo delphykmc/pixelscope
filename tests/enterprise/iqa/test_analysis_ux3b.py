@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QFileDialog, QInputDialog
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
-import numpy as np
 
 
 def _result(rgb: Path | None) -> AnalysisResult:
