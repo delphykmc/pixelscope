@@ -106,10 +106,26 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             value_text + ("  ↗ clipped" if clipped else ""),
         )
-        x = content.left() + 4
-        width = max(16, content.width() - 8)
-        middle = x + width // 2
+        # Endpoint labels belong to the individual bar, not a separate
+        # two-line Inspector legend: quality-oriented Full shows B / A;
+        # provisional ROI and unoriented Full show signed − / + only.
+        left_end, right_end = (
+            ("B", "A") if attr.quality_oriented and not is_roi else ("−", "+")
+        )
         y = content.top() + 20
+        painter.drawText(
+            QRect(content.left(), y - 4, 19, 15),
+            Qt.AlignmentFlag.AlignCenter,
+            left_end,
+        )
+        painter.drawText(
+            QRect(content.right() - 18, y - 4, 19, 15),
+            Qt.AlignmentFlag.AlignCenter,
+            right_end,
+        )
+        x = content.left() + 20
+        width = max(16, content.width() - 40)
+        middle = x + width // 2
         painter.fillRect(QRect(x, y, width, 7), palette.midlight())
         painter.fillRect(QRect(middle, y - 3, 1, 13), text_color)
         extent = round(abs(fraction) * width / 2)
