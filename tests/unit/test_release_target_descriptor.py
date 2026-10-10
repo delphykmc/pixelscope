@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from scripts import build_portable_release as portable
+from scripts import build_release as release_builder
 from scripts import build_third_party_notices as notices
 from scripts.build_installer_release import installer_command
 from scripts.build_release import pyinstaller_command
@@ -78,14 +79,19 @@ def test_caller_selected_descriptor_drives_spec_exe_version_inno(tmp_path: Path)
     ("overrides", "message"),
     [
         ({"schema_version": 2}, "schema"),
+        ({"schema_version": True}, "schema"),
         ({"target_id": "core"}, "target_id"),
         ({"spec": "../hidden/secret.spec"}, "unsafe"),
         ({"spec": "/private/secret.spec"}, "unsafe"),
         ({"app_dir": "PixelScope"}, "overwrite"),
+        ({"app_dir": "CON"}, "reserved device"),
+        ({"app_dir": "com1"}, "reserved device"),
+        ({"app_dir": "LPT9"}, "reserved device"),
         ({"app_dir": "Bad\\Path"}, "app_dir"),
         ({"executable": "../bad.exe"}, "executable"),
         ({"display_name": 'Bad"Injected'}, "display_name"),
         ({"installer_app_id": "not-a-guid"}, "GUID"),
+        ({"installer_app_id": "{6fa0ab08-ab41-4f77-93e8-16ce6ff53e5c}"}, "collides"),
         ({"runtime_requirements": "../secret.txt"}, "unsafe"),
         ({"unexpected_key": "x"}, "unknown"),
     ],
@@ -95,6 +101,61 @@ def test_descriptor_rejects_invalid_or_unsafe_values(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         load_target_descriptor(_descriptor_file(tmp_path, **overrides))
+
+
+@pytest.mark.parametrize("produces_expected_target", [False, True])
+def test_custom_build_cannot_reuse_stale_artifact_when_spec_builds_elsewhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, produces_expected_target: bool
+) -> None:
+    target = load_target_descriptor(_descriptor_file(tmp_path))
+    monkeypatch.setattr("scripts.package_target_descriptor.REPO_ROOT", tmp_path)
+    monkeypatch.setattr(release_builder, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(release_builder, "DIST_ROOT", tmp_path / "dist")
+    monkeypatch.setattr(release_builder, "validate_release_host", lambda: None)
+    monkeypatch.setattr(release_builder, "write_windows_version_info", lambda **_kw: None)
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "index.html").write_text("offline guide", encoding="utf-8")
+    monkeypatch.setattr(release_builder, "build_user_guide", lambda **_kw: site)
+
+    stale_root = target.output_root
+    stale_root.mkdir(parents=True)
+    (stale_root / target.executable).write_bytes(b"stale binary")
+    public_root = tmp_path / "dist" / "PixelScope"
+    public_root.mkdir()
+    public_exe = public_root / "PixelScope.exe"
+    public_exe.write_bytes(b"public binary")
+
+    def fake_build(_command: list[str], **_kwargs: object) -> None:
+        # Before the PyInstaller subprocess starts, stale custom artifacts
+        # must be gone; unrelated Core output must remain untouched.
+        assert not stale_root.exists()
+        assert public_exe.read_bytes() == b"public binary"
+        if produces_expected_target:
+            stale_root.mkdir()
+            (stale_root / target.executable).write_bytes(b"new binary")
+        else:
+            (public_root / "wrong-spec-built.txt").write_text("wrong COLLECT")
+
+    monkeypatch.setattr(release_builder.subprocess, "run", fake_build)
+    validated: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        release_builder,
+        "validate_artifact",
+        lambda root, *, executable_name: validated.append((root, executable_name)),
+    )
+
+    if not produces_expected_target:
+        with pytest.raises(RuntimeError, match="did not produce the expected onedir"):
+            release_builder.build_public_target(descriptor=target)
+        assert not stale_root.exists()
+        assert not validated
+    else:
+        assert release_builder.build_public_target(descriptor=target) == stale_root
+        assert (stale_root / target.executable).read_bytes() == b"new binary"
+        assert (stale_root / "help" / "index.html").read_text() == "offline guide"
+        assert validated == [(stale_root, target.executable)]
+    assert public_exe.read_bytes() == b"public binary"
 
 
 def test_third_target_manifest_portable_zip_and_bundle(
@@ -162,6 +223,15 @@ def test_third_target_manifest_portable_zip_and_bundle(
     )
     assert len(paths) == 4
     assert all(path.is_file() for path in paths)
+
+    # Public/other-target release files may coexist, but the selected
+    # custom stem must not have undeclared extra artifacts.
+    extra = release_root / f"{release_stem(version, descriptor=target)}-debug.txt"
+    extra.write_text("unexpected", encoding="utf-8")
+    with pytest.raises(Exception, match="unexpected files"):
+        validate_release_bundle(release_root=release_root, descriptor=target, version=version)
+    extra.unlink()
+    validate_release_bundle(release_root=release_root, descriptor=target, version=version)
 
     (root / "library.dll").write_bytes(b"tampered")
     with pytest.raises(Exception, match="size mismatch|SHA-256 mismatch"):
