@@ -199,9 +199,7 @@ class IqaWindowContribution:
             return
         latest = self._records[self._latest_job_id]
         button.setText(f"IQA: {latest.label} — {latest.status} · View jobs")
-        button.setAccessibleName(
-            f"IQA job {latest.label}, {latest.status}; open the IQA jobs list"
-        )
+        button.setAccessibleName(f"IQA job {latest.label}, {latest.status}; open the IQA jobs list")
         button.show()
 
     def request_analysis(self) -> None:
