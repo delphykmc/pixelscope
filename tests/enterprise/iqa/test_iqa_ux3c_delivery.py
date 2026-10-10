@@ -190,7 +190,8 @@ def test_cancel_selected_job_requires_provider_and_explicit_job_capability(
     assert contribution.cancel_selected_button.isEnabled()
     cancel.trigger()
     assert cancellations == ["j1"]
-    # Request submission does not fabricate a terminal state.
+    # Request is visibly pending but must not fabricate a terminal state.
+    assert "cancel requested" in contribution.jobs_list.item(0).text()
     assert contribution._records["j1"].status == "running"
     assert not cancel.isEnabled()  # Suppress duplicate requests.
     assert not contribution.cancel_selected_button.isEnabled()
@@ -200,6 +201,7 @@ def test_cancel_selected_job_requires_provider_and_explicit_job_capability(
     contribution.publish_job(IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True))
     assert not cancel.isEnabled()  # An ordinary status poll is not rejection.
     contribution.publish_job(IqaJobSnapshot("j1", "Cancelled by provider", "cancelled"))
+    assert "cancel requested" not in contribution.jobs_list.item(0).text()
     assert not cancel.isEnabled()
     assert contribution.open_selected_result() is None
     contribution.shutdown()
@@ -229,6 +231,7 @@ def test_cancel_callback_error_preserves_running_truth(
         contribution.request_cancel_selected()
     assert calls == ["active"]
     assert contribution._records["active"].status == "queued"
+    assert "cancel requested" not in contribution.jobs_list.item(0).text()
     assert contribution.cancel_selected_button.isEnabled()
     contribution.shutdown()
     host.close()
