@@ -46,9 +46,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     with TemporaryDirectory(prefix="pixelscope-iqa-host-preview-") as temporary:
         root = Path(temporary)
         repository = SettingsRepository(
-            QSettingsAdapter(
-                QSettings(str(root / "main.ini"), QSettings.Format.IniFormat)
-            )
+            QSettingsAdapter(QSettings(str(root / "main.ini"), QSettings.Format.IniFormat))
         )
         settings = repository.load()
         result = make_synthetic_result("synthetic-host-preview")
@@ -84,9 +82,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                         job_id=job_id,
                         label=label,
                         status=state,
-                        result=replace(result, result_id=job_id)
-                        if state == "completed"
-                        else None,
+                        result=replace(result, result_id=job_id) if state == "completed" else None,
                     )
                     try:
                         contribution.post_job(snapshot)
@@ -96,9 +92,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     if state != terminal and stop.wait(0.8):
                         return
 
-            thread = Thread(
-                target=worker, name=f"iqa-host-preview-{ordinal}", daemon=True
-            )
+            thread = Thread(target=worker, name=f"iqa-host-preview-{ordinal}", daemon=True)
             workers.append(thread)
             thread.start()
 
