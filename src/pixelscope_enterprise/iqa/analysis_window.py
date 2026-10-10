@@ -39,6 +39,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShowEvent,
+    QStandardItemModel,
     QTransform,
     QWheelEvent,
 )
@@ -89,7 +90,9 @@ from pixelscope_enterprise.iqa.analysis_model import (
 )
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
+    CHART_MEASUREMENT_ROLE,
     DISPLAY_RANGE_ROLE,
+    ChartMeasurement,
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.insights import rank_top_differences
@@ -113,6 +116,8 @@ class _ResultViewState:
     center_x: float | None = None
     center_y: float | None = None
     display_gain: float = 1.0
+    chart_scope: str = "full_pair"
+    scope_user_override: bool = False
 
 
 class _LinkedView(QGraphicsView):
@@ -400,7 +405,6 @@ class AnalysisWindow(QMainWindow):
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
-        self._dock_startup_fit_pending = True
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
         self._spatial_displayed: tuple[str, str, int] | None = None
         self._spatial_pending: tuple[str, str, int] | None = None
@@ -477,7 +481,7 @@ class AnalysisWindow(QMainWindow):
             "Swap the visual positions of A and B; measurement identity is unchanged " "(T, Alt+X)"
         )
         self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
-        self.hotspot_overlay_action = view_menu.addAction("Show Hotspot")
+        self.hotspot_overlay_action = view_menu.addAction("Show Hotspot Markers")
         self.hotspot_overlay_action.setObjectName("enterpriseIqaShowHotspotBoxes")
         self.hotspot_overlay_action.setIcon(_analysis_action_icon("hotspot"))
         self.hotspot_overlay_action.setCheckable(True)
@@ -485,10 +489,11 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.setShortcut(QKeySequence("Alt+H"))
         self.hotspot_overlay_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.hotspot_overlay_action.setToolTip(
-            "Show/hide numbered hotspot proposals without altering native RGB (Alt+H)"
+            "Toggle numbered hotspot markers on A/B/Map (Alt+H). "
+            "Separate from the Hotspot Candidates View panel."
         )
         self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
-            self._draw_candidate_overlays
+            self._hotspot_overlay_toggled
         )
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
@@ -548,17 +553,25 @@ class AnalysisWindow(QMainWindow):
         self.result_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._on_result_selected
         )
-        inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
-        chart_help = QLabel(
-            "B better (−)  ←  0  →  A better (+)\n"
-            "Neutral signed: teal (−) / purple (+) · no winner",
-            inspector,
+        # A compact single-line control bar; value provenance belongs in
+        # tooltips/Details, while per-bar endpoints identify quality direction.
+        scope_toolbar = QHBoxLayout()
+        scope_toolbar.setContentsMargins(0, 0, 0, 0)
+        scope_toolbar.setSpacing(5)
+        scope_toolbar.addWidget(QLabel("Scope", inspector))
+        self.chart_scope_combo = QComboBox(inspector)
+        self.chart_scope_combo.setObjectName("enterpriseIqaChartScope")
+        self.chart_scope_combo.addItem("Full", "full_pair")
+        self.chart_scope_combo.addItem("ROI · grid", "roi_grid")
+        self.chart_scope_combo.setToolTip(
+            "Full: original whole-pair measurements. ROI: signed, masked, "
+            "area-weighted GRID estimates (not validated local quality scores)."
         )
-        chart_help.setWordWrap(True)
-        chart_help.setObjectName("enterpriseIqaChartHelp")
-        inspector_layout.addWidget(chart_help)
-        shared_controls = QHBoxLayout()
-        shared_controls.addWidget(QLabel("MAP DISPLAY GAIN", inspector))
+        self.chart_scope_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._on_chart_scope_changed
+        )
+        scope_toolbar.addWidget(self.chart_scope_combo, 1)
+        scope_toolbar.addWidget(QLabel("Map gain", inspector))
         self.gain_editor = QDoubleSpinBox(inspector)
         self.gain_editor.setObjectName("enterpriseIqaDisplayGain")
         self.gain_editor.setDecimals(1)
@@ -571,11 +584,10 @@ class AnalysisWindow(QMainWindow):
             "Full-pair bar and ROI values are unchanged."
         )
         self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
-        shared_controls.addWidget(self.gain_editor)
-        inspector_layout.addLayout(shared_controls)
+        scope_toolbar.addWidget(self.gain_editor)
+        inspector_layout.addLayout(scope_toolbar)
 
-        # Compact always-visible ROI identity; detailed context belongs in its tab.
-        # The chart no longer loses half its vertical space to explanatory cards.
+        # Source-coordinate ROI identity remains a single fixed-height row.
         roi_toolbar = QHBoxLayout()
         roi_toolbar.setContentsMargins(0, 0, 0, 0)
         self.roi_brief_label = QLabel("ROI: none", inspector)
@@ -738,7 +750,7 @@ class AnalysisWindow(QMainWindow):
         self.setCentralWidget(central)
 
         # Own QMainWindow dock manager: never attach this dock to PixelScope MAIN.
-        self.spatial_dock = QDockWidget("Spatial ROI Candidates", self)
+        self.spatial_dock = QDockWidget("Hotspot Candidates View", self)
         self.spatial_dock.setObjectName("enterpriseIqaSpatialCandidatesDock")
         self.spatial_dock.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
@@ -755,7 +767,7 @@ class AnalysisWindow(QMainWindow):
         # not depend on an OS-specific floating QDockWidget title decoration.
         self.spatial_dock_title = _EnterpriseSpatialDockTitle(
             self.spatial_dock,
-            title="Hotspots",
+            title="Hotspot Candidates View",
             geometry_setting="ui/enterprise_iqa_spatial_floating_geometry",
         )
         self.spatial_dock.setTitleBarWidget(self.spatial_dock_title)
@@ -765,26 +777,35 @@ class AnalysisWindow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
         view_menu.addSeparator()
-        view_menu.addAction(self.spatial_dock.toggleViewAction())
+        self.hotspot_candidates_action = self.spatial_dock.toggleViewAction()
+        self.hotspot_candidates_action.setText("Hotspot Candidates View")
+        self.hotspot_candidates_action.setShortcut(QKeySequence("Alt+Shift+H"))
+        self.hotspot_candidates_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.hotspot_candidates_action.setToolTip(
+            "Show/hide the Hotspot Candidates View (Alt+Shift+H). "
+            "Candidates are computed only when the panel or markers are requested."
+        )
+        view_menu.addAction(self.hotspot_candidates_action)
         self.spatial_panel.candidate_clicked.connect(self._select_spatial_candidate)
         self.spatial_panel.stride_changed.connect(self._request_spatial_candidates)
         self.spatial_dock.visibilityChanged.connect(  # type: ignore[attr-defined]
             self._spatial_dock_visibility_changed
         )
-        # Older builds could persist an invisible/zero-height dock and hide
-        # the entire ROI workflow on the next launch. Restore placement, but
-        # always show the ROI dock at the initial analysis-window presentation.
+        # Restore location/size but NOT visibility. The candidates panel is
+        # explicitly opt-in on every new Analysis Window; an old persisted
+        # visible dock must not trigger a scan or surprise the operator.
         dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_spatial_dock_state"
         )
         if isinstance(dock_state, QByteArray | bytes):
             self.restoreState(dock_state)
+        self.spatial_dock.hide()
         # Read the same reusable design tokens as the public PixelScope host.
         # No private stylesheet or global palette mutation when hosted by MAIN.
         self.setStyleSheet(
             f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
             "font-weight: 700; }"
-            f"QLabel#enterpriseIqaChartHelp, QLabel#enterpriseIqaDetailContext, "
+            f"QLabel#enterpriseIqaDetailContext, "
             f"QLabel#enterpriseIqaOfficialExplanation, QLabel#enterpriseIqaRoiExplanation, "
             f"QLabel#enterpriseIqaMapExplanation {{ color: {TOKENS.text_secondary}; }}"
             f"QFrame#enterpriseIqaOfficialCard, "
@@ -821,13 +842,24 @@ class AnalysisWindow(QMainWindow):
     def _validated_saved_state(result: AnalysisResult, raw: dict[str, object]) -> _ResultViewState:
         """Validate the separate user state before mutating any visible UI."""
 
-        # H1 legacy states used attribute-id ranges and had no gain. New
-        # states use unit keys and include display_gain, deterministically
-        # migrating old attribute overrides without changing measurements.
+        # H1 legacy states used attribute-id ranges; H2 added display_gain.
+        # Chart scope is a user-only state field and defaults to Full pair
+        # for all earlier saved snapshots, even if they contain an active ROI.
         fields = set(raw)
-        legacy = fields == {"attribute_id", "roi", "ranges", "viewport"}
-        if not legacy and fields != {"attribute_id", "roi", "ranges", "viewport", "display_gain"}:
+        basic_fields = {"attribute_id", "roi", "ranges", "viewport"}
+        legacy = fields == basic_fields
+        with_gain = basic_fields | {"display_gain"}
+        with_scope = with_gain | {"chart_scope", "scope_user_override"}
+        if fields not in (basic_fields, with_gain, with_scope):
             raise ValueError("invalid analysis_state fields")
+        scope = raw["chart_scope"] if fields == with_scope else "full_pair"
+        override = raw["scope_user_override"] if fields == with_scope else False
+        if (
+            not isinstance(scope, str)
+            or scope not in ("full_pair", "roi_grid")
+            or not isinstance(override, bool)
+        ):
+            raise ValueError("invalid chart scope or user override")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
         if not isinstance(attribute_id, str) or attribute_id not in ids:
@@ -897,6 +929,8 @@ class AnalysisWindow(QMainWindow):
             right, bottom = int(np.ceil(x + width)), int(np.ceil(y + height))
             roi = (left, top, right - left, bottom - top)
 
+        if scope == "roi_grid" and roi is None:
+            raise ValueError("ROI chart scope requires a saved ROI")
         viewport = raw["viewport"]
         if not isinstance(viewport, dict) or set(viewport) != {"scale", "center_x", "center_y"}:
             raise ValueError("invalid saved viewport")
@@ -904,7 +938,14 @@ class AnalysisWindow(QMainWindow):
         x_center = viewport["center_x"]
         y_center = viewport["center_y"]
         if zoom is None and x_center is None and y_center is None:
-            return _ResultViewState(attribute_id, roi, ranges, display_gain=gain)
+            return _ResultViewState(
+                attribute_id,
+                roi,
+                ranges,
+                display_gain=gain,
+                chart_scope=scope,
+                scope_user_override=override,
+            )
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
         center_y = finite_number(y_center)
@@ -919,7 +960,9 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("saved view center outside bounded source overscan")
         if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
             raise ValueError("saved view center outside bounded source overscan")
-        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y, gain)
+        return _ResultViewState(
+            attribute_id, roi, ranges, scale, center_x, center_y, gain, scope, override
+        )
 
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
@@ -973,12 +1016,14 @@ class AnalysisWindow(QMainWindow):
         self.export_menu_action.setEnabled(True)
         self.export_action.setEnabled(True)
         self._populate_attributes()
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._update_top_cards()
         self.gain_editor.setEnabled(True)
         self._render_result()
         self.statusBar().showMessage(
-            "Official global and grid-derived ROI values are distinct. "
-            "Positive = A better only for oriented metrics."
+            "Full-pair comparison and GRID-derived ROI estimates are distinct. "
+            "Regional signed estimates never imply a verified quality winner."
         )
 
     def _update_top_cards(self) -> None:
@@ -1065,6 +1110,8 @@ class AnalysisWindow(QMainWindow):
             "roi": list(state.roi) if state.roi is not None else None,
             "ranges": dict(state.ranges),  # stable unit names, not attribute IDs
             "display_gain": state.display_gain,
+            "chart_scope": state.chart_scope,
+            "scope_user_override": state.scope_user_override,
             "viewport": {
                 "scale": state.scale,
                 "center_x": state.center_x,
@@ -1140,7 +1187,7 @@ class AnalysisWindow(QMainWindow):
 
             table = QTableWidget(len(attrs), 2, section)
             table.setObjectName("enterpriseIqaAttributes")
-            table.setHorizontalHeaderLabels(["Metric / family", "Official difference"])
+            table.setHorizontalHeaderLabels(["Metric / family", "Full-pair comparison"])
             table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
             table.setColumnWidth(0, 142)
             table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -1152,9 +1199,9 @@ class AnalysisWindow(QMainWindow):
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            table.setFixedHeight(27 + 36 * len(attrs))
+            table.setFixedHeight(27 + 32 * len(attrs))
             for row, attr in enumerate(attrs):
-                table.setRowHeight(row, 36)
+                table.setRowHeight(row, 32)
                 for col, content in enumerate((f"{attr.label}\n{attr.group}", "")):
                     item = QTableWidgetItem(content)
                     item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
@@ -1228,6 +1275,46 @@ class AnalysisWindow(QMainWindow):
         if self._group_units:
             self._on_group_attribute_selected(self._group_units[0])
 
+    def _sync_chart_scope(self) -> None:
+        """Mirror per-result selection, disabling ROI mode without geometry."""
+
+        state = self._state()
+        roi_ready = state is not None and state.roi is not None
+        combo_model = self.chart_scope_combo.model()
+        if isinstance(combo_model, QStandardItemModel):
+            roi_option = combo_model.item(1)
+            if roi_option is not None:
+                roi_option.setEnabled(roi_ready)
+        scope = state.chart_scope if state is not None else "full_pair"
+        if not roi_ready:
+            scope = "full_pair"
+        index = self.chart_scope_combo.findData(scope)
+        self.chart_scope_combo.blockSignals(True)
+        self.chart_scope_combo.setCurrentIndex(max(index, 0))
+        self.chart_scope_combo.blockSignals(False)
+        # Scope changes must not shift the chart geometry or reserve
+        # explanatory lines above the actual Attribute measurements.
+
+    def _on_chart_scope_changed(self, _index: int) -> None:
+        state = self._state()
+        if state is None:
+            return
+        requested = self.chart_scope_combo.currentData()
+        if requested not in ("full_pair", "roi_grid"):
+            return
+        if requested == "roi_grid" and state.roi is None:
+            self._sync_chart_scope()
+            return
+        # A manual Full-pair choice wins over later ROI drag gestures.
+        state.chart_scope = requested
+        state.scope_user_override = True
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
+
+    def _refresh_all_group_bars(self) -> None:
+        for unit in self._group_tables:
+            self._refresh_group_bars(unit)
+
     def _refresh_group_bars(self, unit: str) -> None:
         state = self._state()
         if state is None or self._active_id is None:
@@ -1238,10 +1325,40 @@ class AnalysisWindow(QMainWindow):
         limit = self._display_range(
             next(a for a in self._results[self._active_id].attributes if a.unit == unit), state
         )
+        is_roi = state.chart_scope == "roi_grid" and state.roi is not None
+        table.setHorizontalHeaderLabels(["Metric / family", "ROI Δ (grid)" if is_roi else "Pair Δ"])
         for row in range(table.rowCount()):
             cell = table.item(row, 1)
-            if cell is not None:
-                cell.setData(DISPLAY_RANGE_ROLE, limit)
+            if cell is None:
+                continue
+            cell.setData(DISPLAY_RANGE_ROLE, limit)
+            attr = cell.data(ATTRIBUTE_ROLE)
+            if not isinstance(attr, AttributeDisplay):
+                continue
+            if is_roi:
+                roi = state.roi
+                assert roi is not None
+                if attr.spatial is None:
+                    measurement = ChartMeasurement(None, "missing", 0.0)
+                else:
+                    stats = roi_statistics(attr.spatial, roi)
+                    measurement = ChartMeasurement(
+                        stats.mean,
+                        "available" if stats.mean is not None else "missing",
+                        stats.valid_coverage,
+                    )
+                cell.setData(CHART_MEASUREMENT_ROLE, measurement)
+                cell.setToolTip(
+                    f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
+                    f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
+                    "signed local evidence, no regional quality winner."
+                )
+            else:
+                cell.setData(CHART_MEASUREMENT_ROLE, None)
+                cell.setToolTip(
+                    f"{attr.label}: full-pair producer comparison "
+                    f"({attr.official_availability}); display range ±{limit:g} {unit}."
+                )
         table.viewport().update()
 
     def _update_group_range(self, unit: str, value: float) -> None:
@@ -1282,6 +1399,7 @@ class AnalysisWindow(QMainWindow):
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
         self.roi_brief_label.setText("ROI: none")
+        self._sync_chart_scope()
         self.range_editor.setEnabled(False)
         self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
@@ -1461,18 +1579,35 @@ class AnalysisWindow(QMainWindow):
 
     def _spatial_dock_visibility_changed(self, visible: bool) -> None:
         if visible:
+            # Re-dock a saved floating window from a disconnected monitor.
+            dock = self.spatial_dock
+            if dock.isFloating() and not any(
+                dock.frameGeometry().intersects(screen.availableGeometry())
+                for screen in QApplication.screens()
+            ):
+                dock.setFloating(False)
+                self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+            QTimer.singleShot(0, self._settle_dock_initial_height)
             self._request_spatial_candidates()
         else:
             self._draw_candidate_overlays()
 
+    def _hotspot_overlay_toggled(self, enabled: bool) -> None:
+        self._draw_candidate_overlays()
+        if enabled:
+            # Marker-only workflow lazily computes without opening the panel.
+            self._request_spatial_candidates()
+
     def _request_spatial_candidates(self, _stride: int = 128) -> None:
         """Always synchronize scene overlays before the visibility-gated scan."""
 
-        # A hidden dock does not scan, but old Attribute hotspots MUST NOT
-        # survive over a different Attribute/Map or stride. Repaint/visibility
-        # synchronization is cheap and independent of worker scheduling.
+        # Neither a hidden panel nor inactive markers should scan on startup.
+        # Previously computed overlays must still be invalidated on Attribute
+        # changes even while both user-controlled surfaces remain hidden.
         self._draw_candidate_overlays()
-        if not self.isVisible() or self.spatial_dock.isHidden():
+        if not self.isVisible() or (
+            self.spatial_dock.isHidden() and not self.hotspot_overlay_action.isChecked()
+        ):
             return
         key = self._spatial_key()
         attr = self._attribute()
@@ -1773,6 +1908,14 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is not None:
             state.roi = None
+        if state is not None:
+            state.chart_scope = "full_pair"
+        if state is not None:
+            # A cleared ROI is a fresh interaction cycle. Never retain the
+            # previous manual Full override into a brand-new ROI selection.
+            state.scope_user_override = False
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._draw_roi(None)
         self._sync_spatial_selection()
         attr = self._attribute()
@@ -1794,7 +1937,12 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is None:
             return
+        first_roi = state.roi is None
         state.roi = (left, top, right - left, bottom - top)
+        if first_roi and not state.scope_user_override:
+            state.chart_scope = "roi_grid"
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._draw_roi(state.roi)
         self._sync_spatial_selection()
         attr = self._attribute()
@@ -1832,30 +1980,9 @@ class AnalysisWindow(QMainWindow):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        if self._dock_startup_fit_pending:
-            self._dock_startup_fit_pending = False
-            # restoreState() can reapply a stale hidden/float state. Defer
-            # exactly once until QMainWindow has laid out its dock widgets.
-            QTimer.singleShot(0, self._show_spatial_dock_at_startup)
+        # Startup presents only A/B/Map. The optional candidates dock and
+        # worker are activated by View > Hotspot Candidates View or by markers.
         self._queue_initial_fit()
-        self._request_spatial_candidates()
-
-    def _show_spatial_dock_at_startup(self) -> None:
-        if not self.isVisible():
-            return
-        dock = self.spatial_dock
-        # Re-dock an orphan floating panel (e.g. a disconnected monitor).
-        if dock.isFloating():
-            visible = any(
-                dock.frameGeometry().intersects(screen.availableGeometry())
-                for screen in QApplication.screens()
-            )
-            if not visible:
-                dock.setFloating(False)
-                self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.show()
-        dock.raise_()
-        self._settle_dock_initial_height()
         self._request_spatial_candidates()
 
     def _settle_dock_initial_height(self) -> None:

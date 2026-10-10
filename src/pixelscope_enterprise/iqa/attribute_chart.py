@@ -6,6 +6,7 @@ The parent Inspector supplies one legend and the selected range control.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, cast
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRect, Qt
@@ -16,6 +17,17 @@ from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, official_
 
 ATTRIBUTE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 DISPLAY_RANGE_ROLE = int(Qt.ItemDataRole.UserRole) + 2
+CHART_MEASUREMENT_ROLE = int(Qt.ItemDataRole.UserRole) + 3
+
+
+@dataclass(frozen=True)
+class ChartMeasurement:
+    """ROI display-only estimate, never a full-pair/quality-winner scalar."""
+
+    value: float | None
+    availability: str
+    valid_coverage: float
+
 
 _A_COLOR = QColor(222, 88, 79)
 _B_COLOR = QColor(69, 139, 212)
@@ -56,10 +68,13 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         painter.fillRect(fields.rect, palette.highlight() if selected else palette.base())
         content = fields.rect.adjusted(6, 1, -7, -1)
         painter.setPen(text_color)
-        if attr.official_value is None:
-            painter.drawText(
-                content, Qt.AlignmentFlag.AlignVCenter, f"{attr.official_availability.upper()} · —"
-            )
+        roi = index.data(CHART_MEASUREMENT_ROLE)
+        is_roi = isinstance(roi, ChartMeasurement)
+        value = roi.value if is_roi else attr.official_value
+        availability = roi.availability if is_roi else attr.official_availability
+        if value is None:
+            label = f"GRID {availability.upper()} · —" if is_roi else f"{availability.upper()} · —"
+            painter.drawText(content, Qt.AlignmentFlag.AlignVCenter, label)
             painter.restore()
             return
 
@@ -67,32 +82,56 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         display_range = (
             float(supplied) if isinstance(supplied, int | float) else attr.chart_axis_range
         )
-        fraction = official_chart_fraction(attr, display_range)
-        value_text = f"{attr.official_value:+.3f} {attr.unit}"
+        if is_roi:
+            # A local masked GRID mean is descriptive signed evidence only:
+            # never reuse the producer's quality-oriented global fraction.
+            fraction = (
+                max(-1.0, min(1.0, value / display_range))
+                if display_range is not None and display_range > 0
+                else None
+            )
+            value_text = f"{value:+.3f} {attr.unit} · GRID {roi.valid_coverage:.0%}"
+        else:
+            fraction = official_chart_fraction(attr, display_range)
+            value_text = f"{value:+.3f} {attr.unit}"
         if fraction is None:
             painter.drawText(content, Qt.AlignmentFlag.AlignVCenter, value_text + " · unscaled")
             painter.restore()
             return
 
         assert display_range is not None
-        clipped = abs(attr.official_value) > display_range
+        clipped = abs(value) > display_range
         painter.drawText(
             QRect(content.left(), content.top(), content.width(), 16),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             value_text + ("  ↗ clipped" if clipped else ""),
         )
-        x = content.left() + 4
-        width = max(16, content.width() - 8)
-        middle = x + width // 2
+        # Endpoint labels belong to the individual bar, not a separate
+        # two-line Inspector legend: quality-oriented Full shows B / A;
+        # provisional ROI and unoriented Full show signed − / + only.
+        left_end, right_end = ("B", "A") if attr.quality_oriented and not is_roi else ("−", "+")
         y = content.top() + 20
+        painter.drawText(
+            QRect(content.left(), y - 4, 19, 15),
+            Qt.AlignmentFlag.AlignCenter,
+            left_end,
+        )
+        painter.drawText(
+            QRect(content.right() - 18, y - 4, 19, 15),
+            Qt.AlignmentFlag.AlignCenter,
+            right_end,
+        )
+        x = content.left() + 20
+        width = max(16, content.width() - 40)
+        middle = x + width // 2
         painter.fillRect(QRect(x, y, width, 7), palette.midlight())
         painter.fillRect(QRect(middle, y - 3, 1, 13), text_color)
         extent = round(abs(fraction) * width / 2)
         if extent:
             if fraction > 0:
-                color = _A_COLOR if attr.quality_oriented else _POS_COLOR
+                color = _A_COLOR if attr.quality_oriented and not is_roi else _POS_COLOR
                 painter.fillRect(QRect(middle + 1, y, extent, 7), color)
             else:
-                color = _B_COLOR if attr.quality_oriented else _NEG_COLOR
+                color = _B_COLOR if attr.quality_oriented and not is_roi else _NEG_COLOR
                 painter.fillRect(QRect(middle - extent, y, extent, 7), color)
         painter.restore()
