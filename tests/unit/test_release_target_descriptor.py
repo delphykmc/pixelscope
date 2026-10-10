@@ -9,8 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts import build_portable_release as portable
-from scripts import build_third_party_notices as notices
+from scripts import (
+    build_portable_release as portable,
+    build_third_party_notices as notices,
+)
 from scripts.build_installer_release import installer_command
 from scripts.build_release import pyinstaller_command
 from scripts.distribution_contract import (
