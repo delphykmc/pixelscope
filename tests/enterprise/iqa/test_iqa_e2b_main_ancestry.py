@@ -20,7 +20,12 @@ RUN_FLAG = "PIXELSCOPE_RUN_IQA_MAIN_SYNC"
 PIN_MAIN = "PIXELSCOPE_PUBLIC_MAIN_SHA"
 PIN_HANDOFF = "PIXELSCOPE_HANDOFF_PRE_SYNC_SHA"
 PIN_MERGE = "PIXELSCOPE_HANDOFF_MAIN_MERGE_SHA"
-PRIVATE_ROOTS = ("src/pixelscope_enterprise/", "tests/enterprise/", "docs/enterprise/", "enterprise/")
+PRIVATE_ROOTS = (
+    "src/pixelscope_enterprise/",
+    "tests/enterprise/",
+    "docs/enterprise/",
+    "enterprise/",
+)
 OWNED_LEAVES = (
     "src/pixelscope_enterprise/iqa/",
     "tests/enterprise/iqa/",
