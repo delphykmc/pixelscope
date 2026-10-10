@@ -60,6 +60,7 @@ def test_window_contribution_jobs_are_user_opened_and_workers_private(
     host = _Host()
     qtbot.addWidget(host)  # type: ignore[attr-defined]
     calls: list[tuple[Path | None, ...]] = []
+
     def factory() -> QSettings:
         return _settings_factory(tmp_path / "full-settings.ini")
 
