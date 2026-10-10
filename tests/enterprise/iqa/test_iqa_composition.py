@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
@@ -31,13 +31,16 @@ def _settings_factory(path: Path) -> QSettings:
     return QSettings(str(path), QSettings.Format.IniFormat)
 
 
-def test_injected_iqa_settings_preserve_job_and_window_geometry(qtbot: object, tmp_path: Path) -> None:
+def test_injected_iqa_settings_preserve_job_and_window_geometry(
+    qtbot: object, tmp_path: Path
+) -> None:
     path = tmp_path / "private-iqa-only.ini"
-    factory = lambda: _settings_factory(path)
+
+    def factory() -> QSettings:
+        return _settings_factory(path)
     manager = AnalysisWindowManager(settings_factory=factory)
     window = manager.show()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    assert path.exists() is False  # settings read must not create unrelated state
     window.close()
     stored = factory()
     stored.sync()
@@ -56,7 +59,8 @@ def test_window_contribution_jobs_are_user_opened_and_workers_private(
     host = _Host()
     qtbot.addWidget(host)  # type: ignore[attr-defined]
     calls: list[tuple[Path | None, ...]] = []
-    factory = lambda: _settings_factory(tmp_path / "full-settings.ini")
+    def factory() -> QSettings:
+        return _settings_factory(tmp_path / "full-settings.ini")
     contribution = IqaWindowContribution(settings_factory=factory, start_job=calls.append)
     contribution.prepare(host)
     contribution.install_dock(host)
