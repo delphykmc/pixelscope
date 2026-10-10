@@ -200,14 +200,14 @@ class SpatialCandidatesPanel(QWidget):
         self.heading.setObjectName("enterpriseIqaSpatialHeading")
         self.heading.setToolTip(
             "Ranks provisional GRID-derived spatial differences by local magnitude, "
-            "not by an official ROI quality score."
+            "not by a measured full-pair comparison."
         )
         self.heading.setStyleSheet(f"color: {TOKENS.text_primary}; font-weight: 700;")
         header.addWidget(self.heading)
         self.provenance_badge = QLabel("GRID", self)
         self.provenance_badge.setObjectName("enterpriseIqaGridBadge")
         self.provenance_badge.setToolTip(
-            "Provisional GRID-derived ROI candidates. Not official IQA quality scores."
+            "Provisional grid-derived ROI estimates, not full-pair comparison values."
         )
         self.provenance_badge.setStyleSheet(
             f"color: {TOKENS.accent}; background-color: {TOKENS.title_background}; "
@@ -288,7 +288,7 @@ class SpatialCandidatesPanel(QWidget):
             detail.setObjectName("enterpriseIqaSpatialCardDetails")
             detail.setToolTip(
                 "GRID-derived local mean; valid denotes spatial mask coverage. "
-                "Not a verified official regional uplift."
+                "Not a verified full-pair quality score for this region."
             )
             detail.setStyleSheet(f"color: {TOKENS.text_secondary};")
             column.addWidget(detail)
@@ -400,7 +400,7 @@ class SpatialCandidatesPanel(QWidget):
                 f"{candidate.width}×{candidate.height} px; "
                 f"mean {candidate.mean:+.4f} {unit}. GRID-derived only. "
                 + (
-                    "Exploratory (OFFICIAL sign missing)."
+                    "Exploratory (full-pair comparison sign unavailable)."
                     if candidate.mode == "exploratory_abs"
                     else ""
                 )

@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QRubberBand,
     QScrollArea,
@@ -91,6 +92,7 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.insights import rank_top_differences
+from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
@@ -410,7 +412,10 @@ class AnalysisWindow(QMainWindow):
         )
         self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
-        file_menu = self.menuBar().addMenu("File")
+        # Retain Qt menu parents and submenu actions with direct Python refs.
+        # Avoid borrowing temporary QAction.menu() wrappers in native Qt tests.
+        self.file_menu = self.menuBar().addMenu("File")
+        file_menu = self.file_menu
         self.open_action = file_menu.addAction("Open Result...")
         self.open_action.setObjectName("enterpriseIqaOpenResult")
         self.open_action.setEnabled(False)  # Enabled only with a genuine on-disk reader.
@@ -423,8 +428,21 @@ class AnalysisWindow(QMainWindow):
         self.save_action.triggered.connect(  # type: ignore[attr-defined]
             self._save_from_dialog
         )
-        self.export_action = file_menu.addAction("Export...")
-        self.export_action.setEnabled(False)  # Separate H4 reporting work.
+        self.export_menu = QMenu("Export Result", file_menu)
+        self.export_menu.setObjectName("enterpriseIqaExportResultMenu")
+        file_menu.addMenu(self.export_menu)
+        self.export_menu_action = self.export_menu.menuAction()
+        self.export_menu_action.setEnabled(False)
+        self.export_action = self.export_menu.addAction("Measurements (CSV)...")
+        self.export_action.setObjectName("enterpriseIqaExportMeasurementsCsv")
+        self.export_action.setEnabled(False)
+        self.export_action.setToolTip(
+            "Export full-pair comparison and grid-derived ROI estimates as CSV; "
+            "not a reloadable saved IQA result"
+        )
+        self.export_action.triggered.connect(  # type: ignore[attr-defined]
+            self._export_csv_from_dialog
+        )
         view_menu = self.menuBar().addMenu("View")
         self.clear_roi_action = view_menu.addAction("Clear ROI")
         self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
@@ -549,7 +567,7 @@ class AnalysisWindow(QMainWindow):
         self.gain_editor.setPrefix("×")
         self.gain_editor.setToolTip(
             "Visual Map contrast only: color fraction = Grid × Gain / Unit Range. "
-            "Official bar and ROI values are unchanged."
+            "Full-pair bar and ROI values are unchanged."
         )
         self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
         shared_controls.addWidget(self.gain_editor)
@@ -597,7 +615,7 @@ class AnalysisWindow(QMainWindow):
         self.detail_context = QLabel("DETAILS · select an attribute", details_content)
         self.detail_context.setObjectName("enterpriseIqaDetailContext")
         details_layout.addWidget(self.detail_context)
-        self.official_label = QLabel("Official pair comparison: —", inspector)
+        self.official_label = QLabel("Full-pair comparison: —", inspector)
         self.official_label.setWordWrap(True)
         official_card = QFrame(inspector)
         official_card.setObjectName("enterpriseIqaOfficialCard")
@@ -605,7 +623,7 @@ class AnalysisWindow(QMainWindow):
         official_layout = QVBoxLayout(official_card)
         official_layout.setContentsMargins(9, 6, 9, 6)
         official_layout.setSpacing(4)
-        official_layout.addWidget(QLabel("OFFICIAL · FULL PAIR", official_card))
+        official_layout.addWidget(QLabel("FULL-PAIR COMPARISON", official_card))
         official_description = QLabel(
             "Verified A/B difference for the entire image pair. "
             "Not calculated from the selected ROI or Map grid.",
@@ -631,7 +649,7 @@ class AnalysisWindow(QMainWindow):
         roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
         roi_description = QLabel(
             "Selected rectangle in original-image pixels. GRID-DERIVED mean "
-            "estimates local differences; it is not an official score. "
+            "estimates local differences; it is not a full-pair measurement. "
             "Coverage is the ROI area supported by valid Map cells.",
             roi_card,
         )
@@ -689,7 +707,7 @@ class AnalysisWindow(QMainWindow):
         top3_layout = QVBoxLayout(top3_frame)
         top3_layout.setContentsMargins(7, 5, 7, 5)
         top3_layout.setSpacing(4)
-        self.top3_title = QLabel("TOP 3   ·   OFFICIAL dB", top3_frame)
+        self.top3_title = QLabel("TOP 3   ·   FULL-PAIR dB", top3_frame)
         self.top3_title.setObjectName("enterpriseIqaTop3Title")
         top3_layout.addWidget(self.top3_title)
         top3_row = QHBoxLayout()
@@ -946,6 +964,8 @@ class AnalysisWindow(QMainWindow):
         )
         self.fit_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
+        self.export_menu_action.setEnabled(True)
+        self.export_action.setEnabled(True)
         self._populate_attributes()
         self._update_top_cards()
         self.gain_editor.setEnabled(True)
@@ -967,7 +987,7 @@ class AnalysisWindow(QMainWindow):
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
-            "TOP 3   ·   VERIFIED OFFICIAL dB"
+            "TOP 3   ·   VERIFIED FULL-PAIR dB"
             if ranked
             else "TOP 3   ·   NO QUALIFYING dB"
             if not unknown_gate
@@ -978,7 +998,7 @@ class AnalysisWindow(QMainWindow):
                 card.setText(f"#{index + 1}  —")
                 _style_insight_card(card, "empty")
                 card.setToolTip(
-                    "Requires verified official dB, |difference| > 0.3 dB, "
+                    "Requires eligible full-pair dB, |difference| > 0.3 dB, "
                     "and at least one original-relative signal above -50 dB."
                 )
                 card.setEnabled(False)
@@ -998,7 +1018,7 @@ class AnalysisWindow(QMainWindow):
             )
             card.setToolTip(
                 f"Rank {index + 1} of verified global |dB| differences: "
-                f"{item.label} {item.delta_db:+.4f} dB (OFFICIAL). "
+                f"{item.label} {item.delta_db:+.4f} dB (full pair). "
                 "Card selection opens its spatial evidence, not an ROI quality score."
             )
             card.setEnabled(True)
@@ -1136,7 +1156,7 @@ class AnalysisWindow(QMainWindow):
                     item.setData(DISPLAY_RANGE_ROLE, limit)
                     item.setToolTip(
                         f"{attr.label} · {attr.group} · {unit}; "
-                        f"official {attr.official_availability}; group scale ±{limit:g}"
+                        f"full-pair value {attr.official_availability}; group scale ±{limit:g}"
                     )
                     table.setItem(row, col, item)
             table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
@@ -1252,7 +1272,7 @@ class AnalysisWindow(QMainWindow):
             scene = QGraphicsScene(view)
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
-        self.official_label.setText("Official pair comparison: —")
+        self.official_label.setText("Full-pair comparison: —")
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
@@ -1667,7 +1687,7 @@ class AnalysisWindow(QMainWindow):
         else:
             text = f"{attr.official_value:+.4f} {attr.unit} ({attr.official_availability})"
         orientation = "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
-        self.official_label.setText(f"OFFICIAL full-pair: {text}\n{orientation}")
+        self.official_label.setText(f"Full-pair comparison: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
             self.roi_label.setText("ROI: none\nShift+drag on A, Map or B · Esc clears")
@@ -1686,7 +1706,7 @@ class AnalysisWindow(QMainWindow):
                 stats = roi_statistics(attr.spatial, roi)
                 value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
                 self.roi_label.setText(
-                    f"{description}\nGRID-DERIVED ROI mean: {value} (NOT official)\n"
+                    f"{description}\nGrid-derived ROI estimate: {value} (not full-pair)\n"
                     f"Grid valid area: {stats.valid_area:,.0f} / "
                     f"{stats.roi_area:,.0f} px²  ·  {stats.valid_coverage:.1%} coverage"
                 )
@@ -1900,6 +1920,35 @@ class AnalysisWindow(QMainWindow):
             self.present_result(loaded.result, analysis_state=loaded.analysis_state)
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be opened or validated.")
+
+    def _export_csv_from_dialog(self) -> None:
+        """Export scientific measurements, not a portable result or pair score for an ROI."""
+
+        if self._active_id is None:
+            return
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export IQA measurements CSV",
+            "",
+            "CSV files (*.csv)",
+        )
+        if not filename:
+            return
+        destination = Path(filename)
+        if not destination.suffix:
+            destination = destination.with_suffix(".csv")
+        try:
+            write_measurements_csv(
+                self._results[self._active_id],
+                self.current_roi,
+                destination,
+            )
+        except (OSError, ValueError):
+            self.statusBar().showMessage("CSV export failed; the IQA result was not changed.")
+            return
+        self.statusBar().showMessage(
+            "CSV exported: full-pair values and grid-derived ROI estimates remain distinct."
+        )
 
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
