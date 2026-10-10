@@ -44,6 +44,7 @@ def test_release_group_covers_owned_candidate_distribution_and_publication_contr
         "tests/unit/test_release_candidate.py",
         "tests/unit/test_release_candidate_provenance.py",
         "tests/unit/test_release_distribution.py",
+        "tests/unit/test_release_target_descriptor.py",
         "tests/unit/test_release_publication.py",
     ]
 

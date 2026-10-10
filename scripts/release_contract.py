@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Final
 
+# Stable PUBLIC Inno Setup install/update registration identity.
+PUBLIC_INSTALLER_APP_ID: Final = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 SOURCE_ROOT: Final = REPO_ROOT / "src"
 SPEC_PATH: Final = REPO_ROOT / "packaging" / "pixelscope.spec"
@@ -106,8 +108,9 @@ def render_windows_version_info(
     version: str | None = None,
     *,
     target: str = "core",
+    identity: tuple[str, str, str] | None = None,
 ) -> str:
-    """Render target-aware PyInstaller Windows executable metadata."""
+    """Render public or explicitly validated downstream executable metadata."""
 
     value = version or release_version()
     file_version = windows_version_tuple(value)
@@ -117,7 +120,7 @@ def render_windows_version_info(
         internal_name,
         original_filename,
         file_description,
-    ) = _windows_version_identity(target)
+    ) = _windows_version_identity(target) if identity is None else (None, *identity)
     return f"""# UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
@@ -154,18 +157,22 @@ def write_windows_version_info(
     version: str | None = None,
     *,
     target: str = "core",
+    identity: tuple[str, str, str] | None = None,
+    output_path: Path | None = None,
 ) -> Path:
-    """Write generated executable metadata for one public package target."""
+    """Write version info for a public or explicitly described package target."""
 
     (
         path,
         _internal_name,
         _original_filename,
         _file_description,
-    ) = _windows_version_identity(target)
-    GENERATED_ROOT.mkdir(parents=True, exist_ok=True)
+    ) = _windows_version_identity(target) if identity is None else (output_path, *identity)
+    if path is None:
+        raise ValueError("custom target must supply output_path for version info")
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        render_windows_version_info(version, target=target),
+        render_windows_version_info(version, target=target, identity=identity),
         encoding="utf-8",
     )
     return path

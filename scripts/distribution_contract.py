@@ -10,6 +10,7 @@ if __package__ in (None, ""):
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.package_target_descriptor import PackageTargetDescriptor  # noqa: E402
 from scripts.release_contract import APP_DIR, REPO_ROOT, release_version  # noqa: E402
 
 TARGET_ID: Final = "windows-x64"
@@ -25,27 +26,38 @@ class DistributionValidationError(RuntimeError):
     """Raised when a distribution no longer matches the canonical onedir payload."""
 
 
-def release_stem(version: str | None = None) -> str:
+def release_stem(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> str:
     value = (version or release_version()).strip()
     if not value or any(char in value for char in '<>:"/\\|?*'):
         raise ValueError(f"Release version is not safe for artifact names: {value!r}")
-    return f"PixelScope-{value}-{TARGET_ID}"
+    prefix = descriptor.stem_prefix if descriptor is not None else "PixelScope"
+    return f"{prefix}-{value}-{TARGET_ID}"
 
 
-def manifest_path(version: str | None = None) -> Path:
-    return RELEASE_ROOT / f"{release_stem(version)}.manifest.json"
+def manifest_path(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version, descriptor=descriptor)}.manifest.json"
 
 
-def notice_path(version: str | None = None) -> Path:
-    return RELEASE_ROOT / f"{release_stem(version)}-THIRD_PARTY_NOTICES.txt"
+def notice_path(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version, descriptor=descriptor)}-THIRD_PARTY_NOTICES.txt"
 
 
-def portable_zip_path(version: str | None = None) -> Path:
-    return RELEASE_ROOT / f"{release_stem(version)}-portable.zip"
+def portable_zip_path(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version, descriptor=descriptor)}-portable.zip"
 
 
-def installer_path(version: str | None = None) -> Path:
-    return RELEASE_ROOT / f"{release_stem(version)}-setup.exe"
+def installer_path(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version, descriptor=descriptor)}-setup.exe"
 
 
 def sha256_file(path: Path) -> str:
@@ -72,6 +84,7 @@ def build_payload_manifest(
     root: Path = APP_DIR,
     *,
     version: str | None = None,
+    descriptor: PackageTargetDescriptor | None = None,
 ) -> dict[str, object]:
     root = root.resolve()
     files = [
@@ -84,10 +97,10 @@ def build_payload_manifest(
     ]
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
-        "product": "PixelScope",
+        "product": descriptor.display_name if descriptor is not None else "PixelScope",
         "version": version or release_version(),
         "target": TARGET_ID,
-        "payload_root": "PixelScope",
+        "payload_root": descriptor.app_dir if descriptor is not None else "PixelScope",
         "files": files,
     }
 
@@ -97,10 +110,11 @@ def write_payload_manifest(
     destination: Path | None = None,
     *,
     version: str | None = None,
+    descriptor: PackageTargetDescriptor | None = None,
 ) -> Path:
-    output = (destination or manifest_path(version)).resolve()
+    output = (destination or manifest_path(version, descriptor=descriptor)).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    manifest = build_payload_manifest(root, version=version)
+    manifest = build_payload_manifest(root, version=version, descriptor=descriptor)
     output.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -122,15 +136,18 @@ def validate_payload_manifest(
     allow_distribution_metadata: bool = False,
     allowed_extra_names: frozenset[str] = frozenset(),
     expected_version: str | None = None,
+    descriptor: PackageTargetDescriptor | None = None,
 ) -> None:
     root = root.resolve()
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise DistributionValidationError("unsupported release manifest schema")
-    if manifest.get("product") != "PixelScope":
+    expected_product = descriptor.display_name if descriptor is not None else "PixelScope"
+    if manifest.get("product") != expected_product:
         raise DistributionValidationError("release manifest product mismatch")
     if manifest.get("target") != TARGET_ID:
         raise DistributionValidationError("release manifest target mismatch")
-    if manifest.get("payload_root") != "PixelScope":
+    expected_root = descriptor.app_dir if descriptor is not None else "PixelScope"
+    if manifest.get("payload_root") != expected_root:
         raise DistributionValidationError("release manifest payload root mismatch")
 
     manifest_version = manifest.get("version")
