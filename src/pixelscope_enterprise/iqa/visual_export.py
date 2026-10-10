@@ -139,7 +139,7 @@ def write_visual_pngs(
     Current GUI thread/QImage ownership is maintained by the UI caller.
     """
 
-    if attribute not in result.attributes:
+    if not any(candidate is attribute for candidate in result.attributes):
         raise ValueError("selected Attribute does not belong to the result")
     rectangles = _rectangles(result, scope, roi)
     if destination.exists() or destination.is_symlink():
