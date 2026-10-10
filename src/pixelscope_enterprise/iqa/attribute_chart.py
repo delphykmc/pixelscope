@@ -109,9 +109,7 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         # Endpoint labels belong to the individual bar, not a separate
         # two-line Inspector legend: quality-oriented Full shows B / A;
         # provisional ROI and unoriented Full show signed − / + only.
-        left_end, right_end = (
-            ("B", "A") if attr.quality_oriented and not is_roi else ("−", "+")
-        )
+        left_end, right_end = ("B", "A") if attr.quality_oriented and not is_roi else ("−", "+")
         y = content.top() + 20
         painter.drawText(
             QRect(content.left(), y - 4, 19, 15),
