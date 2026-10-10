@@ -69,11 +69,13 @@ def test_png_action_outputs_full_and_roi_after_swap(
     win._swap_sources()
     before = win.current_analysis_state().copy()
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        QInputDialog, "getItem",
+        QInputDialog,
+        "getItem",
         lambda *_args, **_kwargs: ("Both", True),
     )
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        QFileDialog, "getExistingDirectory",
+        QFileDialog,
+        "getExistingDirectory",
         lambda *_args, **_kwargs: str(tmp_path),
     )
     win.image_export_action.trigger()
@@ -106,17 +108,20 @@ def test_cancel_and_collision_are_non_destructive(
     assert win.image_export_action.isEnabled()
     win._set_roi(1.0, 1.0, 4.0, 4.0)
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        QInputDialog, "getItem",
+        QInputDialog,
+        "getItem",
         lambda *_args, **_kwargs: ("Both", False),
     )
     win.image_export_action.trigger()
     assert not list(tmp_path.glob("iqa-images-*"))
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        QInputDialog, "getItem",
+        QInputDialog,
+        "getItem",
         lambda *_args, **_kwargs: ("Active ROI", True),
     )
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        QFileDialog, "getExistingDirectory",
+        QFileDialog,
+        "getExistingDirectory",
         lambda *_args, **_kwargs: str(tmp_path),
     )
     win.image_export_action.trigger()
