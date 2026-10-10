@@ -31,10 +31,20 @@ Spec and optional additional runtime requirements paths must exist within
 the checkout and are resolved relative to repository root. The descriptor
 JSON location is caller-selected (even outside the repository). Unknown
 schema fields, escape/traversal, absolute/drive paths, name collisions with
-Core/Reference and unsafe names are rejected. The private spec is responsible
-for the EXACT output app_dir/executable and must consume generated version
-metadata at build/release/<app_dir>.version.txt. The generated bundle must
-retain public offline Help/icon and native dependency layout.
+Core/Reference, Windows-reserved device basenames and the existing PUBLIC
+production installer AppId are rejected. AppId reuse for a migration is not
+automatically authorized. The private spec is responsible for the EXACT
+output app_dir/executable and must consume generated version metadata at
+build/release/<app_dir>.version.txt. The generated bundle must retain public
+offline Help/icon and native dependency layout.
+
+**Build correctness:** for an explicit custom target, the pipeline safely
+removes *only* the existing `dist/<app_dir>` output before PyInstaller runs.
+It then requires a nonempty `dist/<app_dir>/<executable>` from that invocation,
+**before copying Help or validating the artifact**. A spec that builds the
+wrong COLLECT name fails instead of accepting a stale executable. Core and
+Reference folders are protected from this cleanup. Back up any custom output
+you intend to preserve before rebuilding.
 
 ## Windows release + smoke flow
 
@@ -59,6 +69,8 @@ Default public Core executable/artifact stem remains PixelScope;
 custom output stems are <app_dir>-<version>-windows-x64.
 Release manifest product/payload_root and ZIP archive root are matched
 against descriptor-selected app identity and SHA-256 payload inventory.
+Unrelated Core release files may coexist, but unexpected artifacts sharing
+the selected custom versioned release stem are rejected.
 Installer smoke uses a disposable registry identity and removes installed
 files; smoke requires a GUI/window title match and is Windows-local, not
 headless hosted CI. The public build_release_candidate.py remains the
