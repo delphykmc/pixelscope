@@ -10,8 +10,8 @@ if __package__ in (None, ""):
 
 from scripts.build_user_guide import SHIM_SHA256  # noqa: E402
 from scripts.check_user_guide_site import find_site_problems  # noqa: E402
-from scripts.release_contract import APP_DIR  # noqa: E402
 from scripts.package_target_descriptor import load_target_descriptor  # noqa: E402
+from scripts.release_contract import APP_DIR  # noqa: E402
 
 
 class ArtifactValidationError(RuntimeError):
