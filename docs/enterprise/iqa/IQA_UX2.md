@@ -90,11 +90,11 @@ Run as separate Windows processes (the existing normal-GC practice):
 
 ```powershell
 $env:PYTHONPATH = "src"
-& $py -m pytest -q tests/enterprise/test_analysis_insights.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux2a.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux1.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_window.py
-& $py -m pytest -q tests/enterprise/test_analysis_model.py
+& $py -m pytest -q tests/enterprise/iqa/test_analysis_insights.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_ux2a.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_ux1.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_window.py
+& $py -m pytest -q tests/enterprise/iqa/test_analysis_model.py
 & $py -m pytest -q tests/iqa_reference/test_reference_extension.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 & $py -m pixelscope_enterprise.iqa.demo --rgb

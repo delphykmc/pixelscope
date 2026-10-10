@@ -82,7 +82,7 @@ No unverified server/auth/file reader/export logic is in scope.
 
 ## Acceptance
 
-Run `tests/enterprise/test_spatial_candidates.py` independently under
+Run `tests/enterprise/iqa/test_spatial_candidates.py` independently under
 Python 3.10. Verify partial edges, no-data grids, negative OFFICIAL sign,
 missing/zero OFFICIAL exploratory fallback, equal-score stable order,
 ROI IoU suppression, all three stride presets, default 4K/512px/128px

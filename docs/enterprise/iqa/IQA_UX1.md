@@ -178,9 +178,9 @@ selection, persistent scene identities and a real QImage screenshot.
 $py = Join-Path $env:USERPROFILE "mycode\pixelscope\.venv\Scripts\python.exe"
 if (-not (Test-Path $py)) { throw "Locate a valid Python 3.10 environment" }
 $env:PYTHONPATH = (Resolve-Path .\src).Path
-& $py -m pytest -q tests/enterprise/test_analysis_model.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_window.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux1.py
+& $py -m pytest -q tests/enterprise/iqa/test_analysis_model.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_window.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_ux1.py
 & $py -m pytest -q tests/iqa_reference/test_reference_extension.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 & $py -m pixelscope_enterprise.iqa.demo
