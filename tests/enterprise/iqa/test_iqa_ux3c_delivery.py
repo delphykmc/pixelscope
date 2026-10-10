@@ -44,9 +44,7 @@ def test_synthetic_worker_completion_updates_hidden_dock_but_never_auto_opens(
         try:
             contribution.post_job(IqaJobSnapshot("demo-one", "Synthetic pair", "queued"))
             contribution.post_job(IqaJobSnapshot("demo-one", "Synthetic pair", "running"))
-            contribution.post_job(
-                IqaJobSnapshot("demo-one", "Synthetic pair", "completed", result)
-            )
+            contribution.post_job(IqaJobSnapshot("demo-one", "Synthetic pair", "completed", result))
         except Exception as error:  # noqa: BLE001 - surface worker failure to assertion
             errors.append(str(error))
 
