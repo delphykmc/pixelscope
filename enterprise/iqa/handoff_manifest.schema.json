@@ -168,7 +168,7 @@
     },
     "ownedPath": {
       "type": "string",
-      "pattern": "^(src/pixelscope_enterprise/iqa/|tests/enterprise/iqa/|docs/enterprise/iqa/|enterprise/iqa/)[^/\\\\\\\\]+(?:/[^/\\\\\\\\]+)*$|^src/pixelscope_enterprise/__init__\\\\.py$"
+      "pattern": "^(?:(?:src/pixelscope_enterprise/iqa|tests/enterprise/iqa|docs/enterprise/iqa|enterprise/iqa)/(?:[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*/)*[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*|src/pixelscope_enterprise/__init__\\.py)$"
     }
   }
 }
