@@ -8,10 +8,12 @@ process startup/AV overhead on every development run.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -97,11 +99,33 @@ def test_real_git_manifest_generation_and_safe_import(tmp_path: Path) -> None:
         transfer_mode="manifest-delta",
     )
     manifest = handoff.generate(args)
+    manifest_path = tmp_path / "approved-synthetic-manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     destination = tmp_path / "sub"
     destination.mkdir()
     sibling = destination / "enterprise" / "unrelated" / "sibling.py"
     sibling.parent.mkdir(parents=True)
     sibling.write_bytes(b"must survive\n")
+
+    # Exercise the actual command-line parser and exit code, not just the
+    # verify_import() function. This is an intentionally incomplete transfer.
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "enterprise" / "iqa" / "handoff_manifest.py"),
+        "verify",
+        "--repo",
+        str(repo),
+        "--destination",
+        str(destination),
+        "--manifest",
+        str(manifest_path),
+    ]
+    incomplete = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    assert incomplete.returncode != 0
+    assert "post-import verification failed" in incomplete.stderr
+    assert "POST-IMPORT VERIFIED" not in incomplete.stdout
+    assert sibling.read_bytes() == b"must survive\n"
 
     actions = handoff.plan_import(repo, destination, manifest)
     assert len(actions) == len(manifest["imported_paths"])
@@ -114,3 +138,11 @@ def test_real_git_manifest_generation_and_safe_import(tmp_path: Path) -> None:
         len(manifest["imported_paths"]),
         len(manifest["removed_paths"]),
     )
+    verified = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    assert verified.returncode == 0, verified.stderr
+    assert f"POST-IMPORT VERIFIED: {len(manifest['imported_paths'])} approved IQA files" in (
+        verified.stdout
+    )
+    assert f"external manifest SHA-256 {manifest_digest}" in verified.stdout
+    assert "SUB sibling integrity" in verified.stdout
+    assert sibling.read_bytes() == b"must survive\n"
