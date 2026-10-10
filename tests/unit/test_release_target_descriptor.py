@@ -51,9 +51,7 @@ def test_caller_selected_descriptor_drives_spec_exe_version_inno(tmp_path: Path)
     assert target.target_id == "full-synthetic"
     assert target.output_root.name == "PixelScopeSynthetic"
     assert pyinstaller_command(descriptor=target)[-1] == str(target.spec)
-    assert release_stem("1.2.3", descriptor=target) == (
-        "PixelScopeSynthetic-1.2.3-windows-x64"
-    )
+    assert release_stem("1.2.3", descriptor=target) == ("PixelScopeSynthetic-1.2.3-windows-x64")
     assert manifest_path("1.2.3", descriptor=target).name.startswith("PixelScopeSynthetic")
     assert notice_path("1.2.3", descriptor=target).name.startswith("PixelScopeSynthetic")
     assert portable_zip_path("1.2.3", descriptor=target).name.startswith("PixelScopeSynthetic")
