@@ -240,7 +240,9 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     assert win.findChild(QWidget, "enterpriseIqaMapCard") is not None
     assert win.findChild(QWidget, "enterpriseIqaOfficialCard") is not None
     assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
-    assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
+    assert win.chart_scope_combo.currentText() == "Full"
+    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == "Pair Δ"
+    assert win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp") is None
     win.close()
 
 
