@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,7 +38,9 @@ from pixelscope_enterprise.iqa.analysis_window import (
 )
 
 IqaJobStarter = Callable[[tuple[Path | None, ...]], None]
+IqaJobCanceller = Callable[[str], None]
 JOB_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled"})
+TERMINAL_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
 @dataclass(frozen=True)
@@ -49,12 +51,44 @@ class IqaJobSnapshot:
     label: str
     status: str
     result: AnalysisResult | None = None
+    can_cancel: bool = False
 
     def __post_init__(self) -> None:
         if not self.job_id or not self.label or self.status not in JOB_STATUSES:
             raise ValueError("invalid IQA job snapshot")
         if self.result is not None and self.status != "completed":
             raise ValueError("only completed IQA jobs may carry results")
+        if not isinstance(self.can_cancel, bool) or (
+            self.can_cancel and self.status not in {"queued", "running"}
+        ):
+            raise ValueError("only cancellable active IQA jobs may enable cancellation")
+
+
+class _IqaJobDeliveryRelay(QObject):
+    """Qt-owned queued delivery endpoint; never mutate Qt widgets on workers."""
+
+    pending = Signal(object)
+
+    def __init__(self, contribution: IqaWindowContribution, parent: QMainWindow) -> None:
+        super().__init__(parent)
+        self._contribution_ref = weakref.ref(contribution)
+        self._accepting = True
+        # Forced queued delivery also prevents inline widget mutation when
+        # caller happens to be the GUI thread.
+        self.pending.connect(self._deliver, Qt.ConnectionType.QueuedConnection)  # type: ignore[arg-type]
+
+    @Slot(object)
+    def _deliver(self, snapshot: object) -> None:
+        contribution = self._contribution_ref()
+        if not self._accepting or contribution is None or contribution._closed:
+            return
+        if isinstance(snapshot, IqaJobSnapshot):
+            contribution.publish_job(snapshot)
+
+    def stop(self) -> None:
+        """Quiesce already queued events before host widget teardown."""
+
+        self._accepting = False
 
 
 class IqaWindowContribution:
@@ -72,26 +106,36 @@ class IqaWindowContribution:
         load: ResultLoader | None = None,
         save: ResultSaver | None = None,
         start_job: IqaJobStarter | None = None,
+        cancel_job: IqaJobCanceller | None = None,
     ) -> None:
         self.manager = AnalysisWindowManager(
             settings_factory=settings_factory, load=load, save=save
         )
         self._start_job = start_job
+        self._cancel_job = cancel_job
+        self._cancel_requested: set[str] = set()
         self._host_ref: weakref.ReferenceType[QMainWindow] | None = None
         self._records: dict[str, IqaJobSnapshot] = {}
         self._latest_job_id: str | None = None
         self.jobs_dock: QDockWidget | None = None
         self.jobs_list: QListWidget | None = None
         self.view_selected_button: QPushButton | None = None
+        self.cancel_selected_button: QPushButton | None = None
+        self._cancel_selected_action: QAction | None = None
         self.jobs_status_button: QPushButton | None = None
         self._jobs_view_action: QAction | None = None
         self._closed = False
         self._runtime_installed = False
+        self._job_relay: _IqaJobDeliveryRelay | None = None
 
     def prepare(self, window: QMainWindow) -> None:
         if self._closed or self._host_ref is not None:
             raise RuntimeError("IQA contribution must be prepared once")
+        app = QApplication.instance()
+        if app is None or QThread.currentThread() != app.thread():
+            raise RuntimeError("IQA contribution must be prepared on the Qt GUI thread")
         self._host_ref = weakref.ref(window)
+        self._job_relay = _IqaJobDeliveryRelay(self, window)
         dock = QDockWidget("IQA Jobs", window)
         dock.setObjectName("enterpriseIqaJobsDock")
         dock.setAllowedAreas(
@@ -120,6 +164,14 @@ class IqaWindowContribution:
             self.open_selected_result
         )
         buttons.addWidget(self.view_selected_button)
+        if self._cancel_job is not None:
+            self.cancel_selected_button = QPushButton("Cancel selected job", frame)
+            self.cancel_selected_button.setObjectName("enterpriseIqaCancelSelectedJob")
+            self.cancel_selected_button.setEnabled(False)
+            self.cancel_selected_button.clicked.connect(  # type: ignore[attr-defined]
+                self.request_cancel_selected
+            )
+            buttons.addWidget(self.cancel_selected_button)
         layout.addLayout(buttons)
         dock.setWidget(frame)
         self.jobs_dock = dock
@@ -148,6 +200,12 @@ class IqaWindowContribution:
             add_action("IQA", "Open IQA Analysis", self.open_analysis, None)
             if self._start_job is not None:
                 add_action("IQA", "Run IQA", self.request_analysis, None)
+            if self._cancel_job is not None:
+                action = add_action(
+                    "IQA", "Cancel Selected IQA Job", self.request_cancel_selected, None
+                )
+                action.setEnabled(False)
+                self._cancel_selected_action = action
         elif menu_name == "View":
             action = add_action("View", "Show IQA Jobs", self.toggle_jobs, None)
             action.setCheckable(True)
@@ -190,6 +248,20 @@ class IqaWindowContribution:
         if self._jobs_view_action is not None:
             self._jobs_view_action.setChecked(visible)
 
+    def _job_caption(self, snapshot: IqaJobSnapshot) -> str:
+        pending = " (cancel requested)" if snapshot.job_id in self._cancel_requested else ""
+        return f"{snapshot.label} — {snapshot.status}{pending}"
+
+    def _refresh_selected_job_caption(self) -> None:
+        job_id = self._selected_job_id()
+        if job_id is None or self.jobs_list is None:
+            return
+        snapshot = self._records.get(job_id)
+        item = self.jobs_list.currentItem()
+        if snapshot is not None and item is not None:
+            item.setText(self._job_caption(snapshot))
+        self._update_host_status()
+
     def _update_host_status(self) -> None:
         """Visible MAIN-side progress/completion cue independent of dock state."""
         button = self.jobs_status_button
@@ -198,8 +270,12 @@ class IqaWindowContribution:
         if self._latest_job_id is None:
             return
         latest = self._records[self._latest_job_id]
-        button.setText(f"IQA: {latest.label} — {latest.status} · View jobs")
-        button.setAccessibleName(f"IQA job {latest.label}, {latest.status}; open the IQA jobs list")
+        button.setText(f"IQA: {self._job_caption(latest)} · View jobs")
+        button.setAccessibleName(
+            f"IQA job {latest.label}, {latest.status}"
+            f"{', cancellation requested' if latest.job_id in self._cancel_requested else ''}"
+            "; open the IQA jobs list"
+        )
         button.show()
 
     def request_analysis(self) -> None:
@@ -214,6 +290,41 @@ class IqaWindowContribution:
             raise RuntimeError("IQA host has no public source-path contract")
         self._start_job(tuple(paths()))
 
+    def request_cancel_selected(self) -> None:
+        """Request cancellation of the selected active job; never fabricate success."""
+
+        if self._closed or self._cancel_job is None:
+            raise RuntimeError("IQA cancellation provider not installed")
+        job_id = self._selected_job_id()
+        if job_id is None or not self._can_cancel_selected():
+            return
+        self._cancel_requested.add(job_id)
+        self._selection_changed()
+        self._refresh_selected_job_caption()
+        try:
+            self._cancel_job(job_id)
+        except Exception:
+            # Synchronous submission failure is not cancellation success.
+            self._cancel_requested.discard(job_id)
+            self._selection_changed()
+            self._refresh_selected_job_caption()
+            raise
+
+    def post_job(self, snapshot: IqaJobSnapshot) -> None:
+        """Queue a validated snapshot from a worker; Qt delivers it on the GUI thread.
+
+        PRIVATE SUB owns transport/execution and can pass this method as the
+        publication callback. publish_job() remains GUI-thread-only for explicit
+        deterministic direct integrations and existing native tests.
+        """
+
+        if not isinstance(snapshot, IqaJobSnapshot):
+            raise TypeError("IQA publication requires a validated snapshot")
+        relay = self._job_relay
+        if self._closed or relay is None or self.jobs_list is None:
+            raise RuntimeError("IQA contribution not available")
+        relay.pending.emit(snapshot)
+
     def publish_job(self, snapshot: IqaJobSnapshot) -> None:
         """Update presentation only; never own the worker or open results."""
         if self._closed or self.jobs_list is None:
@@ -221,7 +332,15 @@ class IqaWindowContribution:
         app = QApplication.instance()
         if app is None or QThread.currentThread() != app.thread():
             raise RuntimeError("IQA job updates must be dispatched onto the Qt GUI thread")
+        previous = self._records.get(snapshot.job_id)
+        if previous is not None and previous.status in TERMINAL_JOB_STATUSES:
+            # Worker/transport callbacks can arrive out of order. The first
+            # terminal event for a stable ID is authoritative: never lose its
+            # result, revive cancellation, or overwrite a failure/cancellation.
+            return
         self._records[snapshot.job_id] = snapshot
+        if snapshot.status in TERMINAL_JOB_STATUSES:
+            self._cancel_requested.discard(snapshot.job_id)
         self._latest_job_id = snapshot.job_id
         # Store stable IDs in UserRole; display labels may change.
         item = next(
@@ -237,23 +356,43 @@ class IqaWindowContribution:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, snapshot.job_id)
             self.jobs_list.addItem(item)
-        item.setText(f"{snapshot.label} — {snapshot.status}")
+        item.setText(self._job_caption(snapshot))
         self._update_host_status()
         if self.jobs_list.currentItem() is item:
             self._selection_changed()
 
-    def _selected_result(self) -> AnalysisResult | None:
+    def _selected_job_id(self) -> str | None:
         if self.jobs_list is None:
             return None
         item = self.jobs_list.currentItem()
-        if item is None:
-            return None
-        snapshot = self._records.get(str(item.data(Qt.ItemDataRole.UserRole)))
+        return str(item.data(Qt.ItemDataRole.UserRole)) if item is not None else None
+
+    def _selected_result(self) -> AnalysisResult | None:
+        job_id = self._selected_job_id()
+        snapshot = self._records.get(job_id) if job_id is not None else None
         return snapshot.result if snapshot is not None else None
+
+    def _can_cancel_selected(self) -> bool:
+        if self._cancel_job is None or self._closed:
+            return False
+        job_id = self._selected_job_id()
+        if job_id is None or job_id in self._cancel_requested:
+            return False
+        snapshot = self._records.get(job_id)
+        return bool(
+            snapshot is not None
+            and snapshot.can_cancel
+            and snapshot.status in {"queued", "running"}
+        )
 
     def _selection_changed(self, *_args: object) -> None:
         if self.view_selected_button is not None:
             self.view_selected_button.setEnabled(self._selected_result() is not None)
+        allowed = self._can_cancel_selected()
+        if self.cancel_selected_button is not None:
+            self.cancel_selected_button.setEnabled(allowed)
+        if self._cancel_selected_action is not None:
+            self._cancel_selected_action.setEnabled(allowed)
 
     def open_selected_result(self) -> AnalysisWindow | None:
         result = self._selected_result()
@@ -273,10 +412,14 @@ class IqaWindowContribution:
         if self._closed:
             return
         self._closed = True
+        if self._job_relay is not None:
+            self._job_relay.stop()
         self.manager.shutdown()
         if self.jobs_status_button is not None:
             self.jobs_status_button.hide()
         self._records.clear()
         self._latest_job_id = None
         self._start_job = None
+        self._cancel_job = None
+        self._cancel_requested.clear()
         self._host_ref = None

@@ -61,9 +61,23 @@ invokes `contribution.shutdown()` through the existing host lifecycle.
   paths (including `None` placeholders). The contribution does **not**
   validate pair geometry or start workers on its own.
 - PRIVATE SUB publishes `IqaJobSnapshot(job_id, label, status, result=None)`
-  on the **Qt GUI thread**, with status `queued`, `running`, `completed`,
-  `failed` or `cancelled`. Results are accepted only for completed jobs.
-  Network/worker threads must marshal updates onto the Qt main thread.
+  with status `queued`, `running`, `completed`, `failed` or `cancelled`.
+  Results are accepted only for completed jobs. `publish_job(snapshot)` is
+  intentionally GUI-thread-only; `post_job(snapshot)` is the UX-3C **queued Qt
+  delivery bridge** for worker/transport callbacks. It validates the payload
+  and schedules `publish_job` on the host's GUI thread without accessing
+  widgets from the worker. Already queued events become no-ops on shutdown.
+  Terminal states (completed/failed/cancelled) are absorbing for each stable
+  Job ID: delayed queued/running publications never revive a terminal job,
+  lose its verified result or re-enable Cancel. Retries use new Job IDs.
+  PRIVATE SUB still owns worker lifecycle, authorization and transport.
+  A reported `cancelled` state **does not** imply a cancel action. If
+  PRIVATE SUB injects `cancel_job(job_id)` and each cancellable queued/running
+  snapshot explicitly sets `can_cancel=True`, the contribution provides
+  a per-selected-job `IQA > Cancel Selected IQA Job` action beside Run and
+  a corresponding Jobs Dock button. Both are omitted when cancellation is
+  not injected. A cancellation request does **not** invent terminal
+  `cancelled` state; only subsequent verified provider updates can do that.
 - A persistent, nonmodal **MAIN status-bar IQA button** reports the most
   recently updated queued/running/completed/failed/cancelled job, even while
   the IQA Jobs dock is hidden. Clicking it reveals the dock; it never opens
