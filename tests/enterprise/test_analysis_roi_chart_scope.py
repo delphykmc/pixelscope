@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -182,6 +183,34 @@ def test_clear_roi_starts_new_automatic_scope_cycle(qtbot: object) -> None:
     win._set_roi(0, 0, 64, 64)
     assert win.chart_scope_combo.currentData() == "roi_grid"
     assert _chart(win, "dB", 0).value == pytest.approx(4.0)
+    win.close()
+
+
+def test_switching_scope_keeps_inspector_table_at_fixed_vertical_position(
+    qtbot: object,
+) -> None:
+    """One-line Scope toolbar does not jump when provenance or ROI changes."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.resize(1366, 768)
+    win.present_result(_result("roi-stable-layout"))
+    win.show()
+    QApplication.processEvents()
+    assert win.spatial_dock.isHidden()
+    baseline = (win.inspector_tabs.y(), win.inspector_tabs.height())
+    win._set_roi(0, 0, 64, 64)
+    QApplication.processEvents()
+    assert win.chart_scope_combo.currentText() == "ROI · grid"
+    assert (win.inspector_tabs.y(), win.inspector_tabs.height()) == baseline
+    win.chart_scope_combo.setCurrentIndex(0)
+    QApplication.processEvents()
+    assert (win.inspector_tabs.y(), win.inspector_tabs.height()) == baseline
+    win._clear_roi()
+    win._set_roi(64, 0, 64, 64)
+    QApplication.processEvents()
+    assert win.chart_scope_combo.currentText() == "ROI · grid"
+    assert (win.inspector_tabs.y(), win.inspector_tabs.height()) == baseline
     win.close()
 
 
