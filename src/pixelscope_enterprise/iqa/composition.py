@@ -247,6 +247,20 @@ class IqaWindowContribution:
         if self._jobs_view_action is not None:
             self._jobs_view_action.setChecked(visible)
 
+    def _job_caption(self, snapshot: IqaJobSnapshot) -> str:
+        pending = " (cancel requested)" if snapshot.job_id in self._cancel_requested else ""
+        return f"{snapshot.label} — {snapshot.status}{pending}"
+
+    def _refresh_selected_job_caption(self) -> None:
+        job_id = self._selected_job_id()
+        if job_id is None or self.jobs_list is None:
+            return
+        snapshot = self._records.get(job_id)
+        item = self.jobs_list.currentItem()
+        if snapshot is not None and item is not None:
+            item.setText(self._job_caption(snapshot))
+        self._update_host_status()
+
     def _update_host_status(self) -> None:
         """Visible MAIN-side progress/completion cue independent of dock state."""
         button = self.jobs_status_button
@@ -255,8 +269,12 @@ class IqaWindowContribution:
         if self._latest_job_id is None:
             return
         latest = self._records[self._latest_job_id]
-        button.setText(f"IQA: {latest.label} — {latest.status} · View jobs")
-        button.setAccessibleName(f"IQA job {latest.label}, {latest.status}; open the IQA jobs list")
+        button.setText(f"IQA: {self._job_caption(latest)} · View jobs")
+        button.setAccessibleName(
+            f"IQA job {latest.label}, {latest.status}"
+            f"{', cancellation requested' if latest.job_id in self._cancel_requested else ''}"
+            "; open the IQA jobs list"
+        )
         button.show()
 
     def request_analysis(self) -> None:
@@ -281,12 +299,14 @@ class IqaWindowContribution:
             return
         self._cancel_requested.add(job_id)
         self._selection_changed()
+        self._refresh_selected_job_caption()
         try:
             self._cancel_job(job_id)
         except Exception:
             # Synchronous submission failure is not cancellation success.
             self._cancel_requested.discard(job_id)
             self._selection_changed()
+            self._refresh_selected_job_caption()
             raise
 
     def post_job(self, snapshot: IqaJobSnapshot) -> None:
@@ -329,7 +349,7 @@ class IqaWindowContribution:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, snapshot.job_id)
             self.jobs_list.addItem(item)
-        item.setText(f"{snapshot.label} — {snapshot.status}")
+        item.setText(self._job_caption(snapshot))
         self._update_host_status()
         if self.jobs_list.currentItem() is item:
             self._selection_changed()
