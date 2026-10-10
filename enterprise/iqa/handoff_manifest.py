@@ -197,11 +197,36 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         seen.add(path)
 
 
+def _contract_revision(root: Path, main_sha: str) -> int:
+    public_contract = _git(
+        root, "show", f"{main_sha}:src/pixelscope/remote/iqa_public_contract.py"
+    ).decode("utf-8")
+    match = re.search(r"(?m)^IQA_PUBLIC_CONTRACT_REVISION = ([1-9][0-9]*)$", public_contract)
+    if match is None:
+        raise HandoffError("MAIN does not expose public IQA contract revision")
+    return int(match.group(1))
+
+
+def _verify_snapshot(root: Path, manifest: dict[str, Any]) -> None:
+    tree = _tree(root, manifest["handoff_sha"])
+    entries = {entry["path"]: entry for entry in manifest["imported_paths"]}
+    if set(tree) != set(entries):
+        raise HandoffError("approved manifest does not cover exact IQA snapshot")
+    for path, (mode, blob_sha) in tree.items():
+        entry = entries[path]
+        if (entry["mode"], entry["git_blob_sha"]) != (mode, blob_sha):
+            raise HandoffError(f"approved manifest Git blob/mode differs: {path}")
+        if _hash(_blob(root, blob_sha)) != entry["sha256"]:
+            raise HandoffError(f"approved manifest SHA-256 differs: {path}")
+
+
 def _validate_commits(root: Path, manifest: dict[str, Any]) -> None:
     main = _resolve_commit(root, manifest["main_base_sha"])
     handoff = _resolve_commit(root, manifest["handoff_sha"])
     if not _ancestor(root, main, handoff):
         raise HandoffError("approved handoff is not descended from pinned PUBLIC MAIN")
+    if manifest["contract_revision"] != _contract_revision(root, main):
+        raise HandoffError("manifest public IQA contract revision mismatch")
     tag_ref = f"refs/tags/{manifest['approved_tag']}^{{commit}}"
     tagged = _git(root, "rev-parse", "--verify", tag_ref).decode().strip()
     if tagged != handoff:
@@ -232,14 +257,12 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
     )
     if TAG_RE.fullmatch(args.tag) is None or tagged != approved:
         raise HandoffError("approval tag missing or does not point to frozen handoff SHA")
-    public_contract = _git(
-        root, "show", f"{base}:src/pixelscope/remote/iqa_public_contract.py"
-    ).decode("utf-8")
-    match = re.search(r"(?m)^IQA_PUBLIC_CONTRACT_REVISION = ([1-9][0-9]*)$", public_contract)
-    if match is None:
-        raise HandoffError("MAIN does not expose public IQA contract revision")
+    contract_revision = _contract_revision(root, base)
     evidence = json.loads(args.evidence.read_text(encoding="utf-8"))
     previous = _read(args.previous_manifest) if args.previous_manifest else None
+    if previous is not None:
+        _validate_commits(root, previous)
+        _verify_snapshot(root, previous)
     if previous and previous["handoff_sha"] == approved:
         raise HandoffError("new version must differ from previous approved handoff")
     prior = {e["path"]: e for e in previous["imported_paths"]} if previous else {}
@@ -268,7 +291,7 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
         "main_base_sha": base,
         "handoff_sha": approved,
         "previous_approved_handoff_sha": previous["handoff_sha"] if previous else None,
-        "contract_revision": int(match.group(1)),
+        "contract_revision": contract_revision,
         "approved_tag": args.tag,
         "reviewed_by": args.reviewed_by,
         "approved_at": args.approved_at,
@@ -305,10 +328,9 @@ def plan_import(
     """Fail closed before writing; unrelated SUB sibling paths are never inspected."""
     _validate_manifest(manifest)
     _validate_commits(repo, manifest)
+    _verify_snapshot(repo, manifest)
     approved_tree = _tree(repo, manifest["handoff_sha"])
     manifest_paths = {item["path"] for item in manifest["imported_paths"]}
-    if set(approved_tree) != manifest_paths:
-        raise HandoffError("manifest does not exactly cover approved IQA file tree")
     prior_sha = manifest.get("previous_approved_handoff_sha")
     if prior_sha is None and previous is not None:
         raise HandoffError("first handoff cannot have a prior manifest")
@@ -317,6 +339,7 @@ def plan_import(
             raise HandoffError("incremental handoff requires previous approved manifest")
         _validate_manifest(previous)
         _validate_commits(repo, previous)
+        _verify_snapshot(repo, previous)
         if previous["handoff_sha"] != prior_sha:
             raise HandoffError("previous manifest does not match pinned previous SHA")
         prior_paths = {entry["path"]: entry for entry in previous["imported_paths"]}
