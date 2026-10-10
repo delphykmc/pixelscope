@@ -374,7 +374,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     generate_cmd = sub.add_parser("generate", help="generate *external* approved JSON")
-    for flag in ("repo", "handoff-sha", "main-base-sha", "tag", "reviewed-by", "approved-at", "evidence", "output"):
+    for flag in (
+        "repo", "handoff-sha", "main-base-sha", "tag",
+        "reviewed-by", "approved-at", "evidence", "output",
+    ):
         generate_cmd.add_argument(f"--{flag}", required=True)
     generate_cmd.add_argument("--previous-manifest")
     generate_cmd.add_argument(
