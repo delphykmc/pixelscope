@@ -32,6 +32,10 @@ RESERVED_ROOTS = (
 SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
 HASH_RE = re.compile(r"[0-9a-f]{64}\Z")
 TAG_RE = re.compile(r"handoff/iqa/v[1-9][0-9]*\Z")
+SAFE_SEGMENT_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\Z")
+WINDOWS_DEVICES = {"CON", "PRN", "AUX", "NUL"} | {
+    f"{prefix}{index}" for prefix in ("COM", "LPT") for index in range(1, 10)
+}
 
 
 class HandoffError(ValueError):
@@ -73,7 +77,11 @@ def _owned_path(path: str) -> bool:
     if not isinstance(path, str) or "\\" in path or "\x00" in path:
         return False
     parts = PurePosixPath(path).parts
-    if not parts or any(part in ("", ".", "..") for part in path.split("/")):
+    if not parts or any(
+        SAFE_SEGMENT_RE.fullmatch(part) is None
+        or part.split(".", 1)[0].upper() in WINDOWS_DEVICES
+        for part in path.split("/")
+    ):
         return False
     return path == SHARED_INIT or any(path.startswith(prefix) for prefix in OWNED_LEAVES)
 
@@ -87,6 +95,7 @@ def _require_owned(path: str) -> str:
 def _tree(root: Path, sha: str) -> dict[str, tuple[str, str]]:
     raw = _git(root, "ls-tree", "-r", "-z", "--full-tree", sha)
     tree: dict[str, tuple[str, str]] = {}
+    casefolded: set[str] = set()
     for row in raw.split(b"\x00"):
         if not row:
             continue
@@ -102,6 +111,10 @@ def _tree(root: Path, sha: str) -> dict[str, tuple[str, str]]:
             raise HandoffError(f"non-IQA file in reserved handoff roots: {path}")
         if kind != "blob" or mode not in ("100644", "100755"):
             raise HandoffError(f"unsupported Git entry mode/kind at {path}")
+        folded = path.casefold()
+        if folded in casefolded:
+            raise HandoffError(f"case-colliding Git paths unsafe on Windows: {path}")
+        casefolded.add(folded)
         tree[path] = mode, blob
     if not tree:
         raise HandoffError("no IQA-owned files found in approved commit")
