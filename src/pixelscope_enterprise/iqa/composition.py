@@ -119,10 +119,10 @@ class IqaWindowContribution:
     def prepare(self, window: QMainWindow) -> None:
         if self._closed or self._host_ref is not None:
             raise RuntimeError("IQA contribution must be prepared once")
-        self._host_ref = weakref.ref(window)
         app = QApplication.instance()
         if app is None or QThread.currentThread() != app.thread():
             raise RuntimeError("IQA contribution must be prepared on the Qt GUI thread")
+        self._host_ref = weakref.ref(window)
         self._job_relay = _IqaJobDeliveryRelay(self, window)
         dock = QDockWidget("IQA Jobs", window)
         dock.setObjectName("enterpriseIqaJobsDock")
