@@ -232,15 +232,17 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux1-compact"))
-    assert all(win.attribute_table.rowHeight(i) == 36 for i in range(10))
-    assert all(win._group_tables["delta"].rowHeight(i) == 36 for i in range(2))
+    assert all(win.attribute_table.rowHeight(i) == 32 for i in range(10))
+    assert all(win._group_tables["delta"].rowHeight(i) == 32 for i in range(2))
     assert win.findChild(QWidget, "enterpriseIqaGroupScroll") is not None
     assert win.findChild(QWidget, "enterpriseIqaInspectorDetails") is not None
     assert win.findChild(QWidget, "enterpriseIqaRoiCard") is not None
     assert win.findChild(QWidget, "enterpriseIqaMapCard") is not None
     assert win.findChild(QWidget, "enterpriseIqaOfficialCard") is not None
     assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
-    assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
+    assert win.chart_scope_combo.currentText() == "Full"
+    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == "Pair Δ"
+    assert win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp") is None
     win.close()
 
 
