@@ -111,7 +111,8 @@ def load_target_descriptor(path: Path) -> PackageTargetDescriptor:
         raise ValueError("invalid UTF-8/JSON target descriptor") from exc
     if not isinstance(data, dict) or data.keys() - _ALLOWED:
         raise ValueError("invalid or unknown target descriptor fields")
-    if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
+    schema = data.get("schema_version")
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema != 1:
         raise ValueError("unsupported target descriptor schema")
     target_id = data.get("target_id")
     app_dir = data.get("app_dir")
