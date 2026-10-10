@@ -161,6 +161,8 @@ def test_current_tests_do_not_import_retired_iqa_runtime_modules() -> None:
         "pixelscope.remote.iqa_domain",
         "pixelscope.remote.iqa_public_contract",
         "pixelscope.remote.iqa_public_fixture",
+        # Issue #156 U8 is a public, Qt-free *test harness*, not retired P5 runtime.
+        "pixelscope.remote.iqa_provider_conformance",
     }
     retired_exact = {
         "pixelscope.app.iqa_history",
@@ -187,6 +189,7 @@ def test_historical_p5_runtime_files_are_retired_from_main_source() -> None:
         "iqa_domain.py",
         "iqa_public_contract.py",
         "iqa_public_fixture.py",
+        "iqa_provider_conformance.py",
     }
 
     assert {path.name for path in remote_root.glob("iqa_*.py")} == allowed_remote
