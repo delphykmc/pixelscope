@@ -132,10 +132,18 @@ an explicit external owner/release responsibility.
 
 Owner-local validation:
 ```powershell
-& $py -m pytest -q tests/enterprise/iqa/test_handoff_manifest.py
+& $py -m pytest -q --durations=5 tests/enterprise/iqa/test_handoff_manifest.py
 & $py -m ruff check enterprise/iqa/handoff_manifest.py tests/enterprise/iqa/test_handoff_manifest.py
 & $py -m ruff format --check enterprise/iqa/handoff_manifest.py tests/enterprise/iqa/test_handoff_manifest.py
 ```
+
+The importer reads Git blobs in batches instead of launching one
+`git cat-file` process per IQA file. Synthetic tests reuse a module-scoped
+immutable Git repository and copy the small fixture only when test-specific
+commits are needed. On Windows, `--durations=5` reports the slowest test
+phases and distinguishes regression-test overhead from Qt/model tests.
+Runtime improvements must be confirmed with observed owner measurements;
+the handoff validation remains a focused test, not the full repository suite.
 
 Pending #159 Slice B may add additional IQA tests/docs at their old
 flat locations; normalize them into these owned leaves **before H1 approval**.
