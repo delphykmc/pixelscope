@@ -9,10 +9,14 @@ Tracking: #168, #156 U1/U2/U8/U9/U11, #140.
 | Identity | Exact Git SHA |
 | --- | --- |
 | Frozen E2A Handoff development parent (#172) | `c27abc9169917c8b49f4c0b48db2d49fc79853a0` |
-| PUBLIC MAIN consumed (contains #164 U8, #167 U2 and #156 U9 docs) | `dca0464b66934b62aa759f2e38e0b79b40de353b` |
+| Original PUBLIC MAIN (contains #164 U8, #167 U2 and #156 U9 docs) | `dca0464b66934b62aa759f2e38e0b79b40de353b` |
 | Common pre-integration ancestor | `95b7845e731302934e21033a0ee09ef08947495a` |
-| **Actual two-parent E2B merge candidate** | `37478a43787fd1ec92413ad8ec2d8515c5e43767` |
-| Combined candidate Git tree | `eb1a6eb883a0fe143ef465d87ab655c3b9f27627` |
+| First two-parent E2B merge | `37478a43787fd1ec92413ad8ec2d8515c5e43767` |
+| First combined Git tree (652 blobs) | `eb1a6eb883a0fe143ef465d87ab655c3b9f27627` |
+| **PUBLIC MAIN #174 fix, actual merged commit** | `3bef0880add2019d62f783d717eb1be518144e19` |
+| E2B feature HEAD before second merge | `8dedfad054965b0d9d0034ddce72ec5fe32c793c` |
+| **Second two-parent MAIN resync** | `44adc97adeba50357702ea3cf5cf8295a6c19a8a` |
+| Second merged Git tree (654 blobs) | `5a82a9ade453048dd8836921f62459446d13a8f5` |
 
 The candidate commit has **first parent Handoff**, **second parent PUBLIC MAIN**.
 No rebasing/force-pushing or approval tag changes were performed. Its tree
@@ -28,6 +32,19 @@ actual ancestors of `37478a43` (ahead, behind 0), not just a string in a
 release note. The combined candidate includes the existing U2 packaging
 descriptor and new U9 release docs, but no PRIVATE SUB source/spec.
 
+**#173 P1 remediation:** the U8/Issue #121 PUBLIC test allowlist fix was
+reviewed and squash-merged **only into MAIN** by PR #174 at
+`3bef0880add2019d62f783d717eb1be518144e19`. The new two-parent
+`44adc97a` merge takes the prior E2B feature HEAD as its first parent and
+this exact PUBLIC MAIN commit as its second parent. The second merge imports
+only **one changed MAIN-owned test-file Git blob**; the other 653 files
+retain their exact SHA/mode. The resulting 654-file Git tree was checked
+against both parents. This preserves the earlier `37478a43` ancestor as
+historical evidence and makes #174's fix a real MAIN ancestor.
+
+No existing approved tag/history was rewritten, and neither #174 nor E2B
+authorizes PRIVATE SUB deployment.
+
 ## CRITICAL merge-method exception
 
 **Do NOT squash or rebase the E2B PR into Handoff.** Squashing a branch
@@ -35,12 +52,12 @@ containing a two-parent merge discards the extra MAIN parent and the exact
 MAIN SHA would NOT be an ancestor of the resulting Handoff head. That would
 violate the #156 U11 provenance condition and cause
 `enterprise/iqa/handoff_manifest.py generate/import/verify` to reject
-`main_base_sha=dca0464b...` as not being an ancestor.
+`main_base_sha=3bef0880...` as not being an ancestor.
 
 After independent review and owner acceptance, merge the E2B PR using
 **GitHub Merge Commit** (`merge_method=merge`), not the normal E1/E2A
 `squash` default. The resulting Handoff commit must descend from both
-`c27abc91` and `dca0464b`. Both historical HEAD SHAs remain reachable.
+`c27abc91` and `3bef0880`. Both historical HEAD SHAs remain reachable.
 Do not merge Handoff back into MAIN. A later separate change can use squash
 for ordinary Enterprise-only patches because MAIN is already an ancestor
 of the Handoff parent; this exception is limited to the upstream sync.
@@ -59,9 +76,12 @@ git rev-parse HEAD
 
 $py = (Resolve-Path ".\.venv\Scripts\python.exe").Path
 $env:PYTHONPATH = "src"
-$env:PIXELSCOPE_PUBLIC_MAIN_SHA = "dca0464b66934b62aa759f2e38e0b79b40de353b"
+$env:PIXELSCOPE_PUBLIC_MAIN_SHA = "3bef0880add2019d62f783d717eb1be518144e19"
+$env:PIXELSCOPE_PREVIOUS_PUBLIC_MAIN_SHA = "dca0464b66934b62aa759f2e38e0b79b40de353b"
 $env:PIXELSCOPE_HANDOFF_PRE_SYNC_SHA = "c27abc9169917c8b49f4c0b48db2d49fc79853a0"
 $env:PIXELSCOPE_HANDOFF_MAIN_MERGE_SHA = "37478a43787fd1ec92413ad8ec2d8515c5e43767"
+$env:PIXELSCOPE_HANDOFF_PRE_RESYNC_SHA = "8dedfad054965b0d9d0034ddce72ec5fe32c793c"
+$env:PIXELSCOPE_HANDOFF_MAIN_RESYNC_SHA = "44adc97adeba50357702ea3cf5cf8295a6c19a8a"
 $env:PIXELSCOPE_RUN_IQA_MAIN_SYNC = "1"
 
 # Independent process: hard Git ancestry and all MAIN/Handoff file modes/blobs.
@@ -91,6 +111,9 @@ if ($LASTEXITCODE -ne 0) { throw "Handoff manifest contract gate failed" }
 Remove-Item Env:PIXELSCOPE_RUN_IQA_MAIN_SYNC -ErrorAction SilentlyContinue
 Remove-Item Env:PIXELSCOPE_HANDOFF_PRE_SYNC_SHA -ErrorAction SilentlyContinue
 Remove-Item Env:PIXELSCOPE_HANDOFF_MAIN_MERGE_SHA -ErrorAction SilentlyContinue
+Remove-Item Env:PIXELSCOPE_HANDOFF_PRE_RESYNC_SHA -ErrorAction SilentlyContinue
+Remove-Item Env:PIXELSCOPE_HANDOFF_MAIN_RESYNC_SHA -ErrorAction SilentlyContinue
+Remove-Item Env:PIXELSCOPE_PREVIOUS_PUBLIC_MAIN_SHA -ErrorAction SilentlyContinue
 Remove-Item Env:PIXELSCOPE_PUBLIC_MAIN_SHA -ErrorAction SilentlyContinue
 ```
 
@@ -127,7 +150,7 @@ should be run once separately before a protected approval release.
    protected annotated `handoff/iqa/vN` tag only after security owner
    approval. This development merge is **NOT approval**. The public
    `main_base_sha` for that frozen commit can then use the verified
-   `dca0464b...` pin (or a later verified ancestor after another sync).
+   `3bef0880...` pin (or a later verified ancestor after another sync).
 3. Generate the actual external approved JSON using
    `enterprise/iqa/handoff_manifest.py generate`, with real validation
    evidence, reviewer identity, time and contract revision. Authenticate/
