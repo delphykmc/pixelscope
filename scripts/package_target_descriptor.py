@@ -19,7 +19,7 @@ from scripts.release_contract import REPO_ROOT
 _SLUG = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _BASENAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _EXE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}\.exe$", re.IGNORECASE)
-_APP_ID = re.compile(r"^\{[0-9a-fA-F-]{36}\}$")
+_APP_ID = re.compile(r"^\{[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$")
 _ALLOWED = frozenset(
     {
         "schema_version",
