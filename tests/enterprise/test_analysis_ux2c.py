@@ -278,7 +278,6 @@ def test_spatial_candidates_view_is_opt_in_even_with_saved_visible_layout(qtbot:
             settings.setValue("analysis_window_spatial_dock_state", original_state)
 
 
-
 def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
     """Keep rank icons/relative bars; do not regress to prose-card titles."""
 
@@ -286,6 +285,7 @@ def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux2c-compact-ranks"))
     win.show()
+    win.hotspot_candidates_action.trigger()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: win._spatial_displayed is not None, timeout=5000
     )
