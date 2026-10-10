@@ -64,6 +64,7 @@ from PySide6.QtWidgets import (
     QRubberBand,
     QScrollArea,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QToolBar,
@@ -573,19 +574,35 @@ class AnalysisWindow(QMainWindow):
         shared_controls.addWidget(self.gain_editor)
         inspector_layout.addLayout(shared_controls)
 
-        # The chart and details are both full-height, user-resizable panes.
-        # Fixed-height table rows remain inside the independently scrolling chart.
-        self.inspector_splitter = QSplitter(Qt.Orientation.Vertical, inspector)
-        self.inspector_splitter.setObjectName("enterpriseIqaInspectorSplitter")
-        self.inspector_splitter.setChildrenCollapsible(False)
-        self.inspector_splitter.setHandleWidth(8)
+        # Compact always-visible ROI identity; detailed context belongs in its tab.
+        # The chart no longer loses half its vertical space to explanatory cards.
+        roi_toolbar = QHBoxLayout()
+        roi_toolbar.setContentsMargins(0, 0, 0, 0)
+        self.roi_brief_label = QLabel("ROI: none", inspector)
+        self.roi_brief_label.setObjectName("enterpriseIqaRoiBrief")
+        self.roi_brief_label.setToolTip("Source-pixel ROI coordinates (x, y, width, height).")
+        roi_toolbar.addWidget(self.roi_brief_label, 1)
+        self.clear_roi_button = QPushButton("Clear", inspector)
+        self.clear_roi_button.setObjectName("enterpriseIqaClearRoiButton")
+        self.clear_roi_button.setToolTip("Clear only the current ROI (Esc / Shift+Esc)")
+        self.clear_roi_button.setEnabled(False)
+        self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
+        roi_toolbar.addWidget(self.clear_roi_button)
+        inspector_layout.addLayout(roi_toolbar)
+
+        # Own each tab's scroll area under a stable QTabWidget parent. Only
+        # Attributes is visible by default; Details stays accessible without
+        # reserving height on short/FHD workspaces or changing scientific scope.
+        self.inspector_tabs = QTabWidget(inspector)
+        self.inspector_tabs.setObjectName("enterpriseIqaInspectorTabs")
+        self.inspector_tabs.setDocumentMode(True)
+        self.inspector_tabs.setMinimumHeight(140)
         self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
         self.attribute_table.hide()
         self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
         self.range_editor.hide()
-        self.group_scroll = QScrollArea(self.inspector_splitter)
+        self.group_scroll = QScrollArea(self.inspector_tabs)
         self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
-        self.group_scroll.setMinimumHeight(140)
         self.group_scroll.setWidgetResizable(True)
         self.group_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.group_content = QWidget()
@@ -593,25 +610,19 @@ class AnalysisWindow(QMainWindow):
         self._groups_layout.setContentsMargins(0, 2, 0, 2)
         self._groups_layout.setSpacing(7)
         self.group_scroll.setWidget(self.group_content)
-        self.inspector_splitter.addWidget(self.group_scroll)
-        details_scroll = QScrollArea(self.inspector_splitter)
-        details_scroll.setObjectName("enterpriseIqaInspectorDetails")
-        details_scroll.setWidgetResizable(True)
-        details_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        details_scroll.setMinimumHeight(175)
+        self.inspector_tabs.addTab(self.group_scroll, "Attributes")
+        self.details_scroll = QScrollArea(self.inspector_tabs)
+        self.details_scroll.setObjectName("enterpriseIqaInspectorDetails")
+        self.details_scroll.setWidgetResizable(True)
+        self.details_scroll.setFrameShape(QFrame.Shape.NoFrame)
         details_content = QWidget()
         details_layout = QVBoxLayout(details_content)
         details_layout.setContentsMargins(0, 2, 0, 2)
         details_layout.setSpacing(5)
-        details_scroll.setWidget(details_content)
-        self.inspector_splitter.addWidget(details_scroll)
-        self.inspector_splitter.setStretchFactor(0, 3)
-        self.inspector_splitter.setStretchFactor(1, 2)
-        self.inspector_splitter.setSizes([420, 280])
-        self.inspector_splitter.handle(1).setToolTip(
-            "Drag vertically to resize the Attribute chart and Analysis details."
-        )
-        inspector_layout.addWidget(self.inspector_splitter, 1)
+        self.details_scroll.setWidget(details_content)
+        self.inspector_tabs.addTab(self.details_scroll, "Details")
+        self.inspector_tabs.setCurrentIndex(0)
+        inspector_layout.addWidget(self.inspector_tabs, 1)
         self.detail_context = QLabel("DETAILS · select an attribute", details_content)
         self.detail_context.setObjectName("enterpriseIqaDetailContext")
         details_layout.addWidget(self.detail_context)
@@ -636,10 +647,6 @@ class AnalysisWindow(QMainWindow):
         details_layout.addWidget(official_card, 1)
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
-        self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
-        self.clear_roi_button.setObjectName("enterpriseIqaClearRoiButton")
-        self.clear_roi_button.setEnabled(False)
-        self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
         roi_card = QFrame(inspector)
         roi_card.setObjectName("enterpriseIqaRoiCard")
         roi_card.setFrameShape(QFrame.Shape.StyledPanel)
@@ -657,7 +664,6 @@ class AnalysisWindow(QMainWindow):
         roi_description.setWordWrap(True)
         roi_layout.addWidget(roi_description)
         roi_layout.addWidget(self.roi_label)
-        roi_layout.addWidget(self.clear_roi_button)
         details_layout.addWidget(roi_card, 2)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
@@ -1275,6 +1281,7 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText("Full-pair comparison: —")
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
+        self.roi_brief_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
         self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
@@ -1690,9 +1697,13 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText(f"Full-pair comparison: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
+            self.roi_brief_label.setText("ROI: none")
             self.roi_label.setText("ROI: none\nShift+drag on A, Map or B · Esc clears")
         else:
             x, y, width, height = roi
+            self.roi_brief_label.setText(
+                f"ROI: ({int(x)}, {int(y)})  ·  {int(width)}×{int(height)} px"
+            )
             description = (
                 f"ROI source (x, y, w, h): "
                 f"({int(x)}, {int(y)}, {int(width)}, {int(height)}) px\n"
@@ -1855,7 +1866,7 @@ class AnalysisWindow(QMainWindow):
             or self.spatial_dock.isFloating()
         ):
             return
-        if self.inspector_splitter.height() < 380:
+        if self.inspector_tabs.height() < 380:
             # Request a compact first FHD dock while allowing operators to
             # enlarge it later; exact Inspector height depends on Qt layout minima.
             self.resizeDocks([self.spatial_dock], [175], Qt.Orientation.Vertical)
