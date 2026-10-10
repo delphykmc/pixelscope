@@ -24,17 +24,32 @@
   #error P7-B does not support Inno Setup 8 or newer
 #endif
 
-#define AppName "PixelScope"
+#ifdef TargetAppName
+  #define AppName TargetAppName
+#else
+  #define AppName "PixelScope"
+#endif
 #ifndef AppIdValue
   #define AppIdValue "{{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 #endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
-#define AppSource AddBackslash(RepoRoot) + "dist\PixelScope"
+#ifdef TargetAppSource
+  #define AppSource TargetAppSource
+#else
+  #define AppSource AddBackslash(RepoRoot) + "dist\PixelScope"
+#endif
 #define ReleaseRoot AddBackslash(RepoRoot) + "release"
-#define ReleaseStem "PixelScope-" + AppVersion + "-windows-x64"
+#ifdef TargetReleaseStem
+  #define ReleaseStem TargetReleaseStem
+#else
+  #define ReleaseStem "PixelScope-" + AppVersion + "-windows-x64"
+#endif
 #define ManifestFile AddBackslash(ReleaseRoot) + ReleaseStem + ".manifest.json"
 #define NoticeFile AddBackslash(ReleaseRoot) + ReleaseStem + "-THIRD_PARTY_NOTICES.txt"
 #define SetupIconFile AddBackslash(RepoRoot) + "src\pixelscope\assets\icons\pixelscope.ico"
+#ifndef TargetExeName
+  #define TargetExeName "PixelScope.exe"
+#endif
 #ifdef SmokeBuild
   #define SetupOutputBase ReleaseStem + "-smoke-setup"
 #else
@@ -48,8 +63,13 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=PixelScope
 VersionInfoVersion={#AppFileVersion}
+#ifdef TargetAppDir
+DefaultDirName={localappdata}\Programs\{#TargetAppDir}
+DefaultGroupName={#AppName}
+#else
 DefaultDirName={localappdata}\Programs\PixelScope
 DefaultGroupName=PixelScope
+#endif
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
@@ -63,7 +83,7 @@ SolidCompression=yes
 WizardStyle=modern
 UsePreviousAppDir=yes
 Uninstallable=yes
-UninstallDisplayIcon={app}\PixelScope.exe
+UninstallDisplayIcon={app}\{#TargetExeName}
 CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
@@ -75,15 +95,23 @@ Source: "{#NoticeFile}"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; 
 
 #ifndef SmokeBuild
 [Icons]
-Name: "{userprograms}\PixelScope"; Filename: "{app}\PixelScope.exe"; WorkingDir: "{app}"
+Name: "{userprograms}\{#AppName}"; Filename: "{app}\{#TargetExeName}"; WorkingDir: "{app}"
 #endif
 
 [Run]
+#ifdef TargetAppName
+Filename: "{app}\{#TargetExeName}"; Description: "Launch {#AppName}"; Flags: postinstall nowait skipifsilent
+#else
 Filename: "{app}\PixelScope.exe"; Description: "Launch PixelScope"; Flags: postinstall nowait skipifsilent
+#endif
 
 [Code]
 const
+#ifdef TargetAppName
+  PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppIdValue}_is1';
+#else
   PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}_is1';
+#endif
   CurrentVersionText = '{#AppVersion}';
 
 function ReadExistingInstall(
@@ -117,7 +145,7 @@ begin
 
   if HasInstallLocation then
   begin
-    InstalledExecutable := AddBackslash(InstallLocation) + 'PixelScope.exe';
+    InstalledExecutable := AddBackslash(InstallLocation) + '{#TargetExeName}';
     VersionKnown := GetPackedVersion(InstalledExecutable, InstalledVersion);
   end;
 
