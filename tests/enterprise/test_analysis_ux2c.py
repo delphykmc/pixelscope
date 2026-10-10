@@ -260,8 +260,7 @@ def test_spatial_candidates_view_is_opt_in_even_with_saved_visible_layout(qtbot:
         second.hotspot_candidates_action.trigger()
         qtbot.waitUntil(  # type: ignore[attr-defined]
             lambda: (
-                second.spatial_dock.isVisible()
-                and second.spatial_panel.buttons[0].isEnabled()
+                second.spatial_dock.isVisible() and second.spatial_panel.buttons[0].isEnabled()
             ),
             timeout=5000,
         )
