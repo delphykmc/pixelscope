@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import contextlib
 import subprocess
 import sys
@@ -26,6 +27,10 @@ from scripts.distribution_contract import (  # noqa: E402
     validate_payload_manifest,
 )
 from scripts.release_contract import release_version  # noqa: E402
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
+)
 from scripts.smoke_packaged_release import smoke_executable  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
@@ -116,7 +121,12 @@ def _wait_for_install_cleanup(
     raise RuntimeError(f"Installer uninstall left smoke artifacts behind: {leftovers}")
 
 
-def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> None:
+def smoke_installer_release(
+    setup_path: Path,
+    *,
+    app_id: str = SMOKE_APP_ID,
+    descriptor: PackageTargetDescriptor | None = None,
+) -> None:
     if sys.platform != "win32":
         raise RuntimeError("P7-B installer smoke is supported only on Windows")
     setup_path = setup_path.resolve()
@@ -129,8 +139,10 @@ def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> 
         )
 
     with tempfile.TemporaryDirectory(prefix="pixelscope-installer-") as temp_dir:
-        install_root = Path(temp_dir) / "installed" / "PixelScope"
-        executable = install_root / "PixelScope.exe"
+        app_dir_name = descriptor.app_dir if descriptor is not None else "PixelScope"
+        exe_name = descriptor.executable if descriptor is not None else "PixelScope.exe"
+        install_root = Path(temp_dir) / "installed" / app_dir_name
+        executable = install_root / exe_name
         uninstaller = install_root / "unins000.exe"
         installed = False
         try:
@@ -163,9 +175,14 @@ def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> 
                 allow_distribution_metadata=True,
                 allowed_extra_names=_installer_owned_files(install_root),
                 expected_version=release_version(),
+                descriptor=descriptor,
             )
-            validate_artifact(install_root)
-            smoke_executable(executable)
+            if descriptor is None:
+                validate_artifact(install_root)
+                smoke_executable(executable)
+            else:
+                validate_artifact(install_root, executable_name=exe_name)
+                smoke_executable(executable, title_fragment=descriptor.smoke_window_title)
 
             if not uninstaller.is_file():
                 raise RuntimeError("Installed PixelScope is missing the Inno Setup uninstaller")
@@ -183,9 +200,21 @@ def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> 
 
 
 def main() -> int:
-    setup = build_installer_release(app_id=SMOKE_APP_ID, smoke_build=True)
+    parser = argparse.ArgumentParser(description="Smoke-test installer and cleanup")
+    parser.add_argument("--target-descriptor", type=Path)
+    args = parser.parse_args()
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None else None
+    )
+    smoke_id = (
+        f"PixelScope.P7B.Smoke.{descriptor.target_id}" if descriptor else SMOKE_APP_ID
+    )
+    setup = build_installer_release(
+        app_id=smoke_id, smoke_build=True, descriptor=descriptor
+    )
     try:
-        smoke_installer_release(setup)
+        smoke_installer_release(setup, app_id=smoke_id, descriptor=descriptor)
         print(f"PixelScope installer smoke PASS: {setup.resolve()}")
     finally:
         setup.unlink(missing_ok=True)
