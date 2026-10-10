@@ -68,7 +68,7 @@ class _IqaJobDeliveryRelay(QObject):
         self._accepting = True
         # Forced queued delivery also prevents inline widget mutation when
         # caller happens to be the GUI thread.
-        self.pending.connect(self._deliver, Qt.ConnectionType.QueuedConnection)
+        self.pending.connect(self._deliver, Qt.ConnectionType.QueuedConnection)  # type: ignore[arg-type]
 
     @Slot(object)
     def _deliver(self, snapshot: object) -> None:
