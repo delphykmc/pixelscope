@@ -1,5 +1,7 @@
 # Enterprise IQA Window — temporary public-safe handoff
 
+> **Issue #156 H1 (U3/U11):** IQA handoff ownership is scoped to `src/pixelscope_enterprise/iqa/**`, `tests/enterprise/iqa/**`, `docs/enterprise/iqa/**`, and `enterprise/iqa/**` (plus a minimal shared `src/pixelscope_enterprise/__init__.py`). A merged handoff development commit is **not** an approved SUB transfer; see `enterprise/iqa/README.md`. Whole-root `git restore` can delete SUB siblings and is prohibited. Future transfers require a reviewed, externally published manifest with an immutable approved SHA and explicit per-path add/update/delete operations.
+
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
 ## Latest authoritative state (2026-10-09)
@@ -32,7 +34,7 @@ Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementa
 | MAIN host implementation | #139 implemented by **merged PR #143**, now included in this handoff baseline |
 | Server output contract | #140 **proposal**, not a finalized file schema |
 | Public-safe branch disclosure | All branch files and commits are publicly readable |
-| Ownership | Only `src/pixelscope_enterprise/**`, `tests/enterprise/**`, `docs/enterprise/**`, `enterprise/**` |
+| Ownership | Only `src/pixelscope_enterprise/**`, `tests/enterprise/iqa/**`, `docs/enterprise/iqa/**`, `enterprise/**` |
 | Merge prohibition | Do **not** merge any Enterprise path into public `main` |
 
 PR #143 merged into MAIN on **2026-10-09**. The current handoff base is the
@@ -91,7 +93,7 @@ complete, but PRIVATE SUB transfer and runtime validation remain separate gates.
   immutable ID/attribute/source collision, state restoration and invalid
   ROI/attribute rejection are covered by newly authored tests.
 - **Environment gate:** changes are subject to repo CI Ruff/mypy checks.
-  Existing change-scoped Windows job skips `tests/enterprise/**`. A
+  Existing change-scoped Windows job skips `tests/enterprise/iqa/**`. A
   supported Windows Python 3.10/PySide6 6.4.2 focused run and native Qt/GC
   repeated open-close smoke are still mandatory before accepting the slice.
   Do not equate general screenshot CI with this dedicated UI validation.
@@ -220,9 +222,9 @@ Focused validation (run in the MAIN-compatible Python 3.10 Qt environment):
 
 ```powershell
 $env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/test_analysis_model.py
+.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/iqa/test_analysis_model.py
 # Run Qt tests in a *separate Python process* to isolate native Qt teardown.
-.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/test_analysis_window.py
+.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/iqa/test_analysis_window.py
 ```
 
 The authoring environment does **not** have PySide6 and cannot execute these

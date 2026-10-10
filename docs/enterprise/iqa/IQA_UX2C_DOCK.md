@@ -89,9 +89,9 @@ meaning and swap orientation are never mutated.
 
 ```powershell
 $env:PYTHONPATH = "src"
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux2c.py
-& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux2a.py tests/enterprise/test_analysis_ux1.py
-& $py -m pytest -q tests/enterprise/test_spatial_candidates.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_ux2c.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_analysis_ux2a.py tests/enterprise/iqa/test_analysis_ux1.py
+& $py -m pytest -q tests/enterprise/iqa/test_spatial_candidates.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 & $py -m pixelscope_enterprise.iqa.demo --rgb
 ```
@@ -149,7 +149,7 @@ relative strength rather than relying on bare ranking numerals.
 ## Handoff full-suite contract boundary
 
 The temporary Enterprise handoff branch intentionally carries
-`src/pixelscope_enterprise/`, `tests/enterprise/`, and `docs/enterprise/`
+`src/pixelscope_enterprise/`, `tests/enterprise/iqa/`, and `docs/enterprise/iqa/`
 alongside the PUBLIC MAIN sources. Thus PUBLIC MAIN's architectural guard
 `tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main`
 **must fail on this combined handoff tree**; it verifies an invariant for the

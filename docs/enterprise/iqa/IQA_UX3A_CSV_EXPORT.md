@@ -19,14 +19,14 @@ All rows identify result, source A/B labels and image dimensions, Attribute ID/n
 
 ## Test and owner acceptance
 
-Tests: tests/enterprise/test_measurement_export.py (Qt-free scientific and file contract); tests/enterprise/test_analysis_ux3a.py (GUI action and error paths).
+Tests: tests/enterprise/iqa/test_measurement_export.py (Qt-free scientific and file contract); tests/enterprise/iqa/test_analysis_ux3a.py (GUI action and error paths).
 
 On Windows in the feature branch, use the following:
 
     git switch feat/153-enterprise-iqa-ux3a-csv-export
     git pull --ff-only
     $env:PYTHONPATH = "src"
-    & $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_measurement_export.py tests/enterprise/test_analysis_ux3a.py tests/enterprise/test_analysis_window.py tests/enterprise/test_analysis_ux2c.py
+    & $py -m pytest -q -W error::DeprecationWarning tests/enterprise/iqa/test_measurement_export.py tests/enterprise/iqa/test_analysis_ux3a.py tests/enterprise/iqa/test_analysis_window.py tests/enterprise/iqa/test_analysis_ux2c.py
     & $py -m pytest -q --deselect=tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main
 
 Launch the standalone sample with python -m pixelscope_enterprise.iqa.demo --rgb, select a ROI and export CSV. Check full-pair vs grid-derived columns and preserved A/B source identity after swap. With ROI cleared, exported rows contain only full-pair comparisons. Verify invalid/missing cells are not zero, cancellation is no-op and failure message is visible. Generic CI cannot replace these native Qt tests.

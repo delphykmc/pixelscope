@@ -83,16 +83,16 @@ the image/charts from resizing unexpectedly after the first render.
 ## Owner Windows acceptance
 
 ```powershell
-git switch feat/155-enterprise-roi-chart-scope
+git switch issue-156-h1-iqa-handoff-isolation
 git pull --ff-only
 $env:PYTHONPATH = "src"
 & $py -m pytest -q -W error::DeprecationWarning `
-  tests/enterprise/test_analysis_roi_chart_scope.py `
-  tests/enterprise/test_analysis_window.py `
-  tests/enterprise/test_analysis_ux1.py `
-  tests/enterprise/test_analysis_ux2c.py `
-  tests/enterprise/test_analysis_ux3a.py `
-  tests/enterprise/test_measurement_export.py
+  tests/enterprise/iqa/test_analysis_roi_chart_scope.py `
+  tests/enterprise/iqa/test_analysis_window.py `
+  tests/enterprise/iqa/test_analysis_ux1.py `
+  tests/enterprise/iqa/test_analysis_ux2c.py `
+  tests/enterprise/iqa/test_analysis_ux3a.py `
+  tests/enterprise/iqa/test_measurement_export.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 & $py -m pixelscope_enterprise.iqa.demo --rgb
 ```
