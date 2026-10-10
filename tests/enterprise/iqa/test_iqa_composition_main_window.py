@@ -32,9 +32,7 @@ def test_real_main_window_contribution_menus_dock_runtime_and_shutdown(
     calls: list[tuple[Path | None, ...]] = []
 
     def private_iqa_settings() -> QSettings:
-        return QSettings(
-            str(tmp_path / "private-iqa-settings.ini"), QSettings.Format.IniFormat
-        )
+        return QSettings(str(tmp_path / "private-iqa-settings.ini"), QSettings.Format.IniFormat)
 
     contribution = IqaWindowContribution(
         settings_factory=private_iqa_settings, start_job=calls.append
