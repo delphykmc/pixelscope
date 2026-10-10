@@ -113,7 +113,6 @@ def default_iqa_settings() -> QSettings:
     return QSettings("PixelScope", "EnterpriseIqa")
 
 
-
 @dataclass
 class _ResultViewState:
     attribute_id: str
@@ -807,9 +806,7 @@ class AnalysisWindow(QMainWindow):
         # Restore location/size but NOT visibility. The candidates panel is
         # explicitly opt-in on every new Analysis Window; an old persisted
         # visible dock must not trigger a scan or surprise the operator.
-        dock_state = self._settings_factory().value(
-            "analysis_window_spatial_dock_state"
-        )
+        dock_state = self._settings_factory().value("analysis_window_spatial_dock_state")
         if isinstance(dock_state, QByteArray | bytes):
             self.restoreState(dock_state)
         self.spatial_dock.hide()
@@ -2127,16 +2124,12 @@ class AnalysisWindow(QMainWindow):
             pending.cancel()
         self._spatial_future = None
         self._spatial_pending = None
-        self._settings_factory().setValue(
-            "analysis_window_spatial_dock_state", self.saveState()
-        )
+        self._settings_factory().setValue("analysis_window_spatial_dock_state", self.saveState())
         for view in self._views:
             view.cancel_roi_drag()
             view._set_roi_cursor(False)
         self._remember_navigation()
-        self._settings_factory().setValue(
-            "analysis_window_geometry", self.saveGeometry()
-        )
+        self._settings_factory().setValue("analysis_window_geometry", self.saveGeometry())
         super().closeEvent(event)
 
 
