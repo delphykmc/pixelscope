@@ -133,7 +133,8 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     if descriptor is not None and args.executable != EXECUTABLE_PATH:
         parser.error("executable positional cannot be combined with --target-descriptor")
