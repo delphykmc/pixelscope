@@ -134,9 +134,28 @@ the externally authenticated JSON**, not from mutable handoff HEAD:
   --manifest <APPROVED_MANIFEST_JSON> --apply
 ```
 
+**New UX-3E E2 post-import audit:** after approved `--apply`, use the
+read-only `verify` command with the same protected manifest and exact Git
+objects. It fails closed when any approved file is absent/altered or an
+explicit deletion was not performed, and prints a digest of the externally
+retained manifest for the private evidence record:
+
+```powershell
+& $py enterprise/iqa/handoff_manifest.py verify `
+  --repo <REPO_WITH_FETCHED_HANDOFF_TAG> --destination <SUB_CHECKOUT> `
+  --manifest <APPROVED_MANIFEST_JSON>
+```
+
+For incremental transfers pass the previous approved manifest to the
+`verify` command as well. This is a **post-import content reconciliation**,
+not a cryptographic approval signature, protected-tag configuration, a
+PRIVATE SUB sibling-diff verifier or any Full package certification. For
+the E2 security and release gates see
+[`IQA_UX3E_E2_TRANSFER_ACCEPTANCE.md`](../../docs/enterprise/iqa/IQA_UX3E_E2_TRANSFER_ACCEPTANCE.md).
+
 For updates, also pass
 `--previous-manifest <PREVIOUS_APPROVED_MANIFEST_JSON>` to **both**
-commands. The tool rejects paths outside IQA leaves, Git symlinks,
+`import` commands. The tool rejects paths outside IQA leaves, Git symlinks,
 untracked-content collisions, altered files that do not match previous
 SHA-256, unlisted/extra files in the approved IQA tree, missing approval
 tags, and missing/mismatched previous snapshots. All preflight checks
