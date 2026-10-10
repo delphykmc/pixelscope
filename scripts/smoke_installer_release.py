@@ -205,14 +205,11 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
-    smoke_id = (
-        f"PixelScope.P7B.Smoke.{descriptor.target_id}" if descriptor else SMOKE_APP_ID
-    )
-    setup = build_installer_release(
-        app_id=smoke_id, smoke_build=True, descriptor=descriptor
-    )
+    smoke_id = f"PixelScope.P7B.Smoke.{descriptor.target_id}" if descriptor else SMOKE_APP_ID
+    setup = build_installer_release(app_id=smoke_id, smoke_build=True, descriptor=descriptor)
     try:
         smoke_installer_release(setup, app_id=smoke_id, descriptor=descriptor)
         print(f"PixelScope installer smoke PASS: {setup.resolve()}")
