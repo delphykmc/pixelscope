@@ -1199,9 +1199,9 @@ class AnalysisWindow(QMainWindow):
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            table.setFixedHeight(27 + 36 * len(attrs))
+            table.setFixedHeight(27 + 32 * len(attrs))
             for row, attr in enumerate(attrs):
-                table.setRowHeight(row, 36)
+                table.setRowHeight(row, 32)
                 for col, content in enumerate((f"{attr.label}\n{attr.group}", "")):
                     item = QTableWidgetItem(content)
                     item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
