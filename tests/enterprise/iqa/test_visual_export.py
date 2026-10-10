@@ -130,13 +130,25 @@ def test_missing_source_and_missing_map_are_honest(tmp_path: Path) -> None:
     target = tmp_path / "empty"
     with pytest.raises(ValueError, match="no source"):
         write_visual_pngs(
-            result, attribute, (None, None), target,
-            scope="full", roi=None, display_range=4.0, display_gain=1.0,
+            result,
+            attribute,
+            (None, None),
+            target,
+            scope="full",
+            roi=None,
+            display_range=4.0,
+            display_gain=1.0,
         )
     assert not target.exists()
     written = write_visual_pngs(
-        result, attribute, (_source(), None), target,
-        scope="full", roi=None, display_range=4.0, display_gain=1.0,
+        result,
+        attribute,
+        (_source(), None),
+        target,
+        scope="full",
+        roi=None,
+        display_range=4.0,
+        display_gain=1.0,
     )
     assert (written / "source_A_full.png").exists()
     assert not (written / "selected_map_full.png").exists()
@@ -150,8 +162,14 @@ def test_invalid_scope_and_existing_directory_do_not_overwrite(tmp_path: Path) -
     for scope, roi in (("roi", None), ("both", None), ("not-a-scope", None)):
         with pytest.raises(ValueError):
             write_visual_pngs(
-                result, attribute, (_source(), None), tmp_path / f"bad-{scope}",
-                scope=scope, roi=roi, display_range=4.0, display_gain=1.0,
+                result,
+                attribute,
+                (_source(), None),
+                tmp_path / f"bad-{scope}",
+                scope=scope,
+                roi=roi,
+                display_range=4.0,
+                display_gain=1.0,
             )
     existing = tmp_path / "existing"
     existing.mkdir()
@@ -159,8 +177,14 @@ def test_invalid_scope_and_existing_directory_do_not_overwrite(tmp_path: Path) -
     sentinel.write_text("unchanged")
     with pytest.raises(FileExistsError):
         write_visual_pngs(
-            result, attribute, (_source(), None), existing,
-            scope="full", roi=None, display_range=4.0, display_gain=1.0,
+            result,
+            attribute,
+            (_source(), None),
+            existing,
+            scope="full",
+            roi=None,
+            display_range=4.0,
+            display_gain=1.0,
         )
     assert sentinel.read_text() == "unchanged"
 
@@ -178,9 +202,14 @@ def test_writer_failure_cleans_staging_and_keeps_result(
     target = tmp_path / "new"
     with pytest.raises(OSError, match="publish failure"):
         write_visual_pngs(
-            result, attribute, (_source(), None), target,
-            scope="roi", roi=(1.0, 1.0, 2.0, 2.0),
-            display_range=4.0, display_gain=1.0,
+            result,
+            attribute,
+            (_source(), None),
+            target,
+            scope="roi",
+            roi=(1.0, 1.0, 2.0, 2.0),
+            display_range=4.0,
+            display_gain=1.0,
         )
     assert not target.exists()
     assert list(tmp_path.iterdir()) == []
