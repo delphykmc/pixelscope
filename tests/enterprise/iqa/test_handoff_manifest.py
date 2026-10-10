@@ -149,13 +149,15 @@ def test_incremental_explicit_update_and_deletion(tmp_path: Path) -> None:
     _tag(root, "handoff/iqa/v2")
     _, new = _make_manifest(tmp_path, root, base, sha2, 2, previous=old_path)
     assert new["previous_approved_handoff_sha"] == sha1
+    with pytest.raises(handoff.HandoffError, match="requires previous approved manifest"):
+        handoff.plan_import(root, destination, new)
     assert new["removed_paths"] == [
         {
             "path": "src/pixelscope_enterprise/iqa/a.py",
             "previous_sha256": hashlib.sha256(b"a = True\n").hexdigest(),
         }
     ]
-    operations = handoff.plan_import(root, destination, new)
+    operations = handoff.plan_import(root, destination, new, old)
     assert any(kind == "delete" for kind, _, _, _ in operations)
     handoff.apply_import(operations)
     assert not (destination / "src/pixelscope_enterprise/iqa/a.py").exists()
@@ -197,7 +199,7 @@ def test_nonancestor_history_merge_and_wrong_tag_fail(tmp_path: Path) -> None:
     _, manifest = _make_manifest(tmp_path, root, base, sha2, 2, previous=old_path)
     manifest["approved_tag"] = "handoff/iqa/v1"
     with pytest.raises(handoff.HandoffError, match="approved tag"):
-        handoff.plan_import(root, tmp_path / "sub", manifest)
+        handoff.plan_import(root, tmp_path / "sub", manifest, handoff._read(old_path))
 
 
 def test_symlink_parent_is_not_a_transfer_target(tmp_path: Path) -> None:
