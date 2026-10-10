@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
