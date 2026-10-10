@@ -105,7 +105,7 @@ def map_rgba(
 
 
 def _save_png(image: QImage, path: Path) -> None:
-    if image.isNull() or not image.save(str(path), "PNG"):
+    if image.isNull() or not image.save(str(path), b"PNG"):
         raise OSError(f"PNG writer failed for {path.name}")
 
 
