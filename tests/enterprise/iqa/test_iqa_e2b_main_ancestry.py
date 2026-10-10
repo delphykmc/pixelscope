@@ -18,8 +18,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 RUN_FLAG = "PIXELSCOPE_RUN_IQA_MAIN_SYNC"
 PIN_MAIN = "PIXELSCOPE_PUBLIC_MAIN_SHA"
+PIN_PREVIOUS_MAIN = "PIXELSCOPE_PREVIOUS_PUBLIC_MAIN_SHA"
 PIN_HANDOFF = "PIXELSCOPE_HANDOFF_PRE_SYNC_SHA"
 PIN_MERGE = "PIXELSCOPE_HANDOFF_MAIN_MERGE_SHA"
+PIN_PRE_RESYNC = "PIXELSCOPE_HANDOFF_PRE_RESYNC_SHA"
+PIN_RESYNC = "PIXELSCOPE_HANDOFF_MAIN_RESYNC_SHA"
 PRIVATE_ROOTS = (
     "src/pixelscope_enterprise/",
     "tests/enterprise/",
@@ -88,18 +91,28 @@ def _is_enterprise(path: str) -> bool:
 
 def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> None:
     main = _pin(PIN_MAIN)
+    previous_main = _pin(PIN_PREVIOUS_MAIN)
     handoff = _pin(PIN_HANDOFF)
     merger = _pin(PIN_MERGE)
+    pre_resync = _pin(PIN_PRE_RESYNC)
+    resync = _pin(PIN_RESYNC)
 
-    # Check the *actual two-parent commit*. A synthetic SHA marker in a
-    # document, a squash PR or merely identical files cannot satisfy this.
+    # Both MAIN integrations must retain real Git merge parents. A squash,
+    # matching file tree or document-only SHA cannot satisfy ancestry.
     parents = _git("rev-list", "--parents", "-n", "1", merger).decode("ascii").split()
     assert parents == [
         merger,
         handoff,
+        previous_main,
+    ], "initial E2B integration must retain exact Handoff and original MAIN parents"
+    resync_parents = _git("rev-list", "--parents", "-n", "1", resync).decode("ascii").split()
+    assert resync_parents == [
+        resync,
+        pre_resync,
         main,
-    ], "E2B must have an exact two-parent, Handoff-first, MAIN-second merge"
-    for ref in (main, handoff, merger):
+    ], "second E2B integration must retain pre-resync and approved MAIN #174 parents"
+    _git("merge-base", "--is-ancestor", previous_main, main)
+    for ref in (main, previous_main, handoff, merger, pre_resync, resync):
         _git("merge-base", "--is-ancestor", ref, "HEAD")
 
     main_entries = _entries(main)
@@ -120,7 +133,22 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
         merged_enterprise == old_enterprise
     ), "upstream MAIN merge changed an E2A Enterprise blob or mode"
 
-    # The E2B feature authors new tests/docs *after* that merge commit.
+    # The second sync must preserve all reviewed E2B Enterprise test/docs
+    # files unchanged; the only upstream change is the PUBLIC #121 guard.
+    before_sync = _entries(pre_resync)
+    after_sync = _entries(resync)
+    assert {
+        p: v for p, v in after_sync.items() if _is_enterprise(p)
+    } == {
+        p: v for p, v in before_sync.items() if _is_enterprise(p)
+    }, "PUBLIC #174 resync modified a preexisting Enterprise file"
+    assert {
+        p: v for p, v in after_sync.items() if not _is_enterprise(p)
+    } == {
+        p: v for p, v in main_entries.items() if not _is_enterprise(p)
+    }, "PUBLIC #174 resync does not match the exact approved MAIN Git tree"
+
+    # The E2B feature authors new tests/docs *after* the initial merge.
     # Compare against the exact E2A baseline excluding only those known paths,
     # not every path under the Enterprise root (which would mask regressions).
     for path in set(old_enterprise) | {p for p in actual_entries if _is_enterprise(p)}:
