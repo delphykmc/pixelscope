@@ -22,6 +22,10 @@ from scripts.release_contract import (  # noqa: E402
     write_windows_version_info,
 )
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
+)
 
 
 def _target_paths(target: str) -> tuple[Path, Path, str]:
@@ -36,10 +40,16 @@ def _target_paths(target: str) -> tuple[Path, Path, str]:
     raise ValueError(f"Unknown public package target: {target}")
 
 
-def pyinstaller_command(target: str = "core") -> list[str]:
+def pyinstaller_command(
+    target: str = "core", *, descriptor: PackageTargetDescriptor | None = None
+) -> list[str]:
     """Return the PyInstaller invocation for one explicit public package target."""
 
-    spec_path, _app_dir, _executable_name = _target_paths(target)
+    spec_path, _app_dir, _executable_name = (
+        (descriptor.spec, descriptor.output_root, descriptor.executable)
+        if descriptor is not None
+        else _target_paths(target)
+    )
     return [
         sys.executable,
         "-m",
@@ -63,17 +73,36 @@ def documentation_python() -> Path:
     return dev_python if dev_python.is_file() else Path(sys.executable)
 
 
-def build_public_target(target: str = "core") -> Path:
+def build_public_target(
+    target: str = "core", *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
     """Build and validate one of the two public PixelScope package modes."""
 
     validate_release_host()
-    _spec_path, app_dir, executable_name = _target_paths(target)
+    _spec_path, app_dir, executable_name = (
+        (descriptor.spec, descriptor.output_root, descriptor.executable)
+        if descriptor is not None
+        else _target_paths(target)
+    )
     site = build_user_guide(python=documentation_python())
-    if target == "core":
+    if descriptor is not None:
+        write_windows_version_info(
+            identity=(
+                descriptor.app_dir,
+                descriptor.executable,
+                descriptor.display_name,
+            ),
+            output_path=REPO_ROOT / "build" / "release" / f"{descriptor.app_dir}.version.txt",
+        )
+    elif target == "core":
         write_windows_version_info()
     else:
         write_windows_version_info(target=target)
-    command = pyinstaller_command() if target == "core" else pyinstaller_command(target)
+    command = (
+        pyinstaller_command(descriptor=descriptor)
+        if descriptor is not None
+        else pyinstaller_command() if target == "core" else pyinstaller_command(target)
+    )
     subprocess.run(command, cwd=REPO_ROOT, check=True)
 
     # The frozen Help lookup is executable-relative, not a PyInstaller _MEIPASS
@@ -85,7 +114,7 @@ def build_public_target(target: str = "core") -> Path:
     # MkDocs' generated 404.html is hosting-only and contains absolute /assets
     # references that cannot resolve when opened from file://.
     (help_root / "404.html").unlink(missing_ok=True)
-    if target == "core":
+    if target == "core" and descriptor is None:
         validate_artifact()
     else:
         validate_artifact(app_dir, executable_name=executable_name)
@@ -100,9 +129,22 @@ def main(arguments: list[str] | None = None) -> int:
         default="core",
         help="public package mode to build (default: core)",
     )
+    parser.add_argument(
+        "--target-descriptor",
+        type=Path,
+        help="validated downstream JSON target (exclusive with --target)",
+    )
     args = parser.parse_args([] if arguments is None else arguments)
-    output = build_public_target(args.target)
-    print(f"Built PixelScope {args.target} package: {output.resolve()}")
+    if args.target_descriptor is not None and args.target != "core":
+        parser.error("--target-descriptor cannot be combined with --target")
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    output = build_public_target(args.target, descriptor=descriptor)
+    target_name = descriptor.target_id if descriptor is not None else args.target
+    print(f"Built PixelScope {target_name} package: {output.resolve()}")
     return 0
 
 
