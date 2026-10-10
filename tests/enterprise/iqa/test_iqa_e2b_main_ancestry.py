@@ -116,20 +116,18 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
     # proving the PUBLIC import never modifies previously approved IQA files.
     old_enterprise = {p: v for p, v in old_entries.items() if _is_enterprise(p)}
     merged_enterprise = {p: v for p, v in _entries(merger).items() if _is_enterprise(p)}
-    assert merged_enterprise == old_enterprise, (
-        "upstream MAIN merge changed an E2A Enterprise blob or mode"
-    )
+    assert (
+        merged_enterprise == old_enterprise
+    ), "upstream MAIN merge changed an E2A Enterprise blob or mode"
 
     # The E2B feature authors new tests/docs *after* that merge commit.
     # Compare against the exact E2A baseline excluding only those known paths,
     # not every path under the Enterprise root (which would mask regressions).
-    for path in set(old_enterprise) | {
-        p for p in actual_entries if _is_enterprise(p)
-    }:
+    for path in set(old_enterprise) | {p for p in actual_entries if _is_enterprise(p)}:
         if path not in E2B_OWNED_CHANGES:
-            assert actual_entries.get(path) == old_enterprise.get(path), (
-                f"unapproved Enterprise content change after MAIN sync: {path}"
-            )
+            assert actual_entries.get(path) == old_enterprise.get(
+                path
+            ), f"unapproved Enterprise content change after MAIN sync: {path}"
 
     # New Enterprise-only documents/tests are allowed, not new unowned SUB
     # siblings or private files outside the reviewed IQA leaf scope.
