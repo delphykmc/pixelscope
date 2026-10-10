@@ -45,12 +45,21 @@ Remove-Item Env:PIXELSCOPE_RUN_IQA_REAL_HOST -ErrorAction SilentlyContinue
 E1 native regression coverage:
 - Repeat show/hide/close/reopen with **one** AnalysisWindow per manager, then
   idempotent explicit manager shutdown and normal `gc.collect()`.
-- Quiesce an intentionally unfinished synthetic spatial Future and QTimer on
-  shutdown; do not run a synthetic heavy CPU benchmark inside the Qt lifecycle
-  test. No stale UI callback should run.
-- Restore a deliberately off-screen stored geometry; the resulting window must
-  intersect an available Qt screen by at least 100×100 source-independent pixels.
-  This is **not** a substitute for an actual unplugged/moved monitor test.
+- Verify a synthetic `Future` already marked **RUNNING** is non-cancellable,
+  manager shutdown stops the spatial QTimer and clears its callback state,
+  and its completion **after** shutdown does not repopulate the UI. No
+  unbounded CPU benchmark or private model is needed.
+- Exercise an off-screen saved geometry only after verifying the window
+  genuinely moved outside all screens **and** the same native QByteArray was
+  persisted/read back from QSettings; the reopened window must intersect a
+  current screen by at least 100×100 logical pixels. If Qt/window manager
+  refuses an off-screen move, SKIP rather than falsely PASS. This does
+  **not** replace a physical unplugged/moved monitor test.
+- Queue an actual completed snapshot from a Python worker against a live host,
+  shut down the Enterprise contribution **before GUI queued-signal delivery**,
+  process Qt events/normal GC, and assert no post-shutdown widget mutation,
+  AnalysisWindow opening or state resurrection. Post-shutdown updates must
+  raise instead of silently restarting a Job.
 
 If a Windows access violation is encountered, run each failing native test in
 its own **fresh process**; report the exact invocation, Windows/PySide6 versions,
@@ -64,7 +73,7 @@ real dual-screen or per-monitor DPI coverage from generic Windows GitHub CI.
 
 | Viewport / DPI | Actual physical check | Assertions / screenshots |
 | --- | --- | --- |
-| FHD 1920×1080 at 100% | Owner Windows | A/B/Map labels readable, Inspector chart visible and independently resizeable; Jobs Dock does not force disappearing image viewport |
+| FHD 1920×1080 at 100% | Owner Windows | A/B/Map labels readable; Inspector **Attributes / Details tabs** and chart remain usable as window/dock sizes change; Jobs Dock does not hide the image viewport |
 | FHD at 150%, if available | Owner Windows | Same, no clipped toolbar/Cancel/ROI controls, dock can be hidden |
 | UHD 3840×2160 at 150–200% | Owner Windows | 4K pair aligned, map/grid valid, dock resize, legible scale legends |
 | Secondary display connected | Owner Windows | First Analysis Window opens on expected secondary screen, geometry saved |
@@ -84,8 +93,8 @@ Suggested synthetic manual UX entrypoints:
    As** stay disabled without trusted loader/writer (#140), while genuine
    CSV/PNG/HTML export is separately offered for an in-memory result.
 2. Inspect 4K synthetic A/Map/B; change attribute and crop/ROI; zoom/pan and
-   ROI stay synchronized without confusing **OFFICIAL FULL PAIR** and
-   **GRID-DERIVED ROI** numeric values.
+   ROI stay synchronized without confusing **Full-pair comparison** and
+   **Grid-derived ROI estimate** numeric values.
 3. With synthetic RGB absent, A/B panes accurately indicate unavailable
    source; spatial map/statistics remain accessible where supplied.
 4. Run synthetic host job #1: status cue remains visible while Jobs Dock is
