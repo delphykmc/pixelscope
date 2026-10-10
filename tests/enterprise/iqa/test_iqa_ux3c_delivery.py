@@ -175,9 +175,7 @@ def test_cancel_selected_job_requires_provider_and_explicit_job_capability(
     assert contribution.cancel_selected_button is not None
     assert not contribution.cancel_selected_button.isEnabled()
 
-    contribution.publish_job(
-        IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True)
-    )
+    contribution.publish_job(IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True))
     contribution.publish_job(IqaJobSnapshot("j2", "Unknown capability", "running"))
     contribution.publish_job(IqaJobSnapshot("j3", "Already completed", "completed"))
     assert contribution.jobs_list is not None
@@ -199,9 +197,7 @@ def test_cancel_selected_job_requires_provider_and_explicit_job_capability(
     contribution.request_cancel_selected()
     assert cancellations == ["j1"]
 
-    contribution.publish_job(
-        IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True)
-    )
+    contribution.publish_job(IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True))
     assert not cancel.isEnabled()  # An ordinary status poll is not rejection.
     contribution.publish_job(IqaJobSnapshot("j1", "Cancelled by provider", "cancelled"))
     assert not cancel.isEnabled()
@@ -224,9 +220,7 @@ def test_cancel_callback_error_preserves_running_truth(
     contribution = IqaWindowContribution(cancel_job=reject_cancel)
     contribution.prepare(host)
     contribution.install_dock(host)
-    contribution.publish_job(
-        IqaJobSnapshot("active", "Needs backend", "queued", can_cancel=True)
-    )
+    contribution.publish_job(IqaJobSnapshot("active", "Needs backend", "queued", can_cancel=True))
     assert contribution.jobs_list is not None
     contribution.jobs_list.setCurrentRow(0)
     assert contribution.cancel_selected_button is not None
