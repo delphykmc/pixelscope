@@ -141,8 +141,15 @@ completed full-snapshot match, incremental previous-manifest requirement,
 and unrelated SUB sibling bytes preserved in synthetic scenarios. Existing
 Git/tag/path/ancestry/symlink/sha256 checks are reused, not duplicated.
 
-**Exit criteria:** owner Windows synthetic import/verify tests PASS;
-independent review PASS; Handoff-only squash merge; actual release approval
-remains BLOCKED until protected tag+manifest, PRIVATE SUB checkpoint/verification,
-U2/U9 real Full packaging smoke and security owner authorization. Mark any
-unperformed step explicitly NOT RUN.
+**Development merge criteria:** owner Windows synthetic import/verify
+tests PASS and independent review PASS. Ordinary Enterprise-only slices such
+as E1/E2A may use Handoff-only squash merges; **E2B is an exception and MUST
+use a regular Git merge commit (never squash or rebase)** so the approved
+PUBLIC MAIN SHA remains an actual Handoff ancestor. After E2B, verify Handoff
+descends from both PUBLIC MAIN `3bef0880add2019d62f783d717eb1be518144e19`
+and pre-sync Handoff `c27abc9169917c8b49f4c0b48db2d49fc79853a0`.
+
+**Release approval remains BLOCKED** until the protected tag and authenticated
+external manifest, PRIVATE SUB checkpoint/sibling comparison/import/verify,
+U2/U9 real Full packaging smoke and security owner authorization are complete.
+Mark any unperformed step explicitly NOT RUN.
