@@ -58,14 +58,14 @@ def test_html_menu_can_export_roi_and_preserves_live_state(
     win.show()
     assert win.report_export_action.isEnabled()
     assert win.export_menu.actions() == [
-        win.export_action, win.image_export_action, win.report_export_action,
+        win.export_action,
+        win.image_export_action,
+        win.report_export_action,
     ]
     win._set_roi(2.0, 2.0, 6.0, 5.0)
     win._swap_sources()
     state_before = win.current_analysis_state().copy()
-    monkeypatch.setattr(
-        QInputDialog, "getItem", lambda *_args, **_kwargs: ("Both", True)
-    )
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *_args, **_kwargs: ("Both", True))
     monkeypatch.setattr(
         QFileDialog, "getExistingDirectory", lambda *_args, **_kwargs: str(tmp_path)
     )
@@ -96,14 +96,10 @@ def test_html_cancel_and_map_only_without_source(
     win.show()
     assert win.report_export_action.isEnabled()
     win._set_roi(1.0, 1.0, 5.0, 4.0)
-    monkeypatch.setattr(
-        QInputDialog, "getItem", lambda *_args, **_kwargs: ("Active ROI", False)
-    )
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *_args, **_kwargs: ("Active ROI", False))
     win.report_export_action.trigger()
     assert not list(tmp_path.glob("iqa-report-*"))
-    monkeypatch.setattr(
-        QInputDialog, "getItem", lambda *_args, **_kwargs: ("Active ROI", True)
-    )
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *_args, **_kwargs: ("Active ROI", True))
     monkeypatch.setattr(
         QFileDialog, "getExistingDirectory", lambda *_args, **_kwargs: str(tmp_path)
     )
