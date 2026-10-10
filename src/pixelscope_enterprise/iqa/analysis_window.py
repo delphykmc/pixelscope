@@ -1326,9 +1326,7 @@ class AnalysisWindow(QMainWindow):
             next(a for a in self._results[self._active_id].attributes if a.unit == unit), state
         )
         is_roi = state.chart_scope == "roi_grid" and state.roi is not None
-        table.setHorizontalHeaderLabels(
-            ["Metric / family", "ROI Δ (grid)" if is_roi else "Pair Δ"]
-        )
+        table.setHorizontalHeaderLabels(["Metric / family", "ROI Δ (grid)" if is_roi else "Pair Δ"])
         for row in range(table.rowCount()):
             cell = table.item(row, 1)
             if cell is None:
