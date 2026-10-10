@@ -85,7 +85,8 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     archive_path = portable_zip_path(descriptor=descriptor) if descriptor else portable_zip_path()
     smoke_portable_release(archive_path, descriptor=descriptor)
