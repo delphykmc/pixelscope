@@ -200,7 +200,9 @@ class IqaWindowContribution:
             if self._start_job is not None:
                 add_action("IQA", "Run IQA", self.request_analysis, None)
             if self._cancel_job is not None:
-                action = add_action("IQA", "Cancel Selected IQA Job", self.request_cancel_selected, None)
+                action = add_action(
+                    "IQA", "Cancel Selected IQA Job", self.request_cancel_selected, None
+                )
                 action.setEnabled(False)
                 self._cancel_selected_action = action
         elif menu_name == "View":
