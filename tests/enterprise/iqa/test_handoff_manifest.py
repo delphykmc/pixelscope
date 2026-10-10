@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -68,6 +69,24 @@ def _fixture(tmp_path: Path) -> tuple[Path, str, str]:
     return root, base, approved
 
 
+@pytest.fixture(scope="module")
+def approved_repo(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[Path, str, str]:
+    """Build the immutable synthetic Git history once for this module."""
+    return _fixture(tmp_path_factory.mktemp("iqa_handoff_template"))
+
+
+def _clone_fixture(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> tuple[Path, str, str]:
+    """Copy the tiny fixture history only for tests that write Git commits."""
+    template, base, approved = approved_repo
+    root = tmp_path / "repo"
+    shutil.copytree(template, root)
+    return root, base, approved
+
+
 def _make_manifest(
     tmp_path: Path,
     root: Path,
@@ -110,8 +129,10 @@ def _make_manifest(
     return path, manifest
 
 
-def test_first_approved_manifest_import_keeps_downstream_siblings(tmp_path: Path) -> None:
-    root, base, sha = _fixture(tmp_path)
+def test_first_approved_manifest_import_keeps_downstream_siblings(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> None:
+    root, base, sha = approved_repo
     path, manifest = _make_manifest(tmp_path, root, base, sha, 1)
     assert handoff._read(path)["handoff_sha"] == sha
     assert manifest["main_base_sha"] == base
@@ -133,8 +154,10 @@ def test_first_approved_manifest_import_keeps_downstream_siblings(tmp_path: Path
     assert handoff.plan_import(root, destination, manifest) == []
 
 
-def test_incremental_explicit_update_and_deletion(tmp_path: Path) -> None:
-    root, base, sha1 = _fixture(tmp_path)
+def test_incremental_explicit_update_and_deletion(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> None:
+    root, base, sha1 = _clone_fixture(tmp_path, approved_repo)
     old_path, old = _make_manifest(tmp_path, root, base, sha1, 1)
     destination = tmp_path / "sub"
     destination.mkdir()
@@ -164,8 +187,10 @@ def test_incremental_explicit_update_and_deletion(tmp_path: Path) -> None:
     assert (destination / "docs/enterprise/unrelated.md").read_text() == "retain me\n"
 
 
-def test_private_collisions_and_tampered_manifest_are_rejected(tmp_path: Path) -> None:
-    root, base, sha = _fixture(tmp_path)
+def test_private_collisions_and_tampered_manifest_are_rejected(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> None:
+    root, base, sha = approved_repo
     _, manifest = _make_manifest(tmp_path, root, base, sha, 1)
     destination = tmp_path / "sub"
     destination.mkdir()
@@ -185,8 +210,10 @@ def test_private_collisions_and_tampered_manifest_are_rejected(tmp_path: Path) -
         handoff.plan_import(root, tmp_path / "empty", traversal)
 
 
-def test_nonancestor_history_merge_and_wrong_tag_fail(tmp_path: Path) -> None:
-    root, base, sha1 = _fixture(tmp_path)
+def test_nonancestor_history_merge_and_wrong_tag_fail(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> None:
+    root, base, sha1 = _clone_fixture(tmp_path, approved_repo)
     old_path, _ = _make_manifest(tmp_path, root, base, sha1, 1)
     _git(root, "checkout", "-q", "-b", "parallel", base)
     _write(root, "tests/enterprise/iqa/parallel.py", "parallel = 1\n")
@@ -201,8 +228,10 @@ def test_nonancestor_history_merge_and_wrong_tag_fail(tmp_path: Path) -> None:
         handoff.plan_import(root, tmp_path / "sub", manifest, handoff._read(old_path))
 
 
-def test_symlink_parent_is_not_a_transfer_target(tmp_path: Path) -> None:
-    root, base, sha = _fixture(tmp_path)
+def test_symlink_parent_is_not_a_transfer_target(
+    tmp_path: Path, approved_repo: tuple[Path, str, str]
+) -> None:
+    root, base, sha = approved_repo
     _, manifest = _make_manifest(tmp_path, root, base, sha, 1)
     destination = tmp_path / "sub"
     destination.mkdir()
