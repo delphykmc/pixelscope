@@ -281,7 +281,12 @@ def _target(destination: Path, path: str) -> Path:
     return current
 
 
-def plan_import(repo: Path, destination: Path, manifest: dict[str, Any]) -> list[tuple[str, Path, bytes | None, str]]:
+def plan_import(
+    repo: Path,
+    destination: Path,
+    manifest: dict[str, Any],
+    previous: dict[str, Any] | None = None,
+) -> list[tuple[str, Path, bytes | None, str]]:
     """Fail closed before writing; unrelated SUB sibling paths are never inspected."""
     _validate_manifest(manifest)
     _validate_commits(repo, manifest)
@@ -289,6 +294,33 @@ def plan_import(repo: Path, destination: Path, manifest: dict[str, Any]) -> list
     manifest_paths = {item["path"] for item in manifest["imported_paths"]}
     if set(approved_tree) != manifest_paths:
         raise HandoffError("manifest does not exactly cover approved IQA file tree")
+    prior_sha = manifest.get("previous_approved_handoff_sha")
+    if prior_sha is None and previous is not None:
+        raise HandoffError("first handoff cannot have a prior manifest")
+    if prior_sha is not None:
+        if previous is None:
+            raise HandoffError("incremental handoff requires previous approved manifest")
+        _validate_manifest(previous)
+        _validate_commits(repo, previous)
+        if previous["handoff_sha"] != prior_sha:
+            raise HandoffError("previous manifest does not match pinned previous SHA")
+        prior_paths = {entry["path"]: entry for entry in previous["imported_paths"]}
+        expected_removals = set(prior_paths) - manifest_paths
+        actual_removals = {entry["path"] for entry in manifest["removed_paths"]}
+        if actual_removals != expected_removals:
+            raise HandoffError("removed paths do not match prior approved snapshot")
+        for entry in manifest["imported_paths"]:
+            old = prior_paths.get(entry["path"])
+            if old is None and entry["operation"] != "add":
+                raise HandoffError("new file must use add operation")
+            if old is not None and (
+                entry["operation"] != "update"
+                or entry["previous_sha256"] != old["sha256"]
+            ):
+                raise HandoffError("update does not match previous approved hash")
+        for entry in manifest["removed_paths"]:
+            if entry["previous_sha256"] != prior_paths[entry["path"]]["sha256"]:
+                raise HandoffError("deletion does not match prior approved hash")
     actions: list[tuple[str, Path, bytes | None, str]] = []
     for entry in manifest["imported_paths"]:
         path = entry["path"]
@@ -353,6 +385,7 @@ def main() -> int:
     for flag in ("repo", "destination", "manifest"):
         import_cmd.add_argument(f"--{flag}", required=True)
     import_cmd.add_argument("--apply", action="store_true")
+    import_cmd.add_argument("--previous-manifest")
     args = parser.parse_args()
     try:
         if args.command == "generate":
@@ -369,7 +402,12 @@ def main() -> int:
             print(f"Generated externally retained approval manifest: {args.output}")
         else:
             manifest = _read(Path(args.manifest))
-            actions = plan_import(Path(args.repo), Path(args.destination), manifest)
+            previous = (
+                _read(Path(args.previous_manifest)) if args.previous_manifest else None
+            )
+            actions = plan_import(
+                Path(args.repo), Path(args.destination), manifest, previous
+            )
             for action, target, _, _ in actions:
                 print(f"{action}: {target}")
             if args.apply:
