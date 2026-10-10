@@ -85,7 +85,11 @@ def _prepare_custom_output(descriptor: PackageTargetDescriptor) -> None:
     dist_root = DIST_ROOT.resolve()
     if descriptor.app_dir.casefold() in {"pixelscope", "pixelscopereference"}:
         raise RuntimeError("custom package must not overwrite a public output target")
-    if output.parent.resolve() != dist_root or output.is_symlink():
+    if (
+        output.parent.resolve() != dist_root
+        or output.is_symlink()
+        or output.resolve() != dist_root / descriptor.app_dir
+    ):
         raise RuntimeError("unsafe custom package output directory")
     if output.exists():
         if not output.is_dir() or output.resolve().parent != dist_root:
