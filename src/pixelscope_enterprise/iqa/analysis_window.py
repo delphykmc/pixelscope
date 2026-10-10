@@ -74,7 +74,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pixelscope.ui.beta_workspace_hardening import _WorkspaceDockTopLevelController
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope_enterprise.iqa.analysis_model import (
@@ -88,6 +87,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     roi_statistics,
     spatial_display_half_range,
 )
+from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     CHART_MEASUREMENT_ROLE,
@@ -771,9 +771,9 @@ class AnalysisWindow(QMainWindow):
             geometry_setting="ui/enterprise_iqa_spatial_floating_geometry",
         )
         self.spatial_dock.setTitleBarWidget(self.spatial_dock_title)
-        self._spatial_dock_chrome = _WorkspaceDockTopLevelController(
+        self._spatial_dock_chrome = IqaDockLifecycle(
             self.spatial_dock,
-            docked_title_bar=self.spatial_dock_title,
+            title_bar=self.spatial_dock_title,
         )
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
         view_menu.addSeparator()
