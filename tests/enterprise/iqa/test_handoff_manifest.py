@@ -52,7 +52,8 @@ def _fixture(tmp_path: Path) -> tuple[Path, str, str]:
     _git(root, "config", "user.name", "PixelScope Fixture")
     _git(root, "config", "user.email", "test@example.invalid")
     _write(
-        root, "src/pixelscope/remote/iqa_public_contract.py",
+        root,
+        "src/pixelscope/remote/iqa_public_contract.py",
         "IQA_PUBLIC_CONTRACT_REVISION = 1\n",
     )
     _write(root, "src/pixelscope/core.py", "core = True\n")
@@ -126,9 +127,7 @@ def test_first_approved_manifest_import_keeps_downstream_siblings(tmp_path: Path
     # Planning is read-only; no IQA files appear until explicit apply.
     assert not (destination / "enterprise/iqa/README.md").exists()
     handoff.apply_import(planned)
-    assert (destination / "enterprise/other_team/sibling.py").read_text() == (
-        "dont_touch = 1\n"
-    )
+    assert (destination / "enterprise/other_team/sibling.py").read_text() == ("dont_touch = 1\n")
     assert (destination / "tests/enterprise/other_team/test_sibling.py").exists()
     assert (destination / "src/pixelscope_enterprise/iqa/a.py").read_text() == "a = True\n"
     assert handoff.plan_import(root, destination, manifest) == []
