@@ -59,11 +59,13 @@ def build_portable_release(
     RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
     manifest = (
         write_payload_manifest(root, descriptor=descriptor)
-        if descriptor is not None else write_payload_manifest(APP_DIR)
+        if descriptor is not None
+        else write_payload_manifest(APP_DIR)
     )
     notices = (
         write_third_party_notices(descriptor=descriptor)
-        if descriptor is not None else write_third_party_notices()
+        if descriptor is not None
+        else write_third_party_notices()
     )
     output = portable_zip_path(descriptor=descriptor) if descriptor else portable_zip_path()
     output.unlink(missing_ok=True)
@@ -87,11 +89,11 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     output = (
-        build_portable_release(descriptor)
-        if descriptor is not None else build_portable_release()
+        build_portable_release(descriptor) if descriptor is not None else build_portable_release()
     )
     print(f"Portable PixelScope release written: {output}")
     return 0
