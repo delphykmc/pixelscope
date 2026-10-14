@@ -189,3 +189,9 @@ normal `smoke_installer_release.py` is intentionally **not** a destructive
 Core migration test. Inno compile and VM failure injection are mandatory
 before declaring M3 production-ready. The code review and Python unit
 tests alone cannot establish those runtime guarantees.
+
+For the public synthetic acceptance fixture, use the reusable
+[Windows Sandbox runner](issue-176-sandbox-runner.md). Its
+[initial results](issue-176-sandbox-results.md) and
+[merge-readiness follow-up](issue-176-merge-readiness-results.md) retain the exact
+fault checkpoints, installer hashes, observed exits and remaining release limits.
