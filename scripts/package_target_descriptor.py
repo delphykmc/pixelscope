@@ -38,6 +38,8 @@ _ALLOWED = frozenset(
         "installer_app_id",
         "smoke_window_title",
         "runtime_requirements",
+        "supersedes_installer_app_ids",
+        "release_revision",
     }
 )
 
@@ -52,6 +54,8 @@ class PackageTargetDescriptor:
     installer_app_id: str
     smoke_window_title: str
     runtime_requirements: Path | None = None
+    supersedes_installer_app_ids: tuple[str, ...] = ()
+    release_revision: int | None = None
 
     @property
     def output_root(self) -> Path:
@@ -137,6 +141,34 @@ def load_target_descriptor(path: Path) -> PackageTargetDescriptor:
         raise ValueError("invalid target descriptor installer_app_id GUID")
     if app_id.casefold() == PUBLIC_INSTALLER_APP_ID.casefold():
         raise ValueError("target descriptor installer_app_id collides with public production AppId")
+    # Predecessor removal is tightly scoped: a descriptor cannot authorize
+    # uninstalling a product other than the known PUBLIC per-user Core install.
+    predecessors = data.get("supersedes_installer_app_ids", [])
+    if not isinstance(predecessors, list) or (
+        "supersedes_installer_app_ids" in data and not predecessors
+    ):
+        raise ValueError("supersedes_installer_app_ids must be a nonempty list of Core AppIds")
+    seen: set[str] = set()
+    for predecessor in predecessors:
+        if not isinstance(predecessor, str) or not _APP_ID.fullmatch(predecessor):
+            raise ValueError("invalid predecessor AppId GUID")
+        normalized = predecessor.casefold()
+        if normalized == app_id.casefold():
+            raise ValueError("self-supersession is not permitted")
+        if normalized in seen:
+            raise ValueError("duplicate predecessor AppId")
+        if normalized != PUBLIC_INSTALLER_APP_ID.casefold():
+            raise ValueError("predecessor AppId is not allowlisted PUBLIC Core")
+        seen.add(normalized)
+
+    revision = data.get("release_revision")
+    if revision is not None and (
+        not isinstance(revision, int)
+        or isinstance(revision, bool)
+        or not 0 <= revision <= 65535
+    ):
+        raise ValueError("release_revision must be an integer in [0, 65535]")
+
     req = data.get("runtime_requirements")
     return PackageTargetDescriptor(
         target_id=target_id,
@@ -149,4 +181,6 @@ def load_target_descriptor(path: Path) -> PackageTargetDescriptor:
         runtime_requirements=(
             _repo_file(req, "runtime_requirements", ".txt") if req is not None else None
         ),
+        supersedes_installer_app_ids=tuple(predecessors),
+        release_revision=revision,
     )
