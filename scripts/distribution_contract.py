@@ -29,7 +29,7 @@ class DistributionValidationError(RuntimeError):
 def release_stem(
     version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
 ) -> str:
-    value = (version or release_version()).strip()
+    value = (version or (descriptor.effective_version if descriptor else release_version())).strip()
     if not value or any(char in value for char in '<>:"/\\|?*'):
         raise ValueError(f"Release version is not safe for artifact names: {value!r}")
     prefix = descriptor.stem_prefix if descriptor is not None else "PixelScope"
