@@ -319,20 +319,20 @@ def test_issue176_installed_payload_verifier_checks_all_manifest_members(
         target.executable,
     ]
 
-    def check() -> int:
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        return result.returncode
+    def check() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(command, capture_output=True, text=True, check=False)
 
     manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
-    assert check() == 0
+    healthy = check()
+    assert healthy.returncode == 0, f"{healthy.stdout}\n{healthy.stderr}"
     dll.write_bytes(b"tampered-runtime")
-    assert check() != 0
+    assert check().returncode != 0
     dll.unlink()
-    assert check() != 0
+    assert check().returncode != 0
     dll.write_bytes(b"original-runtime")
     manifest["files"][0]["path"] = "../escape.dll"
     manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
-    assert check() != 0
+    assert check().returncode != 0
 
 
 def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
