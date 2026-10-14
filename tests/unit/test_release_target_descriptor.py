@@ -188,7 +188,7 @@ def test_issue176_four_part_revision_is_scoped_to_downstream(tmp_path: Path) -> 
     )
     command = installer_command(Path("C:/ISCC.exe"), descriptor=revised)
     assert f"-dAppVersion={current}.2" in command
-    assert f"-dAppFileVersion={current}.0.2" in command
+    assert f"-dAppFileVersion={current}.2" in command
     assert "-dAppVersionBuild=2" in command
     assert f"-dTargetReleaseStem={release_stem(descriptor=revised)}" in command
     assert 'StringStruct("FileVersion", "' + current + '.2")' in (
