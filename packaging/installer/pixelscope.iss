@@ -244,6 +244,17 @@ const
   ExpectedExeSha256 = '{#TargetExeSha256}';
   PartialConversionExitCode = 77;
 
+function GetFileAttributesW(Path: String): Cardinal;
+  external 'GetFileAttributesW@kernel32.dll stdcall';
+
+function UnsafeReparsePath(Path: String): Boolean;
+var
+  Attr: Cardinal;
+begin
+  Attr := GetFileAttributesW(Path);
+  Result := (Attr = $FFFFFFFF) or ((Attr and $400) <> 0);
+end;
+
 var
   CoreInstallLocation: String;
   CoreUninstaller: String;
@@ -306,6 +317,14 @@ begin
     Exit;
   end;
   ExpectedUninstaller := AddBackslash(Location) + 'unins000.exe';
+  if UnsafeReparsePath(Location) or
+     UnsafeReparsePath(ExtractFileDir(Location)) or
+     UnsafeReparsePath(ExpectedUninstaller) or
+     UnsafeReparsePath(AddBackslash(Location) + CoreExeName) then
+  begin
+    Failure := 'Core install path contains a missing item or unsafe reparse point.';
+    Exit;
+  end;
   if CompareText(RemoveQuotes(UninstallCommand), ExpectedUninstaller) <> 0 then
   begin
     Failure := 'Core registered uninstaller is not the expected owned executable.';
@@ -414,6 +433,11 @@ begin
                  RemoveBackslashUnlessRoot(CanonicalDownstream)) <> 0 then
   begin
     Result := 'Core conversion requires the default separate downstream install folder.';
+    Exit;
+  end;
+  if DirExists(CanonicalDownstream) and UnsafeReparsePath(CanonicalDownstream) then
+  begin
+    Result := 'Downstream install directory is a reparse point; conversion refused.';
     Exit;
   end;
   if not VerifyCoreRegistration(Failure) then
