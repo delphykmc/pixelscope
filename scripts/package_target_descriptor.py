@@ -162,7 +162,7 @@ def load_target_descriptor(path: Path) -> PackageTargetDescriptor:
         seen.add(normalized)
 
     revision = data.get("release_revision")
-    if revision is not None and (
+    if "release_revision" in data and (
         not isinstance(revision, int) or isinstance(revision, bool) or not 0 <= revision <= 65535
     ):
         raise ValueError("release_revision must be an integer in [0, 65535]")
