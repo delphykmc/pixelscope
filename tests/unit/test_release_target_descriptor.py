@@ -103,6 +103,64 @@ def test_descriptor_rejects_invalid_or_unsafe_values(
         load_target_descriptor(_descriptor_file(tmp_path, **overrides))
 
 
+def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) -> None:
+    ordinary = load_target_descriptor(_descriptor_file(tmp_path))
+    assert ordinary.supersedes_installer_app_ids == ()
+    assert ordinary.release_revision is None
+
+    selected = load_target_descriptor(
+        _descriptor_file(
+            tmp_path,
+            supersedes_installer_app_ids=["{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"],
+            release_revision=65535,
+        )
+    )
+    assert selected.supersedes_installer_app_ids == ("{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",)
+    assert selected.release_revision == 65535
+    assert (
+        load_target_descriptor(_descriptor_file(tmp_path, release_revision=0)).release_revision == 0
+    )
+
+
+@pytest.mark.parametrize(
+    ("fields", "error"),
+    [
+        ({"supersedes_installer_app_ids": []}, "nonempty list"),
+        ({"supersedes_installer_app_ids": "not-a-list"}, "nonempty list"),
+        ({"supersedes_installer_app_ids": [1]}, "GUID"),
+        ({"supersedes_installer_app_ids": ["6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C"]}, "GUID"),
+        (
+            {"supersedes_installer_app_ids": ["{A33A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "self-supersession",
+        ),
+        (
+            {"supersedes_installer_app_ids": ["{AA3A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "allowlisted",
+        ),
+        (
+            {
+                "supersedes_installer_app_ids": [
+                    "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
+                    "{6fa0ab08-ab41-4f77-93e8-16ce6ff53e5c}",
+                ]
+            },
+            "duplicate",
+        ),
+        ({"release_revision": -1}, "release_revision"),
+        ({"release_revision": 65536}, "release_revision"),
+        ({"release_revision": True}, "release_revision"),
+        ({"release_revision": None}, "release_revision"),
+        ({"release_revision": "1"}, "release_revision"),
+        ({"release_revision": 1.0}, "release_revision"),
+    ],
+)
+def test_issue176_invalid_descriptor_opt_ins(
+    tmp_path: Path, fields: dict[str, object], error: str
+) -> None:
+    with pytest.raises(ValueError, match=error):
+        load_target_descriptor(_descriptor_file(tmp_path, **fields))
+
+
 @pytest.mark.parametrize("produces_expected_target", [False, True])
 def test_custom_build_cannot_reuse_stale_artifact_when_spec_builds_elsewhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, produces_expected_target: bool
