@@ -276,11 +276,11 @@ begin
   Result := False;
   Failure := '';
 
-  // A machine-wide Core installation or a 32-bit uninstall identity is
-  // outside the per-user 64-bit PUBLIC installer contract. Fail closed.
+  // A machine-wide Core installation is outside PUBLIC per-user scope.
+  // HKCU uninstall identities may share a WOW64 registry view; do not reject
+  // the supported HKCU64 registration just because HKCU32 also sees it.
   if RegKeyExists(HKLM64, CoreUninstallKey) or
-     RegKeyExists(HKLM32, CoreUninstallKey) or
-     RegKeyExists(HKCU32, CoreUninstallKey) then
+     RegKeyExists(HKLM32, CoreUninstallKey) then
   begin
     Failure := 'Core is registered outside the supported HKCU64 per-user scope.';
     Exit;
@@ -397,6 +397,32 @@ begin
     Exit;
   end;
   ConversionRequested := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Failure: String;
+  CanonicalDownstream: String;
+begin
+  Result := '';
+  if not ConversionRequested then
+    Exit;
+  // Disallow /DIR re-targeting into Core or any user-controlled install root
+  // during conversion. Fresh installations retain ordinary folder selection.
+  CanonicalDownstream := ExpandConstant('{localappdata}\Programs\{#TargetAppDir}');
+  if CompareText(RemoveBackslashUnlessRoot(WizardDirValue),
+                 RemoveBackslashUnlessRoot(CanonicalDownstream)) <> 0 then
+  begin
+    Result := 'Core conversion requires the default separate downstream install folder.';
+    Exit;
+  end;
+  if not VerifyCoreRegistration(Failure) then
+  begin
+    Result := 'Core registration changed during setup: ' + Failure;
+    Exit;
+  end;
+  if not CoreIsNotRunning then
+    Result := 'Core is running, or the process check is unavailable. Close Core and retry.';
 end;
 
 function VerifyDownstreamReadiness: Boolean;
