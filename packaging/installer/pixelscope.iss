@@ -100,7 +100,11 @@ Name: "{userprograms}\{#AppName}"; Filename: "{app}\{#TargetExeName}"; WorkingDi
 
 [Run]
 #ifdef TargetAppName
+  #if defined(TargetCorePredecessor) && !defined(SmokeBuild)
+Filename: "{app}\{#TargetExeName}"; Description: "Launch {#AppName}"; Flags: postinstall nowait skipifsilent; Check: ShouldOfferLaunch
+  #else
 Filename: "{app}\{#TargetExeName}"; Description: "Launch {#AppName}"; Flags: postinstall nowait skipifsilent
+  #endif
 #else
 Filename: "{app}\PixelScope.exe"; Description: "Launch PixelScope"; Flags: postinstall nowait skipifsilent
 #endif
@@ -227,11 +231,298 @@ begin
   end;
 end;
 
+#if defined(TargetCorePredecessor) && !defined(SmokeBuild)
+// Enabled only by the validated downstream descriptor and the MAIN builder.
+// The known PUBLIC Core GUID is a predecessor, never the downstream AppId.
+const
+  CoreUninstallKey =
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#TargetCorePredecessor}_is1';
+  DownstreamUninstallKey =
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#TargetRegistryAppId}_is1';
+  CoreExeName = 'PixelScope.exe';
+  ExpectedManifestSha256 = '{#TargetManifestSha256}';
+  ExpectedExeSha256 = '{#TargetExeSha256}';
+  PartialConversionExitCode = 77;
+
+var
+  CoreInstallLocation: String;
+  CoreUninstaller: String;
+  ConversionRequested: Boolean;
+  ConversionFailed: Boolean;
+
+function ConversionSwitchPresent: Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if LowerCase(ParamStr(I)) = '/allowcoreconversion=1' then
+    begin
+      Result := True;
+      Exit;
+    end;
+end;
+
+function VerifyCoreRegistration(var Failure: String): Boolean;
+var
+  Location: String;
+  UninstallCommand: String;
+  DisplayName: String;
+  ExistingVersion: Int64;
+  ExpectedLocation: String;
+  ExpectedUninstaller: String;
+  CoreManifest: String;
+begin
+  Result := False;
+  Failure := '';
+
+  // A machine-wide Core installation or a 32-bit uninstall identity is
+  // outside the per-user 64-bit PUBLIC installer contract. Fail closed.
+  if RegKeyExists(HKLM64, CoreUninstallKey) or
+     RegKeyExists(HKLM32, CoreUninstallKey) or
+     RegKeyExists(HKCU32, CoreUninstallKey) then
+  begin
+    Failure := 'Core is registered outside the supported HKCU64 per-user scope.';
+    Exit;
+  end;
+  if not RegKeyExists(HKCU64, CoreUninstallKey) then
+  begin
+    Failure := 'Core uninstall registration disappeared.';
+    Exit;
+  end;
+  if not RegQueryStringValue(HKCU64, CoreUninstallKey, 'InstallLocation', Location) or
+     not RegQueryStringValue(HKCU64, CoreUninstallKey, 'UninstallString', UninstallCommand) or
+     not RegQueryStringValue(HKCU64, CoreUninstallKey, 'DisplayName', DisplayName) then
+  begin
+    Failure := 'Core uninstall registration has missing identity fields.';
+    Exit;
+  end;
+  ExpectedLocation := ExpandConstant('{localappdata}\Programs\PixelScope');
+  if (CompareText(RemoveBackslashUnlessRoot(Location),
+                  RemoveBackslashUnlessRoot(ExpectedLocation)) <> 0) or
+     (CompareText(DisplayName, 'PixelScope') <> 0) then
+  begin
+    Failure := 'Core install location or product identity is not the supported PUBLIC layout.';
+    Exit;
+  end;
+  ExpectedUninstaller := AddBackslash(Location) + 'unins000.exe';
+  if CompareText(RemoveQuotes(UninstallCommand), ExpectedUninstaller) <> 0 then
+  begin
+    Failure := 'Core registered uninstaller is not the expected owned executable.';
+    Exit;
+  end;
+  if not FileExists(ExpectedUninstaller) or
+     not FileExists(ChangeFileExt(ExpectedUninstaller, '.dat')) or
+     not FileExists(AddBackslash(Location) + CoreExeName) or
+     not GetPackedVersion(AddBackslash(Location) + CoreExeName, ExistingVersion) then
+  begin
+    Failure := 'Core installed executable, version or uninstaller is invalid.';
+    Exit;
+  end;
+
+  // The manifest is optional for older installations but must be coherent
+  // when present. Never follow arbitrary paths from its contents.
+  if FileExists(AddBackslash(Location) + 'release-manifest.json') then
+  begin
+    if not LoadStringFromFile(
+        AddBackslash(Location) + 'release-manifest.json', CoreManifest) or
+       (Pos('"product": "PixelScope"', CoreManifest) = 0) then
+    begin
+      Failure := 'Core release-manifest.json does not identify PUBLIC Core.';
+      Exit;
+    end;
+  end;
+  CoreInstallLocation := Location;
+  CoreUninstaller := ExpectedUninstaller;
+  Result := True;
+end;
+
+function CoreIsNotRunning: Boolean;
+var
+  PS: String;
+  Args: String;
+  ExitCode: Integer;
+begin
+  // A process check is mandatory before installation AND prior to removal.
+  // Missing/blocked PowerShell is treated as unsafe; never force-terminate.
+  PS := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Args := '-NoProfile -NonInteractive -Command ' +
+    '"if (Get-Process -Name PixelScope -ErrorAction SilentlyContinue) ' +
+    '{ exit 21 } else { exit 0 }"';
+  Result := FileExists(PS) and
+    Exec(PS, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) and
+    (ExitCode = 0);
+  if not Result then
+    Log('Conversion preflight: Core process check refused (running or unavailable).');
+end;
+
+function PrepareCoreConversion: Boolean;
+var
+  Failure: String;
+begin
+  Result := True;
+  if RegKeyExists(HKLM64, CoreUninstallKey) or
+     RegKeyExists(HKLM32, CoreUninstallKey) or
+     RegKeyExists(HKCU32, CoreUninstallKey) then
+  begin
+    Log('Core conversion blocked: machine-wide or unsupported registration detected.');
+    Result := False;
+    Exit;
+  end;
+  if not RegKeyExists(HKCU64, CoreUninstallKey) then
+    Exit;
+
+  // A positive opt-in is required even in /VERYSILENT /SUPPRESSMSGBOXES.
+  // Missing consent aborts Setup before new files or registry entries.
+  if WizardSilent then
+    Result := ConversionSwitchPresent
+  else
+    Result := SuppressibleMsgBox(
+      'Convert the existing PUBLIC PixelScope Core installation to ' +
+      '{#AppName}' + '?' + #13#10 +
+      'The new edition will be installed and verified first. Core will only ' +
+      'then be uninstalled. Your user settings are retained.' + #13#10 +
+      'If conversion fails, both editions may remain; review the installer log.',
+      mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO
+    ) = IDYES;
+  if not Result then
+  begin
+    Log('Core conversion not authorized: setup aborted without mutation.');
+    Exit;
+  end;
+  if not VerifyCoreRegistration(Failure) or not CoreIsNotRunning then
+  begin
+    Log('Core conversion preflight failed: ' + Failure);
+    Result := False;
+    Exit;
+  end;
+  ConversionRequested := True;
+end;
+
+function VerifyDownstreamReadiness: Boolean;
+var
+  InstalledVersion: Int64;
+  ExpectedVersion: Int64;
+  ManifestFile: String;
+  ExecutableFile: String;
+begin
+  Result := False;
+  // ssDone is after installation; require a distinct registered edition.
+  if not RegKeyExists(HKCU64, DownstreamUninstallKey) then
+  begin
+    Log('Conversion withheld: downstream registration missing.');
+    Exit;
+  end;
+  ManifestFile := ExpandConstant('{app}\release-manifest.json');
+  ExecutableFile := ExpandConstant('{app}\{#TargetExeName}');
+  if not FileExists(ManifestFile) or not FileExists(ExecutableFile) then
+  begin
+    Log('Conversion withheld: downstream manifest or executable missing.');
+    Exit;
+  end;
+  if CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0 or
+     CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0 then
+  begin
+    Log('Conversion withheld: downstream manifest or executable SHA-256 mismatch.');
+    Exit;
+  end;
+  ExpectedVersion := PackVersionComponents(
+    {#AppVersionMajor}, {#AppVersionMinor},
+    {#AppVersionRevision}, {#AppVersionBuild}
+  );
+  if not GetPackedVersion(ExecutableFile, InstalledVersion) or
+     ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0 then
+  begin
+    Log('Conversion withheld: downstream executable FileVersion mismatch.');
+    Exit;
+  end;
+  Result := True;
+end;
+
+function UninstallVerifiedCore: Boolean;
+var
+  Failure: String;
+  ExitCode: Integer;
+  I: Integer;
+begin
+  Result := False;
+  // Revalidate immediately before removal; fail on changed identity or a
+  // newly running Core. Never uninstall an unverified arbitrary path.
+  if not VerifyCoreRegistration(Failure) or not CoreIsNotRunning then
+  begin
+    Log('Conversion withheld before Core uninstall: ' + Failure);
+    Exit;
+  end;
+  if not Exec(CoreUninstaller,
+      '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+      CoreInstallLocation, SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+  begin
+    Log('Core uninstaller could not be started. Win32 code: ' + IntToStr(ExitCode));
+    Exit;
+  end;
+  if ExitCode <> 0 then
+  begin
+    Log('Core uninstall returned error: ' + IntToStr(ExitCode));
+    Exit;
+  end;
+  // Inno uninstaller cleanup may be deferred briefly after child exit.
+  for I := 0 to 40 do
+  begin
+    if not RegKeyExists(HKCU64, CoreUninstallKey) and
+       not FileExists(AddBackslash(CoreInstallLocation) + CoreExeName) and
+       not FileExists(CoreUninstaller) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(250);
+  end;
+  Log('Core uninstaller exited but owned files/registration remain.');
+end;
+
+function ShouldOfferLaunch: Boolean;
+begin
+  // No postinstall launch until migration has been resolved.
+  Result := not ConversionRequested;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep <> ssDone) or not ConversionRequested then
+    Exit;
+  if not VerifyDownstreamReadiness or not UninstallVerifiedCore then
+  begin
+    ConversionFailed := True;
+    Log('PARTIAL CONVERSION: downstream installed; Core retained or uncertain. ' +
+        'Do not claim migration success. Retry/repair after checking setup log.');
+    SuppressibleMsgBox(
+      'PixelScope conversion is incomplete. The new edition was installed, ' +
+      'but Core removal could not be verified. Both editions may remain.' +
+      #13#10 + 'Check the installer log and retry/repair manually.',
+      mbError, MB_OK, IDOK
+    );
+  end
+  else
+    Log('Verified Core-to-downstream conversion completed.');
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := 0;
+  if ConversionFailed then
+    Result := PartialConversionExitCode;
+end;
+#endif
+
 function InitializeSetup: Boolean;
 begin
 #ifdef SmokeBuild
   Result := True;
 #else
   Result := ConfirmExistingInstall;
+  #if defined(TargetCorePredecessor) && !defined(SmokeBuild)
+    if Result then
+      Result := PrepareCoreConversion;
+  #endif
 #endif
 end;
