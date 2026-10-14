@@ -72,6 +72,22 @@ Check the installed executable and Inno setup four-part version as well, on a
 protect a previously published version in a new workspace; publishing must
 check the release inventory against all four final SHA-256 artifact identities.
 
+For PRIVATE SUB Windows acceptance, inspect the *built* executable rather
+than assuming the generated VERSIONINFO was consumed by its spec:
+
+```powershell
+$exe = Get-Item .\\dist\\PixelScopeEnterprise\\PixelScopeEnterprise.exe
+$exe.VersionInfo.FileVersion  # must be e.g. 0.1.0.2
+$exe.VersionInfo.ProductVersion
+Get-ChildItem .\\release\\PixelScopeEnterprise-0.1.0.2-windows-x64* -File |
+  Get-FileHash -Algorithm SHA256  # archive externally as immutable release inventory
+```
+
+Check the installed executable and Inno setup four-part version as well, on a
+*disposable* Windows test user. The workspace manifest guard alone does not
+protect a previously published version in a new workspace; publishing must
+check the release inventory against all four final SHA-256 artifact identities.
+
 Revisions must be incremented for each changed downstream payload, even when
 MAIN Core `version.py` has not changed. The release owner must preserve a
 published release inventory, since a fresh workspace cannot detect prior
