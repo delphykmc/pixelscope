@@ -626,8 +626,8 @@ begin
         'Do not claim migration success. Retry/repair after checking setup log.');
     SuppressibleMsgBox(
       'PixelScope conversion is incomplete. The new edition was installed, ' +
-      'but Core removal could not be verified. Both editions may remain.' +
-      #13#10 + 'Check the installer log and retry/repair manually.',
+      'but Core removal could not be verified. Both editions may remain.' + #13#10 +
+      'Check the installer log and retry/repair manually.',
       mbError, MB_OK, IDOK
     );
   end
