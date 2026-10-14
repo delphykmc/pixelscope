@@ -15,7 +15,9 @@ from scripts.build_third_party_notices import write_third_party_notices  # noqa:
 from scripts.distribution_contract import (  # noqa: E402
     RELEASE_ROOT,
     installer_path,
+    manifest_path,
     release_stem,
+    sha256_file,
     write_payload_manifest,
 )
 from scripts.package_target_descriptor import (  # noqa: E402
@@ -114,6 +116,8 @@ def installer_command(
     smoke_build: bool = False,
     descriptor: PackageTargetDescriptor | None = None,
 ) -> list[str]:
+    if descriptor is not None and app_id is not None and not smoke_build:
+        raise ValueError("non-smoke downstream AppId override is forbidden")
     version = descriptor.effective_version if descriptor is not None else release_version()
     version_parts = windows_version_tuple(version)
     file_version = ".".join(str(part) for part in version_parts)
@@ -152,6 +156,19 @@ def installer_command(
         )
     elif app_id is not None:
         command.append(_ispp_define("AppIdValue", app_id))
+    if descriptor is not None and descriptor.supersedes_installer_app_ids and not smoke_build:
+        # Descriptor loader permits only the known Core predecessor; no arbitrary
+        # uninstall target is accepted through Inno preprocessor switches.
+        command.extend(
+            (
+                _ispp_define("TargetCorePredecessor", descriptor.supersedes_installer_app_ids[0]),
+                _ispp_define(
+                    "TargetManifestSha256",
+                    sha256_file(manifest_path(descriptor=descriptor)),
+                ),
+                _ispp_define("TargetExeSha256", sha256_file(descriptor.executable_path)),
+            )
+        )
     if smoke_build:
         command.append(_ispp_define("SmokeBuild", "1"))
     command.append(str(INNO_SCRIPT.resolve()))
@@ -169,6 +186,8 @@ def build_installer_release(
         raise RuntimeError("P7-B installer compilation is supported only on Windows")
     if smoke_build and app_id is None:
         raise ValueError("Smoke installer builds require a disposable AppId override")
+    if descriptor is not None and app_id is not None and not smoke_build:
+        raise ValueError("non-smoke downstream AppId override is forbidden")
 
     if descriptor is None:
         validate_artifact(APP_DIR)

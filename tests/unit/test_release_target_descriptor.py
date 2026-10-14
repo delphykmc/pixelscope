@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -226,6 +228,145 @@ def test_issue176_revision_manifest_records_provenance_and_refuses_reuse(
     monkeypatch.delenv("PIXELSCOPE_DOWNSTREAM_SHA")
     with pytest.raises(DistributionValidationError, match="PIXELSCOPE_DOWNSTREAM_SHA"):
         build_payload_manifest(root, descriptor=revised)
+
+
+def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = load_target_descriptor(
+        _descriptor_file(
+            tmp_path,
+            release_revision=4,
+            supersedes_installer_app_ids=["{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"],
+        )
+    )
+    monkeypatch.setattr("scripts.build_installer_release.sha256_file", lambda _path: "c" * 64)
+    command = installer_command(Path("C:/ISCC.exe"), descriptor=target)
+    assert "-dTargetCorePredecessor={6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in command
+    assert "-dTargetManifestSha256=" + "c" * 64 in command
+    assert "-dTargetExeSha256=" + "c" * 64 in command
+    with pytest.raises(ValueError, match="non-smoke downstream AppId"):
+        installer_command(Path("C:/ISCC.exe"), descriptor=target, app_id="unsafe-override")
+
+    smoke_command = installer_command(
+        Path("C:/ISCC.exe"),
+        descriptor=target,
+        smoke_build=True,
+        app_id="PixelScope.P7B.Smoke",
+    )
+    assert "-dSmokeBuild=1" in smoke_command
+    assert not any("-dTargetCorePredecessor=" in flag for flag in smoke_command)
+    assert not any("-dTargetManifestSha256=" in flag for flag in smoke_command)
+    assert not any("-dTargetExeSha256=" in flag for flag in smoke_command)
+    assert not any(
+        "-dTargetCorePredecessor=" in flag for flag in installer_command(Path("C:/ISCC.exe"))
+    )
+
+
+def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
+    inno = (
+        Path(__file__).resolve().parents[2] / "packaging" / "installer" / "pixelscope.iss"
+    ).read_text(encoding="utf-8")
+    assert "#if defined(TargetCorePredecessor) && !defined(SmokeBuild)" in inno
+    assert "function PrepareCoreConversion: Boolean;" in inno
+    assert "WizardSilent then" in inno
+    assert "ConversionSwitchPresent" in inno
+    assert "MB_YESNO or MB_DEFBUTTON2, IDNO" in inno
+    assert "function PrepareToInstall(var NeedsRestart: Boolean): String;" in inno
+    assert "procedure CurStepChanged(CurStep: TSetupStep);" in inno
+    assert "CurStep <> ssDone" in inno
+    assert "VerifyDownstreamReadiness" in inno
+    assert "GetSHA256OfFile" in inno
+    assert "UninstallVerifiedCore" in inno
+    assert "function GetCustomSetupExitCode: Integer;" in inno
+    assert "PartialConversionExitCode = 77" in inno
+    # Inno ISPP treats a line-start Pascal #13/#10 literal as a directive.
+    assert not any(line.lstrip().startswith(("#13", "#10")) for line in inno.splitlines())
+    # Inno 6/7 Unicode PascalScript requires AnsiString as LoadStringFromFile output.
+    assert "CoreManifest: AnsiString;" in inno
+    assert "String(CoreManifest)" in inno
+    # The Inno default uninstall DisplayName is AppVerName, not bare AppName.
+    assert "'DisplayVersion', RegisteredVersion" in inno
+    assert "'PixelScope ' + RegisteredVersion" in inno
+    assert "Core uninstall DisplayName does not match PUBLIC Core identity." in inno
+    # PascalScript OR binds more tightly than <>; keep the hash/version clauses boolean.
+    assert "(CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0) or" in inno
+    assert "(CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0) then" in inno
+    assert "(ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0) then" in inno
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
+def test_issue176_installed_payload_verifier_checks_all_manifest_members(
+    tmp_path: Path,
+) -> None:
+    target = load_target_descriptor(_descriptor_file(tmp_path))
+    root = tmp_path / target.app_dir
+    root.mkdir()
+    (root / target.executable).write_bytes(b"fake-exe")
+    dll = root / "library.dll"
+    dll.write_bytes(b"original-runtime")
+    manifest = build_payload_manifest(root, descriptor=target)
+    assert len(manifest["files"]) == 2
+    manifest_file = root / "release-manifest.json"
+    script = (
+        Path(__file__).resolve().parents[2]
+        / "packaging"
+        / "installer"
+        / "verify_downstream_payload.ps1"
+    )
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-InstallRoot",
+        str(root),
+        "-ExpectedProduct",
+        target.display_name,
+        "-ExpectedVersion",
+        target.effective_version,
+        "-ExpectedExeName",
+        target.executable,
+    ]
+
+    def check() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(command, capture_output=True, text=True, check=False)
+
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    healthy = check()
+    assert healthy.returncode == 0, f"{healthy.stdout}\n{healthy.stderr}"
+    dll.write_bytes(b"tampered-runtime")
+    assert check().returncode != 0
+    dll.unlink()
+    assert check().returncode != 0
+    dll.write_bytes(b"original-runtime")
+    manifest["files"][0]["path"] = "../escape.dll"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    assert check().returncode != 0
+
+
+def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
+    root = Path(__file__).resolve().parents[2]
+    inno = (root / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
+    assert "function VerifyInstalledPayload: Boolean;" in inno
+    assert "Result := VerifyInstalledPayload" in inno
+    assert "GetSHA256OfFile" in inno
+    assert "ConversionFailed := True" in inno
+    assert "function GetCustomSetupExitCode: Integer;" in inno
+    assert "UnsafeReparsePath(ChangeFileExt(ExpectedUninstaller, '.dat'))" in inno
+    preflight = inno.split("function PrepareCoreConversion: Boolean;", 1)[1].split(
+        "function PrepareToInstall", 1
+    )[0]
+    assert "RegKeyExists(HKLM32, CoreUninstallKey)" in preflight
+    assert "RegKeyExists(HKCU32, CoreUninstallKey)" not in preflight
+    script = (root / "packaging" / "installer" / "verify_downstream_payload.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "SHA256" in script and "ComputeHash" in script and "ConvertFrom-Json" in script
+    assert "ReparsePoint" in script
 
 
 @pytest.mark.parametrize("produces_expected_target", [False, True])
