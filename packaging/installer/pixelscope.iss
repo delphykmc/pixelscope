@@ -32,6 +32,22 @@
 #ifndef AppIdValue
   #define AppIdValue "{{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 #endif
+// Defensive compiler-side allowlist: direct ISCC overrides must not turn
+// this reusable installer into an arbitrary-product uninstall tool.
+#ifdef TargetCorePredecessor
+  #if LowerCase(TargetCorePredecessor) != LowerCase("{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}")
+    #error Unsupported Core predecessor AppId
+  #endif
+  #ifndef TargetAppDir
+    #error Core conversion requires a distinct downstream folder
+  #endif
+  #ifndef TargetRegistryAppId
+    #error Core conversion requires a distinct downstream AppId
+  #endif
+  #if LowerCase(TargetRegistryAppId) == LowerCase("{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}")
+    #error Downstream AppId must not equal Core
+  #endif
+#endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #ifdef TargetAppSource
   #define AppSource TargetAppSource
