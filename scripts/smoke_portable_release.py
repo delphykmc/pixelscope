@@ -65,7 +65,7 @@ def smoke_portable_release(
             app_root,
             manifest,
             allow_distribution_metadata=True,
-            expected_version=release_version(),
+            expected_version=descriptor.effective_version if descriptor else release_version(),
             descriptor=descriptor,
         )
         if descriptor is None:
