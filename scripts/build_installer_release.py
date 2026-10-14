@@ -114,7 +114,7 @@ def installer_command(
     smoke_build: bool = False,
     descriptor: PackageTargetDescriptor | None = None,
 ) -> list[str]:
-    version = release_version()
+    version = descriptor.effective_version if descriptor is not None else release_version()
     version_parts = windows_version_tuple(version)
     file_version = ".".join(str(part) for part in version_parts)
     command = [
