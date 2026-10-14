@@ -166,7 +166,6 @@ def test_issue176_invalid_descriptor_opt_ins(
         load_target_descriptor(_descriptor_file(tmp_path, **fields))
 
 
-
 def test_issue176_four_part_revision_is_scoped_to_downstream(tmp_path: Path) -> None:
     ordinary = load_target_descriptor(_descriptor_file(tmp_path))
     revised = load_target_descriptor(_descriptor_file(tmp_path, release_revision=2))
@@ -176,15 +175,11 @@ def test_issue176_four_part_revision_is_scoped_to_downstream(tmp_path: Path) -> 
     assert release_stem(descriptor=ordinary).endswith(f"{current}-windows-x64")
     assert release_stem(descriptor=revised).endswith(f"{current}.2-windows-x64")
     assert release_stem().startswith(f"PixelScope-{current}-")
-    assert manifest_path(descriptor=revised).name.startswith(
-        f"PixelScopeSynthetic-{current}.2-"
-    )
+    assert manifest_path(descriptor=revised).name.startswith(f"PixelScopeSynthetic-{current}.2-")
     assert portable_zip_path(descriptor=revised).name.startswith(
         f"PixelScopeSynthetic-{current}.2-"
     )
-    assert installer_path(descriptor=revised).name.startswith(
-        f"PixelScopeSynthetic-{current}.2-"
-    )
+    assert installer_path(descriptor=revised).name.startswith(f"PixelScopeSynthetic-{current}.2-")
     command = installer_command(Path("C:/ISCC.exe"), descriptor=revised)
     assert f"-dAppVersion={current}.2" in command
     assert f"-dAppFileVersion={current}.2" in command
