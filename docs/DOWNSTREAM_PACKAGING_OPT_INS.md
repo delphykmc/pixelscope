@@ -152,4 +152,3 @@ normal `smoke_installer_release.py` is intentionally **not** a destructive
 Core migration test. Inno compile and VM failure injection are mandatory
 before declaring M3 production-ready. The code review and Python unit
 tests alone cannot establish those runtime guarantees.
-
