@@ -48,7 +48,9 @@ def validate_release_bundle(
 ) -> tuple[Path, ...]:
     release_root = release_root.resolve()
     app_dir = (descriptor.output_root if descriptor is not None else app_dir).resolve()
-    expected_version = version or (descriptor.effective_version if descriptor else release_version())
+    expected_version = version or (
+        descriptor.effective_version if descriptor else release_version()
+    )
 
     if not release_root.is_dir():
         raise ReleaseBundleError(f"release directory does not exist: {release_root}")
