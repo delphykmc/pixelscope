@@ -352,7 +352,7 @@ def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
     script = (root / "packaging" / "installer" / "verify_downstream_payload.ps1").read_text(
         encoding="utf-8"
     )
-    assert "Get-FileHash" in script and "ConvertFrom-Json" in script
+    assert "SHA256" in script and "ComputeHash" in script and "ConvertFrom-Json" in script
     assert "ReparsePoint" in script
 
 
