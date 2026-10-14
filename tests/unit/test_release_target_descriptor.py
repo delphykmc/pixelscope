@@ -157,6 +157,7 @@ def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) ->
         ({"release_revision": -1}, "release_revision"),
         ({"release_revision": 65536}, "release_revision"),
         ({"release_revision": True}, "release_revision"),
+        ({"release_revision": None}, "release_revision"),
         ({"release_revision": "1"}, "release_revision"),
         ({"release_revision": 1.0}, "release_revision"),
     ],
