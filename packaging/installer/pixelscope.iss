@@ -298,6 +298,7 @@ var
   Location: String;
   UninstallCommand: String;
   DisplayName: String;
+  RegisteredVersion: String;
   ExistingVersion: Int64;
   ExpectedLocation: String;
   ExpectedUninstaller: String;
@@ -324,17 +325,26 @@ begin
   end;
   if not RegQueryStringValue(HKCU64, CoreUninstallKey, 'InstallLocation', Location) or
      not RegQueryStringValue(HKCU64, CoreUninstallKey, 'UninstallString', UninstallCommand) or
-     not RegQueryStringValue(HKCU64, CoreUninstallKey, 'DisplayName', DisplayName) then
+     not RegQueryStringValue(HKCU64, CoreUninstallKey, 'DisplayName', DisplayName) or
+     not RegQueryStringValue(HKCU64, CoreUninstallKey, 'DisplayVersion', RegisteredVersion) then
   begin
     Failure := 'Core uninstall registration has missing identity fields.';
     Exit;
   end;
   ExpectedLocation := ExpandConstant('{localappdata}\Programs\PixelScope');
-  if (CompareText(RemoveBackslashUnlessRoot(Location),
-                  RemoveBackslashUnlessRoot(ExpectedLocation)) <> 0) or
-     (CompareText(DisplayName, 'PixelScope') <> 0) then
+  if CompareText(RemoveBackslashUnlessRoot(Location),
+                 RemoveBackslashUnlessRoot(ExpectedLocation)) <> 0 then
   begin
-    Failure := 'Core install location or product identity is not the supported PUBLIC layout.';
+    Failure := 'Core install location is not the supported PUBLIC layout.';
+    Exit;
+  end;
+  // Inno defaults UninstallDisplayName to AppVerName, which includes the
+  // registered AppVersion. Preserve support for an older name-only entry.
+  if (RegisteredVersion = '') or
+     ((CompareText(DisplayName, 'PixelScope ' + RegisteredVersion) <> 0) and
+      (CompareText(DisplayName, 'PixelScope') <> 0)) then
+  begin
+    Failure := 'Core uninstall DisplayName does not match PUBLIC Core identity.';
     Exit;
   end;
   ExpectedUninstaller := AddBackslash(Location) + 'unins000.exe';
