@@ -105,6 +105,9 @@ RestartApplications=no
 ChangesAssociations=no
 
 [Files]
+#if defined(TargetCorePredecessor) && !defined(SmokeBuild)
+Source: "{#RepoRoot}\packaging\installer\verify_downstream_payload.ps1"; Flags: dontcopy
+#endif
 Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ManifestFile}"; DestDir: "{app}"; DestName: "release-manifest.json"; Flags: ignoreversion
 Source: "{#NoticeFile}"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
@@ -336,6 +339,7 @@ begin
   if UnsafeReparsePath(Location) or
      UnsafeReparsePath(ExtractFileDir(Location)) or
      UnsafeReparsePath(ExpectedUninstaller) or
+     UnsafeReparsePath(ChangeFileExt(ExpectedUninstaller, '.dat')) or
      UnsafeReparsePath(AddBackslash(Location) + CoreExeName) then
   begin
     Failure := 'Core install path contains a missing item or unsafe reparse point.';
@@ -396,9 +400,9 @@ var
   Failure: String;
 begin
   Result := True;
+  // HKCU32 and HKCU64 can refer to the same per-user uninstall key.
   if RegKeyExists(HKLM64, CoreUninstallKey) or
-     RegKeyExists(HKLM32, CoreUninstallKey) or
-     RegKeyExists(HKCU32, CoreUninstallKey) then
+     RegKeyExists(HKLM32, CoreUninstallKey) then
   begin
     Log('Core conversion blocked: machine-wide or unsupported registration detected.');
     Result := False;
@@ -465,18 +469,66 @@ begin
     Result := 'Core is running, or the process check is unavailable. Close Core and retry.';
 end;
 
+function VerifyInstalledPayload: Boolean;
+var
+  PS: String;
+  Args: String;
+  ExitCode: Integer;
+begin
+  Result := False;
+  PS := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(PS) then
+  begin
+    Log('Conversion withheld: offline payload verifier is unavailable.');
+    Exit;
+  end;
+  try
+    // This script is compiled into the trusted Setup, not loaded from a
+    // downloaded/private location. It checks every manifest-owned file,
+    // path containment, reparse safety, size and SHA-256.
+    ExtractTemporaryFile('verify_downstream_payload.ps1');
+    Args := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+      ExpandConstant('{tmp}\verify_downstream_payload.ps1') + '"' +
+      ' -InstallRoot "' + ExpandConstant('{app}') + '"' +
+      ' -ExpectedProduct "{#AppName}"' +
+      ' -ExpectedVersion "{#AppVersion}"' +
+      ' -ExpectedExeName "{#TargetExeName}"';
+    if not Exec(PS, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+    begin
+      Log('Conversion withheld: payload verification process could not start.');
+      Exit;
+    end;
+    Result := ExitCode = 0;
+    if not Result then
+      Log('Conversion withheld: full payload manifest verification failed with ' +
+          'exit code ' + IntToStr(ExitCode));
+  except
+    Log('Conversion withheld: payload verifier exception: ' + GetExceptionMessage);
+    Result := False;
+  end;
+end;
+
 function VerifyDownstreamReadiness: Boolean;
 var
   InstalledVersion: Int64;
   ExpectedVersion: Int64;
   ManifestFile: String;
   ExecutableFile: String;
+  DownstreamLocation: String;
 begin
   Result := False;
   // ssDone is after installation; require a distinct registered edition.
   if not RegKeyExists(HKCU64, DownstreamUninstallKey) then
   begin
     Log('Conversion withheld: downstream registration missing.');
+    Exit;
+  end;
+  if not RegQueryStringValue(HKCU64, DownstreamUninstallKey,
+      'InstallLocation', DownstreamLocation) or
+     (CompareText(RemoveBackslashUnlessRoot(DownstreamLocation),
+                  RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) <> 0) then
+  begin
+    Log('Conversion withheld: downstream registration points outside the install root.');
     Exit;
   end;
   ManifestFile := ExpandConstant('{app}\release-manifest.json');
@@ -502,7 +554,7 @@ begin
     Log('Conversion withheld: downstream executable FileVersion mismatch.');
     Exit;
   end;
-  Result := True;
+  Result := VerifyInstalledPayload;
 end;
 
 function UninstallVerifiedCore: Boolean;
@@ -553,10 +605,21 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Completed: Boolean;
 begin
   if (CurStep <> ssDone) or not ConversionRequested then
     Exit;
-  if not VerifyDownstreamReadiness or not UninstallVerifiedCore then
+  Completed := False;
+  try
+    // Never evaluate Core uninstall unless all downstream checks pass.
+    if VerifyDownstreamReadiness then
+      Completed := UninstallVerifiedCore;
+  except
+    Log('PARTIAL CONVERSION verification exception: ' + GetExceptionMessage);
+    Completed := False;
+  end;
+  if not Completed then
   begin
     ConversionFailed := True;
     Log('PARTIAL CONVERSION: downstream installed; Core retained or uncertain. ' +
