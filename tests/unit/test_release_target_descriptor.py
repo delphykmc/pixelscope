@@ -14,6 +14,7 @@ from scripts import build_third_party_notices as notices
 from scripts.build_installer_release import installer_command
 from scripts.build_release import pyinstaller_command
 from scripts.distribution_contract import (
+    DistributionValidationError,
     build_payload_manifest,
     installer_path,
     manifest_path,
@@ -21,9 +22,14 @@ from scripts.distribution_contract import (
     portable_zip_path,
     release_stem,
     validate_payload_manifest,
+    write_payload_manifest,
 )
 from scripts.package_target_descriptor import load_target_descriptor
-from scripts.release_contract import render_windows_version_info
+from scripts.release_contract import (
+    release_version,
+    render_windows_version_info,
+    windows_version_tuple,
+)
 from scripts.validate_release_bundle import validate_release_bundle
 
 
@@ -159,6 +165,72 @@ def test_issue176_invalid_descriptor_opt_ins(
 ) -> None:
     with pytest.raises(ValueError, match=error):
         load_target_descriptor(_descriptor_file(tmp_path, **fields))
+
+
+
+def test_issue176_four_part_revision_is_scoped_to_downstream(tmp_path: Path) -> None:
+    ordinary = load_target_descriptor(_descriptor_file(tmp_path))
+    revised = load_target_descriptor(_descriptor_file(tmp_path, release_revision=2))
+    current = release_version()
+    assert ordinary.effective_version == current
+    assert revised.effective_version == f"{current}.2"
+    assert release_stem(descriptor=ordinary).endswith(f"{current}-windows-x64")
+    assert release_stem(descriptor=revised).endswith(f"{current}.2-windows-x64")
+    assert release_stem().startswith(f"PixelScope-{current}-")
+    assert manifest_path(descriptor=revised).name.startswith(
+        f"PixelScopeSynthetic-{current}.2-"
+    )
+    assert portable_zip_path(descriptor=revised).name.startswith(
+        f"PixelScopeSynthetic-{current}.2-"
+    )
+    assert installer_path(descriptor=revised).name.startswith(
+        f"PixelScopeSynthetic-{current}.2-"
+    )
+    command = installer_command(Path("C:/ISCC.exe"), descriptor=revised)
+    assert f"-dAppVersion={current}.2" in command
+    assert f"-dAppFileVersion={current}.0.2" in command
+    assert "-dAppVersionBuild=2" in command
+    assert f"-dTargetReleaseStem={release_stem(descriptor=revised)}" in command
+    assert 'StringStruct("FileVersion", "' + current + '.2")' in (
+        render_windows_version_info(
+            revised.effective_version,
+            identity=(revised.app_dir, revised.executable, revised.display_name),
+        )
+    )
+    v1 = windows_version_tuple(f"{current}.1")
+    v2 = windows_version_tuple(f"{current}.2")
+    assert v2 > v1
+    assert windows_version_tuple(current)[3] == 0
+
+
+def test_issue176_revision_manifest_records_provenance_and_refuses_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    revised = load_target_descriptor(_descriptor_file(tmp_path, release_revision=7))
+    root = tmp_path / "payload"
+    root.mkdir()
+    exe = root / revised.executable
+    exe.write_bytes(b"payload-v1")
+    output = tmp_path / "release.manifest.json"
+    monkeypatch.setenv("PIXELSCOPE_PUBLIC_MAIN_SHA", "a" * 40)
+    monkeypatch.setenv("PIXELSCOPE_DOWNSTREAM_SHA", "b" * 40)
+    manifest = build_payload_manifest(root, descriptor=revised)
+    assert manifest["version"] == revised.effective_version
+    assert manifest["build_provenance"] == {
+        "main_sha": "a" * 40,
+        "downstream_sha": "b" * 40,
+    }
+    validate_payload_manifest(root, manifest, descriptor=revised)
+    assert write_payload_manifest(root, destination=output, descriptor=revised) == output
+    write_payload_manifest(root, destination=output, descriptor=revised)
+
+    exe.write_bytes(b"payload-v2")
+    with pytest.raises(DistributionValidationError, match="same downstream release identity"):
+        write_payload_manifest(root, destination=output, descriptor=revised)
+    assert json.loads(output.read_text()) == manifest
+    monkeypatch.delenv("PIXELSCOPE_DOWNSTREAM_SHA")
+    with pytest.raises(DistributionValidationError, match="PIXELSCOPE_DOWNSTREAM_SHA"):
+        build_payload_manifest(root, descriptor=revised)
 
 
 @pytest.mark.parametrize("produces_expected_target", [False, True])
