@@ -98,7 +98,7 @@ def build_payload_manifest(
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "product": descriptor.display_name if descriptor is not None else "PixelScope",
-        "version": version or release_version(),
+        "version": version or (descriptor.effective_version if descriptor else release_version()),
         "target": TARGET_ID,
         "payload_root": descriptor.app_dir if descriptor is not None else "PixelScope",
         "files": files,
