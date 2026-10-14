@@ -16,7 +16,7 @@ Only caller-selected custom target descriptors may set:
   This field is only a declaration of intent; it is **not** permission to
   uninstall anything and must never trigger unattended removal by itself.
 - `release_revision`: optional JSON integer between 0 and 65535 inclusive;
-  booleans, floats, and strings are rejected. Omitting it preserves the
+  booleans, floats, strings, and explicit JSON null are rejected. Omitting it preserves the
   canonical PUBLIC source release version and normal artifact naming. The
   release revision must be immutable for an already published downstream
   payload. Distribution revision and main source revision are distinct.
