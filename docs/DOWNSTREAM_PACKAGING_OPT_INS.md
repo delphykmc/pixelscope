@@ -35,6 +35,34 @@ This is an additive schema v1 change: existing descriptors work unchanged.
 The explicit packaging scripts must be called with `--target-descriptor`;
 PUBLIC builds never inspect a private directory automatically.
 
-M2 distribution version propagation and M3 consented conversion are tracked
-separately in #176. They must not be claimed operational merely because a
-descriptor passes M1 validation.
+## Downstream effective distribution version (M2)
+
+For an explicit custom descriptor with `release_revision=N`, the effective
+version is `<PUBLIC_MAJOR>.<PUBLIC_MINOR>.<PUBLIC_PATCH>.<N>`; e.g. `0.1.0.2`.
+It drives Windows file/product VERSIONINFO generated at
+`build/release/<app_dir>.version.txt`, Inno `AppVersion` and packed comparison,
+manifest `version`, names of four release artifacts, ZIP root and both smoke
+validators. Custom PyInstaller specs **must consume that generated VERSIONINFO**
+file and must not override the version independently. The frozen application
+may still display the PUBLIC Core runtime version (`version.py`); the revision
+identifies the *distribution*, not a separate Core codebase.
+
+Revised builds require both 40-hex commit variables:
+
+- `PIXELSCOPE_PUBLIC_MAIN_SHA`: exact public MAIN baseline commit.
+- `PIXELSCOPE_DOWNSTREAM_SHA`: exact downstream source commit.
+
+These are stored in manifest `build_provenance`, not in product version; the
+release owner must verify that the hashes refer to the actual source tree. If
+an existing revisioned manifest differs from the rebuilt payload hashes or
+commits, the build fails rather than reusing the same release identity.
+Revisions must be incremented for each changed downstream payload, even when
+MAIN Core `version.py` has not changed. The release owner must preserve a
+published release inventory, since a fresh workspace cannot detect prior
+releases whose manifests have been deleted. Core/Reference manifest schemas,
+names and product versions remain unchanged when opt-ins are absent.
+
+## Conversion (M3)
+
+M3 is tracked separately in #176. Merely setting the predecessor descriptor
+field does not authorize or perform conversion.
