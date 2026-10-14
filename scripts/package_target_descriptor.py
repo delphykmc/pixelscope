@@ -69,6 +69,20 @@ class PackageTargetDescriptor:
     def stem_prefix(self) -> str:
         return self.app_dir
 
+    @property
+    def effective_version(self) -> str:
+        """Immutable downstream distribution version; not the Core runtime version."""
+
+        from scripts.release_contract import release_version
+
+        public_version = release_version()
+        if self.release_revision is None:
+            return public_version
+        # PUBLIC source version must be X.Y.Z for Windows four-part releases.
+        if not re.fullmatch(r"\d+\.\d+\.\d+", public_version):
+            raise ValueError("downstream release_revision requires PUBLIC X.Y.Z version")
+        return f"{public_version}.{self.release_revision}"
+
 
 def _repo_file(value: Any, label: str, extension: str) -> Path:
     if not isinstance(value, str) or not value:
