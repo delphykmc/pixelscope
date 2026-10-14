@@ -120,7 +120,9 @@ def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) ->
         "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
     )
     assert selected.release_revision == 65535
-    assert load_target_descriptor(_descriptor_file(tmp_path, release_revision=0)).release_revision == 0
+    assert (
+        load_target_descriptor(_descriptor_file(tmp_path, release_revision=0)).release_revision == 0
+    )
 
 
 @pytest.mark.parametrize(
@@ -130,8 +132,14 @@ def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) ->
         ({"supersedes_installer_app_ids": "not-a-list"}, "nonempty list"),
         ({"supersedes_installer_app_ids": [1]}, "GUID"),
         ({"supersedes_installer_app_ids": ["6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C"]}, "GUID"),
-        ({"supersedes_installer_app_ids": ["{A33A81AB-5B0B-4249-8314-ABACBDF45990}"]}, "self-supersession"),
-        ({"supersedes_installer_app_ids": ["{AA3A81AB-5B0B-4249-8314-ABACBDF45990}"]}, "allowlisted"),
+        (
+            {"supersedes_installer_app_ids": ["{A33A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "self-supersession",
+        ),
+        (
+            {"supersedes_installer_app_ids": ["{AA3A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "allowlisted",
+        ),
         (
             {"supersedes_installer_app_ids": [
                 "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
