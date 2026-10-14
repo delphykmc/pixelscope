@@ -159,9 +159,7 @@ def installer_command(
         # uninstall target is accepted through Inno preprocessor switches.
         command.extend(
             (
-                _ispp_define(
-                    "TargetCorePredecessor", descriptor.supersedes_installer_app_ids[0]
-                ),
+                _ispp_define("TargetCorePredecessor", descriptor.supersedes_installer_app_ids[0]),
                 _ispp_define(
                     "TargetManifestSha256",
                     sha256_file(manifest_path(descriptor=descriptor)),
