@@ -285,6 +285,10 @@ def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     # Inno 6/7 Unicode PascalScript requires AnsiString as LoadStringFromFile output.
     assert "CoreManifest: AnsiString;" in inno
     assert "String(CoreManifest)" in inno
+    # PascalScript OR binds more tightly than <>; keep the hash/version clauses boolean.
+    assert "(CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0) or" in inno
+    assert "(CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0) then" in inno
+    assert "(ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0) then" in inno
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
