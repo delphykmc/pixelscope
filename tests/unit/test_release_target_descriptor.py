@@ -242,6 +242,8 @@ def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
     assert "-dTargetCorePredecessor={6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in command
     assert "-dTargetManifestSha256=" + "c" * 64 in command
     assert "-dTargetExeSha256=" + "c" * 64 in command
+    with pytest.raises(ValueError, match="non-smoke downstream AppId"):
+        installer_command(Path("C:/ISCC.exe"), descriptor=target, app_id="unsafe-override")
 
     smoke_command = installer_command(
         Path("C:/ISCC.exe"),
