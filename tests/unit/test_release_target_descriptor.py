@@ -285,6 +285,10 @@ def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     # Inno 6/7 Unicode PascalScript requires AnsiString as LoadStringFromFile output.
     assert "CoreManifest: AnsiString;" in inno
     assert "String(CoreManifest)" in inno
+    # The Inno default uninstall DisplayName is AppVerName, not bare AppName.
+    assert "'DisplayVersion', RegisteredVersion" in inno
+    assert "'PixelScope ' + RegisteredVersion" in inno
+    assert "Core uninstall DisplayName does not match PUBLIC Core identity." in inno
     # PascalScript OR binds more tightly than <>; keep the hash/version clauses boolean.
     assert "(CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0) or" in inno
     assert "(CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0) then" in inno
