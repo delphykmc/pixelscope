@@ -227,7 +227,6 @@ def test_issue176_revision_manifest_records_provenance_and_refuses_reuse(
         build_payload_manifest(root, descriptor=revised)
 
 
-
 def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -238,9 +237,7 @@ def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
             supersedes_installer_app_ids=["{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"],
         )
     )
-    monkeypatch.setattr(
-        "scripts.build_installer_release.sha256_file", lambda _path: "c" * 64
-    )
+    monkeypatch.setattr("scripts.build_installer_release.sha256_file", lambda _path: "c" * 64)
     command = installer_command(Path("C:/ISCC.exe"), descriptor=target)
     assert "-dTargetCorePredecessor={6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in command
     assert "-dTargetManifestSha256=" + "c" * 64 in command
@@ -256,15 +253,14 @@ def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
     assert not any("-dTargetCorePredecessor=" in flag for flag in smoke_command)
     assert not any("-dTargetManifestSha256=" in flag for flag in smoke_command)
     assert not any("-dTargetExeSha256=" in flag for flag in smoke_command)
-    assert not any("-dTargetCorePredecessor=" in flag for flag in installer_command(
-        Path("C:/ISCC.exe")
-    ))
+    assert not any(
+        "-dTargetCorePredecessor=" in flag for flag in installer_command(Path("C:/ISCC.exe"))
+    )
 
 
 def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     inno = (
-        Path(__file__).resolve().parents[2]
-        / "packaging" / "installer" / "pixelscope.iss"
+        Path(__file__).resolve().parents[2] / "packaging" / "installer" / "pixelscope.iss"
     ).read_text(encoding="utf-8")
     assert "#if defined(TargetCorePredecessor) && !defined(SmokeBuild)" in inno
     assert "function PrepareCoreConversion: Boolean;" in inno
