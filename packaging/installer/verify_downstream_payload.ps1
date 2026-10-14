@@ -31,13 +31,11 @@ try {
     $entries = @($m.files)
     if ($entries.Count -eq 0) { throw 'Manifest is empty' }
 
-    $seen = New-Object 'System.Collections.Generic.HashSet[string]' (
-        [StringComparer]::OrdinalIgnoreCase
-    )
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $foundExe = $false
     foreach ($e in $entries) {
         if ($null -eq $e -or $e.path -isnot [string] -or
-            $e.path -notmatch '^[A-Za-z0-9_ .()/+-]+$' -or
+            $e.path -match '[\x00-\x1F<>:"|?*]' -or
             $e.path.Contains('\') -or $e.path.StartsWith('/') -or
             $e.path.EndsWith('/') -or $e.path.Contains('//') -or
             $e.path.Contains(':') -or
