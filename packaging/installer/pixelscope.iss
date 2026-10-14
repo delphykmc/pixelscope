@@ -244,6 +244,12 @@ const
   ExpectedExeSha256 = '{#TargetExeSha256}';
   PartialConversionExitCode = 77;
 
+var
+  CoreInstallLocation: String;
+  CoreUninstaller: String;
+  ConversionRequested: Boolean;
+  ConversionFailed: Boolean;
+
 function GetFileAttributesW(Path: String): Cardinal;
   external 'GetFileAttributesW@kernel32.dll stdcall';
 
@@ -254,12 +260,6 @@ begin
   Attr := GetFileAttributesW(Path);
   Result := (Attr = $FFFFFFFF) or ((Attr and $400) <> 0);
 end;
-
-var
-  CoreInstallLocation: String;
-  CoreUninstaller: String;
-  ConversionRequested: Boolean;
-  ConversionFailed: Boolean;
 
 function ConversionSwitchPresent: Boolean;
 var
