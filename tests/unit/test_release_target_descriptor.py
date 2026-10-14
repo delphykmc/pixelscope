@@ -109,7 +109,6 @@ def test_descriptor_rejects_invalid_or_unsafe_values(
         load_target_descriptor(_descriptor_file(tmp_path, **overrides))
 
 
-
 def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) -> None:
     ordinary = load_target_descriptor(_descriptor_file(tmp_path))
     assert ordinary.supersedes_installer_app_ids == ()
@@ -122,9 +121,7 @@ def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) ->
             release_revision=65535,
         )
     )
-    assert selected.supersedes_installer_app_ids == (
-        "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
-    )
+    assert selected.supersedes_installer_app_ids == ("{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",)
     assert selected.release_revision == 65535
     assert (
         load_target_descriptor(_descriptor_file(tmp_path, release_revision=0)).release_revision == 0
@@ -147,10 +144,12 @@ def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) ->
             "allowlisted",
         ),
         (
-            {"supersedes_installer_app_ids": [
-                "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
-                "{6fa0ab08-ab41-4f77-93e8-16ce6ff53e5c}",
-            ]},
+            {
+                "supersedes_installer_app_ids": [
+                    "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
+                    "{6fa0ab08-ab41-4f77-93e8-16ce6ff53e5c}",
+                ]
+            },
             "duplicate",
         ),
         ({"release_revision": -1}, "release_revision"),
