@@ -540,8 +540,9 @@ begin
     Log('Conversion withheld: downstream manifest or executable missing.');
     Exit;
   end;
-  if CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0 or
-     CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0 then
+  // PascalScript evaluates boolean operators before <>; bracket each comparison.
+  if (CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0) or
+     (CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0) then
   begin
     Log('Conversion withheld: downstream manifest or executable SHA-256 mismatch.');
     Exit;
@@ -550,8 +551,8 @@ begin
     {#AppVersionMajor}, {#AppVersionMinor},
     {#AppVersionRevision}, {#AppVersionBuild}
   );
-  if not GetPackedVersion(ExecutableFile, InstalledVersion) or
-     ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0 then
+  if (not GetPackedVersion(ExecutableFile, InstalledVersion)) or
+     (ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0) then
   begin
     Log('Conversion withheld: downstream executable FileVersion mismatch.');
     Exit;
