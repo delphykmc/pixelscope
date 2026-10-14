@@ -66,7 +66,17 @@ try {
             $e.sha256 -isnot [string] -or $e.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
             throw "Payload size or hash metadata mismatch: $($e.path)"
         }
-        $digest = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
+        # Use base .NET cryptography rather than optional PowerShell modules.
+        # Some supported Windows images do not expose the Get-FileHash cmdlet.
+        $stream = [IO.File]::OpenRead($candidate)
+        try {
+            $sha = [Security.Cryptography.SHA256]::Create()
+            try {
+                $digest = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '')
+            }
+            finally { $sha.Dispose() }
+        }
+        finally { $stream.Dispose() }
         if ($digest -ine $e.sha256) { throw "Payload hash mismatch: $($e.path)" }
         if ($e.path -ieq $ExpectedExeName) { $foundExe = $true }
     }
