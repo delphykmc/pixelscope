@@ -301,7 +301,9 @@ var
   ExistingVersion: Int64;
   ExpectedLocation: String;
   ExpectedUninstaller: String;
-  CoreManifest: String;
+  // LoadStringFromFile requires AnsiString in Unicode Inno Setup 6/7.
+  // The generated release manifest is ASCII-safe JSON (escaped non-ASCII).
+  CoreManifest: AnsiString;
 begin
   Result := False;
   Failure := '';
@@ -365,7 +367,7 @@ begin
   begin
     if not LoadStringFromFile(
         AddBackslash(Location) + 'release-manifest.json', CoreManifest) or
-       (Pos('"product": "PixelScope"', CoreManifest) = 0) then
+       (Pos('"product": "PixelScope"', String(CoreManifest)) = 0) then
     begin
       Failure := 'Core release-manifest.json does not identify PUBLIC Core.';
       Exit;
