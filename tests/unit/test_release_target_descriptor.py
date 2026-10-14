@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -277,6 +279,83 @@ def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     assert "UninstallVerifiedCore" in inno
     assert "function GetCustomSetupExitCode: Integer;" in inno
     assert "PartialConversionExitCode = 77" in inno
+
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
+def test_issue176_installed_payload_verifier_checks_all_manifest_members(
+    tmp_path: Path,
+) -> None:
+    target = load_target_descriptor(_descriptor_file(tmp_path))
+    root = tmp_path / target.app_dir
+    root.mkdir()
+    (root / target.executable).write_bytes(b"fake-exe")
+    dll = root / "library.dll"
+    dll.write_bytes(b"original-runtime")
+    manifest = build_payload_manifest(root, descriptor=target)
+    assert len(manifest["files"]) == 2
+    manifest_file = root / "release-manifest.json"
+    script = (
+        Path(__file__).resolve().parents[2]
+        / "packaging"
+        / "installer"
+        / "verify_downstream_payload.ps1"
+    )
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-InstallRoot",
+        str(root),
+        "-ExpectedProduct",
+        target.display_name,
+        "-ExpectedVersion",
+        target.effective_version,
+        "-ExpectedExeName",
+        target.executable,
+    ]
+
+    def check() -> int:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        return result.returncode
+
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    assert check() == 0
+    dll.write_bytes(b"tampered-runtime")
+    assert check() != 0
+    dll.unlink()
+    assert check() != 0
+    dll.write_bytes(b"original-runtime")
+    manifest["files"][0]["path"] = "../escape.dll"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    assert check() != 0
+
+
+def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
+    root = Path(__file__).resolve().parents[2]
+    inno = (root / "packaging" / "installer" / "pixelscope.iss").read_text(
+        encoding="utf-8"
+    )
+    assert "function VerifyInstalledPayload: Boolean;" in inno
+    assert "Result := VerifyInstalledPayload" in inno
+    assert "GetSHA256OfFile" in inno
+    assert "ConversionFailed := True" in inno
+    assert "function GetCustomSetupExitCode: Integer;" in inno
+    assert "UnsafeReparsePath(ChangeFileExt(ExpectedUninstaller, '.dat'))" in inno
+    preflight = inno.split("function PrepareCoreConversion: Boolean;", 1)[1].split(
+        "function PrepareToInstall", 1
+    )[0]
+    assert "RegKeyExists(HKLM32, CoreUninstallKey)" in preflight
+    assert "RegKeyExists(HKCU32, CoreUninstallKey)" not in preflight
+    script = (root / "packaging" / "installer" / "verify_downstream_payload.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "Get-FileHash" in script and "ConvertFrom-Json" in script
+    assert "ReparsePoint" in script
 
 
 @pytest.mark.parametrize("produces_expected_target", [False, True])
