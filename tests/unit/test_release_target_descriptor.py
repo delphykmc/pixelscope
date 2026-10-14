@@ -282,6 +282,9 @@ def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     assert "PartialConversionExitCode = 77" in inno
     # Inno ISPP treats a line-start Pascal #13/#10 literal as a directive.
     assert not any(line.lstrip().startswith(("#13", "#10")) for line in inno.splitlines())
+    # Inno 6/7 Unicode PascalScript requires AnsiString as LoadStringFromFile output.
+    assert "CoreManifest: AnsiString;" in inno
+    assert "String(CoreManifest)" in inno
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
