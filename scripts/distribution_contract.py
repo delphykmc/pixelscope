@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 from pathlib import Path, PurePosixPath
 from typing import Final
 
@@ -95,7 +97,7 @@ def build_payload_manifest(
         }
         for path in _payload_files(root)
     ]
-    return {
+    manifest: dict[str, object] = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "product": descriptor.display_name if descriptor is not None else "PixelScope",
         "version": version or (descriptor.effective_version if descriptor else release_version()),
@@ -103,6 +105,21 @@ def build_payload_manifest(
         "payload_root": descriptor.app_dir if descriptor is not None else "PixelScope",
         "files": files,
     }
+    if descriptor is not None and descriptor.release_revision is not None:
+        # Exact immutable build commits, not a second product version source.
+        commits = {}
+        for label, key in (
+            ("main_sha", "PIXELSCOPE_PUBLIC_MAIN_SHA"),
+            ("downstream_sha", "PIXELSCOPE_DOWNSTREAM_SHA"),
+        ):
+            value = os.environ.get(key, "")
+            if not re.fullmatch(r"[0-9a-fA-F]{40}", value):
+                raise DistributionValidationError(
+                    f"{key} must contain an exact 40-character commit SHA for revised releases"
+                )
+            commits[label] = value.lower()
+        manifest["build_provenance"] = commits
+    return manifest
 
 
 def write_payload_manifest(
@@ -115,6 +132,13 @@ def write_payload_manifest(
     output = (destination or manifest_path(version, descriptor=descriptor)).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     manifest = build_payload_manifest(root, version=version, descriptor=descriptor)
+    if descriptor is not None and descriptor.release_revision is not None and output.exists():
+        existing = load_payload_manifest(output)
+        if existing != manifest:
+            raise DistributionValidationError(
+                "same downstream release identity has a different payload or provenance; "
+                "increment release_revision instead of overwriting it"
+            )
     output.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -149,6 +173,16 @@ def validate_payload_manifest(
     expected_root = descriptor.app_dir if descriptor is not None else "PixelScope"
     if manifest.get("payload_root") != expected_root:
         raise DistributionValidationError("release manifest payload root mismatch")
+
+    if descriptor is not None and descriptor.release_revision is not None:
+        commits = manifest.get("build_provenance")
+        if not isinstance(commits, dict) or set(commits) != {"main_sha", "downstream_sha"}:
+            raise DistributionValidationError("revised release is missing build provenance")
+        if any(
+            not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha)
+            for sha in commits.values()
+        ):
+            raise DistributionValidationError("revised release has invalid commit provenance")
 
     manifest_version = manifest.get("version")
     if not isinstance(manifest_version, str) or not manifest_version.strip():
