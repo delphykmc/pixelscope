@@ -174,7 +174,7 @@ def smoke_installer_release(
                 manifest,
                 allow_distribution_metadata=True,
                 allowed_extra_names=_installer_owned_files(install_root),
-                expected_version=release_version(),
+                expected_version=descriptor.effective_version if descriptor else release_version(),
                 descriptor=descriptor,
             )
             if descriptor is None:
