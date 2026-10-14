@@ -282,7 +282,6 @@ def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
     assert "PartialConversionExitCode = 77" in inno
 
 
-
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
 def test_issue176_installed_payload_verifier_checks_all_manifest_members(
     tmp_path: Path,
@@ -338,9 +337,7 @@ def test_issue176_installed_payload_verifier_checks_all_manifest_members(
 
 def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
     root = Path(__file__).resolve().parents[2]
-    inno = (root / "packaging" / "installer" / "pixelscope.iss").read_text(
-        encoding="utf-8"
-    )
+    inno = (root / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
     assert "function VerifyInstalledPayload: Boolean;" in inno
     assert "Result := VerifyInstalledPayload" in inno
     assert "GetSHA256OfFile" in inno
