@@ -116,6 +116,8 @@ def installer_command(
     smoke_build: bool = False,
     descriptor: PackageTargetDescriptor | None = None,
 ) -> list[str]:
+    if descriptor is not None and app_id is not None and not smoke_build:
+        raise ValueError("non-smoke downstream AppId override is forbidden")
     version = descriptor.effective_version if descriptor is not None else release_version()
     version_parts = windows_version_tuple(version)
     file_version = ".".join(str(part) for part in version_parts)
@@ -184,6 +186,8 @@ def build_installer_release(
         raise RuntimeError("P7-B installer compilation is supported only on Windows")
     if smoke_build and app_id is None:
         raise ValueError("Smoke installer builds require a disposable AppId override")
+    if descriptor is not None and app_id is not None and not smoke_build:
+        raise ValueError("non-smoke downstream AppId override is forbidden")
 
     if descriptor is None:
         validate_artifact(APP_DIR)
