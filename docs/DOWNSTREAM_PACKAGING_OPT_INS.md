@@ -90,9 +90,14 @@ even when a custom descriptor declares a predecessor.
    The installer does not kill the Core process or delete user settings.
 4. Complete the downstream install with its **distinct AppId** first.
    At `ssDone`, require new HKCU64 registration, installed manifest and
-   executable, matching compiled SHA-256 hashes, and the expected four-part
-   Windows FileVersion. Only then re-validate Core and execute its exact
-   registered uninstaller.
+   executable, matching compiled SHA-256 hashes, the expected four-part
+   Windows FileVersion, and the correct downstream `InstallLocation`. The
+   bundled, offline `packaging/installer/verify_downstream_payload.ps1`
+   additionally walks **every manifest-owned file** (including DLLs, Qt
+   plugins, Python runtime and resources), validating its relative path,
+   reparse-point boundaries, size and SHA-256. A missing/corrupt dependency
+   fails conversion while preserving Core. Only then re-validate Core and
+   execute its exact registered uninstaller.
 5. Verify Core uninstall exit code and disappearance of its registration,
    executable and uninstaller. On late failure, preserve the installed
    downstream edition, print a **PARTIAL CONVERSION** log and return custom
@@ -140,7 +145,7 @@ Test matrix, each in a fresh VM state:
 | Core -> downstream, silent with switch | Success; Core removed |
 | Stale/unreadable Core uninstall key or reparse point | Nonzero; no deletion |
 | Running Core | Setup refuses; no force-termination |
-| Downstream copy/manifest/EXE fault | Core remains usable |
+| Downstream copy/manifest/EXE/DLL/plugin/resource fault | Core remains usable |
 | Core uninstaller exits nonzero or leaves owned files | Nonzero (77 after completed install), partial state reported |
 | Interruption between edition install and Core removal | Core retained; retry with consent is safe |
 | PUBLIC Core/Reference installer | No conversion code, unchanged product/version/AppId |
