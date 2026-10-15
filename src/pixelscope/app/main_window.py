@@ -1117,13 +1117,19 @@ class MainWindow(QMainWindow):
         if not paths:
             return
         supplied_paths = [Path(path) for path in paths]
+        if len(supplied_paths) == 1:
+            load_latency_trace.begin("open_images_dialog_returned")
         self._remember_directory(supplied_paths[0].parent)
         document_ids = self._register_inputs(
             discover_image_inputs(supplied_paths),
             resolve_raw_profiles=True,
         )
         if document_ids:
+            if len(supplied_paths) == 1:
+                load_latency_trace.target(document_ids[0])
+            load_latency_trace.mark("selection_start")
             self._select_document_ids(document_ids)
+            load_latency_trace.mark("selection_returned")
             self.statusBar().showMessage(f"Opened {len(document_ids)} image(s)", 4000)
         else:
             self.statusBar().showMessage("No supported images opened", 4000)
