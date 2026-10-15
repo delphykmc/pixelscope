@@ -157,15 +157,11 @@ def histogram(
         and (image.ndim == 2 or image.shape[2] in (3, 4))
     ):
         channel_count = 1 if image.ndim == 2 else image.shape[2]
-        channel_names = (
-            ("Gray",) if image.ndim == 2 else ("R", "G", "B", "A")[:channel_count]
-        )
+        channel_names = ("Gray",) if image.ndim == 2 else ("R", "G", "B", "A")[:channel_count]
         counts_cv: list[NDArray[np.int64]] = []
         for channel_index in range(channel_count):
             cancellation_checkpoint()
-            float_counts = cv2.calcHist(
-                [image], [channel_index], None, [256], [0.0, 256.0]
-            )
+            float_counts = cv2.calcHist([image], [channel_index], None, [256], [0.0, 256.0])
             cancellation_checkpoint()
             counts_cv.append(float_counts.reshape(256).astype(np.int64))
         return HistogramResult(
