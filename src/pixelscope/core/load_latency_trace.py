@@ -106,8 +106,7 @@ class PhaseTimer:
         self._previous_ns = now
         self._previous_cpu_ns = cpu_now
         LOGGER.warning(
-            "[load-trace] %s.%s step=%.2fms scope=%.2fms "
-            "cpu_step=%.2fms cpu_scope=%.2fms",
+            "[load-trace] %s.%s step=%.2fms scope=%.2fms cpu_step=%.2fms cpu_scope=%.2fms",
             self._group,
             stage,
             delta_ms,
