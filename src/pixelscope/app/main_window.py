@@ -54,6 +54,7 @@ from pixelscope.app.window_contribution import (
     WindowContribution,
 )
 from pixelscope.core import load_latency_trace
+from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
@@ -2054,6 +2055,9 @@ class MainWindow(QMainWindow):
             return
         self._files_drag_selection_dirty = False
         self._files_drag_settle_timer.stop()
+        selection_timer = AnalysisPhaseTimer(
+            "files.selection.bind", documents=len(self._selection_order)
+        )
         previous_selection_order = tuple(self._selection_order)
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
@@ -2110,6 +2114,7 @@ class MainWindow(QMainWindow):
         self._shared_line = None
         self._reset_pixel_status()
         self._render_selection()
+        selection_timer.finish()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
         documents = self.selected_documents
