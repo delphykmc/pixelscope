@@ -98,6 +98,15 @@ class RegistrationController(QObject):
         self._direct_document_ids: list[str] = []
         self._direct_document_id_set: set[str] = set()
         self._direct_paths: list[Path] = []
+        self._deferred_recent: deque[tuple[tuple[Path, ...], tuple[Path, ...]]] = deque()
+        self._deferred_recent_targets: set[str] = set()
+        self._recent_flush_timer = QTimer(self)
+        self._recent_flush_timer.setSingleShot(True)
+        self._recent_flush_timer.timeout.connect(self._flush_deferred_recent)
+        self._recent_fallback_timer = QTimer(self)
+        self._recent_fallback_timer.setSingleShot(True)
+        self._recent_fallback_timer.setInterval(10000)
+        self._recent_fallback_timer.timeout.connect(self._flush_deferred_recent)
         self._closing = False
         self._stale_result_count = 0
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
@@ -111,6 +120,8 @@ class RegistrationController(QObject):
             window._remove_document_from_folder
         )
         self._initialize_folder_caches()
+        for viewer in (window.viewer, *window.multi_compare_view.viewers):
+            viewer.first_frame_painted.connect(self._on_first_frame_painted)
 
         progress_parent = window.document_list.parentWidget() or window
         self._progress = QProgressBar(progress_parent)
@@ -244,6 +255,11 @@ class RegistrationController(QObject):
 
         if not self._closing:
             self._closing = True
+            self._recent_flush_timer.stop()
+            self._recent_fallback_timer.stop()
+            # Recent history is optional and must not block GUI teardown.
+            self._deferred_recent.clear()
+            self._deferred_recent_targets.clear()
             self._queue.clear()
             self._generation += 1
             if self._worker is not None:
@@ -509,12 +525,18 @@ class RegistrationController(QObject):
         if direct_ids:
             load_latency_trace.mark("selection_returned", document_id=direct_ids[0])
 
-        # Recent persistence may invoke a synchronous QSettings.sync(). Start
-        # the foreground image request first so its worker can overlap that
-        # disk operation rather than being delayed by history bookkeeping.
-        self._record_recent_entries(summary.registered_folders, direct_paths)
+        # QSettings.sync() can block the GUI even if decoding is running on a
+        # worker. Only direct-file registration defers Recent history until the
+        # image viewport has painted; folder-only registration keeps its
+        # established synchronous persistence semantics.
         if direct_ids:
-            load_latency_trace.mark("recent_entries_persisted", document_id=direct_ids[0])
+            self._deferred_recent.append((summary.registered_folders, direct_paths))
+            self._deferred_recent_targets.update(direct_ids)
+            if not self._recent_fallback_timer.isActive():
+                self._recent_fallback_timer.start()
+            load_latency_trace.mark("recent_entries_deferred", document_id=direct_ids[0])
+        else:
+            self._record_recent_entries(summary.registered_folders, direct_paths)
 
         messages: list[str] = []
         if completion is None and direct_ids:
@@ -535,6 +557,26 @@ class RegistrationController(QObject):
         self._clear_active_state()
         self._set_progress("idle", 0, None)
         self._start_next_request()
+
+    def _on_first_frame_painted(self, document_id: str) -> None:
+        if self._closing or document_id not in self._deferred_recent_targets:
+            return
+        # Give Qt a paint/event-loop turn before expensive history I/O.
+        # A pending one-shot timer also coalesces rapid sequential drops.
+        if not self._recent_flush_timer.isActive():
+            self._recent_flush_timer.start(100)
+
+    def _flush_deferred_recent(self) -> None:
+        if self._closing or not self._deferred_recent:
+            return
+        self._recent_flush_timer.stop()
+        self._recent_fallback_timer.stop()
+        pending = tuple(self._deferred_recent)
+        self._deferred_recent.clear()
+        self._deferred_recent_targets.clear()
+        for folders, direct_paths in pending:
+            self._record_recent_entries(folders, direct_paths)
+        load_latency_trace.mark("recent_entries_persisted_after_paint")
 
     def _record_recent_entries(
         self,
