@@ -1421,9 +1421,7 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
-        load_trace = load_latency_trace.PhaseTimer(
-            "load.ensure", document_id=document.document_id
-        )
+        load_trace = load_latency_trace.PhaseTimer("load.ensure", document_id=document.document_id)
         profile = self._raw_profiles.get(document.document_id)
         is_raw = document.source_path.suffix.casefold() == ".raw"
         if is_raw and profile is None:
