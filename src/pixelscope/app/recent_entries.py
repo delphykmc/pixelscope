@@ -124,7 +124,7 @@ class RecentEntriesRepository:
         merged: list[Path] = []
         seen: set[str] = set()
         for candidate in (*tuple(paths), *existing):
-            if not candidate.is_absolute() or "\\x00" in str(candidate):
+            if not candidate.is_absolute() or "\x00" in str(candidate):
                 raise ValueError("canonical recent paths must be absolute and valid")
             identity = os.path.normcase(str(candidate))
             if identity in seen:
