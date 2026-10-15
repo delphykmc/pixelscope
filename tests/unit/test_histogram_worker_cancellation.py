@@ -5,9 +5,9 @@ from threading import Event
 import numpy as np
 import pytest
 
+from pixelscope.core import statistics
 from pixelscope.core.cancellation import CooperativeCancellation, cancellation_scope
 from pixelscope.core.roi import RoiBounds, analyze_roi
-from pixelscope.core import statistics
 
 
 def test_obsolete_rgb_histogram_stops_before_next_channel(
@@ -25,9 +25,8 @@ def test_obsolete_rgb_histogram_stops_before_next_channel(
         return result
 
     monkeypatch.setattr(statistics.np, "bincount", cancel_after_first_channel)
-    with cancellation_scope(cancel_event):
-        with pytest.raises(CooperativeCancellation):
-            analyze_roi(image, RoiBounds(0, 0, 24, 16), bins=256)
+    with cancellation_scope(cancel_event), pytest.raises(CooperativeCancellation):
+        analyze_roi(image, RoiBounds(0, 0, 24, 16), bins=256)
     assert calls == [1]
 
 
