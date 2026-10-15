@@ -17,6 +17,7 @@ from PySide6.QtCore import (
     Qt,
     QThreadPool,
     QTimer,
+    Signal,
 )
 from PySide6.QtGui import (
     QAction,
@@ -140,6 +141,9 @@ class FolderRegistrationResult:
 
 
 class MainWindow(QMainWindow):
+    # Emitted only after the final Files selection has been bound to the GUI.
+    # Downstream observers must not re-style viewers for intermediate drag edits.
+    files_selection_committed = Signal()
     """Document registration, selection-driven comparison, and analysis lifecycle."""
 
     def __init__(
@@ -2039,12 +2043,17 @@ class MainWindow(QMainWindow):
     def _commit_files_drag_selection(self) -> None:
         if not self._files_drag_selection_dirty:
             return
+        if self.document_list.selection_mouse_dragging:
+            # A paused (but still held) mouse drag is not a completed selection.
+            # Recheck later; only release may commit the expensive GUI bind.
+            self._files_drag_settle_timer.start()
+            return
         self._files_drag_selection_dirty = False
         self._files_drag_settle_timer.stop()
-        self._selection_changed(force=True)
+        self._selection_changed()
 
-    def _selection_changed(self, *, force: bool = False) -> None:
-        if self.document_list.selection_mouse_dragging and not force:
+    def _selection_changed(self) -> None:
+        if self.document_list.selection_mouse_dragging:
             # Qt emits one signal per intermediate range during drag. Render
             # only the final selection; avoid repeatedly canceling histogram
             # workers and recreating all comparison/pyqtgraph widgets.
@@ -2113,6 +2122,7 @@ class MainWindow(QMainWindow):
         self._reset_pixel_status()
         self._render_selection()
         selection_timer.finish()
+        self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
         documents = self.selected_documents
