@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 from PySide6.QtCore import QSettings
 
