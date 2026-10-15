@@ -141,6 +141,7 @@ class DifferencePanel(QWidget):
 
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
+    map_cached = Signal(object)
     presentation_settled = Signal(object)
 
     def __init__(
@@ -1063,6 +1064,10 @@ class DifferencePanel(QWidget):
         self._configure_threshold_for_cached_map(difference_map)
         self.last_result = metrics
         self._render_metrics(metrics)
+        if not publish_result and put_result.stored:
+            pair = self.selected_documents()
+            if pair is not None:
+                self.map_cached.emit((pair[0].document_id, pair[1].document_id))
         if reused:
             self.status.setText("Cached map reused")
         elif put_result.stored:
