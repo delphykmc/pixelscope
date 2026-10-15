@@ -126,27 +126,26 @@ def test_direct_recent_is_staged_before_first_paint_and_syncs_afterward(
 
     recent = window.recent_entries_controller.repository
     storage = recent._storage
-    original_sync = storage.sync
-    sync_count = 0
+    original_set_value = storage.set_value
+    written: list[str] = []
 
-    def counting_sync() -> None:
-        nonlocal sync_count
-        sync_count += 1
-        original_sync()
+    def counting_set_value(key: str, value: object) -> None:
+        written.append(key)
+        original_set_value(key, value)
 
-    monkeypatch.setattr(storage, "sync", counting_sync)
+    monkeypatch.setattr(storage, "set_value", counting_set_value)
     controller.handle_dropped_paths([path])
     qtbot.waitUntil(lambda: controller.is_idle, timeout=5000)  # type: ignore[attr-defined]
 
     document = next(iter(window.documents.values()))
     assert recent.load(RecentEntryKind.IMAGE) == (path.resolve(),)
-    assert sync_count == 0
+    assert written == []
     assert controller._deferred_recent
 
     # A hidden test window has no viewport paint. Explicitly deliver the same
     # signal the visible viewer emits only after a completed frame paint.
     window.viewer.first_frame_painted.emit(document.document_id)
-    qtbot.waitUntil(lambda: sync_count == 1, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: "recent/images" in written, timeout=5000)  # type: ignore[attr-defined]
     assert not controller._deferred_recent
     assert recent.load(RecentEntryKind.IMAGE) == (path.resolve(),)
     window.close()
