@@ -29,9 +29,7 @@ def test_phase_timer_records_incremental_and_total_gui_durations(
     assert "scope=" in output
 
 
-def test_phase_timer_ignores_unrelated_documents(
-    caplog: object, monkeypatch: object
-) -> None:
+def test_phase_timer_ignores_unrelated_documents(caplog: object, monkeypatch: object) -> None:
     monkeypatch.setattr(load_latency_trace, "_ENABLED", True)  # type: ignore[attr-defined]
     monkeypatch.setattr(  # type: ignore[attr-defined]
         load_latency_trace, "_start_ns", perf_counter_ns()
