@@ -6,6 +6,7 @@ from math import inf, log10
 import numpy as np
 from numpy.typing import NDArray
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.diff_engine import signed_difference
 
 
@@ -145,6 +146,7 @@ def histogram(
     counts: list[NDArray[np.int64]] = []
     edges: NDArray[np.float64] | None = None
     for channel in channels:
+        cancellation_checkpoint()
         use_integer_codes = (
             np.issubdtype(channel.dtype, np.integer)
             and value_range is not None
@@ -176,6 +178,7 @@ def histogram(
             channel_edges = np.arange(lower, upper + 1, dtype=np.float64)
         else:
             channel_counts, channel_edges = np.histogram(channel, bins=bins, range=value_range)
+        cancellation_checkpoint()
         counts.append(channel_counts.astype(np.int64, copy=False))
         edges = channel_edges
     assert edges is not None

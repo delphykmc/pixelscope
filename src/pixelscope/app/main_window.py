@@ -17,6 +17,7 @@ from PySide6.QtCore import (
     Qt,
     QThreadPool,
     QTimer,
+    Signal,
 )
 from PySide6.QtGui import (
     QAction,
@@ -54,6 +55,7 @@ from pixelscope.app.window_contribution import (
     WindowContribution,
 )
 from pixelscope.core import load_latency_trace
+from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
@@ -141,6 +143,10 @@ class FolderRegistrationResult:
 class MainWindow(QMainWindow):
     """Document registration, selection-driven comparison, and analysis lifecycle."""
 
+    # Emitted only after the final Files selection has been bound to the GUI.
+    # Downstream observers must not re-style viewers for intermediate drag edits.
+    files_selection_committed = Signal()
+
     def __init__(
         self,
         application_settings: ApplicationSettings | None = None,
@@ -224,6 +230,14 @@ class MainWindow(QMainWindow):
         self.central_stack.setCurrentWidget(self.empty_workspace)
 
         self.document_list = DocumentListWidget()
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer = QTimer(self)
+        self._files_drag_settle_timer.setSingleShot(True)
+        self._files_drag_settle_timer.setInterval(200)
+        self._files_drag_settle_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._commit_files_drag_selection
+        )
+        self.document_list.selection_drag_finished.connect(self._commit_files_drag_selection)
         self.document_list.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._selection_changed
         )
@@ -2027,7 +2041,31 @@ class MainWindow(QMainWindow):
             key: value for key, value in self._channel_view_cache.items() if key[0] != document_id
         }
 
+    def _commit_files_drag_selection(self) -> None:
+        if not self._files_drag_selection_dirty:
+            return
+        if self.document_list.selection_mouse_dragging:
+            # A paused (but still held) mouse drag is not a completed selection.
+            # Recheck later; only release may commit the expensive GUI bind.
+            self._files_drag_settle_timer.start()
+            return
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer.stop()
+        self._selection_changed()
+
     def _selection_changed(self) -> None:
+        if self.document_list.selection_mouse_dragging:
+            # Qt emits one signal per intermediate range during drag. Render
+            # only the final selection; avoid repeatedly canceling histogram
+            # workers and recreating all comparison/pyqtgraph widgets.
+            self._files_drag_selection_dirty = True
+            self._files_drag_settle_timer.start()
+            return
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer.stop()
+        selection_timer = AnalysisPhaseTimer(
+            "files.selection.bind", documents=len(self._selection_order)
+        )
         previous_selection_order = tuple(self._selection_order)
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
@@ -2084,6 +2122,8 @@ class MainWindow(QMainWindow):
         self._shared_line = None
         self._reset_pixel_status()
         self._render_selection()
+        selection_timer.finish()
+        self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
         documents = self.selected_documents
