@@ -55,6 +55,7 @@ DirectRegistrationCompletion = Callable[[list[str]], None]
 class _RegistrationRequest:
     paths: tuple[Path, ...]
     direct_completion: OwnerCallback | None = None
+    replace_selection: bool = False
 
 
 class RegistrationController(QObject):
@@ -113,6 +114,7 @@ class RegistrationController(QObject):
         self._folder_document_ids: dict[str, set[str]] = {}
         self._current_record: RegistrationInput | None = None
         self._active_direct_completion: OwnerCallback | None = None
+        self._active_replace_selection = False
         self._type_column_resize_mode: QHeaderView.ResizeMode | None = None
         self._original_path_key = OwnerCallback(window._path_key)
         self._original_add_document_to_folder = OwnerCallback(window._add_document_to_folder)
@@ -216,11 +218,14 @@ class RegistrationController(QObject):
         paths: Sequence[Path],
         *,
         direct_completion: DirectRegistrationCompletion | None = None,
+        replace_selection: bool = False,
     ) -> None:
         """Queue one logical input request without performing filesystem work on the GUI thread."""
 
         if self._closing:
             return
+        if replace_selection and direct_completion is not None:
+            raise ValueError("replacement input cannot also have a drop completion")
         normalized = tuple(Path(path) for path in paths)
         if not normalized:
             return
@@ -229,7 +234,7 @@ class RegistrationController(QObject):
         )
         if len(normalized) == 1:
             load_latency_trace.begin("explicit_path_enqueued")
-        self._queue.append(_RegistrationRequest(normalized, completion_hook))
+        self._queue.append(_RegistrationRequest(normalized, completion_hook, replace_selection))
         self._start_next_request()
 
     def cancel_active(self) -> None:
@@ -314,6 +319,7 @@ class RegistrationController(QObject):
         request = self._queue.popleft()
         paths = request.paths
         self._active_direct_completion = request.direct_completion
+        self._active_replace_selection = request.replace_selection
         self._generation += 1
         generation = self._generation
         self._active_generation = generation
@@ -324,7 +330,7 @@ class RegistrationController(QObject):
         self._direct_document_id_set.clear()
         self._direct_paths.clear()
         self._set_progress("scanning", 0, None)
-        worker = TaskWorker(self._discover, paths, generation=generation)
+        worker = TaskWorker(self._discover, paths, request.replace_selection, generation=generation)
         self._worker = worker
         self._discovery_task_id = worker.task_id
         worker.signals.succeeded.connect(self._discovery_succeeded)
@@ -333,7 +339,14 @@ class RegistrationController(QObject):
         worker.signals.finished.connect(self._discovery_finished)
         self._pool.start(worker)
 
-    def _discover(self, paths: Sequence[Path]) -> RegistrationDiscovery:
+    def _discover(self, paths: Sequence[Path], files_only: bool = False) -> RegistrationDiscovery:
+        if files_only:
+            files = []
+            for path in paths:
+                cancellation_checkpoint()
+                if path.is_file():
+                    files.append(path)
+            paths = files
         return self._discovery_function(paths, checkpoint=cancellation_checkpoint)
 
     def _current_discovery_signal(self, task_id: str, generation: int) -> bool:
@@ -506,10 +519,16 @@ class RegistrationController(QObject):
         current_set = set(current_ids)
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
         completion = self._active_direct_completion
+        replace_selection = self._active_replace_selection
         reloads: list[str] = []
         if direct_ids:
             load_latency_trace.mark("selection_start", document_id=direct_ids[0])
-        if completion is not None and direct_ids:
+        if replace_selection:
+            if direct_ids:
+                self.window._select_document_ids(direct_ids)
+            else:
+                self.window._update_empty_workspace_state()
+        elif completion is not None and direct_ids:
             # Registration may outlive the presentation owner during teardown.
             # The request retains only a weak owner edge and a vanished owner
             # simply makes the presentation continuation stale.
@@ -533,7 +552,7 @@ class RegistrationController(QObject):
 
         if direct_ids:
             load_latency_trace.mark("selection_returned", document_id=direct_ids[0])
-        if completion is None and direct_ids and not summary.folder_count:
+        if not replace_selection and completion is None and direct_ids and not summary.folder_count:
             # Image-surface drops use their own completion callback. Files-only
             # drops use the same passive pairing logic without double scheduling.
             quick_compare = getattr(self.window, "quick_compare_controller", None)
@@ -558,7 +577,11 @@ class RegistrationController(QObject):
             self._record_recent_entries(summary.registered_folders, direct_paths)
 
         messages: list[str] = []
-        if completion is None and direct_ids:
+        if replace_selection:
+            messages.append(
+                f"Opened {len(direct_ids)} image(s)" if direct_ids else "No supported images opened"
+            )
+        elif completion is None and direct_ids:
             if current_ids:
                 if additions:
                     messages.append(f"Added {len(additions)} image(s)")
@@ -653,6 +676,7 @@ class RegistrationController(QObject):
         self._direct_paths.clear()
         self._current_record = None
         self._active_direct_completion = None
+        self._active_replace_selection = False
 
     def _set_progress(self, phase: str, completed: int, total: int | None) -> None:
         self._progress_state = RegistrationProgress(phase, completed, total)

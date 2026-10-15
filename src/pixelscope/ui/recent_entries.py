@@ -15,7 +15,7 @@ from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
-from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
+from pixelscope.io.path_discovery import ImageInput
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
@@ -234,25 +234,8 @@ class RecentEntriesController:
             return
         self._open_recent_session(path)
 
-    def _open_image_paths(self, paths: list[Path]) -> list[str]:
-        if not paths:
-            return []
-        self._remember_directory(paths[0].parent)
-        document_ids = list(
-            self.window._register_inputs(
-                discover_image_inputs(paths),
-                resolve_raw_profiles=True,
-            )
-        )
-        if document_ids:
-            self.window._select_document_ids(document_ids)
-            self.window.statusBar().showMessage(
-                f"Opened {len(document_ids)} image(s)",
-                4000,
-            )
-        else:
-            self.window.statusBar().showMessage("No supported images opened", 4000)
-        return document_ids
+    def _open_image_paths(self, paths: list[Path]) -> None:
+        self.window.open_image_paths(paths)
 
     def _open_recent_session(self, path: Path) -> None:
         try:

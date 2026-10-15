@@ -71,6 +71,14 @@ registered and becomes part of the ordered Selected set. If more than six files 
 supplied, none are discarded: the initial Current Comparison Page contains the
 first six and later pages preserve the same Selected membership/order.
 
+In the composed application, Open Images and Recent Images use background discovery
+and bounded registration so the interface remains responsive. When registration
+finishes, the naturally ordered, deduplicated opened set replaces Selected and
+starts on its first page. These Open commands do not auto-calculate Difference.
+Reopening an existing path retains its catalog identity and explicitly reloads the
+source with a new generation. Cancelled/zero-loadable registration leaves the prior
+Selected set intact.
+
 **Open Folder...** uses the native single-folder picker and registers one existing
 directory per invocation. Multiple folders remain supported through folder
 drag/drop or the registration API; when multiple paths are supplied there, resolved
