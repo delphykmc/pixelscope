@@ -82,8 +82,10 @@ class PhaseTimer:
 
     def __init__(self, group: str, *, document_id: str | None = None) -> None:
         self._group = group
-        self._active = _ENABLED and _start_ns is not None and (
-            document_id is None or document_id == _target_document_id
+        self._active = (
+            _ENABLED
+            and _start_ns is not None
+            and (document_id is None or document_id == _target_document_id)
         )
         self._started_ns = perf_counter_ns() if self._active else 0
         self._previous_ns = self._started_ns
