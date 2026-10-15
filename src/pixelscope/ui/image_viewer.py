@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core import load_latency_trace
 from pixelscope.core.display_transform import render_ordinary_display_preview
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
@@ -450,6 +451,7 @@ class ImageViewer(QWidget):
 
         self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
         self.image_item.setRect(self._presentation_rect(document))
+        load_latency_trace.mark("image_item_upload_returned", document_id=document.document_id)
 
     def _ensure_display_preview(self) -> None:
         document = self._document
@@ -874,8 +876,28 @@ class ImageViewer(QWidget):
         super().keyPressEvent(event)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:
-            self.activated.emit(self)
+        if watched is self._graphics.viewport():
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.activated.emit(self)
+            elif event.type() == QEvent.Type.Paint:
+                document = self._document
+                if (
+                    document is not None
+                    and document.preview is not None
+                    and self.isVisible()
+                    and load_latency_trace.tracks(document.document_id)
+                ):
+                    # This callback runs after the viewport's paint event has
+                    # returned, not merely after setImage() was invoked.
+                    document_id = document.document_id
+                    QTimer.singleShot(
+                        0,
+                        lambda: load_latency_trace.mark(
+                            "first_viewport_paint_event_processed",
+                            document_id=document_id,
+                            once=True,
+                        ),
+                    )
         return super().eventFilter(watched, event)
 
     def _update_zoom(self, *_args: object) -> None:
