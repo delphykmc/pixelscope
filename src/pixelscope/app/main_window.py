@@ -185,6 +185,9 @@ class MainWindow(QMainWindow):
         self._visible_document_ids: set[str] = set()
         self._selection_order: list[str] = []
         self._folder_documents: dict[str, list[str]] = {}
+        # The registration path has already resolved these folder identities.
+        # Use this mapping on GUI selection/preload rather than re-resolving.
+        self._document_folder_keys: dict[str, str] = {}
         self._folder_paths: dict[str, Path] = {}
         self._folder_indices: dict[str, int] = {}
         self._current_index = 0
@@ -3907,6 +3910,7 @@ class MainWindow(QMainWindow):
 
     def _add_document_to_folder(self, document_id: str, path: Path) -> None:
         folder_key = self._folder_key(path)
+        self._document_folder_keys[document_id] = folder_key
         folder_documents = self._folder_documents.setdefault(folder_key, [])
         current_id = None
         current_index = self._folder_indices.get(folder_key)
@@ -3926,7 +3930,9 @@ class MainWindow(QMainWindow):
             self._folder_indices.setdefault(folder_key, 0)
 
     def _remove_document_from_folder(self, document_id: str, path: Path) -> None:
-        folder_key = self._folder_key(path)
+        folder_key = self._document_folder_keys.pop(document_id, None)
+        if folder_key is None:
+            folder_key = self._folder_key(path)
         folder_documents = self._folder_documents.get(folder_key)
         if folder_documents is None:
             return
@@ -3947,7 +3953,9 @@ class MainWindow(QMainWindow):
         document = self.documents.get(document_id)
         if document is None or document.source_path is None:
             return
-        folder_key = self._folder_key(document.source_path)
+        folder_key = self._document_folder_keys.get(document_id)
+        if folder_key is None:
+            folder_key = self._folder_key(document.source_path)
         folder_documents = self._folder_documents.get(folder_key, [])
         if document_id in folder_documents:
             self._folder_indices[folder_key] = folder_documents.index(document_id)
@@ -3963,7 +3971,9 @@ class MainWindow(QMainWindow):
         for document in documents:
             if document.source_path is None:
                 return None
-            folder_key = self._folder_key(document.source_path)
+            folder_key = self._document_folder_keys.get(document.document_id)
+            if folder_key is None:
+                folder_key = self._folder_key(document.source_path)
             if folder_key in seen_folders:
                 return None
             seen_folders.add(folder_key)
