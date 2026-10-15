@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import cv2
@@ -53,3 +54,10 @@ def test_jpeg_is_decoded_and_converted_to_rgb(tmp_path: Path) -> None:
     red, green, blue = document.pixel_at(0, 0)
     assert blue > red
     assert green >= red
+
+
+def test_encoded_digest_remains_sha256_of_original_file(tmp_path: Path) -> None:
+    path = tmp_path / "encoded.png"
+    write_encoded(path, np.arange(300, dtype=np.uint8).reshape(10, 10, 3))
+    document = read_image(path)
+    assert document.encoded_source_sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
