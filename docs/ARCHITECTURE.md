@@ -141,10 +141,20 @@ Selected is not duplicated or reordered; it is treated as an explicit source ref
 and advances that document's generation.
 
 Image View Quick Compare follows the same registration and same-path refresh contract
-through `RegistrationController` while retaining its separate explicit two-source
-Difference presentation intent. A first batch starts on Page 1; later additive
+through `RegistrationController`. Eligible explicit two-source drops in Files or
+Image View schedule passive Difference map/metric caching after yielding to Qt;
+sources remain visible and Difference display stays off until requested. Ordinary
+Files selection does not schedule Difference. A first batch starts on Page 1; later additive
 batches reveal their final newly added source. Quick Compare may choose presentation
 after registration completes, but it does not own filesystem registration.
+
+Primary reordering retains source-to-viewer association. ImageViewer skips native
+Active styling/cursor updates when both its state and stylesheet already match;
+ReviewSelectionController reapplies tile styles only when Active styling or the
+dynamic `reviewPicked` property changes. Actual Pick transitions still force Qt
+repolishing even when the stylesheet text is unchanged. Initialization and real
+Active transitions preserve cursor opacity and borders. These checks retain the
+existing Qt ownership graph and introduce no runtime method replacement.
 
 More than six supplied images remain registered and Selected. Initial population
 starts with images 1–6; later additive D&D may move the Current Comparison Page
