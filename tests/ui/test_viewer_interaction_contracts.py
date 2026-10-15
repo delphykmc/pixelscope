@@ -205,7 +205,6 @@ def test_auto_grid_fine_navigation_crosses_seven_image_page_boundary(
     window.close()
 
 
-
 def test_viewer_records_graphics_view_paint_separately_from_timer_callback(
     qtbot: object, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
