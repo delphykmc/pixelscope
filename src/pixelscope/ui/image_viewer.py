@@ -194,9 +194,7 @@ class TracedGraphicsLayoutWidget(pg.GraphicsLayoutWidget):  # type: ignore[misc]
             super().paintEvent(event)
             return
         trace = load_latency_trace.PhaseTimer("viewport.graphics_paint", document_id=document_id)
-        load_latency_trace.mark(
-            "viewport_graphics_paint_begin", document_id=document_id, once=True
-        )
+        load_latency_trace.mark("viewport_graphics_paint_begin", document_id=document_id, once=True)
         try:
             super().paintEvent(event)
         finally:
