@@ -362,6 +362,24 @@ class QuickCompareController(QObject):
         if pair is not None:
             self._schedule_difference(pair)
 
+    def consider_registered_files_drop(
+        self, previous_ids: list[str], dropped_ids: list[str]
+    ) -> None:
+        """Apply the same passive Quick Compare pairing to explicit Files drops.
+
+        RegistrationController remains the single registration authority.
+        Ordinary tree selection, folder discovery and reopens do not trigger
+        unsolicited Difference calculations.
+        """
+
+        selected_ids = [document.document_id for document in self.window.selected_documents]
+        if not any(document_id not in previous_ids for document_id in dropped_ids):
+            return
+        unique_dropped = list(dict.fromkeys(dropped_ids))
+        pair = self._quick_difference_pair(previous_ids, unique_dropped, selected_ids)
+        if pair is not None:
+            self._schedule_difference(pair)
+
     def _quick_difference_pair(
         self,
         previous_ids: list[str],
