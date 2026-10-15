@@ -1560,6 +1560,12 @@ class MainWindow(QMainWindow):
         if self._closing:
             self._invalidate_preload_plan()
             return
+        if len(self.documents) < 2:
+            # A lone catalog document cannot have a registered successor.
+            # Avoid redundant folder-key resolution on the first paint path,
+            # while still revoking a previously valid plan after removal.
+            self._invalidate_preload_plan()
+            return
         navigation_plan = (
             self._plan_folder_navigation(1) if self.preload_controller.enabled else None
         )
