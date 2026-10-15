@@ -852,9 +852,7 @@ class ComparisonAnalysisPanel(QWidget):
         if self.histogram_context.text() and not self.histogram_context.text().startswith(
             "Previous result · "
         ):
-            self.histogram_context.setText(
-                f"Previous result · {self.histogram_context.text()}"
-            )
+            self.histogram_context.setText(f"Previous result · {self.histogram_context.text()}")
         # The preserved curves are a previous-result preview, not current
         # source data. Disable hover readouts until the replacement arrives.
         self._histogram_series = [[] for _index in range(6)]
