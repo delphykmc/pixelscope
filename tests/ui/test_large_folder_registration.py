@@ -303,3 +303,33 @@ def test_direct_drop_reopens_same_selected_source_through_registration_controlle
     assert window.viewer.document is refreshed
     assert len(window.documents) == 1
     window.close()
+
+
+def test_direct_file_registration_prioritizes_selection_over_recent_sync(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "single.png"
+    assert cv2.imwrite(str(path), np.full((12, 16), 19, dtype=np.uint8))
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    controller = install_large_folder_registration(window)
+
+    observations: list[list[str]] = []
+    original_record = controller._record_recent_entries
+
+    def observe_recent(folders: object, direct_paths: object) -> None:
+        observations.append(
+            [document.document_id for document in window.selected_documents]
+        )
+        original_record(folders, direct_paths)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(controller, "_record_recent_entries", observe_recent)
+    controller.handle_dropped_paths([path])
+    _wait_idle(qtbot, controller)
+
+    assert len(window.documents) == 1
+    assert len(window.selected_documents) == 1
+    assert observations == [[window.selected_documents[0].document_id]]
+    window.close()
