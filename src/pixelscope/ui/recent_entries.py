@@ -130,9 +130,12 @@ class RecentEntriesController:
         paths: Sequence[str | Path],
         *,
         stage_only: bool = False,
+        canonical: bool = False,
     ) -> None:
         try:
-            if stage_only:
+            if canonical:
+                self.repository.stage_canonical(kind, (Path(path) for path in paths))
+            elif stage_only:
                 self.repository.stage(kind, paths)
             else:
                 self.repository.record(kind, paths)
