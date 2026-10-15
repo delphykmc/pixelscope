@@ -254,3 +254,16 @@ def test_staged_real_qsettings_persists_after_flushing(tmp_path: Path) -> None:
         QSettingsAdapter(QSettings(str(settings_path), QSettings.Format.IniFormat))
     )
     assert recovered.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+
+
+def test_staged_recent_can_publish_without_synchronous_flush(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    path = tmp_path / "quick.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [path])
+    repository.flush_staged(sync=False)
+
+    assert storage.sync_count == 0
+    assert json.loads(storage.values["recent/images"]) == [str(path.resolve())]
+    assert repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
