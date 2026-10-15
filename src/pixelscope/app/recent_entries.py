@@ -107,14 +107,15 @@ class RecentEntriesRepository:
         self._staged.add(kind)
         return merged
 
-    def flush_staged(self) -> None:
+    def flush_staged(self, *, sync: bool = True) -> None:
         """Write the latest staged snapshots with one durable sync."""
 
         if not self._staged:
             return
         for kind in sorted(self._staged, key=lambda item: item.value):
             self._write_value(kind, self._cache[kind])
-        self._storage.sync()
+        if sync:
+            self._storage.sync()
         self._staged.clear()
 
     def remove(self, kind: RecentEntryKind, path: str | Path) -> tuple[Path, ...]:
