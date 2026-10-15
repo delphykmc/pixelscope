@@ -232,9 +232,7 @@ class MainWindow(QMainWindow):
         self._files_drag_settle_timer.timeout.connect(  # type: ignore[attr-defined]
             self._commit_files_drag_selection
         )
-        self.document_list.selection_drag_finished.connect(
-            self._commit_files_drag_selection
-        )
+        self.document_list.selection_drag_finished.connect(self._commit_files_drag_selection)
         self.document_list.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._selection_changed
         )
