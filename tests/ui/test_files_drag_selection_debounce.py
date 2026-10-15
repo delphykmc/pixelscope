@@ -48,9 +48,7 @@ def test_files_drag_intermediate_selection_does_not_rebuild_viewers(
     # Ordinary click/programmatic selection remains synchronous.
     first.setSelected(True)
     assert rendered == ["render"]
-    assert [document.document_id for document in window.selected_documents] == [
-        docs[0].document_id
-    ]
+    assert [document.document_id for document in window.selected_documents] == [docs[0].document_id]
     rendered.clear()
 
     # QTreeWidget emits once for every intermediate mouse-drag selection.
@@ -74,7 +72,5 @@ def test_files_drag_intermediate_selection_does_not_rebuild_viewers(
     # Selection change after release is again immediate.
     first.setSelected(False)
     assert len(rendered) == 2
-    assert [document.document_id for document in window.selected_documents] == [
-        docs[2].document_id
-    ]
+    assert [document.document_id for document in window.selected_documents] == [docs[2].document_id]
     window.close()
