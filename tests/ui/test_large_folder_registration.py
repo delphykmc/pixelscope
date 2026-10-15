@@ -320,9 +320,7 @@ def test_direct_file_registration_prioritizes_selection_over_recent_sync(
     original_record = controller._record_recent_entries
 
     def observe_recent(folders: object, direct_paths: object) -> None:
-        observations.append(
-            [document.document_id for document in window.selected_documents]
-        )
+        observations.append([document.document_id for document in window.selected_documents])
         original_record(folders, direct_paths)  # type: ignore[arg-type]
 
     monkeypatch.setattr(controller, "_record_recent_entries", observe_recent)
