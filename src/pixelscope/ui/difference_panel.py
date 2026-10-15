@@ -967,15 +967,6 @@ class DifferencePanel(QWidget):
         metric_key = self._metric_key()
         assert pair is not None and key is not None and metric_key is not None
         request_key = (key, metric_key)
-        if self._worker is not None and self._worker_key == request_key:
-            # An explicit Calculate while passive analysis is still running
-            # promotes that same work into a presentation request.
-            if publish_result:
-                self._presentation_map_pairs[self._worker.task_id] = (
-                    pair[0].document_id,
-                    pair[1].document_id,
-                )
-            return
         cached_map = self._map_cache.get(key)
         cached_metrics = self._metric_cache.get(metric_key)
         if cached_map is not None and cached_metrics is not None:
@@ -993,6 +984,15 @@ class DifferencePanel(QWidget):
                     selected,
                     publish_result=True,
                     presentation_pair=(pair[0].document_id, pair[1].document_id),
+                )
+            return
+        if self._worker is not None and self._worker_key == request_key:
+            # If background analysis has not produced its cached metrics yet,
+            # reuse the same worker and publish its eventual result on request.
+            if publish_result:
+                self._presentation_map_pairs[self._worker.task_id] = (
+                    pair[0].document_id,
+                    pair[1].document_id,
                 )
             return
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
