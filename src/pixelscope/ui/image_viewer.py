@@ -22,6 +22,7 @@ from PySide6.QtGui import (
     QHideEvent,
     QKeyEvent,
     QKeySequence,
+    QPaintEvent,
     QPainter,
     QPen,
     QShortcut,
@@ -180,6 +181,31 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
         super().mouseClickEvent(event)
 
 
+class TracedGraphicsLayoutWidget(pg.GraphicsLayoutWidget):  # type: ignore[misc]
+    """Time the actual QGraphicsView paint, not the next Qt timer callback."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.trace_document_id: str | None = None
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
+        document_id = self.trace_document_id
+        if document_id is None or not load_latency_trace.tracks(document_id):
+            super().paintEvent(event)
+            return
+        trace = load_latency_trace.PhaseTimer("viewport.graphics_paint", document_id=document_id)
+        load_latency_trace.mark(
+            "viewport_graphics_paint_begin", document_id=document_id, once=True
+        )
+        try:
+            super().paintEvent(event)
+        finally:
+            trace.checkpoint("graphics_view_paint_returned")
+            load_latency_trace.mark(
+                "viewport_graphics_paint_returned", document_id=document_id, once=True
+            )
+
+
 class ImageViewer(QWidget):
     """pyqtgraph image canvas with zoom/pan, pixel readout, and shared ROI overlay."""
 
@@ -217,7 +243,7 @@ class ImageViewer(QWidget):
         self.header = TileHeader()
         self.header.focus_requested.connect(lambda: self.focus_requested.emit(self))
         self.header.navigation_requested.connect(self.navigation_requested)
-        self._graphics = pg.GraphicsLayoutWidget()
+        self._graphics = TracedGraphicsLayoutWidget()
         self._graphics.viewport().installEventFilter(self)
         self.view_box = RoiViewBox(lockAspect=True, enableMenu=False)
         self._graphics.addItem(self.view_box)
@@ -341,6 +367,9 @@ class ImageViewer(QWidget):
         return 100.0 / float(pixel_size[0])
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
+        self._graphics.trace_document_id = (
+            document.document_id if document is not None and document.preview is not None else None
+        )
         view_trace = load_latency_trace.PhaseTimer(
             "viewer.set_document", document_id=document.document_id if document else None
         )
