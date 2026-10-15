@@ -25,7 +25,9 @@ def read_image(path: str | Path) -> ImageDocument:
         encoded = np.fromfile(source_path, dtype=np.uint8)
     except OSError as exc:
         raise ImageReadError(f"Cannot read image file: {exc}") from exc
-    encoded_sha256 = hashlib.sha256(encoded.tobytes()).hexdigest()
+    # np.fromfile already owns a contiguous uint8 buffer; hashing a buffer
+    # view avoids a second encoded-file-sized allocation before decoding.
+    encoded_sha256 = hashlib.sha256(memoryview(encoded)).hexdigest()
     decoded = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
     if decoded is None:
         raise ImageReadError("The file is not a valid or supported PNG/BMP/JPEG image")
