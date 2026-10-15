@@ -61,4 +61,11 @@ def mark(
 
 
 def tracks(document_id: str) -> bool:
-    return _ENABLED and _start_ns is not None and _target_document_id == document_id
+    """Whether this document still needs the first viewport-paint marker."""
+
+    return (
+        _ENABLED
+        and _start_ns is not None
+        and _target_document_id == document_id
+        and "first_viewport_paint_event_processed" not in _seen
+    )
