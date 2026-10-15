@@ -2041,10 +2041,10 @@ class MainWindow(QMainWindow):
             return
         self._files_drag_selection_dirty = False
         self._files_drag_settle_timer.stop()
-        self._selection_changed()
+        self._selection_changed(force=True)
 
-    def _selection_changed(self) -> None:
-        if self.document_list.selection_mouse_dragging:
+    def _selection_changed(self, *, force: bool = False) -> None:
+        if self.document_list.selection_mouse_dragging and not force:
             # Qt emits one signal per intermediate range during drag. Render
             # only the final selection; avoid repeatedly canceling histogram
             # workers and recreating all comparison/pyqtgraph widgets.
