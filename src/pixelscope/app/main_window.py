@@ -1560,20 +1560,25 @@ class MainWindow(QMainWindow):
         if self._closing:
             self._invalidate_preload_plan()
             return
+        preload_trace = load_latency_trace.PhaseTimer("preload.refresh")
         if len(self.documents) < 2:
             # A lone catalog document cannot have a registered successor.
             # Avoid redundant folder-key resolution on the first paint path,
             # while still revoking a previously valid plan after removal.
             self._invalidate_preload_plan()
+            preload_trace.checkpoint("single_document_fast_exit")
             return
         navigation_plan = (
             self._plan_folder_navigation(1) if self.preload_controller.enabled else None
         )
+        preload_trace.checkpoint("navigate_folder_positions")
         target_ids = navigation_plan.document_ids if navigation_plan is not None else ()
         previous = self.preload_controller.current_plan
         current = self.preload_controller.set_plan(target_ids)
+        preload_trace.checkpoint("preload_plan_state")
         if previous is not current:
             self._cancel_preload_workers()
+        preload_trace.checkpoint("reconcile_preload_workers")
         if current is None or self._workers or self._preload_workers:
             return
 
@@ -1594,6 +1599,7 @@ class MainWindow(QMainWindow):
                 self.preload_controller.complete_available_member(current.generation, document_id)
                 continue
             self._start_preload(current.generation, document, profile)
+            preload_trace.checkpoint("queue_preload_worker")
             return
 
     def _start_preload(
@@ -3220,10 +3226,14 @@ class MainWindow(QMainWindow):
         )
 
     def _plan_folder_navigation(self, step: int) -> FolderNavigationPlan | None:
+        navigation_trace = load_latency_trace.PhaseTimer("preload.navigate")
         selection = self._folder_navigation_selection()
+        navigation_trace.checkpoint("collect_folder_selection")
         if selection is None:
             return None
-        return plan_folder_navigation(selection, self._folder_documents, step)
+        result = plan_folder_navigation(selection, self._folder_documents, step)
+        navigation_trace.checkpoint("compute_navigation_plan")
+        return result
 
     def _apply_folder_navigation(self, step: int) -> None:
         selection = self._folder_navigation_selection()
@@ -3943,7 +3953,9 @@ class MainWindow(QMainWindow):
             self._folder_indices[folder_key] = folder_documents.index(document_id)
 
     def _folder_navigation_selection(self) -> list[tuple[str, str]] | None:
+        selection_trace = load_latency_trace.PhaseTimer("preload.folder_selection")
         documents = self.selected_documents
+        selection_trace.checkpoint("selected_documents")
         if not 1 <= len(documents) <= 6:
             return None
         session: list[tuple[str, str]] = []
@@ -3956,6 +3968,7 @@ class MainWindow(QMainWindow):
                 return None
             seen_folders.add(folder_key)
             session.append((folder_key, document.document_id))
+        selection_trace.checkpoint("canonical_folder_keys")
         return session
 
     def _preferred_dialog_directory(self, configured: str) -> str:
