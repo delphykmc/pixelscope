@@ -86,6 +86,7 @@ def test_histogram_retains_previous_plot_during_background_request(
     first = analyze_roi(source, RoiBounds(0, 0, 18, 12), *spec)
     panel.last_results = (first,)
     panel._render((first,), [spec])
+    qtbot.wait(30)  # type: ignore[attr-defined]
 
     plot = panel.plots[0]
     previous_items = tuple(plot.listDataItems())
