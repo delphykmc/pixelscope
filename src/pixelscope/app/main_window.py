@@ -16,6 +16,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     QThreadPool,
+    QTimer,
 )
 from PySide6.QtGui import (
     QAction,
@@ -1498,6 +1499,14 @@ class MainWindow(QMainWindow):
             load_latency_trace.mark("ready_render_selection_begin", document_id=target_id)
             self._render_selection(preserve_view=True)
             load_latency_trace.mark("ready_render_selection_returned", document_id=target_id)
+            # Run after this GUI callback yields; this separates work done
+            # synchronously in _render_selection from queued paint delivery.
+            QTimer.singleShot(
+                0,
+                lambda document_id=target_id: load_latency_trace.mark(
+                    "gui_event_loop_next_turn", document_id=document_id, once=True
+                ),
+            )
         self._evict_resident_documents()
         self.structured_status.task.setText("Ready")
         self.statusBar().showMessage(f"Loaded {result.display_name}", 2500)
