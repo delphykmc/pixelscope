@@ -305,7 +305,7 @@ def test_direct_drop_reopens_same_selected_source_through_registration_controlle
     window.close()
 
 
-def test_direct_file_registration_prioritizes_selection_over_recent_sync(
+def test_direct_file_registration_prioritizes_selection_over_recent_history(
     qtbot: object,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -317,13 +317,13 @@ def test_direct_file_registration_prioritizes_selection_over_recent_sync(
     controller = install_large_folder_registration(window)
 
     observations: list[list[str]] = []
-    original_record = controller._record_recent_entries
+    original_stage = controller._stage_recent_entries
 
     def observe_recent(folders: object, direct_paths: object) -> None:
         observations.append([document.document_id for document in window.selected_documents])
-        original_record(folders, direct_paths)  # type: ignore[arg-type]
+        original_stage(folders, direct_paths)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(controller, "_record_recent_entries", observe_recent)
+    monkeypatch.setattr(controller, "_stage_recent_entries", observe_recent)
     controller.handle_dropped_paths([path])
     _wait_idle(qtbot, controller)
 
