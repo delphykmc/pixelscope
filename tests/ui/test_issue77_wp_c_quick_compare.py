@@ -433,13 +433,28 @@ def test_calculate_reuses_cached_diff_after_hide_and_show(
     assert panel._worker is None
     assert panel.cached_result_for_current() is baseline_map
     assert window.diff_action.isChecked()
+    difference = window._difference_document
+    assert difference is not None
+    generation = difference.generation
     window.diff_action.setChecked(False)
     assert not window.diff_action.isChecked()
+    toggles: list[bool] = []
+    window.diff_action.toggled.connect(toggles.append)
     with qtbot.waitSignal(panel.result_ready, timeout=5000):  # type: ignore[attr-defined]
         panel.calculate.click()
     assert panel._worker is None
     assert panel.cached_result_for_current() is baseline_map
     assert window.diff_action.isChecked()
+    # A warm Calculate must use the same toolbar toggle path as manual Diff,
+    # not rebuild a separate Difference presentation or discard its caches.
+    assert toggles == [True]
+    assert window._difference_document is difference
+    assert difference.generation == generation
+
+    window.diff_action.setChecked(False)
+    window.diff_action.setChecked(True)
+    assert window._difference_document is difference
+    assert difference.generation == generation
     window.close()
 
 
