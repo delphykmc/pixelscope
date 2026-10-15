@@ -457,3 +457,41 @@ def test_raw_profile_and_generation_change_rejects_old_preload_result(
     assert loaded.generation == changed_generation
     assert loaded.raw_profile == new_profile
     assert window.preload_controller.diagnostics.stale_drop_count >= 1
+
+
+def test_single_catalog_document_does_not_plan_folder_preload(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    def forbidden_navigation(_step: int) -> None:
+        raise AssertionError("single catalog document must not plan folder navigation")
+
+    monkeypatch.setattr(window, "_plan_folder_navigation", forbidden_navigation)
+    image = ImageDocument.from_array(
+        np.zeros((6, 8), dtype=np.uint8),
+        "only.png",
+        source_path=(tmp_path / "only.png").resolve(),
+    )
+    window.add_document(image, select=True)
+    assert window.preload_controller.current_plan is None
+    assert not window._preload_workers
+
+    second = ImageDocument.from_array(
+        np.ones((6, 8), dtype=np.uint8),
+        "second.png",
+        source_path=(tmp_path / "second.png").resolve(),
+    )
+    window.add_document(second, select=False)
+    calls: list[int] = []
+
+    def observed_navigation(step: int) -> None:
+        calls.append(step)
+
+    monkeypatch.setattr(window, "_plan_folder_navigation", observed_navigation)
+    window._refresh_preload_plan()
+    assert calls == [1]
+    window.close()
