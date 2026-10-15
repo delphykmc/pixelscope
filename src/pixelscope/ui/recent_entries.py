@@ -128,9 +128,14 @@ class RecentEntriesController:
         self,
         kind: RecentEntryKind,
         paths: Sequence[str | Path],
+        *,
+        stage_only: bool = False,
     ) -> None:
         try:
-            self.repository.record(kind, paths)
+            if stage_only:
+                self.repository.stage(kind, paths)
+            else:
+                self.repository.record(kind, paths)
             QTimer.singleShot(0, self.refresh_menu)
         except Exception:  # noqa: BLE001 - optional history must not break runtime work
             LOGGER.warning("Unable to update Recent %s history", kind.value, exc_info=True)
