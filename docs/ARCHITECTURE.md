@@ -628,6 +628,14 @@ so rebinding an unchanged request does not restart work. Line Profile caches by
 generation and line coordinates. Pick/Unpick/Clear Selection do not rebind those
 numerical requests.
 
+Pending Histogram requests retain the last painted graph with a `Previous result`
+context label, but clear `last_results` and hover series so it cannot be consumed
+as current analysis or exported as a current Histogram. A genuine clear removes
+the graph. Plot layout is retained while pane count is unchanged; synchronous
+replacement prepares curves, axes and range before first show. Fixed axis gutters,
+the reserved Histogram context row and the Analysis activity rail avoid result-time
+geometry shifts. Numerical/cache/request/lifecycle ownership remains unchanged.
+
 ## Source residency boundary
 
 `ResidencyManager` owns exact native `ImageDocument.source.nbytes` accounting, LRU

@@ -142,7 +142,8 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     assert panel.image_summary.item(0, 3).text() == "80"
     assert panel.image_summary.rowHeight(0) == panel.image_summary.rowHeight(1)
     assert panel.statistics_delegate.separator_rows == frozenset({3})
-    assert panel.activity.isHidden()
+    assert not panel.activity.isHidden()
+    assert panel.busy.isHidden()
 
     panel.set_documents(documents, RoiBounds(1, 2, 3, 4), "Active ROI")
     qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -156,7 +157,8 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     assert not (
         panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
-    assert panel.activity.isHidden()
+    assert not panel.activity.isHidden()
+    assert panel.busy.isHidden()
 
 
 def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:

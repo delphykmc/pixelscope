@@ -54,8 +54,10 @@ def test_first_histogram_plot_show_waits_for_data_and_axis_layout(
             # The first visible histogram frame must already have curves,
             # labels and axes. Showing the empty PlotWidget is a regression.
             assert len(plot.listDataItems()) == expected_channels
-            assert not plot.getPlotItem().getAxis("left").isHidden()
-            assert not plot.getPlotItem().getAxis("bottom").isHidden()
+            # AxisItem is a QGraphicsItem, not a QWidget. Check its visibility
+            # relative to PlotItem while the containing PlotWidget is still hidden.
+            assert plot.getPlotItem().getAxis("left").isVisibleTo(plot.getPlotItem())
+            assert plot.getPlotItem().getAxis("bottom").isVisibleTo(plot.getPlotItem())
             assert plot.getPlotItem().getAxis("left").labelText == "Count"
             assert plot.getPlotItem().getAxis("bottom").labelText == "Pixel value"
             x_range = plot.getViewBox().viewRange()[0]
