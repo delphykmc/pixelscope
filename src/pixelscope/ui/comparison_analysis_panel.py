@@ -393,7 +393,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_context = ElidingContextLabel()
         # ResponsiveControlLayout excludes hidden controls from row sizing.
         # Keep this row and its height reserved before the first result.
-        self.histogram_context.setFixedHeight(self.histogram_context.sizeHint().height())
+        self.histogram_context.setFixedHeight(self.histogram_context.fontMetrics().height() + 4)
         histogram_controls_widget = QWidget()
         histogram_controls = ResponsiveControlLayout(
             histogram_controls_widget, spacing=TOKENS.spacing_sm
