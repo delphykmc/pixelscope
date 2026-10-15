@@ -69,3 +69,38 @@ def tracks(document_id: str) -> bool:
         and _target_document_id == document_id
         and "first_viewport_paint_event_processed" not in _seen
     )
+
+
+class PhaseTimer:
+    """Opt-in local GUI call-path timing; independent of concurrent worker events.
+
+    Each checkpoint reports both elapsed time since this scope began and the
+    incremental time since its previous checkpoint. Times are monotonic and
+    scoped to the current invocation, so nested/reentrant rendering does not
+    corrupt the accounting. This intentionally does not invoke processEvents().
+    """
+
+    def __init__(self, group: str, *, document_id: str | None = None) -> None:
+        self._group = group
+        self._active = _ENABLED and _start_ns is not None and (
+            document_id is None or document_id == _target_document_id
+        )
+        self._started_ns = perf_counter_ns() if self._active else 0
+        self._previous_ns = self._started_ns
+        if self._active:
+            mark(f"{group}.begin", document_id=document_id)
+
+    def checkpoint(self, stage: str) -> None:
+        if not self._active:
+            return
+        now = perf_counter_ns()
+        elapsed_ms = (now - self._started_ns) / 1_000_000
+        delta_ms = (now - self._previous_ns) / 1_000_000
+        self._previous_ns = now
+        LOGGER.warning(
+            "[load-trace] %s.%s step=%.2fms scope=%.2fms",
+            self._group,
+            stage,
+            delta_ms,
+            elapsed_ms,
+        )
