@@ -218,9 +218,11 @@ def test_viewer_records_graphics_view_paint_separately_from_timer_callback(
     document = ImageDocument.from_array(np.zeros((12, 16), dtype=np.uint8), "paint")
     load_latency_trace.begin("test_start")
     load_latency_trace.target(document.document_id)
-    with caplog.at_level(logging.WARNING, logger="pixelscope.core.load_latency_trace"):
-        with qtbot.waitSignal(viewer.first_frame_painted, timeout=3000):  # type: ignore[attr-defined]
-            viewer.set_document(document)
+    with (
+        caplog.at_level(logging.WARNING, logger="pixelscope.core.load_latency_trace"),
+        qtbot.waitSignal(viewer.first_frame_painted, timeout=3000),  # type: ignore[attr-defined]
+    ):
+        viewer.set_document(document)
     records = caplog.text
     assert "viewport_paint_event_entered" in records
     assert "viewport_graphics_paint_begin" in records
