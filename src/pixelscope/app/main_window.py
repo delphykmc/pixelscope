@@ -280,6 +280,7 @@ class MainWindow(QMainWindow):
         self.comparison_analysis_panel.roi_clear_requested.connect(self.clear_roi)
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
+        self.difference_panel.map_cached.connect(lambda _pair: self._update_action_states())
         self.empty_workspace.open_images_requested.connect(self.open_images)
         self.empty_workspace.open_folders_requested.connect(self.open_folders)
         self._create_actions()
@@ -2162,7 +2163,13 @@ class MainWindow(QMainWindow):
             load_latency_trace.mark(
                 "render_ready_diff_panel_bound", document_id=analysis_ready[0].document_id
             )
-        cached_display = self.difference_panel.cached_display_for_current()
+        # A hidden Difference requires only its cached numerical map. Do not
+        # synchronously render a preview until the user explicitly enables Diff.
+        cached_display = (
+            self.difference_panel.cached_display_for_current()
+            if hasattr(self, "diff_action") and self.diff_action.isChecked()
+            else None
+        )
         cached_six_difference = (
             cached_display is not None
             and len(comparison_page) >= COMPARISON_PAGE_SIZE
