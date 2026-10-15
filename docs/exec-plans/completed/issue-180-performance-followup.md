@@ -1,6 +1,6 @@
 # Execution plan: Issue #180 performance integration and Primary follow-up
 
-Status: Active
+Status: Complete — merged stack and Primary follow-up scope
 
 Owner: ChatGPT, under owner authorization
 
@@ -193,11 +193,18 @@ Changed production files: `src/pixelscope/ui/image_viewer.py`,
 `ARCHITECTURE.md`, `PRODUCT_SPEC.md`, User Guide comparison/Difference workflows,
 and this plan to reconcile merged behavior and retain evidence.
 
-No new human visual/manual acceptance was performed. The follow-up remains a
-separate reviewable PR; the owner's completed reviews applied to #182–#184.
-Issue #180 stays open for manual display/first-paint matrices and any subsequent
-profile-backed work. Remaining observed candidates include Line Profile empty-plot
-refresh and histogram GUI rendering; no speculative changes to them are included.
+At the original delivery, no new human visual/manual acceptance was performed and
+the Primary follow-up was a separate reviewable PR. It subsequently merged as
+PR #185 at `main@8c084fa069a0a4a9a4899a54623493b1eb71e1e8`. Histogram/Analysis
+presentation follow-up #186 merged at `main@f549c24342ce05ed96f7fa9ae3e0597e90324f1a`;
+its validation and the post-merge 130-test integration result are recorded on #186
+and in [its validation record](pr186-histogram-validation.md).
+
+This plan's merged-stack/Primary implementation scope is complete. Issue #180 is
+still open: the remaining Open Images/Recent command unification and acceptance
+evidence are tracked in [the current follow-up](../active/issue-180-open-images.md).
+Line Profile empty-plot refresh remains a profile-backed candidate, not an
+automatically approved implementation requirement.
 Temporary profiling probes remain ignored under `temp/` and are not committed.
 The local commit uses configured owner identity with
 `Co-authored-by: ChatGPT <noreply@openai.com>`; the PR body discloses ChatGPT

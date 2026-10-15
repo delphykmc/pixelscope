@@ -100,6 +100,17 @@ is owner/local only and required at the integration checkpoint, not added to CI.
   `sandbox-runner.ps1` correctly refuses uncommitted production inputs. Commit the
   tested implementation before rerunning that required integrity check; do not
   weaken its HEAD check or change installer behavior.
+- Committed implementation `fcdd661` full Windows validation:
+  `.venv/Scripts/python.exe -m pytest -q` — **1484 passed in 372.73s (0:06:12)**,
+  normal automatic GC, no skips or masks. Ruff check/format passed with only the
+  three pre-existing untracked owner GC scripts excluded (**347 files already
+  formatted**); mypy passed **108 source files**; pip check found no broken
+  requirements; docs/diff checks passed; strict MkDocs built in **1.27 seconds**.
+- Archived the completed stack/Primary execution plan and corrected CURRENT_STATE
+  to include merged #185/#186, retaining the cumulative baseline and linking this
+  still-active work. #180 received an evidence-backed status comment and remains
+  open; no unresolved acceptance was marked complete. No new human manual
+  acceptance or independent review is claimed.
 
 ## After-change measurements
 
@@ -110,8 +121,16 @@ Same synthetic Windows/offscreen probe and repetitions as above:
 | 1 file | 0.66 / 0.80 | 182.71 / 203.70 |
 | 32 files | 1.41 / 2.88 | 696.76 / 759.43 |
 
+The initial after probe briefly overlapped a focused test process. Repeating after
+full validation with no other validation running gave:
+
+| Input | command dispatch p50 / p95 ms | first Qt viewport paint p50 / p95 ms |
+|---|---:|---:|
+| 1 file | 0.70 / 0.79 | 194.51 / 200.55 |
+| 32 files | 1.45 / 2.94 | 697.90 / 714.79 |
+
 The command now dispatches existing registration workers instead of synchronously
 performing discovery/Recent sync. The single-file first-paint difference is small
-and is not claimed as a meaningful improvement. The 32-file observation improves
+and varies in both directions; it is not claimed as an improvement. The 32-file observation improves
 first Qt paint while retaining the same bounded first-page load. No cold-cache,
 monitor scanout, human matrix or universal speedup claim is made.
