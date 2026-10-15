@@ -9,21 +9,27 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import contextmanager
+from threading import local
 from time import perf_counter_ns, thread_time_ns
+from typing import Iterator
 
 LOGGER = logging.getLogger(__name__)
 _ENABLED = os.environ.get("PIXELSCOPE_LOAD_TRACE") == "1"
 _start_ns: int | None = None
 _target_document_id: str | None = None
 _seen: set[str] = set()
+_session: int = 0
+_worker_context = local()
 
 
 def begin(stage: str) -> None:
     """Begin one single-file diagnostic trace (a later request supersedes it)."""
 
-    global _start_ns, _target_document_id
+    global _start_ns, _target_document_id, _session
     if not _ENABLED:
         return
+    _session += 1
     _start_ns = perf_counter_ns()
     _target_document_id = None
     _seen.clear()
@@ -40,6 +46,38 @@ def target(document_id: str) -> None:
     mark("files_row_registered", document_id=document_id)
 
 
+def session_for(document_id: str) -> int | None:
+    """Capture one foreground request identity before dispatching a worker."""
+
+    if _ENABLED and _start_ns is not None and _target_document_id == document_id:
+        return _session
+    return None
+
+
+@contextmanager
+def worker_scope(document_id: str | None, session: int | None) -> Iterator[None]:
+    """Suppress unrelated or stale preload-worker timestamps in one trace."""
+
+    previous = getattr(_worker_context, "scope", None)
+    _worker_context.scope = (document_id, session)
+    try:
+        yield
+    finally:
+        if previous is None:
+            del _worker_context.scope
+        else:
+            _worker_context.scope = previous
+
+
+def _matches_worker_scope() -> bool:
+    scope = getattr(_worker_context, "scope", None)
+    return scope is None or (
+        scope[0] is not None
+        and scope[0] == _target_document_id
+        and scope[1] == _session
+    )
+
+
 def mark(
     stage: str,
     *,
@@ -48,7 +86,7 @@ def mark(
 ) -> None:
     """Log an elapsed-time checkpoint if this request still owns the trace."""
 
-    if not _ENABLED or _start_ns is None:
+    if not _ENABLED or _start_ns is None or not _matches_worker_scope():
         return
     if document_id is not None and document_id != _target_document_id:
         return
@@ -85,6 +123,7 @@ class PhaseTimer:
         self._active = (
             _ENABLED
             and _start_ns is not None
+            and _matches_worker_scope()
             and (document_id is None or document_id == _target_document_id)
         )
         self._started_ns = perf_counter_ns() if self._active else 0
