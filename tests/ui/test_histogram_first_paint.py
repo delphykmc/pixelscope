@@ -6,7 +6,10 @@ import pytest
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds, analyze_roi
-from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel, automatic_histogram_spec
+from pixelscope.ui.comparison_analysis_panel import (
+    ComparisonAnalysisPanel,
+    automatic_histogram_spec,
+)
 
 
 @pytest.mark.parametrize(
