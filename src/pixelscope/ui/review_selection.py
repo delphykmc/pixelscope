@@ -239,7 +239,10 @@ class ReviewSelectionController(QObject):
         # exposes safe pre/post mutation boundaries while MainWindow remains the
         # selection/removal authority.
         self.window.document_list.selection_changing.connect(self._files_selection_changing)
-        self.window.document_list.itemSelectionChanged.connect(self._files_selection_changed)
+        # MainWindow owns final Files selection authority. Only its committed
+        # state is safe to use to restyle seven viewer/header widgets; raw
+        # itemSelectionChanged can fire dozens of times during mouse dragging.
+        self.window.files_selection_committed.connect(self._files_selection_changed)
         self.window.document_list.remove_changing.connect(self._files_remove_changing)
         self.window.document_list.remove_requested.connect(self._files_remove_changed)
 
