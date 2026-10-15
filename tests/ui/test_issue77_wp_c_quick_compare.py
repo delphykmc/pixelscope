@@ -394,8 +394,7 @@ def test_files_drop_two_images_caches_diff_without_auto_display(
     qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(
-            document.source is not None
-            for document in window.current_comparison_documents()
+            document.source is not None for document in window.current_comparison_documents()
         )
         and len(window.current_comparison_documents()) == 2,
         timeout=5000,
@@ -468,9 +467,7 @@ def test_calculate_promotes_running_passive_diff_without_new_worker(
     panel._worker_key = (key, metric_key)
     panel.calculate_difference(publish_result=True)
     assert panel._worker is worker
-    assert panel._presentation_map_pairs[worker.task_id] == (
-        a.document_id, b.document_id
-    )
+    assert panel._presentation_map_pairs[worker.task_id] == (a.document_id, b.document_id)
     panel._worker = None
     panel._worker_key = None
     panel._presentation_map_pairs.pop(worker.task_id, None)
