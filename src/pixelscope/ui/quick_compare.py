@@ -475,7 +475,6 @@ class QuickCompareController(QObject):
         self._clear_pending_difference(clear_protected=True)
 
     def _clear_pending_difference(self, *, clear_protected: bool) -> None:
-        pair = self._pending_difference_pair
         self._pending_difference_pair = None
         self._difference_retry_count = 0
         self._difference_retry_timer.stop()
