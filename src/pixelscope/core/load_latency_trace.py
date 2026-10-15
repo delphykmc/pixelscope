@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from threading import local
 from time import perf_counter_ns, thread_time_ns
-from typing import Iterator
 
 LOGGER = logging.getLogger(__name__)
 _ENABLED = os.environ.get("PIXELSCOPE_LOAD_TRACE") == "1"
