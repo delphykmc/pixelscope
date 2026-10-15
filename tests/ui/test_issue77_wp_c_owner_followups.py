@@ -90,7 +90,7 @@ def test_image_view_drag_leave_is_consumed_by_quick_compare_filter(
     window.close()
 
 
-def test_explicit_pair_freezes_repaint_but_keeps_two_source_state_updates(
+def test_explicit_pair_keeps_source_repaint_enabled_while_difference_is_pending(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -103,23 +103,28 @@ def test_explicit_pair_freezes_repaint_but_keeps_two_source_state_updates(
     controller._apply_registered_drop([first.document_id])
     assert window.viewer.document is first
 
-    monkeypatch.setattr(window.difference_panel, "calculate_difference", lambda: None)
+    monkeypatch.setattr(
+        window.difference_panel, "calculate_difference", lambda **_kwargs: None
+    )
     controller._apply_registered_drop([second.document_id])
 
     pair = (first.document_id, second.document_id)
     assert _ids(window) == [first.document_id, second.document_id]
-    assert controller._deferred_difference_pair == pair
-    assert not window.central_stack.updatesEnabled()
+    assert controller._pending_difference_pair == pair
+    assert window.central_stack.updatesEnabled()
     assert window.central_stack.currentWidget() is window.multi_compare_view
     assert window.multi_compare_view._document_count == 2
 
-    controller._release_deferred_difference(pair)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._pending_difference_pair is None, timeout=3000
+    )
+    assert not window.diff_action.isChecked()
     assert window.central_stack.updatesEnabled()
     assert window.multi_compare_view._document_count == 2
     window.close()
 
 
-def test_successful_difference_releases_repaint_hold_with_three_tile_result(
+def test_successful_passive_difference_waits_for_user_to_display_third_tile(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -133,18 +138,21 @@ def test_successful_difference_releases_repaint_hold_with_three_tile_result(
     pair = (first.document_id, second.document_id)
 
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window._difference_source_ids == pair
-        and window.central_stack.updatesEnabled()
-        and window.multi_compare_view._document_count == 3,
+        lambda: window.difference_panel.has_cached_map()
+        and window.diff_action.isEnabled(),
         timeout=5000,
     )
-
-    assert window.diff_action.isChecked()
-    assert controller._deferred_difference_pair is None
+    assert window._difference_source_ids is None
+    assert window.central_stack.updatesEnabled()
+    assert window.multi_compare_view._document_count == 2
+    assert not window.diff_action.isChecked()
+    window.diff_action.setChecked(True)
+    assert window._difference_source_ids == pair
+    assert window.multi_compare_view._document_count == 3
     window.close()
 
 
-def test_immediate_difference_map_failure_releases_deferred_repaint(
+def test_immediate_passive_difference_map_failure_keeps_source_repaint(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -164,7 +172,7 @@ def test_immediate_difference_map_failure_releases_deferred_repaint(
 
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.central_stack.updatesEnabled()
-        and controller._deferred_difference_pair is None
+        and window.difference_panel.status.text() == "Calculation failed"
         and window.difference_panel._worker is None,
         timeout=5000,
     )
@@ -175,7 +183,7 @@ def test_immediate_difference_map_failure_releases_deferred_repaint(
     window.close()
 
 
-def test_immediate_difference_preview_failure_releases_deferred_repaint(
+def test_explicit_difference_preview_failure_keeps_source_repaint(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -192,10 +200,15 @@ def test_immediate_difference_preview_failure_releases_deferred_repaint(
     monkeypatch.setattr(window.difference_panel, "_render_preview", fail_preview)
     controller._apply_registered_drop([first.document_id])
     controller._apply_registered_drop([second.document_id])
-
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.central_stack.updatesEnabled()
-        and controller._deferred_difference_pair is None
+        lambda: window.difference_panel.has_cached_map()
+        and window.diff_action.isEnabled(),
+        timeout=5000,
+    )
+    assert window.difference_panel._preview_worker is None
+    window.difference_panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.difference_panel.status.text() == "Display update failed"
         and window.difference_panel._preview_worker is None,
         timeout=5000,
     )
@@ -206,7 +219,7 @@ def test_immediate_difference_preview_failure_releases_deferred_repaint(
     window.close()
 
 
-def test_incompatible_difference_releases_deferred_source_presentation(
+def test_incompatible_passive_difference_keeps_source_presentation(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -221,7 +234,9 @@ def test_incompatible_difference_releases_deferred_source_presentation(
     assert _ids(window) == [first.document_id, second.document_id]
     assert window._difference_source_ids is None
     assert window.multi_compare_view._document_count == 2
-    assert controller._deferred_difference_pair is None
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._pending_difference_pair is None, timeout=3000
+    )
     assert window.central_stack.updatesEnabled()
     window.close()
 
@@ -243,11 +258,17 @@ def test_registered_selected_sources_still_form_sequential_quick_compare_pair(
 
     controller._apply_registered_drop([documents[1].document_id])
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window._difference_source_ids
-        == (documents[0].document_id, documents[1].document_id),
+        lambda: window.difference_panel.has_cached_map()
+        and window.diff_action.isEnabled(),
         timeout=5000,
     )
-
+    selected_pair = window.difference_panel.selected_documents()
+    assert selected_pair is not None
+    assert tuple(document.document_id for document in selected_pair) == (
+        documents[0].document_id,
+        documents[1].document_id,
+    )
+    assert not window.diff_action.isChecked()
     assert _ids(window) == [document.document_id for document in documents]
     window.close()
 
