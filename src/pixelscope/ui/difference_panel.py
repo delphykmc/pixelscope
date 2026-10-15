@@ -968,6 +968,32 @@ class DifferencePanel(QWidget):
         assert pair is not None and key is not None and metric_key is not None
         request_key = (key, metric_key)
         if self._worker is not None and self._worker_key == request_key:
+            # An explicit Calculate while passive analysis is still running
+            # promotes that same work into a presentation request.
+            if publish_result:
+                self._presentation_map_pairs[self._worker.task_id] = (
+                    pair[0].document_id,
+                    pair[1].document_id,
+                )
+            return
+        cached_map = self._map_cache.get(key)
+        cached_metrics = self._metric_cache.get(metric_key)
+        if cached_map is not None and cached_metrics is not None:
+            # Both results already exist: no map or metrics TaskWorker needed.
+            if self._worker is not None:
+                self._cancel_worker()
+            self._configure_threshold_for_cached_map(cached_map)
+            self.last_result = cached_metrics
+            self._render_metrics(cached_metrics)
+            self.status.setText("Cached map and metrics reused")
+            if publish_result:
+                selected = self._selected_absolute(cached_map, self.channel.currentText())
+                self._request_preview_render(
+                    cached_map,
+                    selected,
+                    publish_result=True,
+                    presentation_pair=(pair[0].document_id, pair[1].document_id),
+                )
             return
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
         compatibility = difference_compatibility(a, b)
@@ -1074,7 +1100,7 @@ class DifferencePanel(QWidget):
             self.status.setText("Ready")
         else:
             self.status.setText("Ready; map exceeds cache budget")
-        if publish_result:
+        if publish_result or task_id in self._presentation_map_pairs:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
             presentation_pair = self._presentation_map_pairs.get(task_id)
             self._request_preview_render(
