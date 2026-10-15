@@ -141,6 +141,7 @@ class DifferencePanel(QWidget):
 
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
+    map_cached = Signal(object)
     presentation_settled = Signal(object)
 
     def __init__(
@@ -966,7 +967,34 @@ class DifferencePanel(QWidget):
         metric_key = self._metric_key()
         assert pair is not None and key is not None and metric_key is not None
         request_key = (key, metric_key)
+        cached_map = self._map_cache.get(key)
+        cached_metrics = self._metric_cache.get(metric_key)
+        if cached_map is not None and cached_metrics is not None:
+            # Both results already exist: no map or metrics TaskWorker needed.
+            if self._worker is not None:
+                self._cancel_worker()
+            self._configure_threshold_for_cached_map(cached_map)
+            if self.last_result is not cached_metrics:
+                self.last_result = cached_metrics
+                self._render_metrics(cached_metrics)
+            self.status.setText("Cached map and metrics reused")
+            if publish_result:
+                selected = self._selected_absolute(cached_map, self.channel.currentText())
+                self._request_preview_render(
+                    cached_map,
+                    selected,
+                    publish_result=True,
+                    presentation_pair=(pair[0].document_id, pair[1].document_id),
+                )
+            return
         if self._worker is not None and self._worker_key == request_key:
+            # If background analysis has not produced its cached metrics yet,
+            # reuse the same worker and publish its eventual result on request.
+            if publish_result:
+                self._presentation_map_pairs[self._worker.task_id] = (
+                    pair[0].document_id,
+                    pair[1].document_id,
+                )
             return
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
         compatibility = difference_compatibility(a, b)
@@ -1063,13 +1091,17 @@ class DifferencePanel(QWidget):
         self._configure_threshold_for_cached_map(difference_map)
         self.last_result = metrics
         self._render_metrics(metrics)
+        if not publish_result and put_result.stored:
+            pair = self.selected_documents()
+            if pair is not None:
+                self.map_cached.emit((pair[0].document_id, pair[1].document_id))
         if reused:
             self.status.setText("Cached map reused")
         elif put_result.stored:
             self.status.setText("Ready")
         else:
             self.status.setText("Ready; map exceeds cache budget")
-        if publish_result:
+        if publish_result or task_id in self._presentation_map_pairs:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
             presentation_pair = self._presentation_map_pairs.get(task_id)
             self._request_preview_render(

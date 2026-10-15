@@ -53,9 +53,15 @@ def _wait_for_difference(
     pair: tuple[str, str],
 ) -> None:
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window._difference_source_ids == pair and window.diff_action.isChecked(),
+        lambda: window.difference_panel.has_cached_map()
+        and (selected := window.difference_panel.selected_documents()) is not None
+        and tuple(document.document_id for document in selected) == pair
+        and window.diff_action.isEnabled(),
         timeout=5000,
     )
+    assert not window.diff_action.isChecked()
+    assert window._difference_source_ids is None
+    assert window.central_stack.updatesEnabled()
 
 
 def test_sequential_quick_drop_is_additive_and_second_drop_calculates_difference(
@@ -78,7 +84,8 @@ def test_sequential_quick_drop_is_additive_and_second_drop_calculates_difference
 
     controller._apply_registered_drop([third.document_id])
     assert _ids(window) == [first.document_id, second.document_id, third.document_id]
-    assert window._difference_source_ids == (first.document_id, second.document_id)
+    assert not window.diff_action.isChecked()
+    assert window.difference_panel.has_cached_map()
     window.close()
 
 
@@ -202,6 +209,7 @@ def test_three_view_difference_defaults_focus_and_other_geometries_are_unchanged
 
     controller._apply_registered_drop([first.document_id, second.document_id])
     _wait_for_difference(qtbot, window, (first.document_id, second.document_id))
+    window.diff_action.setChecked(True)
 
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.multi_compare_view._document_count == 3,
@@ -340,4 +348,142 @@ def test_image_surface_reopen_uses_shared_registration_and_refresh(
     assert np.all(refreshed.source == 219)
     assert window.viewer.document is refreshed
     assert len(window.documents) == 1
+    window.close()
+
+
+def test_cached_quick_difference_is_hidden_until_explicit_user_action(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    a = _document("manual-a.png", 3, tmp_path)
+    b = _document("manual-b.png", 11, tmp_path)
+    _add(window, [a, b])
+
+    controller._apply_registered_drop([a.document_id])
+    controller._apply_registered_drop([b.document_id])
+    assert window.central_stack.updatesEnabled()
+    assert not window.diff_action.isChecked()
+    _wait_for_difference(qtbot, window, (a.document_id, b.document_id))
+    assert window.multi_compare_view._document_count == 2
+
+    def unexpected_map_recalculation(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("displaying cached Diff must not recalculate map")
+
+    monkeypatch.setattr(
+        window.difference_panel, "calculate_difference", unexpected_map_recalculation
+    )
+    window.diff_action.setChecked(True)
+    assert window.diff_action.isChecked()
+    assert window._difference_source_ids == (a.document_id, b.document_id)
+    assert window.central_stack.updatesEnabled()
+    window.close()
+
+
+def test_files_drop_two_images_caches_diff_without_auto_display(
+    qtbot: object, tmp_path: Path
+) -> None:
+    paths = [tmp_path / "files-first.png", tmp_path / "files-second.png"]
+    for index, path in enumerate(paths):
+        assert cv2.imwrite(str(path), np.full((20, 24), 40 + index, dtype=np.uint8))
+
+    window, _controller = _window(qtbot)
+    registration = window.large_folder_registration_controller
+    window.document_list.paths_dropped.emit(paths)
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            document.source is not None for document in window.current_comparison_documents()
+        )
+        and len(window.current_comparison_documents()) == 2,
+        timeout=5000,
+    )
+    pair = tuple(document.document_id for document in window.current_comparison_documents())
+    assert len(pair) == 2
+    _wait_for_difference(qtbot, window, pair)
+    assert window._difference_source_ids is None
+    assert window.central_stack.updatesEnabled()
+    window.close()
+
+
+def test_calculate_reuses_cached_diff_after_hide_and_show(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    window, controller = _window(qtbot)
+    a = _document("cached-a.png", 10, tmp_path)
+    b = _document("cached-b.png", 40, tmp_path)
+    _add(window, [a, b])
+    controller._apply_registered_drop([a.document_id, b.document_id])
+    _wait_for_difference(qtbot, window, (a.document_id, b.document_id))
+    panel = window.difference_panel
+    assert panel.last_result is not None
+    baseline_map = panel.cached_result_for_current()
+
+    def unexpected_map_compute(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("cached Difference must not recompute numerical map")
+
+    monkeypatch.setattr(
+        "pixelscope.ui.difference_panel.compact_absolute_difference",
+        unexpected_map_compute,
+    )
+
+    with qtbot.waitSignal(panel.result_ready, timeout=5000):  # type: ignore[attr-defined]
+        panel.calculate.click()
+    assert panel._worker is None
+    assert panel.cached_result_for_current() is baseline_map
+    assert window.diff_action.isChecked()
+    difference = window._difference_document
+    assert difference is not None
+    generation = difference.generation
+    window.diff_action.setChecked(False)
+    assert not window.diff_action.isChecked()
+    toggles: list[bool] = []
+    window.diff_action.toggled.connect(toggles.append)
+    with qtbot.waitSignal(panel.result_ready, timeout=5000):  # type: ignore[attr-defined]
+        panel.calculate.click()
+    assert panel._worker is None
+    assert panel.cached_result_for_current() is baseline_map
+    assert window.diff_action.isChecked()
+    # A warm Calculate must use the same toolbar toggle path as manual Diff,
+    # not rebuild a separate Difference presentation or discard its caches.
+    assert toggles == [True]
+    assert window._difference_document is difference
+    assert difference.generation == generation
+
+    window.diff_action.setChecked(False)
+    window.diff_action.setChecked(True)
+    assert window._difference_document is difference
+    assert difference.generation == generation
+    window.close()
+
+
+def test_calculate_promotes_running_passive_diff_without_new_worker(
+    qtbot: object, tmp_path: Path
+) -> None:
+    window, _controller = _window(qtbot)
+    a = _document("ongoing-a.png", 10, tmp_path)
+    b = _document("ongoing-b.png", 20, tmp_path)
+    _add(window, [a, b])
+    window._select_document_ids([a.document_id, b.document_id])
+    panel = window.difference_panel
+    key = panel._cache_key()
+    metric_key = panel._metric_key()
+    assert key is not None and metric_key is not None
+
+    class PendingWorker:
+        task_id = "test-existing-worker"
+
+        def cancel(self) -> None:
+            pass
+
+    worker = PendingWorker()
+    panel._worker = worker  # type: ignore[assignment]
+    panel._worker_key = (key, metric_key)
+    panel.calculate_difference(publish_result=True)
+    assert panel._worker is worker
+    assert panel._presentation_map_pairs[worker.task_id] == (a.document_id, b.document_id)
+    panel._worker = None
+    panel._worker_key = None
+    panel._presentation_map_pairs.pop(worker.task_id, None)
     window.close()

@@ -280,6 +280,7 @@ class MainWindow(QMainWindow):
         self.comparison_analysis_panel.roi_clear_requested.connect(self.clear_roi)
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
+        self.difference_panel.map_cached.connect(lambda _pair: self._update_action_states())
         self.empty_workspace.open_images_requested.connect(self.open_images)
         self.empty_workspace.open_folders_requested.connect(self.open_folders)
         self._create_actions()
@@ -2162,7 +2163,13 @@ class MainWindow(QMainWindow):
             load_latency_trace.mark(
                 "render_ready_diff_panel_bound", document_id=analysis_ready[0].document_id
             )
-        cached_display = self.difference_panel.cached_display_for_current()
+        # A hidden Difference requires only its cached numerical map. Do not
+        # synchronously render a preview until the user explicitly enables Diff.
+        cached_display = (
+            self.difference_panel.cached_display_for_current()
+            if hasattr(self, "diff_action") and self.diff_action.isChecked()
+            else None
+        )
         cached_six_difference = (
             cached_display is not None
             and len(comparison_page) >= COMPARISON_PAGE_SIZE
@@ -3561,6 +3568,22 @@ class MainWindow(QMainWindow):
             or not isinstance(preview, np.ndarray)
         ):
             return
+        # A repeated Calculate of exactly the result already presented should
+        # take the same light path as the Diff toolbar toggle. The display map
+        # and preview are already current; reconstructing an ImageDocument and
+        # invalidating its generation here only adds redundant GUI work.
+        previous = self._difference_document
+        if (
+            not self.diff_action.isChecked()
+            and previous is not None
+            and self._difference_result_matches_current_pair()
+            and previous.source is numerical
+            and previous.preview is preview
+            and previous.display_name == title
+            and self.difference_panel.mapping_snapshot_for_payload(numerical, preview) is not None
+        ):
+            self.diff_action.setChecked(True)
+            return
         mapping = self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
         force_single = len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE
         if force_single:
@@ -3652,13 +3675,20 @@ class MainWindow(QMainWindow):
             and set(self._difference_source_ids) == set(source_ids)
         ):
             difference = previous_difference
+            source_changed = difference.source is not numerical
+            preview_changed = difference.preview is not preview
+            mapping_changed = mapping is not None and (
+                difference.spatial_sampling != mapping.spatial_sampling
+                or difference.sample_channel != mapping.sample_channel
+            )
+            if source_changed or preview_changed or mapping_changed:
+                difference.source = numerical
+                difference.preview = preview
+                difference.bit_depth = numerical.dtype.itemsize * 8
+                difference.generation += 1
+                difference.statistics_cache.clear()
+                difference.histogram_cache.clear()
             difference.display_name = title
-            difference.source = numerical
-            difference.preview = preview
-            difference.bit_depth = numerical.dtype.itemsize * 8
-            difference.generation += 1
-            difference.statistics_cache.clear()
-            difference.histogram_cache.clear()
         else:
             difference = ImageDocument.from_array(
                 numerical,

@@ -71,7 +71,6 @@ class QuickCompareController(QObject):
         self._blink_cache_preview: NDArray[np.uint8] | None = None
         self._protected_difference_pair: tuple[str, str] | None = None
         self._sequential_drop_anchor_id: str | None = None
-        self._deferred_difference_pair: tuple[str, str] | None = None
         self._app: QApplication | None = None
 
         self._original_prepare = OwnerCallback(
@@ -87,7 +86,7 @@ class QuickCompareController(QObject):
         self._difference_retry_timer.timeout.connect(  # type: ignore[attr-defined]
             self._try_pending_difference
         )
-        window.difference_panel.presentation_settled.connect(self._quick_difference_settled)
+        window.difference_panel.map_cached.connect(self._quick_difference_cached)
 
         self._build_three_view_controls()
         self._install_three_view_geometry()
@@ -187,11 +186,6 @@ class QuickCompareController(QObject):
         self.window._render_selection = OwnerCallback(self._render_selection)
 
     def _render_selection(self, preserve_view: bool = False) -> None:
-        deferred = self._deferred_difference_pair
-        if deferred is not None:
-            selected_ids = {document.document_id for document in self.window.selected_documents}
-            if not set(deferred).issubset(selected_ids):
-                self._release_deferred_difference(deferred)
         self._end_blink()
         self._clear_blink_cache()
         self._original_render_selection(preserve_view)
@@ -247,9 +241,6 @@ class QuickCompareController(QObject):
         elif watched is self.window and event_type == QEvent.Type.Close:
             self._end_blink()
             self._cancel_blink_render(clear_cache=True)
-            deferred = self._deferred_difference_pair
-            if deferred is not None:
-                self._release_deferred_difference(deferred)
             self._uninstall_input_filter()
 
         if event_type == QEvent.Type.KeyPress:
@@ -336,8 +327,6 @@ class QuickCompareController(QObject):
         ]
         merged = [*previous_ids, *additions]
         pair = self._quick_difference_pair(previous_ids, unique_dropped, merged)
-        if pair is not None and additions:
-            self._defer_difference_presentation(pair)
         if additions:
             self.window._select_document_ids(
                 merged,
@@ -351,7 +340,7 @@ class QuickCompareController(QObject):
         added = len(additions)
         if pair is not None:
             self.window.statusBar().showMessage(
-                "Quick Compare: preparing Difference…",
+                "Quick Compare: displaying sources · calculating Difference in background…",
                 4000,
             )
         elif added:
@@ -370,6 +359,24 @@ class QuickCompareController(QObject):
                 3500,
             )
 
+        if pair is not None:
+            self._schedule_difference(pair)
+
+    def consider_registered_files_drop(
+        self, previous_ids: list[str], dropped_ids: list[str]
+    ) -> None:
+        """Apply the same passive Quick Compare pairing to explicit Files drops.
+
+        RegistrationController remains the single registration authority.
+        Ordinary tree selection, folder discovery and reopens do not trigger
+        unsolicited Difference calculations.
+        """
+
+        selected_ids = [document.document_id for document in self.window.selected_documents]
+        if not any(document_id not in previous_ids for document_id in dropped_ids):
+            return
+        unique_dropped = list(dict.fromkeys(dropped_ids))
+        pair = self._quick_difference_pair(previous_ids, unique_dropped, selected_ids)
         if pair is not None:
             self._schedule_difference(pair)
 
@@ -417,18 +424,13 @@ class QuickCompareController(QObject):
         self._sequential_drop_anchor_id = dropped_id
         return None
 
-    def _defer_difference_presentation(self, pair: tuple[str, str]) -> None:
-        deferred = self._deferred_difference_pair
-        if deferred is not None and deferred != pair:
-            self._release_deferred_difference(deferred)
-        self._deferred_difference_pair = pair
-        self.window.central_stack.setUpdatesEnabled(False)
-
     def _schedule_difference(self, pair: tuple[str, str]) -> None:
         self._pending_difference_pair = pair
         self._protected_difference_pair = pair
         self._difference_retry_count = 0
-        self._try_pending_difference()
+        # Yield to Qt first: source image updates/paint have priority over
+        # starting Difference computation on the analysis worker pool.
+        self._difference_retry_timer.start()
 
     def _try_pending_difference(self) -> None:
         pair = self._pending_difference_pair
@@ -479,7 +481,11 @@ class QuickCompareController(QObject):
             and panel.calculate.isEnabled()
         ):
             self._clear_pending_difference(clear_protected=False)
-            panel.calculate_difference()
+            if panel.has_cached_map():
+                self._protected_difference_pair = None
+                self.window._update_action_states()
+            else:
+                panel.calculate_difference(publish_result=False)
             return
 
         message = panel.status.text().strip() or "Difference is unavailable for the dropped pair"
@@ -487,37 +493,20 @@ class QuickCompareController(QObject):
         self._clear_pending_difference(clear_protected=True)
 
     def _clear_pending_difference(self, *, clear_protected: bool) -> None:
-        pair = self._pending_difference_pair
         self._pending_difference_pair = None
         self._difference_retry_count = 0
         self._difference_retry_timer.stop()
         if clear_protected:
             self._protected_difference_pair = None
-            if pair is not None:
-                self._release_deferred_difference(pair)
 
-    def _release_deferred_difference(self, pair: tuple[str, str]) -> None:
-        if self._deferred_difference_pair != pair:
-            return
-        self._deferred_difference_pair = None
-        self.window.central_stack.setUpdatesEnabled(True)
-        self.window.central_stack.update()
-
-    def _quick_difference_settled(self, request_pair: object) -> None:
+    def _quick_difference_cached(self, request_pair: object) -> None:
         if not isinstance(request_pair, tuple) or len(request_pair) != 2:
             return
-        first, second = request_pair
-        if not isinstance(first, str) or not isinstance(second, str):
-            return
-        pair = (first, second)
-        if self._protected_difference_pair == pair:
+        if request_pair == self._protected_difference_pair:
             self._protected_difference_pair = None
-        if self._deferred_difference_pair != pair:
-            return
-        QTimer.singleShot(
-            0,
-            lambda expected_pair=pair: self._release_deferred_difference(expected_pair),
-        )
+            self.window.statusBar().showMessage(
+                "Difference ready in background · select Diff to display", 4000
+            )
 
     def _effective_three_view_variant(self) -> str:
         if self._three_view_override in self._THREE_VIEW_VARIANTS:
