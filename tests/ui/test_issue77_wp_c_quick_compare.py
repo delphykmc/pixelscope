@@ -54,9 +54,7 @@ def _wait_for_difference(
 ) -> None:
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.difference_panel.has_cached_map()
-        and (
-            selected := window.difference_panel.selected_documents()
-        ) is not None
+        and (selected := window.difference_panel.selected_documents()) is not None
         and tuple(document.document_id for document in selected) == pair
         and window.diff_action.isEnabled(),
         timeout=5000,
