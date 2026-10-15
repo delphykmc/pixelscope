@@ -13,7 +13,8 @@ from pixelscope.core.roi import RoiBounds, analyze_roi
 def test_obsolete_rgb_histogram_stops_before_next_channel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    image = np.full((16, 24, 3), 127, dtype=np.uint8)
+    # Exercise the retained uint16 NumPy fallback; uint8/256 now uses cv2.
+    image = np.full((16, 24, 3), 127, dtype=np.uint16)
     cancel_event = Event()
     original_bincount = statistics.np.bincount
     calls: list[int] = []
@@ -26,7 +27,7 @@ def test_obsolete_rgb_histogram_stops_before_next_channel(
 
     monkeypatch.setattr(statistics.np, "bincount", cancel_after_first_channel)
     with cancellation_scope(cancel_event), pytest.raises(CooperativeCancellation):
-        analyze_roi(image, RoiBounds(0, 0, 24, 16), bins=256)
+        analyze_roi(image, RoiBounds(0, 0, 24, 16), bins=65536)
     assert calls == [1]
 
 
