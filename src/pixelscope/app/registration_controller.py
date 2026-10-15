@@ -343,6 +343,12 @@ class RegistrationController(QObject):
         if total == 0:
             QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
             return
+        if total == 1 and not result.items[0].from_folder:
+            # Files row/catalog mutation is lightweight and belongs on the GUI
+            # thread. Avoid an extra event-loop turn for one explicit image;
+            # its actual decode remains delegated to ImageLoadWorker.
+            self._register_chunk(generation)
+            return
         QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
 
     @Slot(str, object, int, object)
@@ -410,6 +416,11 @@ class RegistrationController(QObject):
         if completed < total:
             QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
             return
+        if total == 1 and not discovery.items[0].from_folder:
+            # Start foreground selection/loading in the same GUI turn as row
+            # registration; folder and multi-file batches stay sliced.
+            self._finish_registration(generation)
+            return
         QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
 
     def _register_record(self, record: RegistrationInput) -> None:
@@ -459,7 +470,6 @@ class RegistrationController(QObject):
             empty_folder_count=discovery.empty_folder_count,
             registered_folders=discovery.registered_folders,
         )
-        self._record_recent_entries(summary.registered_folders, direct_paths)
         current_ids = [document.document_id for document in self.window.selected_documents]
         current_set = set(current_ids)
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
@@ -486,6 +496,11 @@ class RegistrationController(QObject):
                 self.window._select_document_ids(direct_ids)
         else:
             self.window._update_empty_workspace_state()
+
+        # Recent persistence may invoke a synchronous QSettings.sync(). Start
+        # the foreground image request first so its worker can overlap that
+        # disk operation rather than being delayed by history bookkeeping.
+        self._record_recent_entries(summary.registered_folders, direct_paths)
 
         messages: list[str] = []
         if completion is None and direct_ids:
