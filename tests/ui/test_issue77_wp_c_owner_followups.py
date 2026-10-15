@@ -103,9 +103,7 @@ def test_explicit_pair_keeps_source_repaint_enabled_while_difference_is_pending(
     controller._apply_registered_drop([first.document_id])
     assert window.viewer.document is first
 
-    monkeypatch.setattr(
-        window.difference_panel, "calculate_difference", lambda **_kwargs: None
-    )
+    monkeypatch.setattr(window.difference_panel, "calculate_difference", lambda **_kwargs: None)
     controller._apply_registered_drop([second.document_id])
 
     pair = (first.document_id, second.document_id)
@@ -138,8 +136,7 @@ def test_successful_passive_difference_waits_for_user_to_display_third_tile(
     pair = (first.document_id, second.document_id)
 
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.difference_panel.has_cached_map()
-        and window.diff_action.isEnabled(),
+        lambda: window.difference_panel.has_cached_map() and window.diff_action.isEnabled(),
         timeout=5000,
     )
     assert window._difference_source_ids is None
@@ -201,8 +198,7 @@ def test_explicit_difference_preview_failure_keeps_source_repaint(
     controller._apply_registered_drop([first.document_id])
     controller._apply_registered_drop([second.document_id])
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.difference_panel.has_cached_map()
-        and window.diff_action.isEnabled(),
+        lambda: window.difference_panel.has_cached_map() and window.diff_action.isEnabled(),
         timeout=5000,
     )
     assert window.difference_panel._preview_worker is None
@@ -258,8 +254,7 @@ def test_registered_selected_sources_still_form_sequential_quick_compare_pair(
 
     controller._apply_registered_drop([documents[1].document_id])
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.difference_panel.has_cached_map()
-        and window.diff_action.isEnabled(),
+        lambda: window.difference_panel.has_cached_map() and window.diff_action.isEnabled(),
         timeout=5000,
     )
     selected_pair = window.difference_panel.selected_documents()
