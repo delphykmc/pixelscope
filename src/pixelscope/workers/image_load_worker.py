@@ -26,8 +26,7 @@ class ImageLoadWorker(TaskWorker):
     ) -> None:
         source_path = Path(path)
 
-        def load() -> ImageDocument:
-            load_latency_trace.mark("image_load_worker_callable_entered")
+        def decode() -> ImageDocument:
             if raw_profile is None:
                 return read_image(source_path)
             if isinstance(raw_profile, YuvProfile):
@@ -66,4 +65,13 @@ class ImageLoadWorker(TaskWorker):
                 prepared_preview=preview,
             )
 
+        def load() -> ImageDocument:
+            with load_latency_trace.worker_scope(
+                self.load_trace_document_id, self.load_trace_session
+            ):
+                load_latency_trace.mark("image_load_worker_callable_entered")
+                return decode()
+
         super().__init__(load)
+        self.load_trace_document_id: str | None = None
+        self.load_trace_session: int | None = None
