@@ -50,8 +50,7 @@ def _wait_for_difference(
     pair: tuple[str, str],
 ) -> None:
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.difference_panel.has_cached_map()
-        and window.diff_action.isEnabled(),
+        lambda: window.difference_panel.has_cached_map() and window.diff_action.isEnabled(),
         timeout=5000,
     )
     assert window._difference_source_ids is None
