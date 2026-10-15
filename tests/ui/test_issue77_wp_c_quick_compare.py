@@ -373,7 +373,9 @@ def test_cached_quick_difference_is_hidden_until_explicit_user_action(
     def unexpected_map_recalculation(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("displaying cached Diff must not recalculate map")
 
-    monkeypatch.setattr(window.difference_panel, "calculate_difference", unexpected_map_recalculation)
+    monkeypatch.setattr(
+        window.difference_panel, "calculate_difference", unexpected_map_recalculation
+    )
     window.diff_action.setChecked(True)
     assert window.diff_action.isChecked()
     assert window._difference_source_ids == (a.document_id, b.document_id)
