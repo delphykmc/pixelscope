@@ -50,9 +50,12 @@ def _wait_for_difference(
     pair: tuple[str, str],
 ) -> None:
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window._difference_source_ids == pair and window.diff_action.isChecked(),
+        lambda: window.difference_panel.has_cached_map()
+        and window.diff_action.isEnabled(),
         timeout=5000,
     )
+    assert window._difference_source_ids is None
+    assert not window.diff_action.isChecked()
 
 
 def _ordinary_gain_preview(document: ImageDocument, gain: float) -> np.ndarray:
@@ -243,7 +246,10 @@ def test_two_file_quick_compare_across_page_boundary_does_not_pin_pair(
 
     assert _ids(window) == [document.document_id for document in documents]
     assert window._difference_source_ids is None
-    assert controller._pending_difference_pair is None
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._pending_difference_pair is None, timeout=3000
+    )
+    assert window.central_stack.updatesEnabled()
     assert "current page" in window.statusBar().currentMessage().lower()
     window.close()
 
@@ -259,6 +265,8 @@ def test_existing_difference_binding_survives_pagination_growth(
     controller._apply_registered_drop([documents[0].document_id, documents[1].document_id])
     pair = (documents[0].document_id, documents[1].document_id)
     _wait_for_difference(qtbot, window, pair)
+    window.diff_action.setChecked(True)
+    assert window._difference_source_ids == pair
 
     controller._apply_registered_drop([document.document_id for document in documents[2:]])
 
