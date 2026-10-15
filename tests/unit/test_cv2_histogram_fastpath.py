@@ -35,9 +35,7 @@ def test_cv2_native_uint8_histogram_matches_numpy_counts_and_edges(
     monkeypatch.setattr(cv2, "calcHist", traced_calc_hist)
     result = histogram(image)
     assert len(cv_calls) == channels
-    assert result.channel_names == (
-        ("Gray",) if channels == 1 else ("R", "G", "B", "A")[:channels]
-    )
+    assert result.channel_names == (("Gray",) if channels == 1 else ("R", "G", "B", "A")[:channels])
     np.testing.assert_array_equal(result.edges, np.arange(257, dtype=np.float64))
     for channel_index, counts in enumerate(result.counts):
         samples = image if channels == 1 else image[..., channel_index]
