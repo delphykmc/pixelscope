@@ -334,8 +334,11 @@ class ImageViewer(QWidget):
         )
 
     def set_active(self, active: bool) -> None:
+        style = tile_style(active)
+        if self._active == active and self.styleSheet() == style:
+            return
         self._active = active
-        self.setStyleSheet(tile_style(active))
+        self.setStyleSheet(style)
         cursor_color = QColor("#f7d154")
         cursor_color.setAlpha(150 if active else 55)
         pen = pg.mkPen(cursor_color, width=1)

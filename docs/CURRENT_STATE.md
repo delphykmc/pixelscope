@@ -1,5 +1,14 @@
 # PixelScope current state
 
+> **Issue #180 performance integration (2026-10-16):** reviewed PRs #182, #183,
+> and #184 merged in order, ending at `main@c453789574be6a68d24736a3bd2ed01748168522`.
+> Their combined source passed all 1,467 Windows tests under CPython 3.10.11 and
+> normal automatic GC. Explicit two-source Quick Compare drops prepare Difference
+> in the background with display initially off; Files drag selection commits once
+> at release; exact native uint8 histograms use the bounded OpenCV fast path.
+> Measured Primary styling follow-up and remaining manual timing evidence are
+> tracked in [the Issue #180 execution plan](exec-plans/active/issue-180-performance-followup.md).
+
 > **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.
 Snapshot date: 2026-09-10
 Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`

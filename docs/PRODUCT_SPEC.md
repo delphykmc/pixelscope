@@ -683,6 +683,16 @@ decode. P5-C/P5-D add no Remote-IQA-owned preload system.
 
 ## Difference contract
 
+Eligible explicit two-source drops in Files or Image View show the sources while
+Quick Compare prepares the Difference map and metrics in the background. Difference
+display starts off; the toolbar Diff action becomes available when a matching map
+is cached. Explicit display may render its first preview, without recomputing the
+cached numerical map. Repeated Calculate reuses matching map/metrics/preview caches;
+Calculate during passive computation promotes that worker rather than duplicating
+it. Ordinary Files selection remains passive, and three-or-more-file drops do not
+choose an arbitrary new pair. Failures, cancellation, or stale requests must not
+freeze source repaint or display a superseded pair.
+
 Difference compatibility is family-based: Gray compares only with Gray,
 RGB/RGBA compares only with RGB/RGBA with alpha ignored, and Bayer compares only
 with Bayer of the same CFA pattern. Cross-family, dimension-mismatch, CFA-mismatch,

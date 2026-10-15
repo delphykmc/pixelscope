@@ -378,8 +378,15 @@ class ReviewSelectionController(QObject):
         is_multi_viewer = viewer in self.window.multi_compare_view.viewers
         document_id = self._pickable_document_id(presented) if is_multi_viewer else None
         picked = document_id in self.state.picked_ids if document_id is not None else False
-        viewer.setProperty("reviewPicked", picked)
-        viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
+        picked_changed = viewer.property("reviewPicked") != picked
+        style = tile_style(bool(getattr(viewer, "_active", False)))
+        if picked_changed:
+            viewer.setProperty("reviewPicked", picked)
+        # Qt needs a repolish when the dynamic Pick selector changes, even if
+        # the stylesheet text is identical. Ordinary document/Primary rebinds
+        # with unchanged Active/Pick state need no native style work.
+        if picked_changed or viewer.styleSheet() != style:
+            viewer.setStyleSheet(style)
         viewer.header.set_review_pick(
             visible=document_id is not None,
             picked=picked,

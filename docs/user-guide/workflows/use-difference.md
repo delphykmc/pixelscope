@@ -13,6 +13,8 @@ Difference is an explicit numerical and visual comparison between two compatible
 
 Choose a valid channel and Difference options, then press **Calculate**. The calculation is explicit. Reopening a cached Difference can restore an already calculated matching result, but PixelScope does not silently establish a new Difference identity just because Active or viewer presentation changes.
 
+Eligible two-source Quick Compare drops can prepare the numerical result in the background with Difference hidden. Select **Diff** when it becomes available to show that cached result. **Calculate** also reuses a matching cached map and metrics; its first display may still need to prepare the preview. Repeated hide/show does not require another numerical calculation while the matching result remains cached.
+
 ## Compatibility rules
 
 A valid pair must satisfy the Difference domain rules. Examples include compatible dimensions and source families. Gray/Bayer uses Gray semantics; RGB exposes color channels; native YUV Difference is available only for matching YUV layout/subsampling and exposes Y/U/V channels. Mixed YUV subsampling and YUV-versus-non-YUV pairs are rejected.
