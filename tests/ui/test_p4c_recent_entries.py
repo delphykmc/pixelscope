@@ -357,12 +357,14 @@ def test_missing_recent_entry_remove_and_keep_preserve_workspace(
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: False)
     controller.open_recent(kind, missing)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind)[0] == missing.resolve()
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
     assert set(review.state.picked_ids) == before_pick
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: True)
     controller.open_recent(kind, missing)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind) == (other.resolve(),)
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
     assert set(review.state.picked_ids) == before_pick

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import stat
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,19 @@ RAW_IMAGE_SUFFIX = ".raw"
 RAW_LIKE_IMAGE_SUFFIXES = frozenset({RAW_IMAGE_SUFFIX, ".data", ".yuv"})
 SUPPORTED_IMAGE_SUFFIXES = ORDINARY_IMAGE_SUFFIXES | RAW_LIKE_IMAGE_SUFFIXES
 SUPPORTED_IMAGE_FILTER = "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw *.data *.yuv)"
+
+
+def recent_path_state(path: Path, *, is_folder: bool = False) -> str:
+    """Check a typed Recent path; this may perform blocking network filesystem I/O."""
+
+    try:
+        path_stat = path.stat()
+    except FileNotFoundError:
+        return "missing"
+    except OSError:
+        return "unknown"
+    matches = stat.S_ISDIR(path_stat.st_mode) if is_folder else stat.S_ISREG(path_stat.st_mode)
+    return "usable" if matches else "wrong_type"
 
 
 @dataclass(frozen=True)

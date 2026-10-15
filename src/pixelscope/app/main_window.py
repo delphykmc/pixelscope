@@ -1137,7 +1137,7 @@ class MainWindow(QMainWindow):
             return
         self.open_image_paths([Path(path) for path in paths])
 
-    def open_image_paths(self, paths: Sequence[Path]) -> None:
+    def open_image_paths(self, paths: Sequence[Path], *, recent_image: bool = False) -> None:
         """Open an ordered replacement set, sharing production registration with Drop."""
 
         supplied_paths = [Path(path) for path in paths]
@@ -1149,7 +1149,7 @@ class MainWindow(QMainWindow):
         registration = getattr(self, "large_folder_registration_controller", None)
         enqueue = getattr(registration, "enqueue", None)
         if callable(enqueue):
-            enqueue(supplied_paths, replace_selection=True)
+            enqueue(supplied_paths, replace_selection=True, recent_image=recent_image)
             return
         document_ids = self._register_inputs(
             discover_image_inputs(supplied_paths),

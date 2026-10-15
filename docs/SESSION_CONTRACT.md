@@ -321,6 +321,13 @@ invalid Session artifacts remain history unless explicitly removed. Recent
 bookkeeping is best-effort observer metadata: QSettings/history failure cannot turn
 a successful canonical Image/Folder/Session workflow into failure.
 
+Production Recent Images checks path existence/kind on the existing registration
+worker so a slow network `stat` does not block command dispatch. Missing/wrong-kind
+feedback remains on the GUI thread and cannot mutate Selected or register a
+directory as images. Cancellation/close revokes late feedback; a pending network
+system call still has to return before the owned pool can physically drain.
+Recent Folder and Session workflows retain their existing synchronous behavior.
+
 Recent owns no source, selection, curation, residency, preload, Difference, analysis,
 or Current Comparison Page authority. Absolute paths may disclose local filesystem
 layout.

@@ -62,6 +62,7 @@ def test_recent_image_wrong_kind_is_not_reinterpreted_as_folder_input(
     )
 
     controller.open_recent(RecentEntryKind.IMAGE, recent_path)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
 
     assert tuple(window.documents) == before_documents
     assert tuple(item.document_id for item in window.selected_documents) == before_selected

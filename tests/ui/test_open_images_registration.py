@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Event
+from threading import Event, get_ident
 
 import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -28,6 +28,130 @@ def _window(qtbot: object) -> MainWindow:
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     compose_main_window_presentation(window)
     return window
+
+
+@pytest.mark.parametrize("state", ["usable", "missing", "wrong_type"])
+def test_recent_network_stat_yields_and_preserves_typed_feedback(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, state: str
+) -> None:
+    path = tmp_path / "network.png"
+    if state == "usable":
+        _image(path, 17)
+    elif state == "wrong_type":
+        path.mkdir()
+        _image(path / "nested.png", 21)
+    window = _window(qtbot)
+    seed = ImageDocument.from_array(np.zeros((8, 12), dtype=np.uint8), "seed")
+    window.add_document(seed)
+    recent = window.recent_entries_controller
+    recent.repository.record(RecentEntryKind.IMAGE, [path])
+    registration = window.large_folder_registration_controller
+    gui_thread = get_ident()
+    started, release = Event(), Event()
+    original_stat = Path.stat
+    feedback: list[str] = []
+
+    def blocked_stat(candidate: Path, *args: object, **kwargs: object) -> object:
+        if candidate == path:
+            assert get_ident() != gui_thread, "Recent stat must run off the GUI thread"
+            started.set()
+            assert release.wait(timeout=3.0)
+        return original_stat(candidate, *args, **kwargs)
+
+    def keep_missing(*_args: object) -> bool:
+        assert get_ident() == gui_thread
+        feedback.append("missing")
+        return False
+
+    def warn(*_args: object) -> None:
+        assert get_ident() == gui_thread
+        feedback.append("wrong_type")
+
+    monkeypatch.setattr(recent, "_confirm_remove_missing", keep_missing)
+    monkeypatch.setattr(QMessageBox, "warning", warn)
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", blocked_stat)
+        try:
+            recent.open_recent(RecentEntryKind.IMAGE, path)
+            qtbot.waitUntil(started.is_set)  # type: ignore[attr-defined]
+            turns: list[bool] = []
+            QTimer.singleShot(0, lambda: turns.append(True))
+            qtbot.waitUntil(lambda: bool(turns))  # type: ignore[attr-defined]
+            assert window.selected_documents == [seed]
+            assert feedback == []
+        finally:
+            release.set()
+        qtbot.waitUntil(lambda: registration.is_idle)  # type: ignore[attr-defined]
+    assert recent.repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+    if state == "usable":
+        assert window.selected_documents[0].source_path == path.resolve()
+        assert feedback == []
+    else:
+        assert window.selected_documents == [seed]
+        assert list(window.documents) == [seed.document_id]
+        assert feedback == [state]
+    window.close()
+
+
+@pytest.mark.parametrize("action", ["cancel", "close"])
+def test_recent_network_stat_rejects_late_feedback(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, action: str
+) -> None:
+    path = tmp_path / "missing-network.png"
+    window = _window(qtbot)
+    registration = window.large_folder_registration_controller
+    recent = window.recent_entries_controller
+    started, release = Event(), Event()
+    original_stat = Path.stat
+    gui_thread = get_ident()
+    feedback: list[bool] = []
+
+    def blocked_stat(candidate: Path, *args: object, **kwargs: object) -> object:
+        if candidate == path:
+            assert get_ident() != gui_thread
+            started.set()
+            assert release.wait(timeout=3.0)
+        return original_stat(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(recent, "_confirm_remove_missing", lambda *_a: feedback.append(True))
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", blocked_stat)
+        try:
+            recent.open_recent(RecentEntryKind.IMAGE, path)
+            qtbot.waitUntil(started.is_set)  # type: ignore[attr-defined]
+            if action == "cancel":
+                registration.cancel_active()
+            else:
+                window.close()
+                assert not registration.is_shutdown_drained
+        finally:
+            release.set()
+        qtbot.waitUntil(lambda: registration.pool.activeThreadCount() == 0)  # type: ignore[attr-defined]
+    assert feedback == []
+    assert not window.documents
+    window.close()
+
+
+def test_unavailable_recent_feedback_keeps_reentrant_open_requests_ordered(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    window = _window(qtbot)
+    recent = window.recent_entries_controller
+    registration = window.large_folder_registration_controller
+    missing = tmp_path / "missing.png"
+    next_path = _image(tmp_path / "next.png", 5)
+
+    def keep_and_enqueue(*_args: object) -> bool:
+        window.open_image_paths([next_path])
+        assert len(registration._queue) == 1
+        assert not window.documents
+        return False
+
+    monkeypatch.setattr(recent, "_confirm_remove_missing", keep_and_enqueue)
+    recent.open_recent(RecentEntryKind.IMAGE, missing)
+    qtbot.waitUntil(lambda: registration.is_idle)  # type: ignore[attr-defined]
+    assert [item.source_path for item in window.selected_documents] == [next_path.resolve()]
+    window.close()
 
 
 @pytest.mark.parametrize("command", ["dialog", "recent"])

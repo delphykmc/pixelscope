@@ -134,3 +134,30 @@ performing discovery/Recent sync. The single-file first-paint difference is smal
 and varies in both directions; it is not claimed as an improvement. The 32-file observation improves
 first Qt paint while retaining the same bounded first-page load. No cold-cache,
 monitor scanout, human matrix or universal speedup claim is made.
+
+## PR #187 network-drive review follow-up
+
+- Owner confirmed frequent network-drive inputs and authorized fixing the review
+  recommendation, validation, and merge when clean. The review found no confirmed
+  blocker but identified the inherited GUI-thread Recent Images `Path.stat()`.
+- Moved typed Recent Image preflight into the existing serialized registration
+  worker. Missing/wrong-kind results return to GUI feedback without catalog or
+  selection mutation. Queue ownership spans modal feedback; generation checks and
+  cooperative cancellation reject late results on cancel/close. No new pool.
+- Added Event-blocked `Path.stat` tests for usable/missing/wrong-kind paths, GUI
+  event progress, GUI-affine feedback, and cancellation/close; retained Remove/Keep
+  and wrong-kind integration tests and added reentrant queue ordering and unknown
+  network-error classification coverage. No wall-clock threshold or timeout increase.
+- First focused run exposed a test wait using shutdown-only state after cancel;
+  corrected it to physical pool idleness. Sandbox Session tests require Windows
+  atomic replacement privileges and were rerun unrestricted: the then-current
+  Open/Recent selection passed **31 tests in 16.41s**. Final validation follows.
+- This is deterministic simulated network latency, not real SMB/cold-cache/manual
+  acceptance. OS network calls cannot be interrupted; cancellation revokes result
+  authority and shutdown drains asynchronously when the call returns. Recent
+  Folder registration and Session restore remain synchronous and outside this PR.
+- Final focused command: `.venv/Scripts/python.exe -m pytest -q
+  tests/ui/test_open_images_registration.py tests/ui/test_p4c_recent_entries.py
+  tests/ui/test_p4c_recent_entries_integration.py tests/unit/test_path_discovery.py`
+  — **37 passed in 16.89s**. Full-suite validation will run after the production
+  input commit to honor the sandbox-runner implementation-HEAD integrity guard.

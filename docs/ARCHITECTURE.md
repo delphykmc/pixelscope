@@ -139,6 +139,12 @@ deduplication, and never trigger the Drop-specific passive Difference scheduler.
 Only explicit file inputs are accepted; filesystem filtering/discovery runs on the
 registration worker, while RAW/YUV profile confirmation remains GUI-affine. Recent
 history uses the same staged, post-first-paint persistence as direct Drop.
+Recent Images also performs its typed `stat` preflight on that worker, before
+discovery. Missing/wrong-kind results return to the GUI for Remove/Keep or warning
+without changing the workspace; the same generation/cancellation/shutdown guards
+reject late feedback. Modal feedback retains queue ownership until it returns.
+This does not make Recent Folder registration or Session restore asynchronous,
+and cancellation cannot interrupt an operating-system network filesystem call.
 Standalone MainWindow's synchronous registration API remains available to its
 minimal composition; production input does not introduce a second pool or owner.
 
