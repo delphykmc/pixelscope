@@ -1421,6 +1421,9 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
+        load_trace = load_latency_trace.PhaseTimer(
+            "load.ensure", document_id=document.document_id
+        )
         profile = self._raw_profiles.get(document.document_id)
         is_raw = document.source_path.suffix.casefold() == ".raw"
         if is_raw and profile is None:
@@ -1445,13 +1448,17 @@ class MainWindow(QMainWindow):
             document.channel_layout = profile.channel_layout
             document.bit_depth = profile.bit_depth
             document.raw_profile = profile
+        load_trace.checkpoint("source_profile_ready")
         if self._preload_workers:
             self._invalidate_preload_plan()
         document.loading_state = "loading"
         self._update_document_item(document)
+        load_trace.checkpoint("loading_status_and_tree_row")
         self._start_load(document.document_id, document.source_path, profile)
+        load_trace.checkpoint("foreground_worker_start_returned")
 
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
+        queue_trace = load_latency_trace.PhaseTimer("worker.queue", document_id=target_id)
         request_token = self._load_tokens.get(target_id, 0) + 1
         self._load_tokens[target_id] = request_token
         worker = ImageLoadWorker(
@@ -1459,6 +1466,7 @@ class MainWindow(QMainWindow):
             raw_profile,
             require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
         )
+        queue_trace.checkpoint("worker_object_constructed")
         trace_session = load_latency_trace.session_for(target_id)
         if trace_session is not None and hasattr(worker, "load_trace_session"):
             worker.load_trace_document_id = target_id
@@ -1479,7 +1487,10 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._worker_finished)
         self._workers[worker.task_id] = worker
         self._load_worker_targets[worker.task_id] = target_id
+        queue_trace.checkpoint("signal_wiring_and_registration")
+        load_latency_trace.mark("foreground_load_worker_submit_begin", document_id=target_id)
         self._load_pool.start(worker)
+        queue_trace.checkpoint("qthreadpool_start_returned")
         load_latency_trace.mark("foreground_load_worker_queued", document_id=target_id)
 
     def _load_started(self, path: Path) -> None:
