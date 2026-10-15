@@ -714,6 +714,7 @@ class RegistrationController(QObject):
             folder_documents.insert(inserted_at, document_id)
             folder_ids.add(document_id)
         self.window._folder_paths[folder_key] = folder_path
+        self.window._document_folder_keys[document_id] = folder_key
         if current_index is None:
             self.window._folder_indices.setdefault(folder_key, 0)
         elif inserted_at is not None and inserted_at <= current_index:
@@ -722,7 +723,9 @@ class RegistrationController(QObject):
     def _remove_document_from_folder(self, document_id: str, path: Path) -> None:
         """Keep binary-insertion caches consistent with canonical removal semantics."""
 
-        folder_key = self.window._folder_key(path)
+        folder_key = self.window._document_folder_keys.pop(document_id, None)
+        if folder_key is None:
+            folder_key = self.window._folder_key(path)
         folder_documents = self.window._folder_documents.get(folder_key)
         if folder_documents is None:
             return
