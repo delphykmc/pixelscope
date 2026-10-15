@@ -3568,6 +3568,23 @@ class MainWindow(QMainWindow):
             or not isinstance(preview, np.ndarray)
         ):
             return
+        # A repeated Calculate of exactly the result already presented should
+        # take the same light path as the Diff toolbar toggle. The display map
+        # and preview are already current; reconstructing an ImageDocument and
+        # invalidating its generation here only adds redundant GUI work.
+        previous = self._difference_document
+        if (
+            not self.diff_action.isChecked()
+            and previous is not None
+            and self._difference_result_matches_current_pair()
+            and previous.source is numerical
+            and previous.preview is preview
+            and previous.display_name == title
+            and self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
+            is not None
+        ):
+            self.diff_action.setChecked(True)
+            return
         mapping = self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
         force_single = len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE
         if force_single:
@@ -3659,13 +3676,16 @@ class MainWindow(QMainWindow):
             and set(self._difference_source_ids) == set(source_ids)
         ):
             difference = previous_difference
+            source_changed = difference.source is not numerical
+            preview_changed = difference.preview is not preview
+            if source_changed or preview_changed:
+                difference.source = numerical
+                difference.preview = preview
+                difference.bit_depth = numerical.dtype.itemsize * 8
+                difference.generation += 1
+                difference.statistics_cache.clear()
+                difference.histogram_cache.clear()
             difference.display_name = title
-            difference.source = numerical
-            difference.preview = preview
-            difference.bit_depth = numerical.dtype.itemsize * 8
-            difference.generation += 1
-            difference.statistics_cache.clear()
-            difference.histogram_cache.clear()
         else:
             difference = ImageDocument.from_array(
                 numerical,
