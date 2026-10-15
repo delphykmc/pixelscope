@@ -530,11 +530,12 @@ class RegistrationController(QObject):
         # image viewport has painted; folder-only registration keeps its
         # established synchronous persistence semantics.
         if direct_ids:
+            self._stage_recent_entries(summary.registered_folders, direct_paths)
             self._deferred_recent.append((summary.registered_folders, direct_paths))
             self._deferred_recent_targets.update(direct_ids)
             if not self._recent_fallback_timer.isActive():
                 self._recent_fallback_timer.start()
-            load_latency_trace.mark("recent_entries_deferred", document_id=direct_ids[0])
+            load_latency_trace.mark("recent_entries_staged", document_id=direct_ids[0])
         else:
             self._record_recent_entries(summary.registered_folders, direct_paths)
 
@@ -571,12 +572,31 @@ class RegistrationController(QObject):
             return
         self._recent_flush_timer.stop()
         self._recent_fallback_timer.stop()
-        pending = tuple(self._deferred_recent)
         self._deferred_recent.clear()
         self._deferred_recent_targets.clear()
-        for folders, direct_paths in pending:
-            self._record_recent_entries(folders, direct_paths)
+        controller = getattr(self.window, "recent_entries_controller", None)
+        repository = getattr(controller, "repository", None)
+        flush = getattr(repository, "flush_staged", None)
+        if callable(flush):
+            try:
+                flush()
+            except Exception:  # noqa: BLE001 - history must never break the image workflow
+                LOGGER.warning("Unable to persist staged Recent history", exc_info=True)
         load_latency_trace.mark("recent_entries_persisted_after_paint")
+
+    def _stage_recent_entries(
+        self,
+        folders: Sequence[Path],
+        direct_paths: Sequence[Path],
+    ) -> None:
+        controller = getattr(self.window, "recent_entries_controller", None)
+        observe = getattr(controller, "_observe_history", None)
+        if not callable(observe):
+            return
+        if folders:
+            observe(RecentEntryKind.FOLDER, folders, stage_only=True)
+        if direct_paths:
+            observe(RecentEntryKind.IMAGE, direct_paths, stage_only=True)
 
     def _record_recent_entries(
         self,
