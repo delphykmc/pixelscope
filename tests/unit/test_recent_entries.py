@@ -205,3 +205,52 @@ def test_real_qsettings_history_survives_reconstruction_and_clear(
     assert after_clear_settings.value("settings/files/default_open_directory") == str(
         tmp_path / "owned"
     )
+
+
+def test_staged_mru_keeps_order_without_early_disk_write(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    a, b = tmp_path / "a.png", tmp_path / "b.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [a])
+    repository.stage(RecentEntryKind.IMAGE, [b])
+
+    assert repository.load(RecentEntryKind.IMAGE) == (b.resolve(), a.resolve())
+    assert storage.values == {}
+    assert storage.sync_count == 0
+
+    repository.flush_staged()
+
+    assert storage.sync_count == 1
+    assert json.loads(storage.values["recent/images"]) == [str(b.resolve()), str(a.resolve())]
+    repository.flush_staged()
+    assert storage.sync_count == 1
+
+
+def test_clear_before_staged_flush_does_not_resurrect_history(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    repository.stage(RecentEntryKind.IMAGE, [tmp_path / "a.png"])
+    repository.clear(RecentEntryKind.IMAGE)
+    count = storage.sync_count
+
+    repository.flush_staged()
+    assert storage.sync_count == count
+    assert repository.load(RecentEntryKind.IMAGE) == ()
+    assert "recent/images" not in storage.values
+
+
+def test_staged_real_qsettings_persists_after_flushing(tmp_path: Path) -> None:
+    settings_path = tmp_path / "staged.ini"
+    settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    repository = RecentEntriesRepository(QSettingsAdapter(settings))
+    path = tmp_path / "some.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [path])
+    assert repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+    repository.flush_staged()
+
+    recovered = RecentEntriesRepository(
+        QSettingsAdapter(QSettings(str(settings_path), QSettings.Format.IniFormat))
+    )
+    assert recovered.load(RecentEntryKind.IMAGE) == (path.resolve(),)
