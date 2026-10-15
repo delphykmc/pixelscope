@@ -53,6 +53,7 @@ from pixelscope.app.window_contribution import (
     WindowContribution,
 )
 from pixelscope.core.bayer import bayer_channel_at
+from pixelscope.core import load_latency_trace
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
     MAX_RECENT_FAILURES,
@@ -1460,6 +1461,7 @@ class MainWindow(QMainWindow):
         self._workers[worker.task_id] = worker
         self._load_worker_targets[worker.task_id] = target_id
         self._load_pool.start(worker)
+        load_latency_trace.mark("foreground_load_worker_queued", document_id=target_id)
 
     def _load_started(self, path: Path) -> None:
         self.structured_status.task.setText(f"Loading {path.name}…")
@@ -1473,6 +1475,7 @@ class MainWindow(QMainWindow):
             return
         if not isinstance(result, ImageDocument):
             return
+        load_latency_trace.mark("load_worker_result_received", document_id=target_id)
         previous_generation = self.documents[target_id].generation
         result.document_id = target_id
         result.generation = previous_generation
@@ -1481,7 +1484,9 @@ class MainWindow(QMainWindow):
         self.residency_manager.touch(target_id)
         self._update_document_item(result)
         if self._selected_load_batch_complete():
+            load_latency_trace.mark("ready_render_selection_begin", document_id=target_id)
             self._render_selection(preserve_view=True)
+            load_latency_trace.mark("ready_render_selection_returned", document_id=target_id)
         self._evict_resident_documents()
         self.structured_status.task.setText("Ready")
         self.statusBar().showMessage(f"Loaded {result.display_name}", 2500)
@@ -2096,6 +2101,10 @@ class MainWindow(QMainWindow):
             None,
             self._shared_roi,
         )
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_diff_panel_bound", document_id=analysis_ready[0].document_id
+            )
         cached_display = self.difference_panel.cached_display_for_current()
         cached_six_difference = (
             cached_display is not None
@@ -2262,6 +2271,10 @@ class MainWindow(QMainWindow):
                 document for document in visible if document is not self._difference_document
             ]
 
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_viewer_bound", document_id=analysis_ready[0].document_id
+            )
         self._visible_document_ids = {document.document_id for document in visible_state}
         required_ids = {document.document_id for document in analysis_candidates}
         required_ids.update(self._visible_document_ids)
@@ -2280,6 +2293,10 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_analysis_bound", document_id=analysis_ready[0].document_id
+            )
         if self._channel_split_active:
             active = next(
                 (
