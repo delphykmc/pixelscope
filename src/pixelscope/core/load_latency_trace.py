@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from time import perf_counter_ns
+from time import perf_counter_ns, thread_time_ns
 
 LOGGER = logging.getLogger(__name__)
 _ENABLED = os.environ.get("PIXELSCOPE_LOAD_TRACE") == "1"
@@ -89,6 +89,8 @@ class PhaseTimer:
         )
         self._started_ns = perf_counter_ns() if self._active else 0
         self._previous_ns = self._started_ns
+        self._started_cpu_ns = thread_time_ns() if self._active else 0
+        self._previous_cpu_ns = self._started_cpu_ns
         if self._active:
             mark(f"{group}.begin", document_id=document_id)
 
@@ -96,13 +98,20 @@ class PhaseTimer:
         if not self._active:
             return
         now = perf_counter_ns()
+        cpu_now = thread_time_ns()
         elapsed_ms = (now - self._started_ns) / 1_000_000
         delta_ms = (now - self._previous_ns) / 1_000_000
+        cpu_elapsed_ms = (cpu_now - self._started_cpu_ns) / 1_000_000
+        cpu_delta_ms = (cpu_now - self._previous_cpu_ns) / 1_000_000
         self._previous_ns = now
+        self._previous_cpu_ns = cpu_now
         LOGGER.warning(
-            "[load-trace] %s.%s step=%.2fms scope=%.2fms",
+            "[load-trace] %s.%s step=%.2fms scope=%.2fms "
+            "cpu_step=%.2fms cpu_scope=%.2fms",
             self._group,
             stage,
             delta_ms,
             elapsed_ms,
+            cpu_delta_ms,
+            cpu_elapsed_ms,
         )
