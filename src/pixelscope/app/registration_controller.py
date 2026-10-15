@@ -257,7 +257,10 @@ class RegistrationController(QObject):
             self._closing = True
             self._recent_flush_timer.stop()
             self._recent_fallback_timer.stop()
-            # Recent history is optional and must not block GUI teardown.
+            # Queue staged history in QSettings without blocking the close
+            # path on a synchronous disk/registry flush.
+            if self._deferred_recent:
+                self._flush_recent_to_settings()
             self._deferred_recent.clear()
             self._deferred_recent_targets.clear()
             self._queue.clear()
@@ -574,15 +577,18 @@ class RegistrationController(QObject):
         self._recent_fallback_timer.stop()
         self._deferred_recent.clear()
         self._deferred_recent_targets.clear()
+        self._flush_recent_to_settings()
+        load_latency_trace.mark("recent_entries_submitted_to_qsettings_after_paint")
+
+    def _flush_recent_to_settings(self) -> None:
         controller = getattr(self.window, "recent_entries_controller", None)
         repository = getattr(controller, "repository", None)
         flush = getattr(repository, "flush_staged", None)
         if callable(flush):
             try:
-                flush()
-            except Exception:  # noqa: BLE001 - history must never break the image workflow
-                LOGGER.warning("Unable to persist staged Recent history", exc_info=True)
-        load_latency_trace.mark("recent_entries_persisted_after_paint")
+                flush(sync=False)
+            except Exception:  # noqa: BLE001 - optional history must not break runtime
+                LOGGER.warning("Unable to queue staged Recent history", exc_info=True)
 
     def _stage_recent_entries(
         self,
