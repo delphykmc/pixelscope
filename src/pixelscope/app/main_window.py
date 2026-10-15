@@ -2044,6 +2044,11 @@ class MainWindow(QMainWindow):
 
     def _render_selection(self, preserve_view: bool = False) -> None:
         documents = self.selected_documents
+        render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
+        render_trace = load_latency_trace.PhaseTimer(
+            f"render.{render_stage}",
+            document_id=documents[0].document_id if len(documents) == 1 else None,
+        )
         selected_ids = {document.document_id for document in documents}
         if (
             self._difference_source_ids is not None
@@ -2069,6 +2074,7 @@ class MainWindow(QMainWindow):
 
         self._update_action_states()
         self._update_layout_options(len(documents))
+        render_trace.checkpoint("selection_and_layout_configuration")
         self._channel_split_active = False
         if not documents:
             self._shared_roi = None
@@ -2094,6 +2100,7 @@ class MainWindow(QMainWindow):
         analysis_candidates = comparison_page
         for document in analysis_candidates:
             self._ensure_loaded(document)
+        render_trace.checkpoint("ensure_foreground_loads")
         analysis_ready = [
             document for document in analysis_candidates if document.source is not None
         ]
@@ -2101,12 +2108,14 @@ class MainWindow(QMainWindow):
             self.residency_manager.touch(document.document_id)
 
         self._normalize_shared_roi(analysis_ready)
+        render_trace.checkpoint("normalize_roi")
 
         self.difference_panel.set_documents(
             analysis_ready,
             None,
             self._shared_roi,
         )
+        render_trace.checkpoint("difference_panel_set_documents")
         if len(analysis_ready) == 1:
             load_latency_trace.mark(
                 "render_ready_diff_panel_bound", document_id=analysis_ready[0].document_id
@@ -2137,6 +2146,7 @@ class MainWindow(QMainWindow):
         ):
             self.difference_panel.calculate_difference()
         self._update_action_states()
+        render_trace.checkpoint("difference_cache_and_actions")
 
         split_documents = self._current_split_documents()
         self._channel_split_active = bool(split_documents)
@@ -2190,6 +2200,7 @@ class MainWindow(QMainWindow):
         else:
             effective_layout, capacity = self._effective_layout(len(display_documents))
         self._view_capacity = capacity
+        render_trace.checkpoint("presentation_layout_planning")
 
         if self._view_capacity == 1:
             if self._channel_split_active:
@@ -2201,6 +2212,7 @@ class MainWindow(QMainWindow):
                 document = split_documents[split_index]
                 self._split_active_document_id = document.document_id
                 self.viewer.set_document(document, fit=not preserve_view)
+                render_trace.checkpoint("single_viewer_set_document")
                 self.viewer.set_tile_context(split_index + 1, "")
                 self.viewer.set_header(
                     f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
@@ -2214,6 +2226,7 @@ class MainWindow(QMainWindow):
                 document = documents[self._current_index]
                 local_slot = self._current_index - self._page_start + 1
                 self.viewer.set_document(document, fit=not preserve_view)
+                render_trace.checkpoint("single_viewer_set_document")
                 self.viewer.set_tile_context(local_slot, "")
                 if large_selection:
                     self.viewer.set_header(f"[{local_slot}] {document.display_name}")
@@ -2241,6 +2254,7 @@ class MainWindow(QMainWindow):
                 None,
                 preserve_view,
             )
+            render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
             for viewer in self.multi_compare_view.visible_viewers:
                 viewer.set_focus(
@@ -2272,11 +2286,13 @@ class MainWindow(QMainWindow):
                 fixed_geometry_count=(COMPARISON_PAGE_SIZE if large_selection else None),
                 local_slots=large_selection,
             )
+            render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
             visible_state = [
                 document for document in visible if document is not self._difference_document
             ]
 
+        render_trace.checkpoint("viewer_headers_and_stack")
         if len(analysis_ready) == 1:
             load_latency_trace.mark(
                 "render_ready_viewer_bound", document_id=analysis_ready[0].document_id
@@ -2290,6 +2306,7 @@ class MainWindow(QMainWindow):
         for document in analysis_ready:
             self.residency_manager.touch(document.document_id)
         self._evict_resident_documents()
+        render_trace.checkpoint("source_residency_and_worker_cleanup")
 
         self._normalize_shared_line(analysis_ready)
         region_name = self.comparison_analysis_panel.region_scope.currentText()
@@ -2299,6 +2316,7 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
+        render_trace.checkpoint("analysis_panel_set_documents")
         if len(analysis_ready) == 1:
             load_latency_trace.mark(
                 "render_ready_analysis_bound", document_id=analysis_ready[0].document_id
@@ -2332,18 +2350,23 @@ class MainWindow(QMainWindow):
                 active,
             ),
         )
+        render_trace.checkpoint("line_profile_panel_set_documents")
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
         if cached_six_difference and self._difference_document is not None:
             self._navigate_single_view("difference")
             self._set_active_document(self._difference_document)
+        render_trace.checkpoint("active_document_and_status")
         if self._channel_split_active and comparison_page:
             self._update_file_states([comparison_page[0]], comparison_page[0])
         else:
             self._update_file_states(visible_state, active)
+        render_trace.checkpoint("files_status_icons_and_tooltips")
         self._update_comparison_page_controls()
+        render_trace.checkpoint("comparison_page_controls")
         self._refresh_preload_plan()
+        render_trace.checkpoint("preload_planning_and_end")
 
     def _split_display_documents(
         self,
@@ -3276,6 +3299,9 @@ class MainWindow(QMainWindow):
         preserve_overlays: bool = False,
         reveal_document_id: str | None = None,
     ) -> None:
+        selection_trace = load_latency_trace.PhaseTimer(
+            "select", document_id=document_ids[0] if len(document_ids) == 1 else None
+        )
         selected = set(document_ids)
         self.document_list.blockSignals(True)
         self.document_list.clearSelection()
@@ -3292,6 +3318,7 @@ class MainWindow(QMainWindow):
                 QItemSelectionModel.SelectionFlag.NoUpdate,
             )
         self.document_list.blockSignals(False)
+        selection_trace.checkpoint("tree_selection_and_current_item")
         self._selection_order = [
             document_id for document_id in document_ids if document_id in self.documents
         ]
@@ -3318,6 +3345,7 @@ class MainWindow(QMainWindow):
             self._current_index = 0
             self._page_start = 0
 
+        selection_trace.checkpoint("selection_order_and_folder_index")
         page_ids = [document.document_id for document in self.current_comparison_documents()]
         self._promote_running_preloads(page_ids)
         self._invalidate_preload_plan()
@@ -3326,6 +3354,7 @@ class MainWindow(QMainWindow):
         if self._difference_source_ids is not None:
             required.update(self._difference_source_ids)
         self._cancel_obsolete_loads(required)
+        selection_trace.checkpoint("preload_invalidation_and_load_reconciliation")
 
         if not preserve_overlays:
             if not self._selection_order:
@@ -3333,7 +3362,9 @@ class MainWindow(QMainWindow):
                 self.comparison_analysis_panel.set_active_roi(None)
             self._shared_line = None
         self._reset_pixel_status()
+        selection_trace.checkpoint("overlay_and_pixel_reset")
         self._render_selection(preserve_view=preserve_view)
+        selection_trace.checkpoint("initial_render_selection_returned")
 
     def _shared_roi_changed(self, bounds: object) -> bool:
         return self._apply_shared_roi(bounds, allow_channel_split=False)
