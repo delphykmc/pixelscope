@@ -102,11 +102,11 @@ class RegistrationController(QObject):
         self._deferred_recent_targets: set[str] = set()
         self._recent_flush_timer = QTimer(self)
         self._recent_flush_timer.setSingleShot(True)
-        self._recent_flush_timer.timeout.connect(self._flush_deferred_recent)
+        self._recent_flush_timer.timeout.connect(self._flush_deferred_recent)  # type: ignore[attr-defined]
         self._recent_fallback_timer = QTimer(self)
         self._recent_fallback_timer.setSingleShot(True)
         self._recent_fallback_timer.setInterval(10000)
-        self._recent_fallback_timer.timeout.connect(self._flush_deferred_recent)
+        self._recent_fallback_timer.timeout.connect(self._flush_deferred_recent)  # type: ignore[attr-defined]
         self._closing = False
         self._stale_result_count = 0
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
