@@ -3678,7 +3678,14 @@ class MainWindow(QMainWindow):
             difference = previous_difference
             source_changed = difference.source is not numerical
             preview_changed = difference.preview is not preview
-            if source_changed or preview_changed:
+            mapping_changed = (
+                mapping is not None
+                and (
+                    difference.spatial_sampling != mapping.spatial_sampling
+                    or difference.sample_channel != mapping.sample_channel
+                )
+            )
+            if source_changed or preview_changed or mapping_changed:
                 difference.source = numerical
                 difference.preview = preview
                 difference.bit_depth = numerical.dtype.itemsize * 8
