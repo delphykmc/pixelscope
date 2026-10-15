@@ -72,9 +72,7 @@ def worker_scope(document_id: str | None, session: int | None) -> Iterator[None]
 def _matches_worker_scope() -> bool:
     scope = getattr(_worker_context, "scope", None)
     return scope is None or (
-        scope[0] is not None
-        and scope[0] == _target_document_id
-        and scope[1] == _session
+        scope[0] is not None and scope[0] == _target_document_id and scope[1] == _session
     )
 
 
