@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
@@ -626,6 +627,7 @@ class ComparisonAnalysisPanel(QWidget):
             return
 
         def calculate() -> tuple[RoiAnalysisResult, ...]:
+            timer = AnalysisPhaseTimer("histogram.worker.compute", documents=len(documents))
             results: list[RoiAnalysisResult] = []
             for document, source, selected_bounds, spec, cached in zip(
                 documents,
@@ -660,6 +662,7 @@ class ComparisonAnalysisPanel(QWidget):
                                 value_range,
                             )
                         )
+            timer.finish()
             return tuple(results)
 
         self._set_activity("Calculating...", busy=True)
@@ -848,6 +851,7 @@ class ComparisonAnalysisPanel(QWidget):
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
+        timer = AnalysisPhaseTimer("histogram.gui.render", documents=len(results))
         hint = self.workflow_histogram_hint_controller
         if hint is not None:
             hint.hide()
@@ -1027,6 +1031,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.table.resizeRowsToContents()
         self.table.viewport().update()
         self._set_activity("", busy=False)
+        timer.finish()
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
