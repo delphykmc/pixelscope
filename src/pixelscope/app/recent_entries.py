@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Final, Protocol
@@ -106,6 +107,36 @@ class RecentEntriesRepository:
         self._cache[kind] = merged
         self._staged.add(kind)
         return merged
+
+    def stage_canonical(
+        self,
+        kind: RecentEntryKind,
+        paths: Iterable[Path],
+    ) -> tuple[Path, ...]:
+        """Stage worker-resolved paths without repeating filesystem lookups.
+
+        Only call with canonical paths returned from registration discovery.
+        Existing entries are already normalized when the repository loads them.
+        This does not change the general-purpose stage/record path contract.
+        """
+
+        existing = self.load(kind)
+        merged: list[Path] = []
+        seen: set[str] = set()
+        for candidate in (*tuple(paths), *existing):
+            if not candidate.is_absolute() or "\\x00" in str(candidate):
+                raise ValueError("canonical recent paths must be absolute and valid")
+            identity = os.path.normcase(str(candidate))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(candidate)
+            if len(merged) >= self._limit:
+                break
+        result = tuple(merged)
+        self._cache[kind] = result
+        self._staged.add(kind)
+        return result
 
     def flush_staged(self, *, sync: bool = True) -> None:
         """Write the latest staged snapshots with one durable sync."""
