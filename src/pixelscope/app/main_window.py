@@ -1218,6 +1218,7 @@ class MainWindow(QMainWindow):
         *,
         resolve_raw_profile: bool = True,
     ) -> str | None:
+        register_trace = load_latency_trace.PhaseTimer("register.input")
         key = self._path_key(image_input.path)
         existing = self._document_id_by_path.get(key)
         is_raw = image_input.path.suffix.casefold() == ".raw"
@@ -1226,6 +1227,7 @@ class MainWindow(QMainWindow):
             raw_profile = self._confirm_raw_profile(image_input, existing)
             if raw_profile is None:
                 return None
+        register_trace.checkpoint("path_identity_and_raw_profile_resolution")
         if existing is not None:
             if image_input.raw_profile_path is not None:
                 self._raw_profile_paths[existing] = image_input.raw_profile_path
@@ -1236,11 +1238,13 @@ class MainWindow(QMainWindow):
                 # already exists in the catalog. Folder registration passes
                 # resolve_raw_profile=False and remains registration-only.
                 self._mark_document_for_reload(existing, raw_profile)
+            register_trace.checkpoint("existing_document_reuse_or_reload")
             return existing
         document = ImageDocument.pending_document(image_input.path)
         self.documents[document.document_id] = document
         self._document_id_by_path[key] = document.document_id
         self._add_document_to_folder(document.document_id, image_input.path)
+        register_trace.checkpoint("create_document_and_folder_catalog")
         if image_input.raw_profile_path is not None:
             self._raw_profile_paths[document.document_id] = image_input.raw_profile_path
         if raw_profile is not None:
@@ -1253,6 +1257,7 @@ class MainWindow(QMainWindow):
             loading_state=document.loading_state,
             resident=False,
         )
+        register_trace.checkpoint("files_tree_add_document_item")
         return document.document_id
 
     def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
@@ -2710,6 +2715,7 @@ class MainWindow(QMainWindow):
         visible_documents: Sequence[ImageDocument],
         active_document: ImageDocument | None,
     ) -> None:
+        files_trace = load_latency_trace.PhaseTimer("files.update_states")
         visible_ids = {document.document_id for document in visible_documents}
         for document_id, document in self.documents.items():
             self.document_list.set_document_state(
@@ -2719,6 +2725,7 @@ class MainWindow(QMainWindow):
                 loading_state=document.loading_state,
                 resident=document.source is not None,
             )
+        files_trace.checkpoint("row_icons_fonts_and_tooltips")
 
     def show_selected_image(self, local_index: int) -> None:
         if self._view_capacity != 1 or local_index < 0:
