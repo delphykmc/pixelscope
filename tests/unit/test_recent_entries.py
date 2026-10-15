@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
@@ -267,3 +268,39 @@ def test_staged_recent_can_publish_without_synchronous_flush(tmp_path: Path) -> 
     assert storage.sync_count == 0
     assert json.loads(storage.values["recent/images"]) == [str(path.resolve())]
     assert repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+
+
+def test_canonical_stage_reuses_resolved_paths_without_stat_calls(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage, limit=3)
+    earlier = (tmp_path / "old.png").resolve()
+    current = (tmp_path / "new.png").resolve()
+    repository.record(RecentEntryKind.IMAGE, [earlier])
+    syncs_before = storage.sync_count
+
+    # Registration discovery already produced canonical input paths. No
+    # filesystem resolution is necessary when updating the bounded MRU list.
+    with patch.object(Path, "resolve", side_effect=AssertionError("no re-resolve")):
+        result = repository.stage_canonical(RecentEntryKind.IMAGE, [current, earlier])
+
+    assert result == (current, earlier)
+    assert repository.load(RecentEntryKind.IMAGE) == result
+    assert storage.sync_count == syncs_before
+    repository.flush_staged(sync=False)
+    assert storage.sync_count == syncs_before
+    assert json.loads(storage.values["recent/images"]) == [str(current), str(earlier)]
+
+
+def test_canonical_stage_requires_absolute_paths(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+
+    with patch.object(Path, "resolve", side_effect=AssertionError("no re-resolve")):
+        try:
+            repository.stage_canonical(RecentEntryKind.IMAGE, [Path("relative.png")])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("relative path accepted for canonical stage")
+
+    assert storage.sync_count == 0
