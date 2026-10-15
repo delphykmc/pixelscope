@@ -944,7 +944,11 @@ class ComparisonAnalysisPanel(QWidget):
                 self.table.setItem(row, column, item)
 
         overlay = self.histogram_mode.currentText() == "Overlay"
-        self._arrange_histogram_plots(1 if overlay else len(results))
+        # Stage histogram widgets hidden while installing curves, labels and
+        # axes. Exposing an empty PlotWidget before axis sizing and auto-range
+        # produces a transient oversized plot on the first Qt paint.
+        visible_plot_count = 1 if overlay else len(results)
+        self._arrange_histogram_plots(visible_plot_count)
         for plot, legend in zip(self.plots, self.legends, strict=True):
             plot.clear()
             legend.clear()
@@ -1028,6 +1032,10 @@ class ComparisonAnalysisPanel(QWidget):
         if overlay:
             self.plots[0].setTitle(f"Overlay · {len(results)} images")
             self.plots[0].getViewBox().autoRange(padding=0.08)
+        # Reveal only fully configured plots. Axis labels and ticks affect
+        # PlotItem geometry, so they must be in place before the first show.
+        for plot in self.plots[: min(6, visible_plot_count)]:
+            plot.show()
         self.table.resizeRowsToContents()
         self.table.viewport().update()
         self._set_activity("", busy=False)
@@ -1116,7 +1124,6 @@ class ComparisonAnalysisPanel(QWidget):
         for index in range(visible_count):
             plot = self.plots[index]
             self.histogram_layout.addWidget(plot, index, 0)
-            plot.show()
         for row in range(6):
             self.histogram_layout.setRowStretch(row, 1 if row < visible_count else 0)
         self.histogram_layout.setColumnStretch(0, 1)
