@@ -138,14 +138,20 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
 
     # Establish a real initial click, which must still commit immediately.
     _mouse_event(
-        viewport, QEvent.Type.MouseButtonPress,
-        first_pos.x(), first_pos.y(),
-        Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+        viewport,
+        QEvent.Type.MouseButtonPress,
+        first_pos.x(),
+        first_pos.y(),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
     )
     _mouse_event(
-        viewport, QEvent.Type.MouseButtonRelease,
-        first_pos.x(), first_pos.y(),
-        Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+        viewport,
+        QEvent.Type.MouseButtonRelease,
+        first_pos.x(),
+        first_pos.y(),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
     )
 
     controller = window.review_selection_controller
@@ -168,14 +174,20 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
     # A real held-button QMouseEvent, rather than directly setting the private
     # state flag, starts the drag. Intermediate edits produce Qt selection signals.
     _mouse_event(
-        viewport, QEvent.Type.MouseButtonPress,
-        first_pos.x(), first_pos.y(),
-        Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+        viewport,
+        QEvent.Type.MouseButtonPress,
+        first_pos.x(),
+        first_pos.y(),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
     )
     _mouse_event(
-        viewport, QEvent.Type.MouseMove,
-        third_pos.x(), third_pos.y(),
-        Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton,
+        viewport,
+        QEvent.Type.MouseMove,
+        third_pos.x(),
+        third_pos.y(),
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.LeftButton,
     )
     assert tree.selection_mouse_dragging
     second.setSelected(True)
@@ -189,9 +201,12 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
     assert commits == []
     assert review_syncs == []
     _mouse_event(
-        viewport, QEvent.Type.MouseMove,
-        first_pos.x(), first_pos.y(),
-        Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton,
+        viewport,
+        QEvent.Type.MouseMove,
+        first_pos.x(),
+        first_pos.y(),
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.LeftButton,
     )
     fourth.setSelected(True)
     third.setSelected(False)
@@ -199,17 +214,19 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
     assert review_syncs == []
 
     _mouse_event(
-        viewport, QEvent.Type.MouseButtonRelease,
-        first_pos.x(), first_pos.y(),
-        Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+        viewport,
+        QEvent.Type.MouseButtonRelease,
+        first_pos.x(),
+        first_pos.y(),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
     )
     assert not tree.selection_mouse_dragging
     assert not window._files_drag_selection_dirty
     assert commits == [1]
     assert review_syncs == [1]
     selected_from_tree = {
-        str(item.data(0, Qt.ItemDataRole.UserRole))
-        for item in tree.selected_document_items()
+        str(item.data(0, Qt.ItemDataRole.UserRole)) for item in tree.selected_document_items()
     }
     assert {item.document_id for item in window.selected_documents} == selected_from_tree
 
