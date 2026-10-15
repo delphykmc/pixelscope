@@ -22,11 +22,13 @@ def read_image(path: str | Path) -> ImageDocument:
     source_path = Path(path)
     if source_path.suffix.lower() not in (".png", ".bmp", ".jpg", ".jpeg"):
         raise ImageReadError("Supported image formats are PNG, BMP, and JPEG")
+    read_trace = load_latency_trace.PhaseTimer("io.fromfile")
     load_latency_trace.mark("encoded_file_read_begin")
     try:
         encoded = np.fromfile(source_path, dtype=np.uint8)
     except OSError as exc:
         raise ImageReadError(f"Cannot read image file: {exc}") from exc
+    read_trace.checkpoint("returned")
     # np.fromfile already owns a contiguous uint8 buffer; hashing a buffer
     # view avoids a second encoded-file-sized allocation before decoding.
     load_latency_trace.mark("encoded_bytes_read")
