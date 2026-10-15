@@ -193,6 +193,7 @@ class ImageViewer(QWidget):
     navigation_requested = Signal(str)
     zoom_changed = Signal(float)
     document_changed = Signal(object)
+    first_frame_painted = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -205,6 +206,8 @@ class ImageViewer(QWidget):
         self._display_preview_request_serial = 0
         self._display_preview_request_identity: tuple[int, int, int, int, float] | None = None
         self._graphics_resources_disposed = False
+        self._paint_notified_identity: tuple[str, int, int] | None = None
+        self._paint_pending_identity: tuple[str, int, int] | None = None
         self._display_gain_state = display_gain_state()
         self._display_gain_state.gain_changed.connect(self._display_gain_changed)
         self._slot = 1
@@ -875,6 +878,33 @@ class ImageViewer(QWidget):
                 return
         super().keyPressEvent(event)
 
+    def _notify_first_frame_painted(self) -> None:
+        """Run after viewport paint returns, never during the paint event."""
+
+        identity = self._paint_pending_identity
+        self._paint_pending_identity = None
+        document = self._document
+        if (
+            identity is None
+            or self._graphics_resources_disposed
+            or document is None
+            or document.preview is None
+            or self._pending_document is not None
+            or not self.isVisible()
+            or identity
+            != (document.document_id, document.generation, id(document.preview))
+        ):
+            return
+        if self._paint_notified_identity == identity:
+            return
+        self._paint_notified_identity = identity
+        load_latency_trace.mark(
+            "first_viewport_paint_event_processed",
+            document_id=document.document_id,
+            once=True,
+        )
+        self.first_frame_painted.emit(document.document_id)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if watched is self._graphics.viewport():
             if event.type() == QEvent.Type.MouseButtonPress:
@@ -884,20 +914,21 @@ class ImageViewer(QWidget):
                 if (
                     document is not None
                     and document.preview is not None
+                    and self._pending_document is None
                     and self.isVisible()
-                    and load_latency_trace.tracks(document.document_id)
+                    and not self._graphics_resources_disposed
                 ):
-                    # This callback runs after the viewport's paint event has
-                    # returned, not merely after setImage() was invoked.
-                    document_id = document.document_id
-                    QTimer.singleShot(
-                        0,
-                        lambda: load_latency_trace.mark(
-                            "first_viewport_paint_event_processed",
-                            document_id=document_id,
-                            once=True,
-                        ),
+                    identity = (
+                        document.document_id,
+                        document.generation,
+                        id(document.preview),
                     )
+                    if (
+                        identity != self._paint_notified_identity
+                        and identity != self._paint_pending_identity
+                    ):
+                        self._paint_pending_identity = identity
+                        QTimer.singleShot(0, self._notify_first_frame_painted)
         return super().eventFilter(watched, event)
 
     def _update_zoom(self, *_args: object) -> None:
