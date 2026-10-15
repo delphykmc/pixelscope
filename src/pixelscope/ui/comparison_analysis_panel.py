@@ -194,8 +194,13 @@ class ComparisonAnalysisPanel(QWidget):
         activity_layout = QVBoxLayout(self.activity)
         activity_layout.setContentsMargins(0, 0, 0, 0)
         activity_layout.setSpacing(1)
+        # Reserve the status/progress rail permanently. QProgressBar may be
+        # hidden when idle, but must never resize the statistics table above.
+        self.status.setFixedHeight(self.status.sizeHint().height())
+        self.activity.setFixedHeight(self.status.height() + self.busy.height() + 1)
         activity_layout.addWidget(self.status)
         activity_layout.addWidget(self.busy)
+        activity_layout.addStretch(1)
 
         self.roi_label = ElidingContextLabel("")
         self.roi_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -349,6 +354,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
         self._histogram_mouse_callbacks: list[Any] = []
         self._histogram_resources_disposed = False
+        self._arranged_histogram_count = 0
         self._semantics_delegate: Any | None = None
         self.workflow_histogram_hint_controller: Any | None = None
         for plot_index in range(6):
@@ -360,6 +366,10 @@ class ComparisonAnalysisPanel(QWidget):
             plot.setLabel("bottom", "Pixel value")
             plot.showGrid(x=True, y=True, alpha=0.25)
             plot.getViewBox().setDefaultPadding(0.08)
+            # Auto-sized tick labels can change PlotItem geometry on the next
+            # Paint. Fix axis gutters before any data or tick text arrives.
+            plot.getPlotItem().getAxis("left").setWidth(82)
+            plot.getPlotItem().getAxis("bottom").setHeight(40)
             plot.setMinimumHeight(190)
             legend = plot.addLegend(offset=(-8, 8))
             self.plots.append(plot)
@@ -381,7 +391,9 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
         self.histogram_context = ElidingContextLabel()
-        self.histogram_context.hide()
+        # ResponsiveControlLayout excludes hidden controls from row sizing.
+        # Keep this row and its height reserved before the first result.
+        self.histogram_context.setFixedHeight(self.histogram_context.sizeHint().height())
         histogram_controls_widget = QWidget()
         histogram_controls = ResponsiveControlLayout(
             histogram_controls_widget, spacing=TOKENS.spacing_sm
@@ -546,7 +558,6 @@ class ComparisonAnalysisPanel(QWidget):
         self.roi_label.clear()
         self._sync_roi_editor()
         self.histogram_context.clear()
-        self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
         self._sync_empty_hint()
 
@@ -821,7 +832,6 @@ class ComparisonAnalysisPanel(QWidget):
     def _update_histogram_context(self, results: tuple[RoiAnalysisResult, ...]) -> None:
         if not results:
             self.histogram_context.clear()
-            self.histogram_context.hide()
             return
         bounds = tuple(result.bounds for result in results)
         if all(item == bounds[0] for item in bounds[1:]):
@@ -833,18 +843,18 @@ class ComparisonAnalysisPanel(QWidget):
             )
             text = f"Per-image bounds · {details}"
         self.histogram_context.setText(text)
-        self.histogram_context.show()
 
     def _invalidate_histogram_presentation(self) -> None:
+        # The previous graph stays visible (with the explicit busy indicator)
+        # until the new analysis has finished. Clearing here causes a blank
+        # frame and a scrollbar/layout jump while the worker is running.
         self.last_results = ()
-        self._clear_histogram_plots()
-        self.histogram_context.clear()
-        self.histogram_context.hide()
 
     def _set_activity(self, text: str, *, busy: bool) -> None:
         self.status.setText(text)
         self.busy.setVisible(busy)
-        self.activity.setVisible(bool(text) or busy)
+        # Keep the reserved rail in the layout when status becomes empty.
+        self.activity.setVisible(True)
 
     def _render(
         self,
@@ -943,99 +953,105 @@ class ComparisonAnalysisPanel(QWidget):
                 item.setToolTip(metadata)
                 self.table.setItem(row, column, item)
 
-        overlay = self.histogram_mode.currentText() == "Overlay"
-        # Stage histogram widgets hidden while installing curves, labels and
-        # axes. Exposing an empty PlotWidget before axis sizing and auto-range
-        # produces a transient oversized plot on the first Qt paint.
-        visible_plot_count = 1 if overlay else len(results)
-        self._arrange_histogram_plots(visible_plot_count)
-        for plot, legend in zip(self.plots, self.legends, strict=True):
-            plot.clear()
-            legend.clear()
-        self._histogram_series = [[] for _index in range(6)]
-        for plot_index in range(min(6, 1 if overlay else len(results))):
-            self._create_histogram_hover(plot_index)
-        plotted_channels: set[str] = set()
-        for image_index, (document, result) in enumerate(
-            zip(self._documents, results, strict=True)
-        ):
-            plot = self.plots[0 if overlay else image_index]
-            edges = result.histogram.edges
-            for counts, channel_name in zip(
-                result.histogram.counts,
-                result.histogram.channel_names,
-                strict=True,
+        # Update charts atomically. The previous plot remains painted until
+        # the new curves, axes and range are ready; Qt schedules one repaint.
+        self.histogram_grid.setUpdatesEnabled(False)
+        try:
+            overlay = self.histogram_mode.currentText() == "Overlay"
+            # Stage histogram widgets hidden while installing curves, labels and
+            # axes. Exposing an empty PlotWidget before axis sizing and auto-range
+            # produces a transient oversized plot on the first Qt paint.
+            visible_plot_count = 1 if overlay else len(results)
+            self._arrange_histogram_plots(visible_plot_count)
+            for plot, legend in zip(self.plots, self.legends, strict=True):
+                plot.clear()
+                legend.clear()
+            self._histogram_series = [[] for _index in range(6)]
+            for plot_index in range(min(6, 1 if overlay else len(results))):
+                self._create_histogram_hover(plot_index)
+            plotted_channels: set[str] = set()
+            for image_index, (document, result) in enumerate(
+                zip(self._documents, results, strict=True)
             ):
-                control_name = self._channel_control_name(channel_name)
-                if (
-                    control_name in self.channel_buttons
-                    and not self.channel_buttons[control_name].isChecked()
+                plot = self.plots[0 if overlay else image_index]
+                edges = result.histogram.edges
+                for counts, channel_name in zip(
+                    result.histogram.counts,
+                    result.histogram.channel_names,
+                    strict=True,
                 ):
-                    continue
-                if channel_name == "A":
-                    continue
-                fill_color = QColor(channel_color(channel_name))
-                fill_color.setAlpha(52 if overlay else 78)
+                    control_name = self._channel_control_name(channel_name)
+                    if (
+                        control_name in self.channel_buttons
+                        and not self.channel_buttons[control_name].isChecked()
+                    ):
+                        continue
+                    if channel_name == "A":
+                        continue
+                    fill_color = QColor(channel_color(channel_name))
+                    fill_color.setAlpha(52 if overlay else 78)
+                    y_mode = self.histogram_units.currentText()
+                    y_values = histogram_display_values(counts, y_mode)
+                    x_values = edges
+                    if self.histogram_range.currentText() == "Normalized 0–1":
+                        span = float(edges[-1] - edges[0])
+                        if span > 0:
+                            x_values = (edges - edges[0]) / span
+                    short_name = document.display_name
+                    if len(short_name) > 24:
+                        short_name = f"{short_name[:11]}…{short_name[-10:]}"
+                    legend_name = (
+                        f"{image_index + 1} · {short_name} · {channel_name}"
+                        if overlay
+                        else channel_name
+                    )
+                    plot.plot(
+                        x_values,
+                        y_values,
+                        stepMode="center",
+                        fillLevel=0.0,
+                        brush=pg.mkBrush(fill_color),
+                        pen=comparison_pen(channel_name, 0, width=0.7),
+                        name=legend_name,
+                        antialias=True,
+                    )
+                    self._histogram_series[0 if overlay else image_index].append(
+                        (image_index, channel_name, x_values, y_values)
+                    )
+                    plotted_channels.add(channel_name)
+                title = (
+                    f"{document.source_path.parent.name} / {document.display_name}"
+                    if document.source_path is not None
+                    else document.display_name
+                )
+                if not overlay:
+                    plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
+                self._set_plot_axes_visible(plot, True)
                 y_mode = self.histogram_units.currentText()
-                y_values = histogram_display_values(counts, y_mode)
-                x_values = edges
-                if self.histogram_range.currentText() == "Normalized 0–1":
-                    span = float(edges[-1] - edges[0])
-                    if span > 0:
-                        x_values = (edges - edges[0]) / span
-                short_name = document.display_name
-                if len(short_name) > 24:
-                    short_name = f"{short_name[:11]}…{short_name[-10:]}"
-                legend_name = (
-                    f"{image_index + 1} · {short_name} · {channel_name}"
-                    if overlay
-                    else channel_name
+                plot.setLabel(
+                    "left",
+                    "Normalized"
+                    if y_mode == "Normalized"
+                    else "Log count"
+                    if y_mode == "Log count"
+                    else "Count",
                 )
-                plot.plot(
-                    x_values,
-                    y_values,
-                    stepMode="center",
-                    fillLevel=0.0,
-                    brush=pg.mkBrush(fill_color),
-                    pen=comparison_pen(channel_name, 0, width=0.7),
-                    name=legend_name,
-                    antialias=True,
+                plot.setLabel(
+                    "bottom",
+                    "Normalized code"
+                    if self.histogram_range.currentText() == "Normalized 0–1"
+                    else "Pixel value",
                 )
-                self._histogram_series[0 if overlay else image_index].append(
-                    (image_index, channel_name, x_values, y_values)
-                )
-                plotted_channels.add(channel_name)
-            title = (
-                f"{document.source_path.parent.name} / {document.display_name}"
-                if document.source_path is not None
-                else document.display_name
-            )
-            if not overlay:
-                plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
-            self._set_plot_axes_visible(plot, True)
-            y_mode = self.histogram_units.currentText()
-            plot.setLabel(
-                "left",
-                "Normalized"
-                if y_mode == "Normalized"
-                else "Log count"
-                if y_mode == "Log count"
-                else "Count",
-            )
-            plot.setLabel(
-                "bottom",
-                "Normalized code"
-                if self.histogram_range.currentText() == "Normalized 0–1"
-                else "Pixel value",
-            )
-            plot.getViewBox().autoRange(padding=0.08)
-        if overlay:
-            self.plots[0].setTitle(f"Overlay · {len(results)} images")
-            self.plots[0].getViewBox().autoRange(padding=0.08)
-        # Reveal only fully configured plots. Axis labels and ticks affect
-        # PlotItem geometry, so they must be in place before the first show.
-        for plot in self.plots[: min(6, visible_plot_count)]:
-            plot.show()
+                plot.getViewBox().autoRange(padding=0.08)
+            if overlay:
+                self.plots[0].setTitle(f"Overlay · {len(results)} images")
+                self.plots[0].getViewBox().autoRange(padding=0.08)
+            # Reveal only fully configured plots. Axis labels and ticks affect
+            # PlotItem geometry, so they must be in place before the first show.
+            for plot in self.plots[: min(6, visible_plot_count)]:
+                plot.show()
+        finally:
+            self.histogram_grid.setUpdatesEnabled(True)
         self.table.resizeRowsToContents()
         self.table.viewport().update()
         self._set_activity("", busy=False)
@@ -1117,18 +1133,22 @@ class ComparisonAnalysisPanel(QWidget):
         return "G" if channel_name in ("Gr", "Gb") else channel_name
 
     def _arrange_histogram_plots(self, count: int) -> None:
+        visible_count = min(6, count)
+        if visible_count == self._arranged_histogram_count:
+            return
         for plot in self.plots:
             self.histogram_layout.removeWidget(plot)
             plot.hide()
-        visible_count = min(6, count)
         for index in range(visible_count):
             plot = self.plots[index]
             self.histogram_layout.addWidget(plot, index, 0)
+        self._arranged_histogram_count = visible_count
         for row in range(6):
             self.histogram_layout.setRowStretch(row, 1 if row < visible_count else 0)
         self.histogram_layout.setColumnStretch(0, 1)
 
     def _clear_histogram_plots(self) -> None:
+        self._arranged_histogram_count = 0
         for plot, legend in zip(self.plots, self.legends, strict=True):
             plot.clear()
             legend.clear()
