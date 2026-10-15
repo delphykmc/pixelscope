@@ -533,7 +533,9 @@ class RegistrationController(QObject):
         # image viewport has painted; folder-only registration keeps its
         # established synchronous persistence semantics.
         if direct_ids:
+            load_latency_trace.mark("recent_entries_stage_begin", document_id=direct_ids[0])
             self._stage_recent_entries(summary.registered_folders, direct_paths)
+            load_latency_trace.mark("recent_entries_stage_returned", document_id=direct_ids[0])
             self._deferred_recent.append((summary.registered_folders, direct_paths))
             self._deferred_recent_targets.update(direct_ids)
             if not self._recent_fallback_timer.isActive():
@@ -600,9 +602,9 @@ class RegistrationController(QObject):
         if not callable(observe):
             return
         if folders:
-            observe(RecentEntryKind.FOLDER, folders, stage_only=True)
+            observe(RecentEntryKind.FOLDER, folders, canonical=True)
         if direct_paths:
-            observe(RecentEntryKind.IMAGE, direct_paths, stage_only=True)
+            observe(RecentEntryKind.IMAGE, direct_paths, canonical=True)
 
     def _record_recent_entries(
         self,
