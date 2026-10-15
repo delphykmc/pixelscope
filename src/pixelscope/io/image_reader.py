@@ -22,6 +22,7 @@ def read_image(path: str | Path) -> ImageDocument:
     source_path = Path(path)
     if source_path.suffix.lower() not in (".png", ".bmp", ".jpg", ".jpeg"):
         raise ImageReadError("Supported image formats are PNG, BMP, and JPEG")
+    load_latency_trace.mark("encoded_file_read_begin")
     try:
         encoded = np.fromfile(source_path, dtype=np.uint8)
     except OSError as exc:
