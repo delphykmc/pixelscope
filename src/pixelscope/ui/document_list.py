@@ -341,10 +341,7 @@ class DocumentListWidget(QTreeWidget):
         try:
             super().mouseReleaseEvent(event)
         finally:
-            if (
-                not (event.buttons() & Qt.MouseButton.LeftButton)
-                and self._selection_mouse_dragging
-            ):
+            if not (event.buttons() & Qt.MouseButton.LeftButton) and self._selection_mouse_dragging:
                 self._selection_mouse_dragging = False
                 self.selection_drag_finished.emit()
 
