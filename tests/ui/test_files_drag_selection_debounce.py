@@ -155,6 +155,8 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
     )
 
     controller = window.review_selection_controller
+    assert controller.enter_review()
+    assert controller.active
     commits: list[int] = []
     review_syncs: list[int] = []
     orig_render = window._render_selection
@@ -192,6 +194,9 @@ def test_real_mouse_drag_pause_does_not_commit_and_review_syncs_only_on_release(
     assert tree.selection_mouse_dragging
     second.setSelected(True)
     assert window._files_drag_selection_dirty
+    # Pick invalidation must still happen synchronously before final selection
+    # commit even though ReviewSelectionController's expensive tile sync waits.
+    assert not controller.active
     assert commits == []
     assert review_syncs == []
 
