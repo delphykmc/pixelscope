@@ -891,8 +891,7 @@ class ImageViewer(QWidget):
             or document.preview is None
             or self._pending_document is not None
             or not self.isVisible()
-            or identity
-            != (document.document_id, document.generation, id(document.preview))
+            or identity != (document.document_id, document.generation, id(document.preview))
         ):
             return
         if self._paint_notified_identity == identity:
