@@ -3580,8 +3580,7 @@ class MainWindow(QMainWindow):
             and previous.source is numerical
             and previous.preview is preview
             and previous.display_name == title
-            and self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
-            is not None
+            and self.difference_panel.mapping_snapshot_for_payload(numerical, preview) is not None
         ):
             self.diff_action.setChecked(True)
             return
@@ -3678,12 +3677,9 @@ class MainWindow(QMainWindow):
             difference = previous_difference
             source_changed = difference.source is not numerical
             preview_changed = difference.preview is not preview
-            mapping_changed = (
-                mapping is not None
-                and (
-                    difference.spatial_sampling != mapping.spatial_sampling
-                    or difference.sample_channel != mapping.sample_channel
-                )
+            mapping_changed = mapping is not None and (
+                difference.spatial_sampling != mapping.spatial_sampling
+                or difference.sample_channel != mapping.sample_channel
             )
             if source_changed or preview_changed or mapping_changed:
                 difference.source = numerical
