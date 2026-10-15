@@ -14,6 +14,7 @@ from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, 
 from PySide6.QtWidgets import QFileDialog, QHeaderView, QProgressBar
 
 from pixelscope.core.cancellation import cancellation_checkpoint
+from pixelscope.core import load_latency_trace
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import (
     RegistrationDiscovery,
@@ -215,6 +216,8 @@ class RegistrationController(QObject):
         completion_hook = (
             OwnerCallback(direct_completion) if direct_completion is not None else None
         )
+        if len(normalized) == 1:
+            load_latency_trace.begin("explicit_path_enqueued")
         self._queue.append(_RegistrationRequest(normalized, completion_hook))
         self._start_next_request()
 
@@ -338,6 +341,8 @@ class RegistrationController(QObject):
         self._discovery_task_id = None
         self._active_discovery = result
         total = len(result.items)
+        if total == 1 and not result.items[0].from_folder:
+            load_latency_trace.mark("discovery_worker_completed")
         self._suspend_type_column_auto_resize()
         self._set_progress("registering", 0, total)
         if total == 0:
@@ -450,6 +455,8 @@ class RegistrationController(QObject):
             return
         if record.from_folder:
             self._folder_registered_ids.add(document_id)
+        elif self._active_discovery is not None and len(self._active_discovery.items) == 1:
+            load_latency_trace.target(document_id)
         if record.select_on_complete and document_id not in self._direct_document_id_set:
             self._direct_document_id_set.add(document_id)
             self._direct_document_ids.append(document_id)
@@ -475,6 +482,8 @@ class RegistrationController(QObject):
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
         completion = self._active_direct_completion
         reloads: list[str] = []
+        if direct_ids:
+            load_latency_trace.mark("selection_start", document_id=direct_ids[0])
         if completion is not None and direct_ids:
             # Registration may outlive the presentation owner during teardown.
             # The request retains only a weak owner edge and a vanished owner
@@ -497,10 +506,15 @@ class RegistrationController(QObject):
         else:
             self.window._update_empty_workspace_state()
 
+        if direct_ids:
+            load_latency_trace.mark("selection_returned", document_id=direct_ids[0])
+
         # Recent persistence may invoke a synchronous QSettings.sync(). Start
         # the foreground image request first so its worker can overlap that
         # disk operation rather than being delayed by history bookkeeping.
         self._record_recent_entries(summary.registered_folders, direct_paths)
+        if direct_ids:
+            load_latency_trace.mark("recent_entries_persisted", document_id=direct_ids[0])
 
         messages: list[str] = []
         if completion is None and direct_ids:
