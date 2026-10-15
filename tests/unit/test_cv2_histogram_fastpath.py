@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from threading import Event
+
 import cv2
 import numpy as np
 import pytest
 
+from pixelscope.core.cancellation import CooperativeCancellation, cancellation_scope
 from pixelscope.core.roi import RoiBounds, analyze_roi
 from pixelscope.core.statistics import histogram
 
@@ -92,8 +95,7 @@ def test_float32_count_precision_guard_falls_back_for_more_than_2_pow_24_samples
 ) -> None:
     # cv2.calcHist reports float32 counts, and 2**24 is the last integer
     # magnitude at which every bin count is guaranteed exactly representable.
-    sample_count = (4096 * 4096) + 1
-    image = np.broadcast_to(np.uint8(255), (4096, 4097))[:, :4097]
+    image = np.broadcast_to(np.uint8(255), (4096, 4097))
     assert image.size > (1 << 24)
 
     def unexpected_calc_hist(*_args: object, **_kwargs: object) -> np.ndarray:
@@ -103,3 +105,23 @@ def test_float32_count_precision_guard_falls_back_for_more_than_2_pow_24_samples
     result = histogram(image)
     assert int(result.counts[0][255]) == image.size
     assert int(result.counts[0].sum()) == image.size
+
+
+def test_cancelled_uint8_cv2_histogram_stops_after_current_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = np.full((24, 32, 3), 33, dtype=np.uint8)
+    cancel_event = Event()
+    original = cv2.calcHist
+    channel_calls: list[int] = []
+
+    def cancel_after_first_channel(*args: object, **kwargs: object) -> np.ndarray:
+        result = original(*args, **kwargs)
+        channel_calls.append(1)
+        cancel_event.set()
+        return result
+
+    monkeypatch.setattr(cv2, "calcHist", cancel_after_first_channel)
+    with cancellation_scope(cancel_event), pytest.raises(CooperativeCancellation):
+        analyze_roi(image, RoiBounds(0, 0, 32, 24))
+    assert channel_calls == [1]
