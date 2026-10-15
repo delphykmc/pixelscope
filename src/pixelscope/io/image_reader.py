@@ -6,8 +6,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core import load_latency_trace
+from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
 
