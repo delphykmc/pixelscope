@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from pixelscope.core.display_transform import DisplayTransform
+from pixelscope.core import load_latency_trace
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
 
@@ -27,8 +28,11 @@ def read_image(path: str | Path) -> ImageDocument:
         raise ImageReadError(f"Cannot read image file: {exc}") from exc
     # np.fromfile already owns a contiguous uint8 buffer; hashing a buffer
     # view avoids a second encoded-file-sized allocation before decoding.
+    load_latency_trace.mark("encoded_bytes_read")
     encoded_sha256 = hashlib.sha256(encoded.data).hexdigest()
+    load_latency_trace.mark("encoded_sha256_calculated")
     decoded = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
+    load_latency_trace.mark("opencv_decode_completed")
     if decoded is None:
         raise ImageReadError("The file is not a valid or supported PNG/BMP/JPEG image")
     if decoded.ndim == 2:
@@ -42,13 +46,16 @@ def read_image(path: str | Path) -> ImageDocument:
         layout = "RGBA"
     else:
         raise ImageReadError(f"Unsupported decoded image shape: {decoded.shape}")
-    return ImageDocument.from_array(
+    load_latency_trace.mark("channel_layout_converted")
+    document = ImageDocument.from_array(
         image,
         display_name=source_path.name,
         source_path=source_path,
         channel_layout=layout,
         encoded_source_sha256=encoded_sha256,
     )
+    load_latency_trace.mark("canonical_preview_ready")
+    return document
 
 
 def read_raw_document(path: str | Path, profile_path: str | Path) -> ImageDocument:
