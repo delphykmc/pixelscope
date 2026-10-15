@@ -66,3 +66,32 @@ def test_generic_gain_can_target_rgb_view_without_changing_alpha() -> None:
         np.array([[[20.0, 40.0, 60.0]]], dtype=np.float32),
     )
     assert np.array_equal(rgba[..., 3], alpha)
+
+
+def test_uint8_identity_is_exact_for_noncontiguous_gray_and_rgba() -> None:
+    for shape in ((6, 8), (6, 8, 4)):
+        base = np.arange(np.prod(shape), dtype=np.uint8).reshape(shape)
+        source = base[::2, ::2]
+        assert not source.flags.c_contiguous
+        for transform in (DisplayTransform(), DisplayTransform(display_low=0, display_high=255)):
+            preview = to_display_uint8(source, transform)
+            assert preview.flags.c_contiguous
+            assert preview.dtype == np.uint8
+            assert np.array_equal(preview, source)
+            assert not np.shares_memory(preview, source)
+
+
+def test_uint8_non_identity_still_uses_original_numeric_mapping() -> None:
+    source = np.array([[0, 10, 64, 128, 200, 255]], dtype=np.uint8)
+    assert np.array_equal(
+        to_display_uint8(source, DisplayTransform(gain=2.0)),
+        np.array([[0, 20, 128, 255, 255, 255]], dtype=np.uint8),
+    )
+    assert np.array_equal(
+        to_display_uint8(source, DisplayTransform(display_low=10, display_high=200)),
+        np.array([[0, 0, 72, 158, 255, 255]], dtype=np.uint8),
+    )
+    gamma_preview = to_display_uint8(source, DisplayTransform(gamma=2.0))
+    assert gamma_preview[0, 3] > source[0, 3]
+    assert gamma_preview[0, 0] == 0
+    assert gamma_preview[0, -1] == 255

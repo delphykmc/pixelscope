@@ -134,16 +134,28 @@ def to_display_uint8(
 ) -> NDArray[np.uint8]:
     """Return a C-contiguous uint8 preview without modifying *source*.
 
-    Source values are promoted once to float32. Anchor-based gain and display
-    normalization are fused into one scale/offset affine, avoiding serial
-    full-frame subtract/multiply/add/normalize temporaries. Clipping is deferred
-    until final display conversion.
+    A canonical uint8 identity transform only needs an independent C-contiguous
+    preview copy. Keeping the preview separate from source prevents downstream
+    UI writes from silently changing source pixels. Non-identity conversions
+    continue through the existing float32 affine/gamma path.
     """
 
     if source.size == 0:
         raise ValueError("cannot display an empty image")
     parameters = transform or DisplayTransform()
     low, high = resolve_display_range(source, parameters)
+
+    # The default 8-bit display mapping is numerically the identity.
+    # A separate preview buffer preserves the existing source/preview ownership
+    # contract while eliminating the 4x float32 working allocation.
+    if (
+        source.dtype == np.uint8
+        and low == 0.0
+        and high == 255.0
+        and parameters.gain == 1.0
+        and parameters.gamma == 1.0
+    ):
+        return np.array(source, dtype=np.uint8, copy=True, order="C")
 
     working = source.astype(np.float32, copy=True)
     scale, offset = display_normalization_affine(

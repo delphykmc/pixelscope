@@ -109,3 +109,43 @@ def test_production_composition_preserves_recent_tags_and_folder_only_selection(
 
     qtbot.waitUntil(lambda: not window._workers, timeout=3000)  # type: ignore[attr-defined]
     window.close()
+
+
+def test_direct_recent_is_staged_before_first_paint_and_syncs_afterward(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "delayed-recent.png"
+    assert cv2.imwrite(str(path), np.full((12, 16), 19, dtype=np.uint8))
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _compose_main_window_presentation(window)
+    controller = window.large_folder_registration_controller
+    assert isinstance(controller, RegistrationController)
+
+    recent = window.recent_entries_controller.repository
+    storage = recent._storage
+    original_set_value = storage.set_value
+    written: list[str] = []
+
+    def counting_set_value(key: str, value: object) -> None:
+        written.append(key)
+        original_set_value(key, value)
+
+    monkeypatch.setattr(storage, "set_value", counting_set_value)
+    controller.handle_dropped_paths([path])
+    qtbot.waitUntil(lambda: controller.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    document = next(iter(window.documents.values()))
+    assert recent.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+    assert written == []
+    assert controller._deferred_recent
+
+    # A hidden test window has no viewport paint. Explicitly deliver the same
+    # signal the visible viewer emits only after a completed frame paint.
+    window.viewer.first_frame_painted.emit(document.document_id)
+    qtbot.waitUntil(lambda: "recent/images" in written, timeout=5000)  # type: ignore[attr-defined]
+    assert not controller._deferred_recent
+    assert recent.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+    window.close()

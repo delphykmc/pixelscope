@@ -16,6 +16,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     QThreadPool,
+    QTimer,
 )
 from PySide6.QtGui import (
     QAction,
@@ -52,6 +53,7 @@ from pixelscope.app.window_contribution import (
     SettingsWindowContribution,
     WindowContribution,
 )
+from pixelscope.core import load_latency_trace
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
@@ -183,6 +185,9 @@ class MainWindow(QMainWindow):
         self._visible_document_ids: set[str] = set()
         self._selection_order: list[str] = []
         self._folder_documents: dict[str, list[str]] = {}
+        # The registration path has already resolved these folder identities.
+        # Use this mapping on GUI selection/preload rather than re-resolving.
+        self._document_folder_keys: dict[str, str] = {}
         self._folder_paths: dict[str, Path] = {}
         self._folder_indices: dict[str, int] = {}
         self._current_index = 0
@@ -1116,13 +1121,19 @@ class MainWindow(QMainWindow):
         if not paths:
             return
         supplied_paths = [Path(path) for path in paths]
+        if len(supplied_paths) == 1:
+            load_latency_trace.begin("open_images_dialog_returned")
         self._remember_directory(supplied_paths[0].parent)
         document_ids = self._register_inputs(
             discover_image_inputs(supplied_paths),
             resolve_raw_profiles=True,
         )
         if document_ids:
+            if len(supplied_paths) == 1:
+                load_latency_trace.target(document_ids[0])
+            load_latency_trace.mark("selection_start")
             self._select_document_ids(document_ids)
+            load_latency_trace.mark("selection_returned")
             self.statusBar().showMessage(f"Opened {len(document_ids)} image(s)", 4000)
         else:
             self.statusBar().showMessage("No supported images opened", 4000)
@@ -1211,6 +1222,7 @@ class MainWindow(QMainWindow):
         *,
         resolve_raw_profile: bool = True,
     ) -> str | None:
+        register_trace = load_latency_trace.PhaseTimer("register.input")
         key = self._path_key(image_input.path)
         existing = self._document_id_by_path.get(key)
         is_raw = image_input.path.suffix.casefold() == ".raw"
@@ -1219,6 +1231,7 @@ class MainWindow(QMainWindow):
             raw_profile = self._confirm_raw_profile(image_input, existing)
             if raw_profile is None:
                 return None
+        register_trace.checkpoint("path_identity_and_raw_profile_resolution")
         if existing is not None:
             if image_input.raw_profile_path is not None:
                 self._raw_profile_paths[existing] = image_input.raw_profile_path
@@ -1229,11 +1242,13 @@ class MainWindow(QMainWindow):
                 # already exists in the catalog. Folder registration passes
                 # resolve_raw_profile=False and remains registration-only.
                 self._mark_document_for_reload(existing, raw_profile)
+            register_trace.checkpoint("existing_document_reuse_or_reload")
             return existing
         document = ImageDocument.pending_document(image_input.path)
         self.documents[document.document_id] = document
         self._document_id_by_path[key] = document.document_id
         self._add_document_to_folder(document.document_id, image_input.path)
+        register_trace.checkpoint("create_document_and_folder_catalog")
         if image_input.raw_profile_path is not None:
             self._raw_profile_paths[document.document_id] = image_input.raw_profile_path
         if raw_profile is not None:
@@ -1246,6 +1261,7 @@ class MainWindow(QMainWindow):
             loading_state=document.loading_state,
             resident=False,
         )
+        register_trace.checkpoint("files_tree_add_document_item")
         return document.document_id
 
     def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
@@ -1405,6 +1421,7 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
+        load_trace = load_latency_trace.PhaseTimer("load.ensure", document_id=document.document_id)
         profile = self._raw_profiles.get(document.document_id)
         is_raw = document.source_path.suffix.casefold() == ".raw"
         if is_raw and profile is None:
@@ -1429,13 +1446,17 @@ class MainWindow(QMainWindow):
             document.channel_layout = profile.channel_layout
             document.bit_depth = profile.bit_depth
             document.raw_profile = profile
+        load_trace.checkpoint("source_profile_ready")
         if self._preload_workers:
             self._invalidate_preload_plan()
         document.loading_state = "loading"
         self._update_document_item(document)
+        load_trace.checkpoint("loading_status_and_tree_row")
         self._start_load(document.document_id, document.source_path, profile)
+        load_trace.checkpoint("foreground_worker_start_returned")
 
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
+        queue_trace = load_latency_trace.PhaseTimer("worker.queue", document_id=target_id)
         request_token = self._load_tokens.get(target_id, 0) + 1
         self._load_tokens[target_id] = request_token
         worker = ImageLoadWorker(
@@ -1443,6 +1464,11 @@ class MainWindow(QMainWindow):
             raw_profile,
             require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
         )
+        queue_trace.checkpoint("worker_object_constructed")
+        trace_session = load_latency_trace.session_for(target_id)
+        if trace_session is not None and hasattr(worker, "load_trace_session"):
+            worker.load_trace_document_id = target_id
+            worker.load_trace_session = trace_session
         worker.signals.started.connect(
             lambda _task_id, _document_id, _generation: self._load_started(path)
         )
@@ -1459,7 +1485,11 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._worker_finished)
         self._workers[worker.task_id] = worker
         self._load_worker_targets[worker.task_id] = target_id
+        queue_trace.checkpoint("signal_wiring_and_registration")
+        load_latency_trace.mark("foreground_load_worker_submit_begin", document_id=target_id)
         self._load_pool.start(worker)
+        queue_trace.checkpoint("qthreadpool_start_returned")
+        load_latency_trace.mark("foreground_load_worker_queued", document_id=target_id)
 
     def _load_started(self, path: Path) -> None:
         self.structured_status.task.setText(f"Loading {path.name}…")
@@ -1473,6 +1503,7 @@ class MainWindow(QMainWindow):
             return
         if not isinstance(result, ImageDocument):
             return
+        load_latency_trace.mark("load_worker_result_received", document_id=target_id)
         previous_generation = self.documents[target_id].generation
         result.document_id = target_id
         result.generation = previous_generation
@@ -1481,7 +1512,17 @@ class MainWindow(QMainWindow):
         self.residency_manager.touch(target_id)
         self._update_document_item(result)
         if self._selected_load_batch_complete():
+            load_latency_trace.mark("ready_render_selection_begin", document_id=target_id)
             self._render_selection(preserve_view=True)
+            load_latency_trace.mark("ready_render_selection_returned", document_id=target_id)
+            # Run after this GUI callback yields; this separates work done
+            # synchronously in _render_selection from queued paint delivery.
+            QTimer.singleShot(
+                0,
+                lambda document_id=target_id: load_latency_trace.mark(
+                    "gui_event_loop_next_turn", document_id=document_id, once=True
+                ),
+            )
         self._evict_resident_documents()
         self.structured_status.task.setText("Ready")
         self.statusBar().showMessage(f"Loaded {result.display_name}", 2500)
@@ -1535,14 +1576,25 @@ class MainWindow(QMainWindow):
         if self._closing:
             self._invalidate_preload_plan()
             return
+        preload_trace = load_latency_trace.PhaseTimer("preload.refresh")
+        if len(self.documents) < 2:
+            # A lone catalog document cannot have a registered successor.
+            # Avoid redundant folder-key resolution on the first paint path,
+            # while still revoking a previously valid plan after removal.
+            self._invalidate_preload_plan()
+            preload_trace.checkpoint("single_document_fast_exit")
+            return
         navigation_plan = (
             self._plan_folder_navigation(1) if self.preload_controller.enabled else None
         )
+        preload_trace.checkpoint("navigate_folder_positions")
         target_ids = navigation_plan.document_ids if navigation_plan is not None else ()
         previous = self.preload_controller.current_plan
         current = self.preload_controller.set_plan(target_ids)
+        preload_trace.checkpoint("preload_plan_state")
         if previous is not current:
             self._cancel_preload_workers()
+        preload_trace.checkpoint("reconcile_preload_workers")
         if current is None or self._workers or self._preload_workers:
             return
 
@@ -1563,6 +1615,7 @@ class MainWindow(QMainWindow):
                 self.preload_controller.complete_available_member(current.generation, document_id)
                 continue
             self._start_preload(current.generation, document, profile)
+            preload_trace.checkpoint("queue_preload_worker")
             return
 
     def _start_preload(
@@ -2033,6 +2086,11 @@ class MainWindow(QMainWindow):
 
     def _render_selection(self, preserve_view: bool = False) -> None:
         documents = self.selected_documents
+        render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
+        render_trace = load_latency_trace.PhaseTimer(
+            f"render.{render_stage}",
+            document_id=documents[0].document_id if len(documents) == 1 else None,
+        )
         selected_ids = {document.document_id for document in documents}
         if (
             self._difference_source_ids is not None
@@ -2058,6 +2116,7 @@ class MainWindow(QMainWindow):
 
         self._update_action_states()
         self._update_layout_options(len(documents))
+        render_trace.checkpoint("selection_and_layout_configuration")
         self._channel_split_active = False
         if not documents:
             self._shared_roi = None
@@ -2083,6 +2142,7 @@ class MainWindow(QMainWindow):
         analysis_candidates = comparison_page
         for document in analysis_candidates:
             self._ensure_loaded(document)
+        render_trace.checkpoint("ensure_foreground_loads")
         analysis_ready = [
             document for document in analysis_candidates if document.source is not None
         ]
@@ -2090,12 +2150,18 @@ class MainWindow(QMainWindow):
             self.residency_manager.touch(document.document_id)
 
         self._normalize_shared_roi(analysis_ready)
+        render_trace.checkpoint("normalize_roi")
 
         self.difference_panel.set_documents(
             analysis_ready,
             None,
             self._shared_roi,
         )
+        render_trace.checkpoint("difference_panel_set_documents")
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_diff_panel_bound", document_id=analysis_ready[0].document_id
+            )
         cached_display = self.difference_panel.cached_display_for_current()
         cached_six_difference = (
             cached_display is not None
@@ -2122,6 +2188,7 @@ class MainWindow(QMainWindow):
         ):
             self.difference_panel.calculate_difference()
         self._update_action_states()
+        render_trace.checkpoint("difference_cache_and_actions")
 
         split_documents = self._current_split_documents()
         self._channel_split_active = bool(split_documents)
@@ -2175,6 +2242,7 @@ class MainWindow(QMainWindow):
         else:
             effective_layout, capacity = self._effective_layout(len(display_documents))
         self._view_capacity = capacity
+        render_trace.checkpoint("presentation_layout_planning")
 
         if self._view_capacity == 1:
             if self._channel_split_active:
@@ -2186,6 +2254,7 @@ class MainWindow(QMainWindow):
                 document = split_documents[split_index]
                 self._split_active_document_id = document.document_id
                 self.viewer.set_document(document, fit=not preserve_view)
+                render_trace.checkpoint("single_viewer_set_document")
                 self.viewer.set_tile_context(split_index + 1, "")
                 self.viewer.set_header(
                     f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
@@ -2199,6 +2268,7 @@ class MainWindow(QMainWindow):
                 document = documents[self._current_index]
                 local_slot = self._current_index - self._page_start + 1
                 self.viewer.set_document(document, fit=not preserve_view)
+                render_trace.checkpoint("single_viewer_set_document")
                 self.viewer.set_tile_context(local_slot, "")
                 if large_selection:
                     self.viewer.set_header(f"[{local_slot}] {document.display_name}")
@@ -2226,6 +2296,7 @@ class MainWindow(QMainWindow):
                 None,
                 preserve_view,
             )
+            render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
             for viewer in self.multi_compare_view.visible_viewers:
                 viewer.set_focus(
@@ -2257,11 +2328,17 @@ class MainWindow(QMainWindow):
                 fixed_geometry_count=(COMPARISON_PAGE_SIZE if large_selection else None),
                 local_slots=large_selection,
             )
+            render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
             visible_state = [
                 document for document in visible if document is not self._difference_document
             ]
 
+        render_trace.checkpoint("viewer_headers_and_stack")
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_viewer_bound", document_id=analysis_ready[0].document_id
+            )
         self._visible_document_ids = {document.document_id for document in visible_state}
         required_ids = {document.document_id for document in analysis_candidates}
         required_ids.update(self._visible_document_ids)
@@ -2271,6 +2348,7 @@ class MainWindow(QMainWindow):
         for document in analysis_ready:
             self.residency_manager.touch(document.document_id)
         self._evict_resident_documents()
+        render_trace.checkpoint("source_residency_and_worker_cleanup")
 
         self._normalize_shared_line(analysis_ready)
         region_name = self.comparison_analysis_panel.region_scope.currentText()
@@ -2280,6 +2358,11 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
+        render_trace.checkpoint("analysis_panel_set_documents")
+        if len(analysis_ready) == 1:
+            load_latency_trace.mark(
+                "render_ready_analysis_bound", document_id=analysis_ready[0].document_id
+            )
         if self._channel_split_active:
             active = next(
                 (
@@ -2309,18 +2392,23 @@ class MainWindow(QMainWindow):
                 active,
             ),
         )
+        render_trace.checkpoint("line_profile_panel_set_documents")
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
         if cached_six_difference and self._difference_document is not None:
             self._navigate_single_view("difference")
             self._set_active_document(self._difference_document)
+        render_trace.checkpoint("active_document_and_status")
         if self._channel_split_active and comparison_page:
             self._update_file_states([comparison_page[0]], comparison_page[0])
         else:
             self._update_file_states(visible_state, active)
+        render_trace.checkpoint("files_status_icons_and_tooltips")
         self._update_comparison_page_controls()
+        render_trace.checkpoint("comparison_page_controls")
         self._refresh_preload_plan()
+        render_trace.checkpoint("preload_planning_and_end")
 
     def _split_display_documents(
         self,
@@ -2664,6 +2752,7 @@ class MainWindow(QMainWindow):
         visible_documents: Sequence[ImageDocument],
         active_document: ImageDocument | None,
     ) -> None:
+        files_trace = load_latency_trace.PhaseTimer("files.update_states")
         visible_ids = {document.document_id for document in visible_documents}
         for document_id, document in self.documents.items():
             self.document_list.set_document_state(
@@ -2673,6 +2762,7 @@ class MainWindow(QMainWindow):
                 loading_state=document.loading_state,
                 resident=document.source is not None,
             )
+        files_trace.checkpoint("row_icons_fonts_and_tooltips")
 
     def show_selected_image(self, local_index: int) -> None:
         if self._view_capacity != 1 or local_index < 0:
@@ -3152,10 +3242,14 @@ class MainWindow(QMainWindow):
         )
 
     def _plan_folder_navigation(self, step: int) -> FolderNavigationPlan | None:
+        navigation_trace = load_latency_trace.PhaseTimer("preload.navigate")
         selection = self._folder_navigation_selection()
+        navigation_trace.checkpoint("collect_folder_selection")
         if selection is None:
             return None
-        return plan_folder_navigation(selection, self._folder_documents, step)
+        result = plan_folder_navigation(selection, self._folder_documents, step)
+        navigation_trace.checkpoint("compute_navigation_plan")
+        return result
 
     def _apply_folder_navigation(self, step: int) -> None:
         selection = self._folder_navigation_selection()
@@ -3253,6 +3347,9 @@ class MainWindow(QMainWindow):
         preserve_overlays: bool = False,
         reveal_document_id: str | None = None,
     ) -> None:
+        selection_trace = load_latency_trace.PhaseTimer(
+            "select", document_id=document_ids[0] if len(document_ids) == 1 else None
+        )
         selected = set(document_ids)
         self.document_list.blockSignals(True)
         self.document_list.clearSelection()
@@ -3269,6 +3366,7 @@ class MainWindow(QMainWindow):
                 QItemSelectionModel.SelectionFlag.NoUpdate,
             )
         self.document_list.blockSignals(False)
+        selection_trace.checkpoint("tree_selection_and_current_item")
         self._selection_order = [
             document_id for document_id in document_ids if document_id in self.documents
         ]
@@ -3295,6 +3393,7 @@ class MainWindow(QMainWindow):
             self._current_index = 0
             self._page_start = 0
 
+        selection_trace.checkpoint("selection_order_and_folder_index")
         page_ids = [document.document_id for document in self.current_comparison_documents()]
         self._promote_running_preloads(page_ids)
         self._invalidate_preload_plan()
@@ -3303,6 +3402,7 @@ class MainWindow(QMainWindow):
         if self._difference_source_ids is not None:
             required.update(self._difference_source_ids)
         self._cancel_obsolete_loads(required)
+        selection_trace.checkpoint("preload_invalidation_and_load_reconciliation")
 
         if not preserve_overlays:
             if not self._selection_order:
@@ -3310,7 +3410,9 @@ class MainWindow(QMainWindow):
                 self.comparison_analysis_panel.set_active_roi(None)
             self._shared_line = None
         self._reset_pixel_status()
+        selection_trace.checkpoint("overlay_and_pixel_reset")
         self._render_selection(preserve_view=preserve_view)
+        selection_trace.checkpoint("initial_render_selection_returned")
 
     def _shared_roi_changed(self, bounds: object) -> bool:
         return self._apply_shared_roi(bounds, allow_channel_split=False)
@@ -3821,6 +3923,7 @@ class MainWindow(QMainWindow):
 
     def _add_document_to_folder(self, document_id: str, path: Path) -> None:
         folder_key = self._folder_key(path)
+        self._document_folder_keys[document_id] = folder_key
         folder_documents = self._folder_documents.setdefault(folder_key, [])
         current_id = None
         current_index = self._folder_indices.get(folder_key)
@@ -3840,7 +3943,9 @@ class MainWindow(QMainWindow):
             self._folder_indices.setdefault(folder_key, 0)
 
     def _remove_document_from_folder(self, document_id: str, path: Path) -> None:
-        folder_key = self._folder_key(path)
+        folder_key = self._document_folder_keys.pop(document_id, None)
+        if folder_key is None:
+            folder_key = self._folder_key(path)
         folder_documents = self._folder_documents.get(folder_key)
         if folder_documents is None:
             return
@@ -3861,13 +3966,17 @@ class MainWindow(QMainWindow):
         document = self.documents.get(document_id)
         if document is None or document.source_path is None:
             return
-        folder_key = self._folder_key(document.source_path)
+        folder_key = self._document_folder_keys.get(document_id)
+        if folder_key is None:
+            folder_key = self._folder_key(document.source_path)
         folder_documents = self._folder_documents.get(folder_key, [])
         if document_id in folder_documents:
             self._folder_indices[folder_key] = folder_documents.index(document_id)
 
     def _folder_navigation_selection(self) -> list[tuple[str, str]] | None:
+        selection_trace = load_latency_trace.PhaseTimer("preload.folder_selection")
         documents = self.selected_documents
+        selection_trace.checkpoint("selected_documents")
         if not 1 <= len(documents) <= 6:
             return None
         session: list[tuple[str, str]] = []
@@ -3875,11 +3984,14 @@ class MainWindow(QMainWindow):
         for document in documents:
             if document.source_path is None:
                 return None
-            folder_key = self._folder_key(document.source_path)
+            folder_key = self._document_folder_keys.get(document.document_id)
+            if folder_key is None:
+                folder_key = self._folder_key(document.source_path)
             if folder_key in seen_folders:
                 return None
             seen_folders.add(folder_key)
             session.append((folder_key, document.document_id))
+        selection_trace.checkpoint("canonical_folder_keys")
         return session
 
     def _preferred_dialog_directory(self, configured: str) -> str:

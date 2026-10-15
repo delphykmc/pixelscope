@@ -23,6 +23,7 @@ from PySide6.QtGui import (
     QKeyEvent,
     QKeySequence,
     QPainter,
+    QPaintEvent,
     QPen,
     QShortcut,
     QShowEvent,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core import load_latency_trace
 from pixelscope.core.display_transform import render_ordinary_display_preview
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
@@ -179,6 +181,29 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
         super().mouseClickEvent(event)
 
 
+class TracedGraphicsLayoutWidget(pg.GraphicsLayoutWidget):  # type: ignore[misc]
+    """Time the actual QGraphicsView paint, not the next Qt timer callback."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.trace_document_id: str | None = None
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
+        document_id = self.trace_document_id
+        if document_id is None or not load_latency_trace.tracks(document_id):
+            super().paintEvent(event)
+            return
+        trace = load_latency_trace.PhaseTimer("viewport.graphics_paint", document_id=document_id)
+        load_latency_trace.mark("viewport_graphics_paint_begin", document_id=document_id, once=True)
+        try:
+            super().paintEvent(event)
+        finally:
+            trace.checkpoint("graphics_view_paint_returned")
+            load_latency_trace.mark(
+                "viewport_graphics_paint_returned", document_id=document_id, once=True
+            )
+
+
 class ImageViewer(QWidget):
     """pyqtgraph image canvas with zoom/pan, pixel readout, and shared ROI overlay."""
 
@@ -192,6 +217,7 @@ class ImageViewer(QWidget):
     navigation_requested = Signal(str)
     zoom_changed = Signal(float)
     document_changed = Signal(object)
+    first_frame_painted = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -204,6 +230,8 @@ class ImageViewer(QWidget):
         self._display_preview_request_serial = 0
         self._display_preview_request_identity: tuple[int, int, int, int, float] | None = None
         self._graphics_resources_disposed = False
+        self._paint_notified_identity: tuple[str, int, int] | None = None
+        self._paint_pending_identity: tuple[str, int, int] | None = None
         self._display_gain_state = display_gain_state()
         self._display_gain_state.gain_changed.connect(self._display_gain_changed)
         self._slot = 1
@@ -213,7 +241,7 @@ class ImageViewer(QWidget):
         self.header = TileHeader()
         self.header.focus_requested.connect(lambda: self.focus_requested.emit(self))
         self.header.navigation_requested.connect(self.navigation_requested)
-        self._graphics = pg.GraphicsLayoutWidget()
+        self._graphics = TracedGraphicsLayoutWidget()
         self._graphics.viewport().installEventFilter(self)
         self.view_box = RoiViewBox(lockAspect=True, enableMenu=False)
         self._graphics.addItem(self.view_box)
@@ -337,6 +365,12 @@ class ImageViewer(QWidget):
         return 100.0 / float(pixel_size[0])
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
+        self._graphics.trace_document_id = (
+            document.document_id if document is not None and document.preview is not None else None
+        )
+        view_trace = load_latency_trace.PhaseTimer(
+            "viewer.set_document", document_id=document.document_id if document else None
+        )
         previous = self._document
         if document is None:
             self._cancel_display_preview()
@@ -373,6 +407,7 @@ class ImageViewer(QWidget):
                 self._loading_timer.stop()
             self.header.set_document(document, self._slot, self._role, self.header.text())
             self.document_changed.emit(document)
+            view_trace.checkpoint("loading_placeholder_and_header")
             return
 
         gain_capable = is_display_gain_capable(document)
@@ -400,6 +435,7 @@ class ImageViewer(QWidget):
             # Geometry is semantic metadata, so refresh it even without an
             # ndarray upload.
             self.image_item.setRect(self._presentation_rect(document))
+        view_trace.checkpoint("image_item_bind_or_geometry")
         self.header.set_document(
             document,
             self._slot,
@@ -408,8 +444,10 @@ class ImageViewer(QWidget):
         )
         if preview_changed and (fit or previous is None or previous.preview is None):
             self.fit_image()
+        view_trace.checkpoint("fit_and_header")
         self.document_changed.emit(document)
         self._ensure_display_preview()
+        view_trace.checkpoint("document_signals_and_gain")
 
     def _display_gain_changed(self, _gain: float) -> None:
         self._ensure_display_preview()
@@ -448,8 +486,14 @@ class ImageViewer(QWidget):
     def _upload_preview(self, preview: Any, document: ImageDocument) -> None:
         """Upload a native preview and bind its display geometry atomically."""
 
+        upload_trace = load_latency_trace.PhaseTimer(
+            "viewer.upload", document_id=document.document_id
+        )
         self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
+        upload_trace.checkpoint("pyqtgraph_setImage_returned")
         self.image_item.setRect(self._presentation_rect(document))
+        upload_trace.checkpoint("setRect_returned")
+        load_latency_trace.mark("image_item_upload_returned", document_id=document.document_id)
 
     def _ensure_display_preview(self) -> None:
         document = self._document
@@ -873,9 +917,61 @@ class ImageViewer(QWidget):
                 return
         super().keyPressEvent(event)
 
+    def _notify_first_frame_painted(self) -> None:
+        """Run after viewport paint returns, never during the paint event."""
+
+        identity = self._paint_pending_identity
+        self._paint_pending_identity = None
+        document = self._document
+        if (
+            identity is None
+            or self._graphics_resources_disposed
+            or document is None
+            or document.preview is None
+            or self._pending_document is not None
+            or not self.isVisible()
+            or identity != (document.document_id, document.generation, id(document.preview))
+        ):
+            return
+        if self._paint_notified_identity == identity:
+            return
+        self._paint_notified_identity = identity
+        load_latency_trace.mark(
+            "first_viewport_paint_event_processed",
+            document_id=document.document_id,
+            once=True,
+        )
+        self.first_frame_painted.emit(document.document_id)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:
-            self.activated.emit(self)
+        if watched is self._graphics.viewport():
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.activated.emit(self)
+            elif event.type() == QEvent.Type.Paint:
+                document = self._document
+                if (
+                    document is not None
+                    and document.preview is not None
+                    and self._pending_document is None
+                    and self.isVisible()
+                    and not self._graphics_resources_disposed
+                ):
+                    identity = (
+                        document.document_id,
+                        document.generation,
+                        id(document.preview),
+                    )
+                    if (
+                        identity != self._paint_notified_identity
+                        and identity != self._paint_pending_identity
+                    ):
+                        self._paint_pending_identity = identity
+                        load_latency_trace.mark(
+                            "viewport_paint_event_entered",
+                            document_id=document.document_id,
+                            once=True,
+                        )
+                        QTimer.singleShot(0, self._notify_first_frame_painted)
         return super().eventFilter(watched, event)
 
     def _update_zoom(self, *_args: object) -> None:

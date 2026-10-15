@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pixelscope.core import load_latency_trace
 from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
@@ -25,7 +26,7 @@ class ImageLoadWorker(TaskWorker):
     ) -> None:
         source_path = Path(path)
 
-        def load() -> ImageDocument:
+        def decode() -> ImageDocument:
             if raw_profile is None:
                 return read_image(source_path)
             if isinstance(raw_profile, YuvProfile):
@@ -64,4 +65,13 @@ class ImageLoadWorker(TaskWorker):
                 prepared_preview=preview,
             )
 
+        def load() -> ImageDocument:
+            with load_latency_trace.worker_scope(
+                self.load_trace_document_id, self.load_trace_session
+            ):
+                load_latency_trace.mark("image_load_worker_callable_entered")
+                return decode()
+
         super().__init__(load)
+        self.load_trace_document_id: str | None = None
+        self.load_trace_session: int | None = None

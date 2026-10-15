@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
 from PySide6.QtCore import QPointF, Qt
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core import load_latency_trace
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
@@ -200,3 +203,31 @@ def test_auto_grid_fine_navigation_crosses_seven_image_page_boundary(
     assert window._page_start == 6
     assert window._active_document_id == documents[6].document_id
     window.close()
+
+
+def test_viewer_records_graphics_view_paint_separately_from_timer_callback(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(load_latency_trace, "_ENABLED", True)
+    viewer = ImageViewer()
+    qtbot.addWidget(viewer)  # type: ignore[attr-defined]
+    viewer.resize(400, 300)
+    viewer.show()
+
+    document = ImageDocument.from_array(np.zeros((12, 16), dtype=np.uint8), "paint")
+    load_latency_trace.begin("test_start")
+    load_latency_trace.target(document.document_id)
+    with (
+        caplog.at_level(logging.WARNING, logger="pixelscope.core.load_latency_trace"),
+        qtbot.waitSignal(viewer.first_frame_painted, timeout=3000),  # type: ignore[attr-defined]
+    ):
+        viewer.set_document(document)
+    records = caplog.text
+    assert "viewport_paint_event_entered" in records
+    assert "viewport_graphics_paint_begin" in records
+    assert "viewport.graphics_paint.graphics_view_paint_returned step=" in records
+    assert "viewport_graphics_paint_returned" in records
+    assert "first_viewport_paint_event_processed" in records
+    viewer.set_document(None)
+    assert viewer._graphics.trace_document_id is None
+    viewer.close()
