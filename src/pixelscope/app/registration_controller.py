@@ -13,8 +13,8 @@ from typing import Any, cast
 from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import QFileDialog, QHeaderView, QProgressBar
 
-from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core import load_latency_trace
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import (
     RegistrationDiscovery,
