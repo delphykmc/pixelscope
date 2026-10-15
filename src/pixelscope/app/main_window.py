@@ -52,8 +52,8 @@ from pixelscope.app.window_contribution import (
     SettingsWindowContribution,
     WindowContribution,
 )
-from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core import load_latency_trace
+from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
     MAX_RECENT_FAILURES,
