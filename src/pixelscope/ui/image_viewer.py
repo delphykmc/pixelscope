@@ -341,6 +341,9 @@ class ImageViewer(QWidget):
         return 100.0 / float(pixel_size[0])
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
+        view_trace = load_latency_trace.PhaseTimer(
+            "viewer.set_document", document_id=document.document_id if document else None
+        )
         previous = self._document
         if document is None:
             self._cancel_display_preview()
@@ -377,6 +380,7 @@ class ImageViewer(QWidget):
                 self._loading_timer.stop()
             self.header.set_document(document, self._slot, self._role, self.header.text())
             self.document_changed.emit(document)
+            view_trace.checkpoint("loading_placeholder_and_header")
             return
 
         gain_capable = is_display_gain_capable(document)
@@ -404,6 +408,7 @@ class ImageViewer(QWidget):
             # Geometry is semantic metadata, so refresh it even without an
             # ndarray upload.
             self.image_item.setRect(self._presentation_rect(document))
+        view_trace.checkpoint("image_item_bind_or_geometry")
         self.header.set_document(
             document,
             self._slot,
@@ -412,8 +417,10 @@ class ImageViewer(QWidget):
         )
         if preview_changed and (fit or previous is None or previous.preview is None):
             self.fit_image()
+        view_trace.checkpoint("fit_and_header")
         self.document_changed.emit(document)
         self._ensure_display_preview()
+        view_trace.checkpoint("document_signals_and_gain")
 
     def _display_gain_changed(self, _gain: float) -> None:
         self._ensure_display_preview()
@@ -452,8 +459,13 @@ class ImageViewer(QWidget):
     def _upload_preview(self, preview: Any, document: ImageDocument) -> None:
         """Upload a native preview and bind its display geometry atomically."""
 
+        upload_trace = load_latency_trace.PhaseTimer(
+            "viewer.upload", document_id=document.document_id
+        )
         self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
+        upload_trace.checkpoint("pyqtgraph_setImage_returned")
         self.image_item.setRect(self._presentation_rect(document))
+        upload_trace.checkpoint("setRect_returned")
         load_latency_trace.mark("image_item_upload_returned", document_id=document.document_id)
 
     def _ensure_display_preview(self) -> None:
@@ -927,6 +939,11 @@ class ImageViewer(QWidget):
                         and identity != self._paint_pending_identity
                     ):
                         self._paint_pending_identity = identity
+                        load_latency_trace.mark(
+                            "viewport_paint_event_entered",
+                            document_id=document.document_id,
+                            once=True,
+                        )
                         QTimer.singleShot(0, self._notify_first_frame_painted)
         return super().eventFilter(watched, event)
 
