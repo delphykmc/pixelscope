@@ -1459,6 +1459,10 @@ class MainWindow(QMainWindow):
             raw_profile,
             require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
         )
+        trace_session = load_latency_trace.session_for(target_id)
+        if trace_session is not None and hasattr(worker, "load_trace_session"):
+            worker.load_trace_document_id = target_id
+            worker.load_trace_session = trace_session
         worker.signals.started.connect(
             lambda _task_id, _document_id, _generation: self._load_started(path)
         )
