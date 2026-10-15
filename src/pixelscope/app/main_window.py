@@ -141,10 +141,11 @@ class FolderRegistrationResult:
 
 
 class MainWindow(QMainWindow):
+    """Document registration, selection-driven comparison, and analysis lifecycle."""
+
     # Emitted only after the final Files selection has been bound to the GUI.
     # Downstream observers must not re-style viewers for intermediate drag edits.
     files_selection_committed = Signal()
-    """Document registration, selection-driven comparison, and analysis lifecycle."""
 
     def __init__(
         self,
