@@ -533,6 +533,13 @@ class RegistrationController(QObject):
 
         if direct_ids:
             load_latency_trace.mark("selection_returned", document_id=direct_ids[0])
+        if completion is None and direct_ids and not summary.folder_count:
+            # Image-surface drops use their own completion callback. Files-only
+            # drops use the same passive pairing logic without double scheduling.
+            quick_compare = getattr(self.window, "quick_compare_controller", None)
+            consider_drop = getattr(quick_compare, "consider_registered_files_drop", None)
+            if callable(consider_drop):
+                consider_drop(current_ids, direct_ids)
 
         # QSettings.sync() can block the GUI even if decoding is running on a
         # worker. Only direct-file registration defers Recent history until the
