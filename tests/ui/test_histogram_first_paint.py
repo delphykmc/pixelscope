@@ -69,3 +69,81 @@ def test_first_histogram_plot_show_waits_for_data_and_axis_layout(
     assert all(not plot.isHidden() for plot in panel.plots[:expected_visible])
     assert all(plot.isHidden() for plot in panel.plots[expected_visible:])
     panel.shutdown()
+
+
+def test_histogram_retains_previous_plot_during_background_request(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    qtbot.addWidget(panel.histogram_panel)  # type: ignore[attr-defined]
+    panel.histogram_panel.resize(820, 560)
+    panel.histogram_panel.show()
+    source = np.full((12, 18, 3), 35, dtype=np.uint8)
+    document = ImageDocument.from_array(source, "original.png")
+    panel._documents = [document]
+    spec = automatic_histogram_spec(document)
+    first = analyze_roi(source, RoiBounds(0, 0, 18, 12), *spec)
+    panel.last_results = (first,)
+    panel._render((first,), [spec])
+
+    plot = panel.plots[0]
+    previous_items = tuple(plot.listDataItems())
+    previous_geometry = plot.geometry()
+    context_height = panel.histogram_context.height()
+    assert previous_items and not plot.isHidden()
+    assert context_height > 0
+
+    # A new request should not blank the previous image or remove its
+    # histogram rows/axes while the next worker is still calculating.
+    panel._invalidate_histogram_presentation()
+    panel._set_activity("Calculating...", busy=True)
+    qtbot.wait(30)  # type: ignore[attr-defined]
+    assert panel.last_results == ()
+    assert tuple(plot.listDataItems()) == previous_items
+    assert not plot.isHidden()
+    assert panel.histogram_context.isVisible()
+    assert panel.histogram_context.height() == context_height
+    assert plot.geometry() == previous_geometry
+    assert not panel.busy.isHidden()
+
+    updated = np.full((12, 18, 3), 91, dtype=np.uint8)
+    new_result = analyze_roi(updated, RoiBounds(0, 0, 18, 12), *spec)
+    panel._render((new_result,), [spec])
+    assert not plot.isHidden()
+    assert panel._arranged_histogram_count == 1
+    assert len(plot.listDataItems()) == 3
+    assert panel.busy.isHidden()
+    assert int(new_result.channel_statistics[0].mean) == 91
+    panel.shutdown()
+
+
+def test_analysis_progress_rail_never_resizes_statistics_or_scroll_area(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.resize(670, 630)
+    panel.show()
+    qtbot.wait(30)  # type: ignore[attr-defined]
+    assert not panel.activity.isHidden()
+    height = panel.activity.height()
+    table_geometry = panel.table.geometry()
+    group_geometry = panel.statistics_group.geometry()
+    activity_geometry = panel.activity.geometry()
+
+    for message, busy in (
+        ("Preparing analysis...", True),
+        ("Calculating...", True),
+        ("", False),
+        ("Preparing histogram...", True),
+        ("", False),
+    ):
+        panel._set_activity(message, busy=busy)
+        qtbot.wait(5)  # type: ignore[attr-defined]
+        assert panel.activity.height() == height
+        assert panel.activity.geometry() == activity_geometry
+        assert panel.statistics_group.geometry() == group_geometry
+        assert panel.table.geometry() == table_geometry
+        assert panel.busy.isHidden() is not busy
+    panel.shutdown()
