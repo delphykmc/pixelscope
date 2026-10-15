@@ -974,8 +974,9 @@ class DifferencePanel(QWidget):
             if self._worker is not None:
                 self._cancel_worker()
             self._configure_threshold_for_cached_map(cached_map)
-            self.last_result = cached_metrics
-            self._render_metrics(cached_metrics)
+            if self.last_result is not cached_metrics:
+                self.last_result = cached_metrics
+                self._render_metrics(cached_metrics)
             self.status.setText("Cached map and metrics reused")
             if publish_result:
                 selected = self._selected_absolute(cached_map, self.channel.currentText())
