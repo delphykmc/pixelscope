@@ -224,6 +224,16 @@ class MainWindow(QMainWindow):
         self.central_stack.setCurrentWidget(self.empty_workspace)
 
         self.document_list = DocumentListWidget()
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer = QTimer(self)
+        self._files_drag_settle_timer.setSingleShot(True)
+        self._files_drag_settle_timer.setInterval(200)
+        self._files_drag_settle_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._commit_files_drag_selection
+        )
+        self.document_list.selection_drag_finished.connect(
+            self._commit_files_drag_selection
+        )
         self.document_list.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._selection_changed
         )
@@ -2027,7 +2037,23 @@ class MainWindow(QMainWindow):
             key: value for key, value in self._channel_view_cache.items() if key[0] != document_id
         }
 
+    def _commit_files_drag_selection(self) -> None:
+        if not self._files_drag_selection_dirty:
+            return
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer.stop()
+        self._selection_changed()
+
     def _selection_changed(self) -> None:
+        if self.document_list.selection_mouse_dragging:
+            # Qt emits one signal per intermediate range during drag. Render
+            # only the final selection; avoid repeatedly canceling histogram
+            # workers and recreating all comparison/pyqtgraph widgets.
+            self._files_drag_selection_dirty = True
+            self._files_drag_settle_timer.start()
+            return
+        self._files_drag_selection_dirty = False
+        self._files_drag_settle_timer.stop()
         previous_selection_order = tuple(self._selection_order)
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
