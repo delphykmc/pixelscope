@@ -149,6 +149,7 @@ class DifferencePanel(QWidget):
         difference_cache_budget_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES,
     ) -> None:
         super().__init__()
+        self._closing = False
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self._documents: list[ImageDocument] = []
         self._active_roi: RoiBounds | None = None
@@ -960,6 +961,8 @@ class DifferencePanel(QWidget):
         return (plane_x, plane_y, selected.shape[1], selected.shape[0])
 
     def calculate_difference(self, _checked: bool = False, *, publish_result: bool = True) -> None:
+        if self._closing:
+            return
         if self._validate() is not None:
             return
         pair = self.selected_documents()
@@ -1074,6 +1077,8 @@ class DifferencePanel(QWidget):
         payload: object,
         publish_result: bool,
     ) -> None:
+        if self._closing:
+            return
         if (
             not isinstance(payload, tuple)
             or len(payload) != 3
@@ -1173,6 +1178,8 @@ class DifferencePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._closing:
+            return
         self.status.setText("Calculation failed")
         self.status.setToolTip(error.message)
         self.calculate.setToolTip(error.message)
@@ -1186,6 +1193,11 @@ class DifferencePanel(QWidget):
             self.presentation_settled.emit(pair)
 
     def shutdown(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self._presentation_map_pairs.clear()
+        self._presentation_preview_pairs.clear()
         self._display_timer.stop()
         self._cancel_preview_worker()
         self._cancel_worker()

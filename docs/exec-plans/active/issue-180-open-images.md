@@ -161,3 +161,22 @@ monitor scanout, human matrix or universal speedup claim is made.
   tests/ui/test_p4c_recent_entries_integration.py tests/unit/test_path_discovery.py`
   — **37 passed in 16.89s**. Full-suite validation will run after the production
   input commit to honor the sandbox-runner implementation-HEAD integrity guard.
+- The full run at `1225f10` completed with **1492 passed, 1 warning, 1 teardown
+  error in 372.10s (0:06:12)**. This is **not** a clean full-suite PASS: a queued
+  Difference success callback read an already-deleted QComboBox during the
+  queued Open/Open/Drop test teardown. This confirms the earlier isolated late
+  callback observation rather than justifying a retry-only workaround.
+- Fixed the observed lifecycle contract: DifferencePanel shutdown idempotently
+  revokes new calculations and late map/error publication and clears presentation
+  continuations. Quick Compare's existing close filter stops and clears pending
+  passive Difference retries. Active channel-change results still retain their
+  existing cache semantics; only shutdown rejects all publication/cache mutation.
+- Added deterministic late-success/error/finished callbacks after actual selector
+  C++ deletion (both publish modes) and close-time retry revocation. Focused
+  Difference cache/Quick Compare/Open registration validation: **34 passed in
+  17.59s**. Ruff/format and mypy (108 source files) passed again. No assertions,
+  lifecycle errors, GC behavior, or timing limits were suppressed.
+- Final committed-source full-suite and latest-head CI are the merge gate. Exact
+  completion results and merge SHA are recorded in the
+  [PR #187 conversation](https://github.com/delphykmc/pixelscope/pull/187).
+  This focused fix does not establish the root cause of the separate #81 incident.

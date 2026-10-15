@@ -43,6 +43,16 @@ def _add(window: MainWindow, documents: list[ImageDocument]) -> None:
         window.add_document(document, select=False)
 
 
+def test_window_close_revokes_pending_passive_difference(qtbot: object) -> None:
+    window, controller = _window(qtbot)
+    controller._schedule_difference(("a", "b"))
+    assert controller._difference_retry_timer.isActive()
+    window.close()
+    assert not controller._difference_retry_timer.isActive()
+    assert controller._pending_difference_pair is None
+    assert controller._protected_difference_pair is None
+
+
 def _ids(window: MainWindow) -> list[str]:
     return [document.document_id for document in window.selected_documents]
 

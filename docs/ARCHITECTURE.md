@@ -145,6 +145,9 @@ without changing the workspace; the same generation/cancellation/shutdown guards
 reject late feedback. Modal feedback retains queue ownership until it returns.
 This does not make Recent Folder registration or Session restore asynchronous,
 and cancellation cannot interrupt an operating-system network filesystem call.
+Window close also clears the Quick Compare passive Difference retry timer.
+DifferencePanel shutdown revokes late map/error publication before child widgets
+are destroyed; queued results cannot populate caches or read deleted controls.
 Standalone MainWindow's synchronous registration API remains available to its
 minimal composition; production input does not introduce a second pool or owner.
 
