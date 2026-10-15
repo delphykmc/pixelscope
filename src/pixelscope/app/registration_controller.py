@@ -414,6 +414,7 @@ class RegistrationController(QObject):
         discovery = self._active_discovery
         if self._closing or generation != self._active_generation or discovery is None:
             return
+        register_trace = load_latency_trace.PhaseTimer("register")
         total = len(discovery.items)
         start = self._registration_index
         hard_stop = min(start + self.chunk_size, total)
@@ -434,9 +435,11 @@ class RegistrationController(QObject):
                     break
 
         self._registration_index = completed
+        register_trace.checkpoint("document_record_and_tree_row")
         if start == 0 or completed == total:
             self.window._update_empty_workspace_state()
         self._set_progress("registering", completed, total)
+        register_trace.checkpoint("empty_workspace_and_progress")
         if completed < total:
             QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
             return
@@ -449,6 +452,7 @@ class RegistrationController(QObject):
 
     def _register_record(self, record: RegistrationInput) -> None:
         self._current_record = record
+        record_trace = load_latency_trace.PhaseTimer("register.record")
         if (
             record.canonical_folder_path is not None
             and record.canonical_folder_key is not None
@@ -470,6 +474,7 @@ class RegistrationController(QObject):
                 )
         finally:
             self._current_record = None
+        record_trace.checkpoint("register_input_and_tree_mutation")
         if document_id is None:
             return
         if record.from_folder:
@@ -482,6 +487,7 @@ class RegistrationController(QObject):
             document = self.window.documents.get(document_id)
             if document is not None and document.source_path is not None:
                 self._direct_paths.append(document.source_path)
+        record_trace.checkpoint("record_identity_and_selection_metadata")
 
     def _finish_registration(self, generation: int) -> None:
         discovery = self._active_discovery
