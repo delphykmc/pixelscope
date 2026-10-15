@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QDropEvent,
     QIcon,
     QKeyEvent,
+    QMouseEvent,
     QPainter,
 )
 from PySide6.QtWidgets import (
@@ -70,6 +71,7 @@ class DocumentListWidget(QTreeWidget):
     next_position_requested = Signal()
     activate_requested = Signal(str)
     selection_changing = Signal()
+    selection_drag_finished = Signal()
     remove_changing = Signal(object)
     remove_requested = Signal(object)
     compare_requested = Signal()
@@ -87,6 +89,7 @@ class DocumentListWidget(QTreeWidget):
         self._document_items: dict[str, QTreeWidgetItem] = {}
         self._bulk_update_depth = 0
         self._bulk_update_dirty = False
+        self._selection_mouse_dragging = False
         self._registration_metadata: tuple[
             Path,
             Path,
@@ -319,6 +322,29 @@ class DocumentListWidget(QTreeWidget):
         event: QDragEnterEvent | QDragMoveEvent | QDropEvent,
     ) -> list[Path]:
         return [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+
+    @property
+    def selection_mouse_dragging(self) -> bool:
+        """Whether mouse movement is still mutating the Files selection."""
+
+        return self._selection_mouse_dragging
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        # ExtendedSelection emits many itemSelectionChanged notifications while
+        # rubber-band/drag-selecting. The tree should still paint highlights,
+        # but MainWindow can wait until release before rebuilding 4K viewers.
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self._selection_mouse_dragging = True
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        try:
+            super().mouseReleaseEvent(event)
+        finally:
+            if not (event.buttons() & Qt.MouseButton.LeftButton):
+                if self._selection_mouse_dragging:
+                    self._selection_mouse_dragging = False
+                    self.selection_drag_finished.emit()
 
     def selectionChanged(  # noqa: N802
         self,
