@@ -849,6 +849,12 @@ class ComparisonAnalysisPanel(QWidget):
         # until the new analysis has finished. Clearing here causes a blank
         # frame and a scrollbar/layout jump while the worker is running.
         self.last_results = ()
+        if self.histogram_context.text() and not self.histogram_context.text().startswith(
+            "Previous result · "
+        ):
+            self.histogram_context.setText(
+                f"Previous result · {self.histogram_context.text()}"
+            )
         # The preserved curves are a previous-result preview, not current
         # source data. Disable hover readouts until the replacement arrives.
         self._histogram_series = [[] for _index in range(6)]
