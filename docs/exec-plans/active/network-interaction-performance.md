@@ -5,6 +5,9 @@ Owner: ChatGPT under owner authorization
 Branch: `perf/network-interaction-followup`
 Last updated: 2026-10-16
 
+First slice: owner accepted, PR [#188](https://github.com/delphykmc/pixelscope/pull/188).
+Remaining acceptance and behavior work below keeps the broader plan active.
+
 ## Goal and scope
 
 Measure the reported two-file drop, Files selection/deselection, Display Gain and
@@ -133,6 +136,12 @@ The combined focused command was:
 ```
 
 ## Delivered first slice and provenance
+
+- 2026-10-16: Owner confirmed the improvement and explicitly authorized merging
+  PR #188. All executed PR checks passed at `40749db` (focused Windows job was
+  scope-skipped); the accepted source/tests remain identical to the full-tested
+  implementation commit `c7596a6`. The owner confirmation is not a claim that the
+  entire detailed SMB/Explorer scenario matrix was performed.
 
 - `src/pixelscope/ui/image_viewer.py`: final-preview QImage passthrough.
 - `src/pixelscope/core/display_transform.py`: exact uint8 transform lookup.

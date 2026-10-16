@@ -1,11 +1,12 @@
 # PixelScope current state
 
-> **Network interaction performance follow-up (2026-10-16, unmerged):**
-> `perf/network-interaction-followup` measures the owner's post-#187 interaction
+> **Network interaction performance follow-up (2026-10-16, owner accepted):**
+> [PR #188](https://github.com/delphykmc/pixelscope/pull/188) addresses the owner's post-#187 interaction
 > report. Resident 4K RGB pair selection identified redundant pyqtgraph RGB
-> rescaling during GUI paint. The candidate removes it, uses a 256-code uint8
+> rescaling during GUI paint. The accepted first slice removes it, uses a 256-code uint8
 > display-transform lookup, and moves image-surface drop classification into the
-> existing registration worker. Real SMB/Explorer acceptance, coordinated gain
+> existing registration worker. The owner confirmed improvement and authorized
+> merge; Windows full validation passed 1,513 tests. Detailed SMB/Explorer matrix, coordinated gain
 > publication and explicit Folder Position Difference intent remain open. See
 > [the measurements and validation plan](exec-plans/active/network-interaction-performance.md).
 
