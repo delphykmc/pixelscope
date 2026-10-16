@@ -46,11 +46,11 @@ function Resolve-InternalPython {
         if (-not (Test-Path -LiteralPath $InternalRepo -PathType Container)) {
             throw "InternalRepo does not exist: $InternalRepo"
         }
-        $home = (Resolve-Path -LiteralPath $InternalRepo).Path
-        $candidates += (Join-Path $home ".venv\Scripts\python.exe")
-        $candidates += (Join-Path $home "venv\Scripts\python.exe")
-        $candidates += (Join-Path (Split-Path -Parent $home) ".venv\Scripts\python.exe")
-        $candidates += (Join-Path (Split-Path -Parent $home) "venv\Scripts\python.exe")
+        $internalCheckoutRoot = (Resolve-Path -LiteralPath $InternalRepo).Path
+        $candidates += (Join-Path $internalCheckoutRoot ".venv\Scripts\python.exe")
+        $candidates += (Join-Path $internalCheckoutRoot "venv\Scripts\python.exe")
+        $candidates += (Join-Path (Split-Path -Parent $internalCheckoutRoot) ".venv\Scripts\python.exe")
+        $candidates += (Join-Path (Split-Path -Parent $internalCheckoutRoot) "venv\Scripts\python.exe")
     }
     if ($env:VIRTUAL_ENV) {
         $candidates += (Join-Path $env:VIRTUAL_ENV "Scripts\python.exe")
