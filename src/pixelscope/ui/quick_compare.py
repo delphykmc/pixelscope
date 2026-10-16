@@ -239,6 +239,7 @@ class QuickCompareController(QObject):
         if event_type in (QEvent.Type.ApplicationDeactivate, QEvent.Type.WindowDeactivate):
             self._end_blink()
         elif watched is self.window and event_type == QEvent.Type.Close:
+            self._clear_pending_difference(clear_protected=True)
             self._end_blink()
             self._cancel_blink_render(clear_cache=True)
             self._uninstall_input_filter()

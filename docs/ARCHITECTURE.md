@@ -132,6 +132,25 @@ replace current Selected with the ordered direct-file set
 derive Current Comparison Page from image 1
 ```
 
+Production Open Images and Recent Images share `MainWindow.open_image_paths` and
+the existing serialized `RegistrationController` queue. Their requests explicitly
+replace Selected after discovery/registration, preserve existing natural order and
+deduplication, and never trigger the Drop-specific passive Difference scheduler.
+Only explicit file inputs are accepted; filesystem filtering/discovery runs on the
+registration worker, while RAW/YUV profile confirmation remains GUI-affine. Recent
+history uses the same staged, post-first-paint persistence as direct Drop.
+Recent Images also performs its typed `stat` preflight on that worker, before
+discovery. Missing/wrong-kind results return to the GUI for Remove/Keep or warning
+without changing the workspace; the same generation/cancellation/shutdown guards
+reject late feedback. Modal feedback retains queue ownership until it returns.
+This does not make Recent Folder registration or Session restore asynchronous,
+and cancellation cannot interrupt an operating-system network filesystem call.
+Window close also clears the Quick Compare passive Difference retry timer.
+DifferencePanel shutdown revokes late map/error publication before child widgets
+are destroyed; queued results cannot populate caches or read deleted controls.
+Standalone MainWindow's synchronous registration API remains available to its
+minimal composition; production input does not introduce a second pool or owner.
+
 Direct image-file D&D is context-sensitive without creating another selection
 authority. When Selected is empty, the dropped batch establishes the initial
 Selected set and starts on its first Comparison Page. When Selected already contains

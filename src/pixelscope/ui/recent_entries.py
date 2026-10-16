@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import stat
 import weakref
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -15,7 +14,7 @@ from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
-from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
+from pixelscope.io.path_discovery import ImageInput, recent_path_state
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
@@ -208,6 +207,10 @@ class RecentEntriesController:
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if kind is RecentEntryKind.IMAGE and callable(getattr(registration, "enqueue", None)):
+            self.window.open_image_paths([path], recent_image=True)
+            return
         path_state = self._recent_path_state(kind, path)
         if path_state == "missing":
             self._handle_missing_entry(kind, path)
@@ -234,25 +237,8 @@ class RecentEntriesController:
             return
         self._open_recent_session(path)
 
-    def _open_image_paths(self, paths: list[Path]) -> list[str]:
-        if not paths:
-            return []
-        self._remember_directory(paths[0].parent)
-        document_ids = list(
-            self.window._register_inputs(
-                discover_image_inputs(paths),
-                resolve_raw_profiles=True,
-            )
-        )
-        if document_ids:
-            self.window._select_document_ids(document_ids)
-            self.window.statusBar().showMessage(
-                f"Opened {len(document_ids)} image(s)",
-                4000,
-            )
-        else:
-            self.window.statusBar().showMessage("No supported images opened", 4000)
-        return document_ids
+    def _open_image_paths(self, paths: list[Path]) -> None:
+        self.window.open_image_paths(paths)
 
     def _open_recent_session(self, path: Path) -> None:
         try:
@@ -268,15 +254,7 @@ class RecentEntriesController:
 
     @staticmethod
     def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:
-        try:
-            path_stat = path.stat()
-        except FileNotFoundError:
-            return "missing"
-        except OSError:
-            return "unknown"
-        if kind is RecentEntryKind.FOLDER:
-            return "usable" if stat.S_ISDIR(path_stat.st_mode) else "wrong_type"
-        return "usable" if stat.S_ISREG(path_stat.st_mode) else "wrong_type"
+        return recent_path_state(path, is_folder=kind is RecentEntryKind.FOLDER)
 
     def _show_wrong_type(self, kind: RecentEntryKind, path: Path) -> None:
         expected = "folder" if kind is RecentEntryKind.FOLDER else "file"

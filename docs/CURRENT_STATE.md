@@ -6,8 +6,15 @@
 > normal automatic GC. Explicit two-source Quick Compare drops prepare Difference
 > in the background with display initially off; Files drag selection commits once
 > at release; exact native uint8 histograms use the bounded OpenCV fast path.
-> Measured Primary styling follow-up and remaining manual timing evidence are
-> tracked in [the Issue #180 execution plan](exec-plans/active/issue-180-performance-followup.md).
+> Primary styling #185 and stable Histogram/Analysis presentation #186 also merged,
+> ending at `main@f549c24342ce05ed96f7fa9ae3e0597e90324f1a`. #186 records 1,471
+> pre-merge tests and 130 post-merge integration tests passing. The completed
+> [stack/Primary record](exec-plans/completed/issue-180-performance-followup.md)
+> preserves its measurements. PR #187 routes production Open Images/Recent Images
+> through queued registration, including worker-side Recent Image network-path
+> validation and rejection of late Difference callbacks after shutdown. #180 remains
+> open for final real-network/human acceptance evidence in
+> [the active plan](exec-plans/active/issue-180-open-images.md).
 
 > **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.
 Snapshot date: 2026-09-10
