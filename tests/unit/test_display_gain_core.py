@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pixelscope.core.display_transform import (
     DisplayTransform,
@@ -9,6 +10,25 @@ from pixelscope.core.display_transform import (
     display_normalization_affine,
     to_display_uint8,
 )
+
+
+@pytest.mark.parametrize("gamma", [1.0, 0.7, 2.2])
+@pytest.mark.parametrize("gain", [0.5, 2.0, 4.0, 16.0])
+def test_uint8_lookup_matches_float32_mapping_for_every_code_and_strided_rgb(
+    gamma: float, gain: float
+) -> None:
+    codes = np.arange(256, dtype=np.uint8).reshape(16, 16)
+    rgb = np.stack([codes, codes.T, codes[::-1]], axis=-1)[:, ::-1]
+    original = rgb.copy()
+    transform = DisplayTransform(
+        display_low=13.0, display_high=231.0, gain=gain, gain_anchor=17.0, gamma=gamma
+    )
+    expected = to_display_uint8(rgb.astype(np.float32), transform)
+    actual = to_display_uint8(rgb, transform)
+    assert np.array_equal(actual, expected)
+    assert np.array_equal(rgb, original)
+    assert actual.dtype == np.uint8
+    assert actual.flags.c_contiguous
 
 
 def test_display_gain_affine_matches_anchor_formula_in_float32() -> None:

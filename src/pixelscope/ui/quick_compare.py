@@ -228,10 +228,6 @@ class QuickCompareController(QObject):
                 if event_type in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
                     drop_event.acceptProposedAction()
                     return True
-                if any(path.is_dir() for path in paths):
-                    self.window._handle_dropped_paths(paths)
-                    drop_event.acceptProposedAction()
-                    return True
                 if self.handle_image_drop(paths):
                     drop_event.acceptProposedAction()
                     return True
@@ -292,18 +288,25 @@ class QuickCompareController(QObject):
         return [Path(url.toLocalFile()) for url in mime.urls() if url.isLocalFile()]
 
     def handle_image_drop(self, paths: list[Path]) -> bool:
-        files = [path for path in paths if path.is_file()]
-        if not files:
+        if not paths:
             return False
 
         registration = getattr(self.window, "large_folder_registration_controller", None)
         enqueue = getattr(registration, "enqueue", None)
         if callable(enqueue):
-            enqueue(files, direct_completion=self._apply_registered_drop)
+            # Classification can block on SMB. Discovery already distinguishes
+            # direct files from registration-only folders on its worker thread.
+            enqueue(paths, direct_completion=self._apply_registered_drop)
             return True
 
         # Standalone MainWindow/tests retain a synchronous fallback, but production
         # image-surface D&D shares RegistrationController with the Files view.
+        if any(path.is_dir() for path in paths):
+            self.window._handle_dropped_paths(paths)
+            return True
+        files = [path for path in paths if path.is_file()]
+        if not files:
+            return False
         document_ids = self.window._register_inputs(
             discover_image_inputs(files),
             resolve_raw_profiles=True,

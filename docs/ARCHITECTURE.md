@@ -582,6 +582,10 @@ display = anchor + gain * (source - anchor)
 `RawProfile`, Bayer patterns, or UI state. Gain/range mapping is fused in float32
 where possible, avoids serial full-frame temporaries and float64 promotion, works
 on channel views, clips only at final display conversion, and never mutates source.
+For uint8 inputs, non-identity conversion evaluates the same float32 mapping on
+256 codes and indexes that table rather than allocating a full-frame float32
+working image. Final uint8 previews bind to pyqtgraph with no levels mapping;
+the GUI paint path consumes those already-converted display codes directly.
 
 `core.raw_display` selects RAW effective-full-scale and Black-derived anchors.
 `core.bayer` applies per-CFA anchor/range operations on parity-plane views instead

@@ -561,7 +561,9 @@ class RegistrationController(QObject):
         current_ids = [document.document_id for document in self.window.selected_documents]
         current_set = set(current_ids)
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
-        completion = self._active_direct_completion
+        # Image-surface callers enqueue before filesystem classification. Mixed
+        # folder/file drops keep the ordinary registration selection contract.
+        completion = self._active_direct_completion if not discovery.folder_count else None
         replace_selection = self._active_replace_selection
         reloads: list[str] = []
         if direct_ids:
