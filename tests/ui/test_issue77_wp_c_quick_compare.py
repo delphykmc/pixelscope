@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event, get_ident
 
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QMimeData, QPointF, Qt, QTimer, QUrl
+from PySide6.QtGui import QDropEvent, QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.bootstrap import (
@@ -19,6 +20,68 @@ from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.quick_compare import QuickCompareController
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
+
+
+@pytest.mark.parametrize("kind", ["files", "folder", "mixed"])
+def test_image_drop_classifies_network_paths_only_on_worker(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
+) -> None:
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    inside = folder / "inside.png"
+    direct = tmp_path / "direct.png"
+    assert cv2.imwrite(str(inside), np.full((8, 8), 10, dtype=np.uint8))
+    assert cv2.imwrite(str(direct), np.full((8, 8), 20, dtype=np.uint8))
+    paths = {"files": [direct], "folder": [folder], "mixed": [folder, direct]}[kind]
+    window, controller = _window(qtbot)
+    seed = ImageDocument.from_array(np.zeros((8, 8), dtype=np.uint8), "seed")
+    window.add_document(seed, select=True)
+    gui_thread = get_ident()
+    entered = Event()
+    release = Event()
+    original = Path.is_dir
+
+    def checked_is_dir(path: Path) -> bool:
+        if path in paths:
+            assert get_ident() != gui_thread, "SMB classification ran on GUI thread"
+            entered.set()
+            assert release.wait(5), "test did not release discovery"
+        return original(path)
+
+    monkeypatch.setattr(Path, "is_dir", checked_is_dir)
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(path)) for path in paths])
+    event = QDropEvent(
+        QPointF(5, 5),
+        Qt.DropAction.CopyAction,
+        mime,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    progressed: list[bool] = []
+    try:
+        assert controller.eventFilter(window.central_stack, event)
+        assert event.isAccepted()
+        qtbot.waitUntil(entered.is_set, timeout=3000)  # type: ignore[attr-defined]
+        QTimer.singleShot(0, lambda: progressed.append(True))
+        qtbot.waitUntil(lambda: bool(progressed), timeout=3000)  # type: ignore[attr-defined]
+        assert _ids(window) == [seed.document_id]
+    finally:
+        release.set()
+    registration = window.large_folder_registration_controller
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    selected = window.selected_documents
+    if kind == "folder":
+        assert _ids(window) == [seed.document_id]
+    else:
+        assert len(selected) == 2
+        assert selected[0] is seed
+        assert selected[1].source_path == direct.resolve()
+    assert (
+        inside.resolve() in [doc.source_path for doc in window.documents.values()]
+        or kind == "files"
+    )
+    window.close()
 
 
 def _window(qtbot: object) -> tuple[MainWindow, QuickCompareController]:

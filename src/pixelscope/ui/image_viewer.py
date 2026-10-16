@@ -492,7 +492,9 @@ class ImageViewer(QWidget):
         upload_trace = load_latency_trace.PhaseTimer(
             "viewer.upload", document_id=document.document_id
         )
-        self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
+        # Previews already contain final display codes. Explicit identity levels
+        # make pyqtgraph rescale every RGB pixel again during GUI-thread paint.
+        self.image_item.setImage(preview, autoLevels=False, levels=None)
         upload_trace.checkpoint("pyqtgraph_setImage_returned")
         self.image_item.setRect(self._presentation_rect(document))
         upload_trace.checkpoint("setRect_returned")

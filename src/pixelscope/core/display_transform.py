@@ -157,7 +157,12 @@ def to_display_uint8(
     ):
         return np.array(source, dtype=np.uint8, copy=True, order="C")
 
-    working = source.astype(np.float32, copy=True)
+    # uint8 has only 256 possible input codes. Evaluate the exact same float32
+    # mapping once per code instead of allocating a full-frame float32 buffer.
+    byte_lookup = source.dtype == np.uint8
+    working = (
+        np.arange(256, dtype=np.float32) if byte_lookup else source.astype(np.float32, copy=True)
+    )
     scale, offset = display_normalization_affine(
         low,
         high,
@@ -170,7 +175,8 @@ def to_display_uint8(
         np.power(working, np.float32(1.0 / parameters.gamma), out=working)
     np.multiply(working, np.float32(255.0), out=working)
     np.rint(working, out=working)
-    return np.ascontiguousarray(working.astype(np.uint8))
+    mapped = working.astype(np.uint8)
+    return np.ascontiguousarray(mapped[source] if byte_lookup else mapped)
 
 
 def render_ordinary_display_preview(
