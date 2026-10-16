@@ -15,28 +15,28 @@ the code after PR #187.
 
 Run comparisons on the same Windows machine, exact same images, warmed disk cache,
 window dimensions, display arrangement and Analysis/Histogram panel visibility.
-First run without wrappers (\`-NoProbe\`) for perceived responsiveness, then
+First run without wrappers (`-NoProbe`) for perceived responsiveness, then
 repeat with the lightweight diagnostic wrappers to identify expensive Python methods.
 Do not infer monitor scanout latency from Python call duration.
 
 ## Safety / checkout isolation
 
-* PUBLIC checkout: an existing clone of \`delphykmc/pixelscope\`.
+* PUBLIC checkout: an existing clone of `delphykmc/pixelscope`.
 * INTERNAL checkout: **never** checked out, modified, committed, or imported
   as a PixelScope source tree. Only its existing virtual-environment Python and
   installed dependencies are shared.
 * The internal checkout directory is a **runtime parameter**, not encoded in
   this public diagnostic branch.
 * Stage worktrees are detached, SHA-pinned copies under a separate
-  \`perf_three_way/worktrees\` directory next to the PUBLIC checkout. The active
+  `perf_three_way/worktrees` directory next to the PUBLIC checkout. The active
   PUBLIC checkout is not switched.
 * Logs, per-version QSettings INI files and stage worktrees stay outside the
   tracked repository. The harness redirects normal QSettings into independent
   version-specific INI locations rather than the installed application's usual
   registry settings.
-* A strict import check confirms that \`import pixelscope\` resolves to the
+* A strict import check confirms that `import pixelscope` resolves to the
   selected PUBLIC SHA even when INTERNAL Python has an editable installation.
-  The harness never runs \`pip install\`.
+  The harness never runs `pip install`.
 * PRIVATE paths, log files that may contain machine-specific information, and
   test images **must not** be committed or pushed to the PUBLIC repository.
 
@@ -45,22 +45,22 @@ Do not infer monitor scanout latency from Python call duration.
 First fetch this diagnostic branch into the PUBLIC checkout and create a
 separate harness worktree, without switching the original branch:
 
-\`\`\`powershell
+```powershell
 $public = 'E:\git\pixelscope_debug\pixelscope'
 $harness = 'E:\git\pixelscope_debug\perf_harness'
 git -C $public fetch origin diagnostics/perf-3way-regression-20261016
 git -C $public worktree add --detach $harness FETCH_HEAD
 & "$harness\scripts\diagnostics\perf_3way.ps1" -Action Setup -PublicRepo $public
-\`\`\`
+```
 
-When \`perf_harness\` already exists from this branch, reuse it instead
+When `perf_harness` already exists from this branch, reuse it instead
 of adding the worktree again. These commands change PUBLIC Git worktree
 metadata, not the INTERNAL repository.
 
 Run the three GUI revisions with an INTERNAL virtual environment
 (the exact INTERNAL repository path is supplied locally):
 
-\`\`\`powershell
+```powershell
 $internal = '<LOCAL_INTERNAL_REPOSITORY_PATH>'
 $run = "$harness\scripts\diagnostics\perf_3way.ps1"
 
@@ -72,17 +72,17 @@ $run = "$harness\scripts\diagnostics\perf_3way.ps1"
 & $run -Action Run -Stage V1 -PublicRepo $public -InternalRepo $internal -TraceThresholdMs 5
 & $run -Action Run -Stage V2 -PublicRepo $public -InternalRepo $internal -TraceThresholdMs 5
 & $run -Action Run -Stage V3 -PublicRepo $public -InternalRepo $internal -TraceThresholdMs 5
-\`\`\`
+```
 
-Python lookup order: \`<internal>/.venv/Scripts/python.exe\`,
-\`<internal>/venv/Scripts/python.exe\`, corresponding locations in
-\`<internal>/..\`, then \`VIRTUAL_ENV\`.
-If different, pass \`-InternalPython 'X:\path\to\venv\Scripts\python.exe'\`.
+Python lookup order: `<internal>/.venv/Scripts/python.exe`,
+`<internal>/venv/Scripts/python.exe`, corresponding locations in
+`<internal>/..`, then `VIRTUAL_ENV`.
+If different, pass `-InternalPython 'X:\path\to\venv\Scripts\python.exe'`.
 No environment dependencies are installed or updated.
 
 If an execution-policy restriction blocks local PowerShell scripts,
-use a Process-scoped temporary policy or invoke \`powershell.exe -ExecutionPolicy
-Bypass -File <script> ...\` according to company policy.
+use a Process-scoped temporary policy or invoke `powershell.exe -ExecutionPolicy
+Bypass -File <script> ...` according to company policy.
 
 ## Manual scenario matrix
 
@@ -115,25 +115,25 @@ cost separate in the result table.
 ## Output interpretation
 
 Logs are written to:
-\`<public parent>\perf_three_way\logs\V1-YYYYMMDD-HHMMSS.log\` and
-analogous V2/V3 files.  Observational QSettings are under \`settings/V1\`, etc.
+`<public parent>\perf_three_way\logs\V1-YYYYMMDD-HHMMSS.log` and
+analogous V2/V3 files.  Observational QSettings are under `settings/V1`, etc.
 
-* \`[perf-3way] CALL\`: an individual Python method took longer than the
+* `[perf-3way] CALL`: an individual Python method took longer than the
   configured threshold. Calls can include nested method calls.
-* \`[perf-3way] SUMMARY\`: count, median, p95, max and summed wall time of
+* `[perf-3way] SUMMARY`: count, median, p95, max and summed wall time of
   each instrumented method.
-* \`[load-trace]\` / \`[analysis-latency]\`: in-version source tracing, only
+* `[load-trace]` / `[analysis-latency]`: in-version source tracing, only
   for revisions where those opt-in facilities exist.
 * Method times are NOT GUI event-to-photon/monitor scanout times; visibly
   sequential rendering should also be annotated in the manual matrix.
-* The probe changes timing slightly; \`-NoProbe\` is the reference for
+* The probe changes timing slightly; `-NoProbe` is the reference for
   subjective comparisons.
 
-Useful candidates: \`MainWindow._selection_changed\`,
-\`MainWindow._render_selection\`, \`MainWindow._update_file_states\`,
-\`MultiCompareView.set_documents\`, \`ImageViewer._upload_preview\`,
-\`ImageViewer._ensure_display_preview\`, \`DifferencePanel.set_documents\`,
-\`ComparisonAnalysisPanel.set_documents\`, and RegistrationController.
+Useful candidates: `MainWindow._selection_changed`,
+`MainWindow._render_selection`, `MainWindow._update_file_states`,
+`MultiCompareView.set_documents`, `ImageViewer._upload_preview`,
+`ImageViewer._ensure_display_preview`, `DifferencePanel.set_documents`,
+`ComparisonAnalysisPanel.set_documents`, and RegistrationController.
 Note: some listed APIs do not exist on all revisions; absent wrappers are skipped.
 
 ## Exit criteria
