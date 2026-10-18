@@ -45,6 +45,39 @@ def summarize(samples: list[dict]) -> dict:
     }
 
 
+def build_decisions(samples: list[dict]) -> dict:
+    """Reconcile immutable samples to the chair's U1-U4 hypothesis IDs."""
+    definitions = {
+        "U1": ("F1 first valid current tile", "E1", "missing epoch/slot paint identity"),
+        "U2": ("S4 old-pair/placeholder policy", None, "protected old/new residency not measured"),
+        "U3": ("S7 registration FIFO/head-of-line", "E2", "no real SMB or scheduler candidate"),
+        "U4": ("F4 Files catalog work", "E3", "baseline only; no candidate or MDE"),
+    }
+    decisions = {}
+    for decision_id, (hypothesis, prefix, limitation) in definitions.items():
+        relevant = [s for s in samples if prefix and s["case_id"].startswith(prefix)]
+        successful = [s for s in relevant if s["status"] == "ok" and not s.get("warmup")]
+        decisions[decision_id] = {
+            "decision_id": decision_id,
+            "hypothesis": hypothesis,
+            "case_ids": sorted({s["case_id"] for s in relevant}),
+            "run_ids": [s["run_id"] for s in relevant],
+            "result": "inconclusive",
+            "evidence_grade": "G1" if successful else "unavailable",
+            "reason": "No feature optimization was tested; baseline evidence only.",
+            "limitation": limitation,
+            "G1_mechanism_supported": bool(successful) if decision_id == "U3" else None,
+            "feature_optimization_result": "inconclusive",
+        }
+    return {
+        "schema_version": 2,
+        "decisions": decisions,
+        "failures": [s["run_id"] for s in samples if s["status"] != "ok"],
+        "raw_run_ids": [s["run_id"] for s in samples],
+        "network": "G3_unavailable",
+    }
+
+
 def child(case: str, output: Path) -> dict:
     if case.startswith("E1"):
         os.environ["PIXELSCOPE_LOAD_TRACE"] = "1"
@@ -228,12 +261,20 @@ def child(case: str, output: Path) -> dict:
                 window.document_list.selectionModel().selectionChanged.connect(selection_changed)
             started = time.perf_counter_ns()
             heartbeat.start()
+            action_counts = {}
 
             def timed(name, action):
+                before_counts = counts.copy()
                 before = time.perf_counter_ns()
                 action()
                 metrics[name] = (time.perf_counter_ns() - before) / 1e6
+                after_counts = counts.copy()
                 app.processEvents()
+                if lane == "L2":
+                    action_counts[name] = {
+                        "synchronous": {k: after_counts[k] - before_counts[k] for k in counts},
+                        "subsequent_events": {k: counts[k] - after_counts[k] for k in counts},
+                    }
 
             timed("select_one", lambda: window._select_document_ids([ids[0]]))
             assert [d.document_id for d in window.selected_documents] == [ids[0]]
@@ -277,6 +318,7 @@ def child(case: str, output: Path) -> dict:
                 "scrollbar",
             ]
             marks["proxy_counts"] = counts
+            marks["per_action_proxy_counts"] = action_counts
         elif case.startswith("E1"):
             from pixelscope.workers import image_load_worker
 
@@ -483,35 +525,7 @@ def main() -> int:
                 print(run_id, result["status"], flush=True)
     write_json(args.output / "summary.json", summarize(samples))
     failures = [s["run_id"] for s in samples if s["status"] != "ok"]
-    write_json(
-        args.output / "decisions.json",
-        {
-            "U1": (
-                "inconclusive: E1 legacy signal lacks slot/epoch/binding identity; "
-                "no exact first valid tile attribution"
-            ),
-            "U2": (
-                "inconclusive: E2 synthetic FIFO causal fixture only; "
-                "no real SMB or scheduler candidate"
-            ),
-            "U3": "inconclusive: no residency candidate or protected-source overlap measurement",
-            "U4": "inconclusive: E3 baseline/proxy counts only; no candidate or MDE",
-            "grade": "G1 synthetic; Windows Qt event processing, not physical scanout",
-            "missing": [
-                "G3 real SMB",
-                "E1 three-seam observer and OFF/ON/lifecycle prevalidation",
-                "process peak memory",
-                "E3 viewport repaint proxy",
-                "independent Qt/System/QA methodology reviews",
-            ],
-            "failures": failures,
-            "raw_run_ids": [s["run_id"] for s in samples],
-            "command": (
-                "python scripts/issue190_baseline.py --output temp/issue190-run "
-                "--warmups 2 --repeats 8"
-            ),
-        },
-    )
+    write_json(args.output / "decisions.json", build_decisions(samples))
     return 1 if failures else 0
 
 

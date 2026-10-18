@@ -226,3 +226,26 @@ optimization hypotheses remain inconclusive; G1 observations do not endorse a
 priority scheduler, residency policy or Files optimization. G3 unavailable.
 The chair's MDE/adjudication and return to #189 are later steps, not completed
 by opening this Draft PR. Keep #189/#190 open and PR #191 Draft and unmerged.
+
+## Round-4 follow-up plan and reporting correction
+
+P0.1 corrects the prior report's swapped U2/U3 machine output: U1=F1 first tile,
+U2=S4 old-pair/placeholder, U3=S7 FIFO/HOL, U4=F4 Files. The old raw run and hashes
+above remain immutable. This is a post-processing/reconciliation correction of
+published report `d4f9004dd47927d812da58956f571cce1f3c6fc9` and measured source
+`790253f3b73ba287d3c23234b8bab900e07d84d8`, not a change to observed samples.
+Schema v2 exposes IDs, hypotheses, cases/run IDs, result enum, evidence grade,
+reason and limitation; G1 mechanism evidence is separate from optimization.
+Regression tests lock the mapping and reject failed/warm-up-only support.
+
+E3 callback wall-time stops before the following app.processEvents(). New L2
+per-action snapshots separate synchronous signals from subsequent event processing;
+aggregate counts include setup and remain neither setter counts nor painted frames.
+
+P0.2: separate E2 barrier enter/release, actual discovery, GUI row span and
+registration-finished/handoff; add 0ms and small-folder comparators.
+P0.3: check real desktop presentation before assigning native G2; replay Files
+1/100/1000 and an independent resident two-UHD Primary/Diff lane. Otherwise report
+G2_unavailable with exact owner commands. No shipping/optimization changes.
+P1: E1 stays INCONCLUSIVE during P0. A separate Qt-reviewed three-seam commit
+and OFF/ON/lifecycle prevalidation would be needed before believing exact identity.
