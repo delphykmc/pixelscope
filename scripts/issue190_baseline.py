@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import argparse
 import gc
-import math
 import hashlib
 import json
+import math
 import os
 import platform
 import statistics
@@ -78,7 +78,7 @@ def _observed_fifo_mechanism(samples: list[dict]) -> bool:
         for start, end, metric in measured_intervals:
             before, after, duration = marks.get(start), marks.get(end), metrics.get(metric)
             if any(
-                not isinstance(value, (int, float))
+                not isinstance(value, int | float)
                 or isinstance(value, bool)
                 or not math.isfinite(value)
                 for value in (before, after, duration)
@@ -103,9 +103,9 @@ def _observed_fifo_mechanism(samples: list[dict]) -> bool:
                 "F_registration_finished",
                 "A_discovery_start",
             )
-            if any(not isinstance(marks.get(stage), (int, float)) for stage in stages):
+            if any(not isinstance(marks.get(stage), int | float) for stage in stages):
                 return False
-            if any(marks[left] > marks[right] for left, right in zip(stages, stages[1:])):
+            if any(marks[left] > marks[right] for left, right in zip(stages, stages[1:], strict=False)):
                 return False
             if not marks["F_discovery_enter"] <= marks["A_enqueue"]:
                 return False
