@@ -249,3 +249,190 @@ P0.3: check real desktop presentation before assigning native G2; replay Files
 G2_unavailable with exact owner commands. No shipping/optimization changes.
 P1: E1 stays INCONCLUSIVE during P0. A separate Qt-reviewed three-seam commit
 and OFF/ON/lifecycle prevalidation would be needed before believing exact identity.
+
+## Round-4 observed follow-up results — 2026-10-19 KST
+
+P0.1 reporting correction is published at
+`76b9104a1c335075a26ef73fb8cd07ed1ff0731b`. The measured follow-up source is
+`7d5e64a407b2916aca26683b4a7d26a66949cdf5`; local measured source
+`8167cffdab11496219676b3907a76368fb2d59b8` has the same complete tree
+`1cf5f3d4e47be4317a30bb77c5983dc9be461f9f`. Both run metadata records report a
+clean tree. Subsequent export/test/report additions do not alter measured code.
+
+The [anonymized machine-readable evidence](../../experiments/issue-190-round4-evidence.json)
+contains all new scalar samples, summaries, per-action proxies, corrected decisions,
+run IDs, metadata and original-file hashes. It also supplies a **reconciled copy**
+of the original run's decisions, with U2=S4 and U3=S7. Historical raw samples,
+statistics and the erroneous historical decisions file remain untouched; consumers
+should use the reconciled schema-v2 output, not the old flat U2/U3 sentences.
+All optimization results remain `inconclusive`; only the specified G1 FIFO
+mechanism has a separate supported flag. Control-only, warm-up-only and failed
+evidence cannot establish that mechanism flag.
+
+Final matrices: **E2 40/40 passed**, **native E3/E3K 100/100 passed**, total
+140/140, including 28 warm-ups and 112 observations. Each condition has two
+warm-ups and eight samples; there were no failed final samples, timeouts, crashes
+or retry substitutions. Normal automatic GC is asserted in every child. These
+are independent fresh child processes, with no concurrent agent test suite.
+OS caches are uncontrolled; fixtures are generated before timing and are warm.
+
+### P0.2: causal decomposition, G1 only
+
+Median milliseconds, n=8. Each timeline records barrier enter/release, actual
+worker discovery start/return, GUI first/last row insertion, idle-progress
+registration-finished, and A/B enqueue/discovery/registration. The commit marker
+is emitted on the GUI thread after active registration state clears and before
+the next request starts; it is not a physical-paint marker.
+
+| Case | Actual barrier wait | Actual discovery work | GUI row span | Discovery return to registration commit | Commit to A dispatch | A queue wait |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| No-folder control | — | — | — | — | — | 2.06 |
+| 128 PNG + 128 unsupported, 750ms config | 750.10 | 7155.27 | 36.23 | 67.56 | 1.61 | 7974.08 |
+| Same folder size, 0ms config | 16.44 | 7279.92 | 39.95 | 76.03 | 2.60 | 7371.51 |
+| 8 PNG + 8 unsupported, 0ms config | 15.55 | 501.90 | 2.96 | 42.03 | 5.13 | 568.83 |
+
+Zero configuration is not zero observed wait: queueing A/B and delivering the
+GUI timer still take time. Timer granularity also permits configured 750ms to
+vary; actual release timestamps, not requested durations, are used. The export
+additionally includes release-to-worker-resume, worker-return-to-first-row,
+last-row-to-commit and both direct registration times. Row span includes GUI
+scheduling/yields, not just CPU setter cost; return-to-commit includes GUI
+handoff, registration and folder completion/history work. Component medians must
+not be summed as if they described the same raw run.
+
+The long restricted-local discovery interval dominates this synthetic FIFO
+scenario; the 750ms barrier is only one component. Original 7391.79ms versus new
+7974.08ms is a different diagnostic run, **not candidate performance comparison**.
+No real SMB workload was measured and no preemptible scheduler checkpoint or
+priority policy is established. FIFO/order, exact final [A,B], folder eventual
+completion/natural order/unique IDs/no auto-select and stale-count gates passed.
+
+### P0.3: native Windows execution and its verification limit
+
+The run used actual Qt **windows** QPA, not offscreen. All 100 native samples
+recorded visible/exposed, non-minimized windows on a 3440x1440 screen, DPR 1.0.
+Windows Computer Use independently listed the actual source diagnostic window
+`PixelScope #190 diagnostic E3_L1_1000`. However, external activation/capture
+returned **Computer Use app approval timed out**. The screenshot proof gate
+therefore timed out and no external screenshot was obtained.
+
+Consequently **G2_unavailable**: native programmatic measurements below remain
+G1 diagnostics with unverified on-screen visual acceptance. Merely Windows QPA,
+isVisible/isExposed, window enumeration or processEvents return does not establish
+user-visible latency, final Qt frame identity or physical scanout. No native G2
+claim or human manual acceptance is fabricated.
+
+#### Catalog-only native diagnostic
+
+Median synchronous callback wall-time in milliseconds. The timer stops **before**
+the subsequent app.processEvents(); no per-row/model spies are installed in L1.
+These are 8x12 grayscale resident documents, independent of the two-UHD lane.
+
+| Documents | Select one | Keyboard Down | Mouse select | Primary focus | Update states |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4.81 | 0.32 | 0.18 | 3.91 | 0.06 |
+| 100 | 7.11 | 6.96 | 6.92 | 9.67 | 1.45 |
+| 1000 | 22.66 | 21.67 | 21.77 | 37.69 | 14.15 |
+
+Separate L2 per-action **dataChanged** deltas, identical across eight samples:
+
+| Documents | Select one | Keyboard | Mouse | Primary | State update |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 0 | 0 | 1 | 1 |
+| 100 | 106 | 106 | 106 | 206 | 100 |
+| 1000 | 1006 | 1006 | 1006 | 2006 | 1000 |
+
+selectionChanged deltas are 2 for select-one; keyboard/mouse are 1 at 100/1000
+and 0 at 1; Primary/state update are 0. Subsequent-event model-signal deltas
+were zero for these actions. Aggregate counters still include between-action
+setup and must not be assigned to one action. These are model signal proxies,
+**neither exact Qt setter counts nor painted frames**. Disabled L1 model counters
+are omitted from the safe export and marked model_proxy_enabled=false.
+
+#### Independent two-UHD resident diagnostic
+
+Exactly two 3840x2160 RGB8 sources, generated values A=17/B=93, already resident;
+Difference cache computed before timing. No source paths, decode, network or
+Recent-history cost is part of this lane. Each action records handler return,
+one subsequent processEvents return and a separate bounded idle observation.
+
+| L1 Diff state | A to B sync | A to B next events | B to A sync | B to A next events | Diff visibility toggle sync | Files-only state sync |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| OFF | 7.67 | 8.20 | 7.78 | 8.49 | 8.27 (OFF) | 0.09 |
+| ON | 9.13 | 12.29 | 8.51 | 9.59 | 10.29 (ON) | 0.10 |
+
+All values are medians in milliseconds, n=8. The idle observations are in the
+JSON; they are not additional wall-time to add to next-events (they share the
+same handler-return origin). These observations do not guarantee that every
+viewport finished painting. L2 stays independent: dataChanged=10 for each Primary
+direction, 4 for cached Diff visibility and 2 for Files-only state update;
+selectionChanged=0 and subsequent-event model deltas=0, in all eight samples.
+
+Correctness: identical source/preview references, generations and pixels;
+unchanged load tokens, zero foreground load dispatch, same ordered selection,
+proper Primary document/first occupied viewer, expected 2/3 occupied tiles,
+stable Difference source/cache/pixels and correct visibility. A separate focused
+two-case UHD UI test verifies source and Difference A/B header metadata under
+both OFF/ON. Binding/view-range snapshots are taken outside timing and retained
+locally; they show effective identity/range only. No exact timed viewer/rebind/fit
+or aux/Diff attribution is guessed without an observer. This low-N resident
+baseline cannot assign the owner's file/network two-4K delay to F4.
+
+### Validation and evidence publication
+
+```powershell
+$env:PYTHONPATH = "$PWD/src"
+$env:QT_QPA_PLATFORM = 'offscreen'
+python -m pytest -q tests/unit/test_issue190_summary.py tests/ui/test_large_folder_registration_performance.py tests/ui/test_large_folder_registration_composition.py tests/ui/test_open_images_registration.py tests/ui/test_preload_promotion.py tests/ui/test_large_folder_registration_lifecycle_review.py tests/ui/test_files_drag_selection_debounce.py tests/ui/test_preview_passthrough.py tests/ui/test_primary_style_work.py tests/ui/test_file_status_icons.py tests/ui/test_design_tokens_style.py tests/ui/test_multiview_gain_diff_stability.py
+# 55 passed in 21.24s
+python scripts/issue190_baseline.py --output temp/issue190-r4-e2 --lanes E2 --warmups 2 --repeats 8
+# 40/40 ok, exit 0
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+python scripts/issue190_baseline.py --output temp/issue190-r4-native --lanes E3,E3K --warmups 2 --repeats 8
+# 100/100 ok, exit 0; windows QPA, external visual validation unavailable
+$env:QT_QPA_PLATFORM = 'offscreen'
+python -m pytest -q tests/unit/test_issue190_summary.py tests/unit/test_issue190_evidence.py tests/ui/test_issue190_followup.py
+# 10 passed in 3.74s
+python -m ruff check .
+python -m ruff format --check .
+# Passed; 354 files already formatted
+python -m mypy src
+# Success: no issues found in 108 source files
+python scripts/check_docs.py
+# Documentation contract passed; rerun after this report edit
+python -m pip check
+# No broken requirements found
+git diff --check
+# Passed
+```
+
+No lifecycle/Traceback/RuntimeError patterns were found in the final matrices'
+captured logs. Development attempts remain preserved: five pre-freeze smoke
+children failed on the helper import path and were fixed before measurement;
+the external native-proof gate timed out without release. These are explicitly
+separate from the two final matrices, not silently replaced passing samples.
+Full pytest, real SMB, peak residency, dynamic theme invalidation and human
+native/physical display acceptance remain unverified. Existing tag/style/RAW
+and shutdown coverage passed within the focused slice; no gate was weakened.
+
+Safe evidence SHA256:
+`f3c329f8f65f75238dc6c2ed1c8b21b63384b6cfcd021d06153ac95cc3c482f7`.
+`scripts/issue190_evidence.py` allowlists scalar records and removes error text,
+paths, binding addresses/UUIDs, source payloads, settings and logs; its privacy
+regressions passed. The JSON carries all sample values and new raw-file hashes.
+Original raw hashes above were rechecked unchanged. Local complete raw output
+remains ignored under temp/; only the anonymized evidence export is published.
+
+For an owner-visible rerun, use the exact native command above with a **fresh**
+output directory such as temp/issue190-r4-owner-native, observe/capture the actual
+window and record desktop/visibility evidence separately before assigning G2.
+The optional child-only --proof-wait flag pauses untimed setup until continue.json
+appears in that child's output directory (55-second cap); no proof release was
+fabricated in this session.
+
+P0.1/P0.2 delivered; P0.3 native diagnostic delivered with G2 visual acceptance
+unavailable. **P1/E1 remains INCONCLUSIVE and deferred**: no three-seam production
+observer, OFF/ON overhead or observer lifecycle validation was added or claimed.
+Qt/System/QA should now review the corrected IDs, decomposed timeline, native
+evidence grade and separate low-N UHD attribution limits. Stop here for result
+reviews and chair adjudication; no performance candidate, merge or extra PR.
