@@ -88,3 +88,141 @@ Agent commits carry `Co-authored-by: ChatGPT <noreply@openai.com>`; GitHub activ
 uses the connected owner account and explicitly says ChatGPT-assisted. Existing
 human commits are not rewritten. This plan and runner are experiment artifacts;
 retain/close-unmerged disposition remains with review and the chair.
+
+## Observed Windows offscreen results — 2026-10-19 KST
+
+Final run: `temp/issue190-final`. **140/140 child executions passed**, including
+28 warm-ups; 112 exploratory observations, eight per condition. No failed sample,
+timeout, crash, retry or replacement. Every child asserted normal automatic GC.
+These are provisional G1 measurements pending independent methodology review.
+
+Measured local source commit: `de2ac78fcaa9350009d897efcf6cfb0e1d981843`.
+Published source commit: `790253f3b73ba287d3c23234b8bab900e07d84d8`.
+Their complete Git trees are identical: `1a205d9658782e012df8d717dd17d63484084d54`.
+The different commit IDs reflect connected-tool publication after local Git push
+failed to initialize network access. No existing human commit was rewritten.
+Later report-only commits do not change measured source.
+
+Windows build 26200, CPython 3.10.11 x64, PySide6 6.4.2, NumPy 1.24.4,
+OpenCV 4.8.1, pyqtgraph 0.13.7; Qt offscreen in the restricted execution
+environment. Generated files and OS filesystem caches are warm/uncontrolled.
+Native interactive UI and representative SMB acceptance were not performed.
+E1 enables the existing single-target load trace; its logging overhead is not
+calibrated, so E1 numbers are partial observations only, not precise paint costs.
+
+### E2: registration, milliseconds
+
+| Case | A enqueue to discovery | A enqueue to row | B enqueue to discovery | B enqueue to row |
+| --- | ---: | ---: | ---: | ---: |
+| Control median | 2.11 | 18.80 | 32.62 | 57.12 |
+| Contended median | 7391.79 | 7397.83 | 7414.87 | 7429.60 |
+
+A enqueue-to-discovery raw samples, run suffixes `02` through `09`:
+
+- Control: 2.4890, 2.1425, 2.1736, 2.0733, 3.4245, 2.0407, 2.0410, 1.9904.
+- Contended: 6846.0591, 7098.5748, 7450.4153, 7333.1581, 6947.1429,
+  8076.8126, 7793.0257, 8037.3185.
+
+This reproduces FIFO head-of-line delay in the specified synthetic scenario.
+The contended duration includes both the configured 750ms causal barrier and
+actual restricted-local discovery/registration cost for 256 directory entries.
+It is **not** a 750ms network emulation or an SMB speedup estimate. Discovery
+start marks the injected worker wrapper entering, before its barrier; this
+version has no independent barrier-release timestamp. Heartbeat max-gap medians
+were 41.79ms control and 29.09ms contended; these do not establish a relative UI
+responsiveness improvement because workload and observation windows differ.
+All FIFO, final A/B order, folder eventual completion/natural order/no auto-select,
+unique-row and registration stale-count assertions passed.
+
+### E3 L1: synchronous handler wall-time, milliseconds
+
+| Resident documents | Select one | Keyboard Down | Mouse select | Primary focus | Update states | Max heartbeat gap |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4.98 | 0.32 | 0.16 | 3.91 | 0.06 | 16.13 |
+| 100 | 7.22 | 7.08 | 6.90 | 9.95 | 1.46 | 20.75 |
+| 1000 | 22.86 | 22.09 | 21.75 | 38.22 | 14.45 | 48.88 |
+
+Raw `_update_file_states` samples, run suffixes `02` through `09`:
+
+- 1: 0.0975, 0.1464, 0.0466, 0.0496, 0.0723, 0.0702, 0.0531, 0.0489.
+- 100: 1.4896, 1.4639, 1.4341, 1.6314, 1.4602, 1.4651, 1.8622, 1.4036.
+- 1000: 14.6562, 14.3313, 14.3762, 13.8966, 15.2409, 15.0021, 13.6408, 14.5300.
+
+Separate L2 runs emitted aggregate dataChanged/selectionChanged counts of
+4/4, 825/7, and 8025/7 for 1/100/1000 documents, identical across all eight
+samples at each size. These aggregate counts also include between-action setup
+and event processing. They are Qt model proxies, not exact setter counts or
+viewport repaint counts. L2 timings are retained separately and not pooled into
+L1. No 10k case was run. Current-item/order, active metadata/tooltip, mouse,
+keyboard and scrollbar assertions passed. Catalog-size-dependent work is observed;
+no F4 candidate, effect size or pre-registered MDE was tested.
+
+### E1 partial lane
+
+| B worker delay ms | Open readiness + partial signal median ms | Drop readiness + partial signal median ms |
+| --- | ---: | ---: |
+| 0 | 184.59 | 269.72 |
+| 250 | 410.94 | 485.62 |
+| 1000 | 1173.77 | 1241.92 |
+
+Both sources retained exact expected UHD RGB8 values in all samples. The wait
+ends after GUI polling sees both resident sources, at least one existing
+first-frame signal and no foreground worker. It does not require valid paint
+attribution for every occupied slot. GUI polling timestamps and captured signals
+remain observational upper bounds; worker reader return is recorded separately.
+Do not use this table as a precise Open-versus-Drop comparison or first-tile
+latency claim. **E1 exact attribution remains INCONCLUSIVE.** No observer seam,
+OFF/ON parity, same-preview, epoch, reuse, spinner-only or pan/ROI oracle was
+implemented or declared passed. Qt review should determine the next narrow slice.
+
+### Validation commands and exact outcomes
+
+All commands use the pinned environment with `PYTHONPATH=src` and offscreen Qt.
+
+```powershell
+python -m pytest -q tests/unit/test_issue190_summary.py tests/ui/test_large_folder_registration_performance.py tests/ui/test_large_folder_registration_composition.py tests/ui/test_open_images_registration.py tests/ui/test_preload_promotion.py tests/ui/test_large_folder_registration_lifecycle_review.py tests/ui/test_files_drag_selection_debounce.py tests/ui/test_preview_passthrough.py
+# 37 passed in 17.46s
+python scripts/issue190_baseline.py --output temp/issue190-final --warmups 2 --repeats 8
+# 140 child executions ok; exit 0; failures=[]
+python -m pytest -q -o usefixtures=isolated_qsettings tests/ui/test_primary_style_work.py tests/ui/test_file_status_icons.py tests/ui/test_design_tokens_style.py tests/ui/test_large_folder_registration.py tests/ui/test_multiview_gain_diff_stability.py
+# 21 passed in 9.58s
+python -m pytest -q tests/unit/test_issue190_summary.py tests/unit/test_qt_lifecycle_architecture.py tests/unit/test_architecture_boundaries.py
+# 7 passed in 0.40s (summary test intentionally repeated after metadata changes)
+python -m ruff check .
+python -m ruff format --check .
+# Passed; 350 files already formatted
+python -m mypy src
+# Success: no issues found in 108 source files
+python scripts/check_docs.py
+# Documentation contract passed (rerun after this report update)
+python -m pip check
+# No broken requirements found
+git diff --check
+# Passed
+```
+
+Full repository pytest was not run; no repository-wide clean or merge-ready
+claim is made. Existing composed tag behavior, RAW sidecar and lifecycle tests
+passed within the focused selections. Dedicated dynamic theme-invalidation
+oracle, real SMB, process peak-memory and physical display acceptance remain
+unverified. No correctness assertion was weakened, no GC suppression was used,
+and no CI suite was expanded.
+
+### Reproducibility and next review
+
+Raw metadata/samples/summary/decisions are retained locally under ignored
+`temp/issue190-final/`; each case has `00`/`01` warm-ups and `02`–`09` samples.
+Per-child logs and fixtures are also there. Re-run from the published measured
+source commit using a fresh output directory; log files can contain local paths
+and are intentionally not committed. This report contains anonymized aggregate
+and selected raw distributions, not personal paths or pixels.
+
+- Runner SHA256: `ff9c759205c73894fd10073d8b6fb811f0d9cc6842526b506fbc64181f175190`.
+- cases.jsonl SHA256: `320e7bd72a702e489e76be17c950979d8aa6677776c20d7b9d24c61af4cd1ada`.
+- summary.json SHA256: `008bfd7b5261e237d83887d144c4f5aa187f6a16327031f582bda10482409951`.
+
+Qt/System/QA independent methodology/results reviews are still pending. U1–U4
+optimization hypotheses remain inconclusive; G1 observations do not endorse a
+priority scheduler, residency policy or Files optimization. G3 unavailable.
+The chair's MDE/adjudication and return to #189 are later steps, not completed
+by opening this Draft PR. Keep #189/#190 open and PR #191 Draft and unmerged.
