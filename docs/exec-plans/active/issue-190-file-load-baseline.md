@@ -436,3 +436,184 @@ observer, OFF/ON overhead or observer lifecycle validation was added or claimed.
 Qt/System/QA should now review the corrected IDs, decomposed timeline, native
 evidence grade and separate low-N UHD attribution limits. Stop here for result
 reviews and chair adjudication; no performance candidate, merge or extra PR.
+
+## Round-5 bounded on-disk R1-R3 study — 2026-10-19 KST
+
+Chair contract: [#191 handoff](https://github.com/delphykmc/pixelscope/pull/191#issuecomment-6256220656)
+and [#190 executable contract](https://github.com/delphykmc/pixelscope/issues/190#issuecomment-6256215230).
+Before new instrumentation, latest head `1de620dccf9cf9e437373b89cfdd03278263dad8`
+was reconciled locally and the requested U3 unit command actually ran:
+`python -m pytest -q tests/unit/test_issue190_summary.py`: **8 passed in 0.09s**.
+The paired-control U3 predicate is preserved; old raw files and hashes are unchanged.
+MAIN/base is still `a9ecbf49757b0135e658cc9842722b1604c3f2f1`.
+
+### Rerun and provenance
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD/src"
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+python scripts/issue190_user_path.py --output temp/issue190-r5-owner --warmups 2 --repeats 8
+```
+
+The measured local commit is `87e18ffe5c5a2b35cec55df04baa78987974ab16`;
+published source is `e426a6f12714b317e37ca322a9d57baf929c2835`. Their complete tree
+is identical: `6712cdd152db5d948b3805d4b396447ba13cdd5c`. The runner SHA256 is
+`61ee2def9df0694aa072940e72f0384198698b2dcab66f00fb56517e69b881b8`.
+Later export/report commits do not change measured code. CPython 3.10.11 x64,
+PySide6 6.4.2, NumPy 1.24.4, OpenCV 4.8.1, pyqtgraph 0.13.7; Windows 26200,
+native windows QPA. No production source, rendering policy or dependency changes.
+
+Each fresh child starts with an empty catalog and isolated settings. Four minimum
+conditions rotate by repetition: R1 Open, R1 image-surface Drop, and sequential
+Drop A/B followed by R3 Primary A-B-A with Diff OFF or ON. Each condition has
+two warm-ups and eight observations, no replacement/retry. Open uses the real
+replacement API; Drop delivers synthetic Qt drag-enter/drop events to the actual
+installed image-surface filter. This does not measure Explorer hover/file-dialog
+interaction. Explicit Diff activation uses QAction.trigger; Primary uses QTest
+header button clicks. No artificial sleep, barrier or decode delay is injected.
+
+Fixtures are distinct seeded 3840x2160 RGB8 PNGs with spatial texture, fine noise
+and opposing corner markers. Compression is PNG lossless level 1; A/B encoded
+sizes are 19,206,891 / 19,207,252 bytes; each decoded source is 24,883,200 bytes.
+Seed A/B is 1901/1902. Manifest hashes are in the safe JSON. Fixture generation
+and expected arrays are outside action timing; sources enter through production
+disk read/decode. OS cache is **warm/uncontrolled**, never flushed. This is local
+storage, not SMB. No resident-array insertion is used for the user path.
+
+Class-native test-owned worker/window subclasses and temporary module checkpoints
+record primitive stages, then restore module symbols in nested finally after
+normal close/drain. No Qt instance method is wrapped. A bounded 4096-event trace
+rejects object/array payloads; no observer disk writes occur in the hot path.
+The recorder retains no QObject/ndarray payload. Source/preview equality, encoded
+digests, tokens/generation, ROI, headers, passive Diff cache MISS and widened
+absolute-difference arithmetic are checked outside timing. Normal GC remains ON.
+
+### Evidence limits and G2 retry
+
+The existing document-only first-frame signal and QImage/buffer snapshot do not
+prove epoch-bound current-slot postpaint. R2 waits for partial A readiness before
+Drop B; its stricter valid-A-postpaint precondition is therefore **INCONCLUSIVE**.
+GUI acceptance is an enter/accepted-return callback bracket, not an internal seam.
+Readiness polling is only an upper bound. No processEvents call is substituted
+for completed paint. No three-seam production observer was added: OFF/ON overhead,
+post-reuse binding serial/epoch/paint-region identity and full observer lifecycle
+prevalidation are absent. Exact R1 first tile, R2 coherent pair and R3/Diff paint
+remain **INCONCLUSIVE**, including when partial readiness succeeds.
+
+The requested external G2 retry **succeeded for a separate R1 Open endpoint**:
+fresh native-window enumeration, unique selection and screenshot/text capture
+showed A.png in Files and a textured 3840x2160 RGB8 image/header in the viewer.
+The endpoint pause/release is outside measured actions. This establishes one
+observed desktop endpoint, not first-paint latency, physical scanout, all forty
+trials or original user-symptom acceptance. The earlier unavailable-G2 record
+remains historical. No screenshot payload or unrelated desktop content is exported.
+
+Development attempts remain separate: the initial partial-display predicate
+incorrectly required ndarray object identity although pyqtgraph holds a view;
+it was repaired to buffer/shape/dtype identity before the measured source freeze.
+Smoke range-guard failures were preserved rather than weakening tolerances.
+Final measurement failures are retained and must not be replaced by smoke passes.
+
+### Final observations: failures retained, no end-to-end PASS
+
+All **40/40 attempted children** finished within the parent watchdog; the runner
+correctly exited **1**. Including eight warm-ups: 17 partial-correctness passes
+with INCONCLUSIVE paint, **23 FAIL** = nine 25-second partial-readiness condition
+timeouts plus fourteen range-guard failures. No retry or replacement was made.
+Every trace reports normal GC enabled; all trace drops are zero. The nine waits
+failed at the initial A partial-display gate even though load/GUI/legacy-paint
+checkpoints were recorded. This is an unresolved partial-readiness oracle/product
+interaction, **not proof of nine product first-paint failures**. No late-timeout
+pixel/pass claim is inferred. Failure traces/error classes remain in the export.
+
+| Condition | Observations | Partial-correctness pass, paint inconclusive | Range FAIL | Partial-readiness timeout |
+| --- | ---: | ---: | ---: | ---: |
+| R1 Open | 8 | 8 | 0 | 0 |
+| R1 Drop | 8 | 6 | 0 | 2 |
+| R2 + R3 Diff OFF | 8 | 0 | 4 | 4 |
+| R2 + R3 Diff ON | 8 | 0 | 7 | 1 |
+
+All fourteen completed R2/R3 children (including warm-ups) checked exact source
+and preview pixels, encoded digests, first passive Diff cache MISS and widened
+absolute-difference math, A/B selected order, proper Primary header, ROI and zero
+stale publishes. Their numeric per-document viewRange invariant failed, so none
+is promoted to a passing performance sample. Both B and A return transitions
+were recorded without weakening `atol=1e-5, rtol=1e-9`. For observed ON run 02,
+B's y range changed from [233.33, 1466.67] to [-495.83, 2195.83] on Primary B;
+OFF run 02 also shows x [602.08, 2197.92] to [600, 2200]. Raw before/after values
+for each source/Diff/axis are retained. Qt review must distinguish expected
+layout/aspect geometry from an unwanted zoom/pan change; no product fix or
+defect adjudication is smuggled into this diagnostic.
+
+The following are **descriptive stage medians in milliseconds, including failed
+children where that stage exists**. They are neither first-paint times nor valid
+improvement estimates. R2/R3 columns are conditioned on reaching those stages
+(selection bias after the A-readiness failures); use the raw run IDs/statuses.
+
+| Stage | R1 Open (n=8) | R1 Drop (n=8) | R2/R3 OFF (n=4) | R2/R3 ON (n=7) |
+| --- | ---: | ---: | ---: | ---: |
+| A disk read | 10.16 | 10.32 | — | — |
+| A encoded hash + decode | 201.75 | 201.75 | — | — |
+| A intent to accepted GUI callback return | 324.16 | 313.97 | — | — |
+| First passive Diff compute + metrics | — | — | 449.45 | 454.29 |
+| B intent to passive Diff cache GUI signal | — | — | 744.53 | 746.58 |
+| Explicit Diff ON synchronous action | — | — | 218.44 | 227.31 |
+| Primary B synchronous action | — | — | 23.26 | 24.42 |
+| Primary A synchronous action | — | — | 29.27 | 28.89 |
+
+Registration/discovery, foreground queue, preview building, result-signal-to-GUI,
+GUI callback, Files/render callback brackets, legacy signals and partial-readiness
+upper bounds are separate raw fields. CPU/heartbeat are retained per completed
+child; process CPU spans the whole study window, not just a single action. RSS,
+private bytes/peaks, exact viewer/fit/aux timings, observer OFF/ON and G3 remain
+unmeasured. No original symptom, scheduler benefit or optimization choice follows.
+
+Safe export: `docs/experiments/issue-190-r1-r3-evidence.json`, SHA256
+`f868e49324ed73c59ec52a246473108780346b8deede57e58101f49cf11297e6`.
+It contains all forty raw scalar traces/statuses/checks, fixture manifest, raw-file
+hashes, per-metric observed vectors/run IDs and explicit qualifications. The
+allowlisted exporter strips errors/paths/settings/payloads; preview addresses
+become per-child ordinals and timestamps become relative. All raw event counts
+were reconciled after sanitization. Full local logs/fixtures remain ignored.
+Original G1 cases/summary hashes above were rechecked unchanged; Round-4 evidence
+is neither rewritten nor pooled into this new study.
+
+### Round-5 validation and review handoff
+
+After the isolated final matrix, the selected regression checks passed:
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD/src"
+python -m pytest -q tests/unit/test_issue190_summary.py tests/unit/test_issue190_evidence.py tests/unit/test_issue190_user_path.py tests/unit/test_issue190_user_path_evidence.py tests/unit/test_qt_lifecycle_architecture.py tests/unit/test_architecture_boundaries.py
+# 21 passed in 0.36s
+$env:QT_QPA_PLATFORM = 'offscreen'
+python -m pytest -q -o usefixtures=isolated_qsettings tests/ui/test_large_folder_registration_performance.py tests/ui/test_large_folder_registration_composition.py tests/ui/test_open_images_registration.py tests/ui/test_preload_promotion.py tests/ui/test_large_folder_registration_lifecycle_review.py tests/ui/test_files_drag_selection_debounce.py tests/ui/test_preview_passthrough.py tests/ui/test_primary_style_work.py tests/ui/test_file_status_icons.py tests/ui/test_design_tokens_style.py tests/ui/test_multiview_gain_diff_stability.py tests/ui/test_issue190_followup.py tests/ui/test_difference_cache_toolbar_lifecycle.py tests/ui/test_issue121_qt_gc_lifecycle.py
+# 56 passed in 30.90s
+python -m ruff check .
+python -m ruff format --check .
+# Passed; 358 files already formatted
+python -m mypy src
+# Success: no issues found in 108 source files
+python scripts/check_docs.py
+python -m pip check
+git diff --check
+```
+
+An initial mixed unit/UI invocation incorrectly applied the UI-local
+isolated_qsettings fixture to unit modules: 56 UI passes plus 21 unit setup
+errors (fixture not found). This command-configuration error was corrected by
+separating the invocations above; no test assertion, fixture scope or product
+behavior was changed. The clean reruns are the validation evidence. The full
+repository suite was not run; this is not a merge-readiness claim. Existing
+normal-GC repeated close, registration stale/close, gain/Diff, styles and source
+metadata coverage passed within the selected UI slice. These checks do not
+validate a new three-seam observer or resolve the new range/readiness failures.
+
+Changed artifacts: the R1-R3 runner, its allowlisted exporter, two focused unit
+modules, this cumulative execution report and the new safe JSON. No production
+source/CI/dependency changes. GitHub publication uses the connected owner account,
+explicit ChatGPT-assisted comments and coauthored commits; prior commits remain.
+Stop new instrumentation after this bounded study. Request Qt/System/QA review
+of readiness-oracle limits, range semantics, stage attribution and failed-sample
+handling; return to #189 for chair adjudication before any optimization. #191
+stays the single Draft PR, unmerged; #189/#190 remain open.
