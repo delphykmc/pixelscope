@@ -105,7 +105,10 @@ def _observed_fifo_mechanism(samples: list[dict]) -> bool:
             )
             if any(not isinstance(marks.get(stage), int | float) for stage in stages):
                 return False
-            if any(marks[left] > marks[right] for left, right in zip(stages, stages[1:], strict=False)):
+            if any(
+                marks[left] > marks[right]
+                for left, right in zip(stages, stages[1:], strict=False)
+            ):
                 return False
             if not marks["F_discovery_enter"] <= marks["A_enqueue"]:
                 return False
