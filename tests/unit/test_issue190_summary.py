@@ -139,9 +139,7 @@ def _paired_fifo_sample(case_id: str, *, run: str = "02") -> dict:
         "warmup": False,
         "returncode": 0,
         "milestones": marks,
-        "metrics_ms": {
-            name: (marks[end] - marks[start]) / 1e6 for start, end, name in intervals
-        },
+        "metrics_ms": {name: (marks[end] - marks[start]) / 1e6 for start, end, name in intervals},
         "checks": [
             "A_B_order",
             "FIFO",
@@ -204,12 +202,14 @@ def test_fifo_g1_support_rejects_control_missing_metrics_or_order_evidence():
     contended = _paired_fifo_sample("E2_contended_8_0")
     bad_control = deepcopy(control)
     bad_control["metrics_ms"].pop("A_enqueue_to_registered")
-    assert build_decisions([bad_control, contended])["decisions"]["U3"][
-        "G1_mechanism_supported"
-    ] is False
+    assert (
+        build_decisions([bad_control, contended])["decisions"]["U3"]["G1_mechanism_supported"]
+        is False
+    )
 
     bad_control = deepcopy(control)
     bad_control["checks"].remove("A_B_order")
-    assert build_decisions([bad_control, contended])["decisions"]["U3"][
-        "G1_mechanism_supported"
-    ] is False
+    assert (
+        build_decisions([bad_control, contended])["decisions"]["U3"]["G1_mechanism_supported"]
+        is False
+    )
