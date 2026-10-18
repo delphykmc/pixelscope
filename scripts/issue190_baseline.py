@@ -46,6 +46,8 @@ def summarize(samples: list[dict]) -> dict:
 
 
 def child(case: str, output: Path) -> dict:
+    if case.startswith("E1"):
+        os.environ["PIXELSCOPE_LOAD_TRACE"] = "1"
     import cv2
     import numpy as np
     from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt, QTimer
@@ -193,6 +195,16 @@ def child(case: str, output: Path) -> dict:
         elif case.startswith("E3"):
             _, lane, count_text = case.split("_")
             count = int(count_text)
+            write_json(
+                fixtures / "catalog.json",
+                {
+                    "count": count,
+                    "shape": [8, 12],
+                    "dtype": "uint8",
+                    "state": "resident",
+                    "value_rule": "index modulo 256",
+                },
+            )
             ids = []
             for index in range(count):
                 document = ImageDocument.from_array(
@@ -397,6 +409,9 @@ def main() -> int:
     if "E1" in lanes:
         cases += [f"E1_{action}_{delay}" for action in ("Open", "Drop") for delay in (0, 250, 1000)]
     source_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    import cv2
+    import numpy
+    import pyqtgraph
     import PySide6
 
     write_json(
@@ -407,6 +422,12 @@ def main() -> int:
             "python": sys.version,
             "os": platform.platform(),
             "qt": PySide6.__version__,
+            "deps": {
+                "numpy": numpy.__version__,
+                "opencv": cv2.__version__,
+                "pyqtgraph": pyqtgraph.__version__,
+            },
+            "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "normal_gc": gc.isenabled(),
             "seed": 0,
             "display_mode": os.environ.get("QT_QPA_PLATFORM", "native"),
