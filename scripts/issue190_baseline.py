@@ -20,6 +20,7 @@ from pathlib import Path
 from threading import Event
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 BASE = "a9ecbf49757b0135e658cc9842722b1604c3f2f1"
 
@@ -66,7 +67,11 @@ def build_decisions(samples: list[dict]) -> dict:
             "evidence_grade": "G1" if successful else "unavailable",
             "reason": "No feature optimization was tested; baseline evidence only.",
             "limitation": limitation,
-            "G1_mechanism_supported": bool(successful) if decision_id == "U3" else None,
+            "G1_mechanism_supported": (
+                any(s["case_id"].startswith("E2_contended") for s in successful)
+                if decision_id == "U3"
+                else None
+            ),
             "feature_optimization_result": "inconclusive",
         }
     return {
@@ -78,7 +83,7 @@ def build_decisions(samples: list[dict]) -> dict:
     }
 
 
-def child(case: str, output: Path) -> dict:
+def child(case: str, output: Path, proof_wait: bool = False) -> dict:
     if case.startswith("E1"):
         os.environ["PIXELSCOPE_LOAD_TRACE"] = "1"
     import cv2
@@ -93,6 +98,7 @@ def child(case: str, output: Path) -> dict:
     from pixelscope.app.main_window import MainWindow
     from pixelscope.core.image_document import ImageDocument
     from pixelscope.io.path_discovery import discover_registration_inputs
+    from scripts.issue190_followup import desktop_metadata, e2_intervals, fourk_lane
 
     assert gc.isenabled(), "normal automatic GC is required"
     app = create_application(["issue190"])
@@ -104,6 +110,7 @@ def child(case: str, output: Path) -> dict:
     window = MainWindow()
     compose_main_window_presentation(window)
     window.resize(1200, 800)
+    window.setWindowTitle("PixelScope #190 diagnostic " + case)
     window.show()
 
     def wait(predicate, seconds=15):
@@ -115,6 +122,12 @@ def child(case: str, output: Path) -> dict:
             QTest.qWait(1)
 
     app.processEvents()
+
+    def presentation_probe():
+        if proof_wait:
+            # Outside timers: a real desktop screenshot must precede release.
+            wait(lambda: (output / "continue.json").exists(), seconds=55)
+
     marks = {}
     metrics = {}
     checks = []
@@ -138,9 +151,13 @@ def child(case: str, output: Path) -> dict:
 
     try:
         if case.startswith("E2"):
+            parts = case.split("_")
+            contended = parts[1] == "contended"
+            size = int(parts[2]) if len(parts) > 2 else 128
+            barrier_ms = int(parts[3]) if len(parts) > 3 else 750
             folder = fixtures / "F"
             folder.mkdir()
-            for index in range(1, 129):
+            for index in range(1, size + 1):
                 image(folder / f"image{index}.png", index)
                 (folder / f"unsupported{index}.txt").write_text("unsupported", encoding="utf-8")
             a, b = image(fixtures / "A.png", 17), image(fixtures / "B.png", 93)
@@ -150,14 +167,17 @@ def child(case: str, output: Path) -> dict:
             # Existing discovery injection point: worker closure holds plain data only.
             def discovery(paths, **kwargs):
                 name = "F" if paths[0] == folder else paths[0].stem
-                marks[name + "_discovery_start"] = time.perf_counter_ns()
+                marks[name + "_discovery_enter"] = time.perf_counter_ns()
                 order.append(name)
                 if name == "F":
+                    marks["F_barrier_enter"] = time.perf_counter_ns()
                     entered.set()
                     if not release.wait(5):
                         raise TimeoutError("discovery barrier was not released")
+                marks[name + "_discovery_start"] = time.perf_counter_ns()
                 result = discover_registration_inputs(paths, **kwargs)
                 marks[name + "_discovery_end"] = time.perf_counter_ns()
+                marks[name + "_discovery_return"] = marks[name + "_discovery_end"]
                 return result
 
             controller._discovery_function = discovery
@@ -175,20 +195,22 @@ def child(case: str, output: Path) -> dict:
                     if path.parent == folder:
                         marks.setdefault("F_first_row", time.perf_counter_ns())
                         marks["F_final_row"] = time.perf_counter_ns()
+                        marks.setdefault("F_first_row_inserted", marks["F_final_row"])
+                        marks["F_last_row_inserted"] = marks["F_final_row"]
                     elif name in ("A", "B"):
                         marks[name + "_registered"] = time.perf_counter_ns()
 
             window.document_list.model().rowsInserted.connect(rows_inserted)
-            controller.progress_changed.connect(
-                lambda phase, _done, _total: folder_selection.append(
-                    [d.display_name for d in window.selected_documents]
-                )
-                if phase == "idle" and len(window.documents) == 128
-                else None
-            )
+
+            def progress_changed(phase, _done, _total):
+                if phase == "idle" and len(window.documents) == size and contended:
+                    mark("F_registration_finished")
+                    folder_selection.append([d.display_name for d in window.selected_documents])
+
+            controller.progress_changed.connect(progress_changed)
             started = time.perf_counter_ns()
             heartbeat.start()
-            if case == "E2_contended":
+            if contended:
                 mark("F_enqueue")
                 controller.enqueue([folder])
                 wait(entered.is_set)
@@ -196,23 +218,29 @@ def child(case: str, output: Path) -> dict:
             window.open_image_paths([a])
             mark("B_enqueue")
             assert window.quick_compare_controller.handle_image_drop([b])
-            if case == "E2_contended":
-                QTimer.singleShot(750, release.set)
+            if contended:
+
+                def release_barrier():
+                    mark("F_barrier_release")
+                    release.set()
+
+                QTimer.singleShot(barrier_ms, release_barrier)
             wait(lambda: controller.is_idle)
             mark("registration_complete")
             assert [d.source_path for d in window.selected_documents] == [a.resolve(), b.resolve()]
-            assert order == (["F", "A", "B"] if case == "E2_contended" else ["A", "B"])
+            assert order == (["F", "A", "B"] if contended else ["A", "B"])
             assert controller.stale_result_count == 0
-            assert len(window.documents) == (130 if case == "E2_contended" else 2)
+            assert len(window.documents) == (size + 2 if contended else 2)
             assert len(set(window.documents)) == len(window.documents)
-            if case == "E2_contended":
+            if contended:
                 folder_docs = [
                     d for d in window.documents.values() if d.source_path.parent == folder
                 ]
                 assert [d.display_name for d in folder_docs] == [
-                    f"image{i}.png" for i in range(1, 129)
+                    f"image{i}.png" for i in range(1, size + 1)
                 ]
                 assert folder_selection == [[]]
+                metrics.update(e2_intervals(marks))
             checks += [
                 "A_B_order",
                 "FIFO",
@@ -225,7 +253,29 @@ def child(case: str, output: Path) -> dict:
                     metrics[name + "_enqueue_to_" + milestone] = (
                         marks[name + "_" + milestone] - marks[name + "_enqueue"]
                     ) / 1e6
-        elif case.startswith("E3"):
+        elif case.startswith("E3K"):
+            write_json(
+                fixtures / "catalog.json",
+                {
+                    "count": 2,
+                    "shape": [2160, 3840, 3],
+                    "dtype": "uint8",
+                    "state": "resident",
+                    "values": [17, 93],
+                    "diff_cache": "prepared",
+                },
+            )
+
+            def start_fourk():
+                nonlocal started
+                started = time.perf_counter_ns()
+                heartbeat.start()
+
+            checks += fourk_lane(
+                window, app, wait, case, marks, metrics, presentation_probe, start_fourk
+            )
+            heartbeat.stop()
+        elif case.startswith("E3_"):
             _, lane, count_text = case.split("_")
             count = int(count_text)
             write_json(
@@ -248,6 +298,7 @@ def child(case: str, output: Path) -> dict:
             window.document_list.expandAll()
             window._select_document_ids([ids[-1]])
             app.processEvents()
+            presentation_probe()
             counts = {"dataChanged": 0, "selectionChanged": 0}
 
             def data_changed(*_args):
@@ -382,8 +433,8 @@ def child(case: str, output: Path) -> dict:
             raise ValueError(case)
         app.processEvents()
         heartbeat.stop()
-        ended = time.perf_counter_ns()
-        intervals = [started, *ticks, ended]
+        ended = marks.get("measurement_end_ns", time.perf_counter_ns())
+        intervals = [started, *(tick for tick in ticks if started <= tick <= ended), ended]
         metrics["heartbeat_max_gap"] = (
             max(b - a for a, b in zip(intervals, intervals[1:], strict=False)) / 1e6
         )
@@ -396,6 +447,7 @@ def child(case: str, output: Path) -> dict:
             "normal_gc": gc.isenabled(),
             "fixture_sha256": fixture_digest(fixtures),
             "qt_platform": app.platformName(),
+            "desktop": desktop_metadata(app, window),
         }
     finally:
         release.set()
@@ -427,12 +479,14 @@ def main() -> int:
     parser.add_argument("--warmups", type=int, default=2)
     parser.add_argument("--lanes", default="E2,E3,E1")
     parser.add_argument("--child")
+    parser.add_argument("--cases", help="Explicit comma-separated diagnostic case IDs")
+    parser.add_argument("--proof-wait", action="store_true", help="Child waits for continue.json")
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
     if args.child:
         try:
-            result = child(args.child, args.output)
+            result = child(args.child, args.output, args.proof_wait)
         except Exception as error:
             import traceback
 
@@ -445,11 +499,15 @@ def main() -> int:
     cases = []
     lanes = args.lanes.split(",")
     if "E2" in lanes:
-        cases += ["E2_control", "E2_contended"]
+        cases += ["E2_control", "E2_contended_128_750", "E2_contended_128_0", "E2_contended_8_0"]
     if "E3" in lanes:
         cases += [f"E3_{lane}_{size}" for size in (1, 100, 1000) for lane in ("L1", "L2")]
     if "E1" in lanes:
         cases += [f"E1_{action}_{delay}" for action in ("Open", "Drop") for delay in (0, 250, 1000)]
+    if "E3K" in lanes:
+        cases += [f"E3K_{lane}_{state}" for lane in ("L1", "L2") for state in ("OFF", "ON")]
+    if args.cases:
+        cases = args.cases.split(",")
     source_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     import cv2
     import numpy
@@ -470,6 +528,11 @@ def main() -> int:
                 "pyqtgraph": pyqtgraph.__version__,
             },
             "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "helper_sha256": hashlib.sha256(
+                (ROOT / "scripts/issue190_followup.py").read_bytes()
+            ).hexdigest(),
+            "evidence_grade": "G1; native platform alone does not establish visible G2",
+            "presentation_verification": "external screenshot proof required; no auto-promotion",
             "normal_gc": gc.isenabled(),
             "seed": 0,
             "display_mode": os.environ.get("QT_QPA_PLATFORM", "native"),
@@ -478,7 +541,8 @@ def main() -> int:
                 "E2 128 PNG + 128 unsupported, direct A/B; "
                 "E3 resident 8x12 gray; E1 two UHD RGB8"
             ),
-            "barrier_ms": 750,
+            "barrier_ms": "E2 case ID specifies 0 or 750; old alias E2_contended=750",
+            "case_ids": cases,
             "network": "G3_unavailable: no representative UNC supplied",
             "repeats": args.repeats,
             "warmups": args.warmups,

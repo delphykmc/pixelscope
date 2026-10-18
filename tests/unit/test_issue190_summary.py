@@ -1,4 +1,5 @@
 from scripts.issue190_baseline import build_decisions, summarize
+from scripts.issue190_followup import e2_intervals
 
 
 def test_exploratory_summary_keeps_raw_samples_excludes_warmup_and_failure():
@@ -45,3 +46,53 @@ def test_failed_or_warmup_fifo_samples_do_not_establish_mechanism_evidence():
     result = build_decisions(samples)
     assert result["decisions"]["U3"]["G1_mechanism_supported"] is False
     assert result["failures"] == ["failed"]
+
+
+def test_e2_separates_barrier_worker_discovery_gui_rows_and_commit():
+    marks = dict(
+        zip(
+            [
+                "F_barrier_enter",
+                "F_barrier_release",
+                "F_discovery_start",
+                "F_discovery_return",
+                "F_first_row_inserted",
+                "F_last_row_inserted",
+                "F_registration_finished",
+                "A_discovery_start",
+            ],
+            [
+                0,
+                750_000_000,
+                751_000_000,
+                951_000_000,
+                954_000_000,
+                964_000_000,
+                969_000_000,
+                970_000_000,
+            ],
+            strict=True,
+        )
+    )
+    assert e2_intervals(marks) == {
+        "F_barrier_wait": 750,
+        "F_release_to_discovery_start": 1,
+        "F_discovery_work": 200,
+        "F_worker_to_first_GUI_row": 3,
+        "F_GUI_row_span": 10,
+        "F_last_row_to_commit": 5,
+        "F_GUI_handoff_to_commit": 18,
+        "F_commit_to_A_dispatch": 1,
+    }
+
+
+def test_e2_incomplete_timeline_is_not_inferred_success():
+    import pytest
+
+    with pytest.raises(KeyError):
+        e2_intervals({"F_barrier_enter": 0})
+
+
+def test_control_only_does_not_establish_head_of_line_mechanism():
+    result = build_decisions([{"case_id": "E2_control", "run_id": "control", "status": "ok"}])
+    assert result["decisions"]["U3"]["G1_mechanism_supported"] is False
