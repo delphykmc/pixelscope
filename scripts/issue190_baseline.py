@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import math
 import hashlib
 import json
 import os
@@ -46,6 +47,100 @@ def summarize(samples: list[dict]) -> dict:
     }
 
 
+def _observed_fifo_mechanism(samples: list[dict]) -> bool:
+    """Require a paired, correctly observed FIFO control and blocked folder run."""
+    required_checks = {
+        "A_B_order",
+        "FIFO",
+        "unique_rows",
+        "no_stale_callback",
+        "folder_natural_order_no_autoselect",
+    }
+    measured_intervals = (
+        ("A_enqueue", "A_discovery_start", "A_enqueue_to_discovery_start"),
+        ("A_enqueue", "A_registered", "A_enqueue_to_registered"),
+        ("B_enqueue", "B_discovery_start", "B_enqueue_to_discovery_start"),
+        ("B_enqueue", "B_registered", "B_enqueue_to_registered"),
+    )
+
+    def valid(sample: dict, *, contended: bool) -> bool:
+        if (
+            sample.get("status") != "ok"
+            or sample.get("warmup")
+            or sample.get("returncode", 0) != 0
+            or not required_checks.issubset(sample.get("checks", []))
+        ):
+            return False
+        marks = sample.get("milestones", {})
+        metrics = sample.get("metrics_ms", {})
+        if not isinstance(marks, dict) or not isinstance(metrics, dict):
+            return False
+        for start, end, metric in measured_intervals:
+            before, after, duration = marks.get(start), marks.get(end), metrics.get(metric)
+            if any(
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                for value in (before, after, duration)
+            ):
+                return False
+            if after <= before or abs((after - before) / 1e6 - duration) > 0.1:
+                return False
+        if not (
+            marks["A_enqueue"] <= marks["B_enqueue"]
+            and marks["A_discovery_start"] < marks["B_discovery_start"]
+        ):
+            return False
+        if contended:
+            stages = (
+                "F_discovery_enter",
+                "F_barrier_enter",
+                "F_barrier_release",
+                "F_discovery_start",
+                "F_discovery_return",
+                "F_first_row_inserted",
+                "F_last_row_inserted",
+                "F_registration_finished",
+                "A_discovery_start",
+            )
+            if any(not isinstance(marks.get(stage), (int, float)) for stage in stages):
+                return False
+            if any(marks[left] > marks[right] for left, right in zip(stages, stages[1:])):
+                return False
+            if not marks["F_discovery_enter"] <= marks["A_enqueue"]:
+                return False
+        return True
+
+    def repeat_key(sample: dict) -> str | None:
+        case_id, run_id = sample.get("case_id"), sample.get("run_id")
+        if not isinstance(case_id, str) or not isinstance(run_id, str):
+            return None
+        prefix = f"{case_id}-"
+        suffix = run_id[len(prefix) :] if run_id.startswith(prefix) else ""
+        return suffix if suffix.isdigit() else None
+
+    controls = {
+        repeat_key(sample): sample
+        for sample in samples
+        if sample.get("case_id") == "E2_control"
+        and repeat_key(sample) is not None
+        and valid(sample, contended=False)
+    }
+    for sample in samples:
+        if not str(sample.get("case_id", "")).startswith("E2_contended_"):
+            continue
+        key = repeat_key(sample)
+        control = controls.get(key) if key is not None else None
+        if (
+            control is not None
+            and valid(sample, contended=True)
+            and sample["metrics_ms"]["A_enqueue_to_discovery_start"]
+            > control["metrics_ms"]["A_enqueue_to_discovery_start"]
+        ):
+            return True
+    return False
+
+
 def build_decisions(samples: list[dict]) -> dict:
     """Reconcile immutable samples to the chair's U1-U4 hypothesis IDs."""
     definitions = {
@@ -68,9 +163,7 @@ def build_decisions(samples: list[dict]) -> dict:
             "reason": "No feature optimization was tested; baseline evidence only.",
             "limitation": limitation,
             "G1_mechanism_supported": (
-                any(s["case_id"].startswith("E2_contended") for s in successful)
-                if decision_id == "U3"
-                else None
+                _observed_fifo_mechanism(relevant) if decision_id == "U3" else None
             ),
             "feature_optimization_result": "inconclusive",
         }
