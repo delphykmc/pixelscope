@@ -2148,24 +2148,6 @@ class MainWindow(QMainWindow):
         self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
-        # A newly added source can turn a zoomed Single presentation into Multi.
-        # Capture pixel-space center/scale before the independent viewer changes.
-        single_view_coordinates: tuple[tuple[float, float], tuple[float, float]] | None = None
-        if (
-            preserve_view
-            and self.central_stack.currentWidget() is self.viewer
-            and self.viewer.document is not None
-            and self.viewer.document.preview is not None
-            and self.viewer.document.document_id
-            in {document.document_id for document in self.selected_documents}
-        ):
-            x_range, y_range = self.viewer.view_box.viewRange()
-            pixel_size = self.viewer.view_box.viewPixelSize()
-            if pixel_size[0] > 0 and pixel_size[1] > 0:
-                single_view_coordinates = (
-                    ((x_range[0] + x_range[1]) / 2.0, (y_range[0] + y_range[1]) / 2.0),
-                    (float(pixel_size[0]), float(pixel_size[1])),
-                )
         documents = self.selected_documents
         render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
         render_trace = load_latency_trace.PhaseTimer(
@@ -2417,9 +2399,6 @@ class MainWindow(QMainWindow):
             )
             render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
-            if single_view_coordinates is not None:
-                center, pixel_size = single_view_coordinates
-                self.multi_compare_view.adopt_view_coordinates(center, pixel_size)
             visible_state = [
                 document for document in visible if document is not self._difference_document
             ]
