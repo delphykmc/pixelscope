@@ -1,8 +1,10 @@
 # PR #194 source cycling validation and repair
 
-Status: Active  
-Owner: ChatGPT, requested by repository owner  
-Branch/PR: [PR #194](https://github.com/delphykmc/pixelscope/pull/194)  
+Status: Active
+
+Owner: ChatGPT, requested by repository owner
+
+Branch/PR: [PR #194](https://github.com/delphykmc/pixelscope/pull/194)
 Last updated: 2026-10-20
 
 ## Goal and scope
