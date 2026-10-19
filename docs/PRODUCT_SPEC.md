@@ -689,7 +689,7 @@ Folder Position deep, on a dedicated max-one worker; an exact matching physicall
 RUNNING preload may transfer logical authority to foreground without duplicate
 decode. P5-C/P5-D add no Remote-IQA-owned preload system.
 
-## Source Primary cycling and view preservation
+## Source Primary cycling
 
 `T` rotates only real source documents within the current six-image Comparison Page:
 the last source in presentation order becomes Primary and precedes the retained
