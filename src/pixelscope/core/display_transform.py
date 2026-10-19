@@ -263,6 +263,22 @@ def render_absolute_difference(diff: NDArray[Any], gain: float = 1.0) -> NDArray
     if gain <= 0:
         raise ValueError("display gain must be greater than zero")
     maximum = max(float(np.max(diff)), 1.0)
+    # Evaluate identical float32 rounding once per byte. Restrict scalar magnitude
+    # so unused LUT codes cannot introduce floating-point exceptions; unusual
+    # gains, array subclasses and non-image shapes retain the original arithmetic.
+    if (
+        type(diff) is np.ndarray
+        and diff.dtype == np.uint8
+        and (diff.ndim == 2 or (diff.ndim == 3 and diff.shape[2] in (1, 3, 4)))
+        and isinstance(gain, int | float | np.integer | np.floating)
+        and 1e-30 <= gain <= 1e30
+    ):
+        import cv2
+
+        codes = np.arange(256, dtype=np.float32)
+        scaled = np.clip(codes * gain / maximum, 0.0, 1.0)
+        lookup = np.rint(scaled * 255.0).astype(np.uint8)
+        return np.ascontiguousarray(cv2.LUT(diff, lookup).reshape(diff.shape))
     scaled = np.clip(diff.astype(np.float32) * gain / maximum, 0.0, 1.0)
     return np.ascontiguousarray(np.rint(scaled * 255.0).astype(np.uint8))
 
