@@ -281,6 +281,40 @@ class MultiCompareView(QWidget):
         for viewer in self.visible_viewers:
             viewer.set_line_selection(selection)
 
+    def adopt_view_coordinates(
+        self,
+        center: tuple[float, float],
+        pixel_size: tuple[float, float],
+    ) -> None:
+        """Carry Single View zoom/center into the newly created Multi View.
+
+        The destination tiles are smaller, so copying raw x/y ranges would
+        change magnification. Preserve the source's units-per-screen-pixel and
+        its image-coordinate center instead.
+        """
+
+        anchor = next(
+            (viewer for viewer in self.visible_viewers if viewer.document is not None),
+            None,
+        )
+        if anchor is None or min(pixel_size) <= 0:
+            return
+        width = max(float(anchor.view_box.width()), 1.0)
+        height = max(float(anchor.view_box.height()), 1.0)
+        center_x, center_y = center
+        half_width = pixel_size[0] * width / 2.0
+        half_height = pixel_size[1] * height / 2.0
+        self._syncing_range = True
+        try:
+            anchor.view_box.setRange(
+                xRange=(center_x - half_width, center_x + half_width),
+                yRange=(center_y - half_height, center_y + half_height),
+                padding=0,
+            )
+            self._apply_range(anchor.view_box.viewRange(), source=anchor)
+        finally:
+            self._syncing_range = False
+
     def fit_images(self) -> None:
         anchor = next(
             (viewer for viewer in self.visible_viewers if viewer.document is not None),

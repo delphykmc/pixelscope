@@ -451,6 +451,10 @@ class MainWindow(QMainWindow):
         next_image = add_action("Selection", "Next Selected Image", self.next_image)
         previous_image.setText("Previous Selected Image\tLeft")
         next_image.setText("Next Selected Image\tRight")
+        cycle_primary = add_action(
+            "Selection", "Cycle Primary Source", self.cycle_primary_source
+        )
+        cycle_primary.setText("Cycle Primary Source\tT")
         previous_page = add_action(
             "Selection",
             "Previous Comparison Page",
@@ -795,6 +799,14 @@ class MainWindow(QMainWindow):
         self._file_list_shortcuts.append(select_all)
 
         self._selection_shortcuts: list[QShortcut] = []
+        # Keep plain T out of editors/docks; both viewer and Files own a focused scope.
+        self._primary_cycle_shortcuts: list[QShortcut] = []
+        for scope in (self.central_stack, self.document_list):
+            shortcut = QShortcut(QKeySequence("T"), scope)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.setAutoRepeat(False)
+            shortcut.activated.connect(self.cycle_primary_source)  # type: ignore[attr-defined]
+            self._primary_cycle_shortcuts.append(shortcut)
         for index in range(COMPARISON_PAGE_SIZE):
             shortcut = QShortcut(QKeySequence(str(index + 1)), self)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -2138,6 +2150,24 @@ class MainWindow(QMainWindow):
         self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
+        # A newly added source can turn a zoomed Single presentation into Multi.
+        # Capture pixel-space center/scale before the independent viewer changes.
+        single_view_coordinates: tuple[tuple[float, float], tuple[float, float]] | None = None
+        if (
+            preserve_view
+            and self.central_stack.currentWidget() is self.viewer
+            and self.viewer.document is not None
+            and self.viewer.document.preview is not None
+            and self.viewer.document.document_id
+            in {document.document_id for document in self.selected_documents}
+        ):
+            x_range, y_range = self.viewer.view_box.viewRange()
+            pixel_size = self.viewer.view_box.viewPixelSize()
+            if pixel_size[0] > 0 and pixel_size[1] > 0:
+                single_view_coordinates = (
+                    ((x_range[0] + x_range[1]) / 2.0, (y_range[0] + y_range[1]) / 2.0),
+                    (float(pixel_size[0]), float(pixel_size[1])),
+                )
         documents = self.selected_documents
         render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
         render_trace = load_latency_trace.PhaseTimer(
@@ -2389,6 +2419,9 @@ class MainWindow(QMainWindow):
             )
             render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
+            if single_view_coordinates is not None:
+                center, pixel_size = single_view_coordinates
+                self.multi_compare_view.adopt_view_coordinates(center, pixel_size)
             visible_state = [
                 document for document in visible if document is not self._difference_document
             ]
@@ -2675,6 +2708,49 @@ class MainWindow(QMainWindow):
             page_start = self._normalized_comparison_page_start()
             self._primary_page_slot = selected_index - page_start
         self._render_selection(preserve_view=True)
+
+    def cycle_primary_source(self) -> None:
+        """Rotate page-local source order by promoting the last source to Primary.
+
+        Difference, split-channel and other derived presentations never enter
+        the rotation. In Single View the same order advances through visible
+        source frames without rebinding the full comparison/analysis workspace.
+        """
+
+        if self._channel_split_active:
+            return
+        page = self.current_comparison_documents()
+        if len(page) < 2:
+            return
+        source_by_id = {document.document_id: document for document in page}
+        order = [
+            document_id
+            for document_id in self._multi_display_order
+            if document_id in source_by_id
+        ]
+        order.extend(
+            document.document_id
+            for document in page
+            if document.document_id not in order
+        )
+        target_id = order[-1]
+        target = source_by_id[target_id]
+        if self._layout_mode != "Single View":
+            self._set_focus_document(target)
+            return
+
+        self._promote_multi_document(target_id)
+        self._focus_document_id = target_id
+        selected_index = next(
+            index
+            for index, document in enumerate(self.selected_documents)
+            if document.document_id == target_id
+        )
+        self._primary_page_slot = selected_index - self._normalized_comparison_page_start()
+        self._show_single_document(target, selected_index)
+        self.line_profile_panel.set_reference_priority_ids(
+            self._line_reference_priority_ids([target], target)
+        )
 
     def _ordered_multi_documents(self, documents: list[ImageDocument]) -> list[ImageDocument]:
         by_id = {document.document_id: document for document in documents}

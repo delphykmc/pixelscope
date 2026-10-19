@@ -689,6 +689,23 @@ Folder Position deep, on a dedicated max-one worker; an exact matching physicall
 RUNNING preload may transfer logical authority to foreground without duplicate
 decode. P5-C/P5-D add no Remote-IQA-owned preload system.
 
+## Source Primary cycling and view preservation
+
+`T` rotates only real source documents within the current six-image Comparison Page:
+the last source in presentation order becomes Primary and precedes the retained
+relative order of the other sources. Files/Selected order and Difference's A/B
+binding remain unchanged. In Single View the same rotation changes the visible
+source without traversing Difference. Split-derived tiles and Difference are
+excluded; a one-source page is a no-op. The former hold-B Blink presentation is
+removed. T belongs only to the Image View and Files focus scopes, preventing
+plain-text editor interception; held-key autorepeat cannot cause repeated cycles.
+
+Initial direct-image population fits the source in the viewer. Additive D&D
+preserves the current image-coordinate center and screen-pixel zoom scale,
+including the transition from one Single View source to Multi View. Derived
+previews, native numerical sources, ROI/Line ownership, and selection order
+are not modified by this presentation transition.
+
 ## Difference contract
 
 Eligible explicit two-source drops in Files or Image View show the sources while

@@ -10,6 +10,8 @@ Image View is the primary visual inspection surface.
 
 **Single View** (`Ctrl+1`) focuses on one source in the current page context. **Multi View** (`Ctrl+2`) presents the Current Comparison Page, up to six sources. Number keys `1` through `6` activate the corresponding visible page-local slot.
 
+Press **T** to move the last real source on the Current Comparison Page to **Primary**, shifting the other displayed source positions forward. Repeated presses cycle through the sources in Single and Multi View; Difference and split-derived tiles are not part of this rotation. This does not reorder Files selection.
+
 Use **Left/Right** to move through the complete ordered Selected set. Crossing a six-image boundary moves to the page that contains the new active source; `PageUp/PageDown` remain reserved for Folder Position movement instead.
 
 ## Zoom, pan, and inspection
