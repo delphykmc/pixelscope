@@ -451,9 +451,7 @@ class MainWindow(QMainWindow):
         next_image = add_action("Selection", "Next Selected Image", self.next_image)
         previous_image.setText("Previous Selected Image\tLeft")
         next_image.setText("Next Selected Image\tRight")
-        cycle_primary = add_action(
-            "Selection", "Cycle Primary Source", self.cycle_primary_source
-        )
+        cycle_primary = add_action("Selection", "Cycle Primary Source", self.cycle_primary_source)
         cycle_primary.setText("Cycle Primary Source\tT")
         previous_page = add_action(
             "Selection",
@@ -2724,15 +2722,9 @@ class MainWindow(QMainWindow):
             return
         source_by_id = {document.document_id: document for document in page}
         order = [
-            document_id
-            for document_id in self._multi_display_order
-            if document_id in source_by_id
+            document_id for document_id in self._multi_display_order if document_id in source_by_id
         ]
-        order.extend(
-            document.document_id
-            for document in page
-            if document.document_id not in order
-        )
+        order.extend(document.document_id for document in page if document.document_id not in order)
         target_id = order[-1]
         target = source_by_id[target_id]
         if self._layout_mode != "Single View":
