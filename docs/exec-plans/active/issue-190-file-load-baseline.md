@@ -617,3 +617,46 @@ Stop new instrumentation after this bounded study. Request Qt/System/QA review
 of readiness-oracle limits, range semantics, stage attribution and failed-sample
 handling; return to #189 for chair adjudication before any optimization. #191
 stays the single Draft PR, unmerged; #189/#190 remain open.
+
+## D1 focused first-Diff-ON confirmation — owner authorized, Round 6
+
+The owner requested the [#189 Round-6 D1 check](https://github.com/delphykmc/pixelscope/issues/189#issuecomment-6260361080).
+This supersedes the prior stop only for one small paired first-ON/re-ON study;
+no generic R1-R3 rerun, oracle relabeling, production optimization or merge.
+Baseline PR head is `ec8231cf7c3f77c58ee91541f89ae8e435c03299`, main unchanged.
+
+`scripts/issue190_diff_on.py` uses the same distinct textured on-disk UHD PNGs,
+normal Open A then composed Quick Compare registration/load B. Before timing,
+map **and metrics** must be cached, auxiliary workers idle, Diff hidden and
+preview value absent. Two warm-ups plus eight fresh-process cold/warm pairs.
+First ON uses QAction.trigger; OFF is untimed, then same-key re-ON. An additional
+direct warm cached-display getter probe occurs **after** both actions, never
+pre-rendering the cold control. Actual composed curation callback, panel cache
+getter/preview hit/miss, numerical absolute renderer, store and base/composed
+render callbacks are bracketed via test-owned class-native subclasses and a
+restored numerical-function symbol. No Qt instance-method wrapper is installed
+by the diagnostic; normal production composition is retained.
+
+Smoke confirmed an important call-path distinction: first ON enters the composed
+DifferenceCurationLifecycle callback (not the disconnected base callback), while
+warm re-ON re-shows the established Difference document without calling the
+cached-display getter. The explicit warm getter probe verifies actual same-key
+preview HIT separately. No-call metrics are absent/null, not fabricated zero-ms
+measurements. Primitive traces record GUI thread, map/preview cache state and
+existing-result presence. Timing ends at synchronous action return; first
+post-action 10ms heartbeat gap is separate and may include subsequent Qt work.
+
+Untimed Windows process RSS/private/lifetime-peak-working-set snapshots bracket
+each action. These include validation buffers and normal GC; they are not exact
+action allocation, peak private bytes, eviction/reclamation proof or a new memory
+budget. Source/preview/derived pixels, pair/generation/controls/ROI/key identity,
+cache-map and warm preview identity, stale counters and deterministic close/drain
+are correctness gates. Exact postpaint/physical display remains INCONCLUSIVE;
+no first-frame or guaranteed optimization-gain claim. All failures are retained.
+
+Development smoke is separate: the first setup attempt using Open(A,B) did not
+establish the required composed cache-ready pair and timed out; subsequent setup
+uses sequential real registration/loading, and the cold/warm smoke passed.
+An early timer on the disconnected base callback was corrected to the installed
+curation callback before the final source freeze. Old 9+14 R1-R3 failures remain
+immutable. No timeout or correctness tolerance was increased.
