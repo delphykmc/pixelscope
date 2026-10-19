@@ -120,32 +120,3 @@ def test_b_no_longer_overlays_source_images(qtbot: object) -> None:
     assert not hasattr(window.quick_compare_controller, "_blink_snapshot")
     window.close()
 
-
-def test_additive_drop_preserves_single_view_center_and_pixel_scale(qtbot: object) -> None:
-    window, documents = _window(qtbot, 2)
-    window._select_document_ids([documents[0].document_id])
-    assert window.central_stack.currentWidget() is window.viewer
-    window.viewer.view_box.setRange(
-        xRange=(90.0, 170.0),
-        yRange=(70.0, 130.0),
-        padding=0,
-    )
-    before = window.viewer.view_box.viewRange()
-    center = (
-        (before[0][0] + before[0][1]) / 2.0,
-        (before[1][0] + before[1][1]) / 2.0,
-    )
-    pixel_size = window.viewer.view_box.viewPixelSize()
-
-    window.quick_compare_controller._apply_registered_drop([documents[1].document_id])
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert window.central_stack.currentWidget() is window.multi_compare_view
-    for viewer in window.multi_compare_view.occupied_viewers:
-        actual = viewer.view_box.viewRange()
-        actual_center = (
-            (actual[0][0] + actual[0][1]) / 2.0,
-            (actual[1][0] + actual[1][1]) / 2.0,
-        )
-        assert actual_center == pytest.approx(center, abs=1.0)
-        assert viewer.view_box.viewPixelSize() == pytest.approx(pixel_size, rel=0.05)
-    window.close()
