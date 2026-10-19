@@ -2,8 +2,7 @@
 
 > **Source cycling convenience update (2026-10-19):** T rotates the last
 > page-local source to Primary in both Single and Multi View. Hold-B Blink is
-> retired; Difference/derived tiles are excluded, and initial Fit versus
-> additive D&D view-coordinate preservation is explicit. Windows UI validation
+> retired; Difference/derived tiles are excluded. Windows UI validation
 > remains an owner/local gate for this pending change.
 
 > **Network interaction performance follow-up (2026-10-16, owner accepted):**
