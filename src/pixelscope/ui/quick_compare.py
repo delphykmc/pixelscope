@@ -1,53 +1,28 @@
 from __future__ import annotations
 
 import weakref
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import numpy as np
-from numpy.typing import NDArray
-from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtGui import (
     QDragEnterEvent,
     QDragLeaveEvent,
     QDragMoveEvent,
     QDropEvent,
-    QKeyEvent,
 )
 from PySide6.QtWidgets import (
-    QAbstractSpinBox,
     QApplication,
     QButtonGroup,
-    QComboBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPlainTextEdit,
-    QTextEdit,
     QToolButton,
     QWidget,
 )
 
-from pixelscope.core.display_transform import render_ordinary_display_preview
-from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.path_discovery import discover_image_inputs
-from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import TOKENS
-from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
-from pixelscope.ui.image_viewer import ImageViewer, _display_preview_thread_pool
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
-from pixelscope.workers.task_worker import TaskWorker
-
-_BlinkRenderIdentity = tuple[int, int, int, int, float]
-
-
-@dataclass(frozen=True)
-class _BlinkSnapshot:
-    viewer: ImageViewer
-    reference: ImageDocument
-    alternate: ImageDocument
 
 
 class QuickCompareController(QObject):
@@ -63,12 +38,6 @@ class QuickCompareController(QObject):
         self._three_view_override: str | None = None
         self._pending_difference_pair: tuple[str, str] | None = None
         self._difference_retry_count = 0
-        self._blink_snapshot: _BlinkSnapshot | None = None
-        self._blink_render_worker: TaskWorker | None = None
-        self._blink_render_request_serial = 0
-        self._blink_render_request_identity: _BlinkRenderIdentity | None = None
-        self._blink_cache_identity: _BlinkRenderIdentity | None = None
-        self._blink_cache_preview: NDArray[np.uint8] | None = None
         self._protected_difference_pair: tuple[str, str] | None = None
         self._sequential_drop_anchor_id: str | None = None
         self._app: QApplication | None = None
@@ -78,8 +47,6 @@ class QuickCompareController(QObject):
         )
         self._original_fixed_geometry = OwnerCallback(window.multi_compare_view._fixed_geometry)
         self._original_render_selection = OwnerCallback(window._render_selection)
-        self._display_gain_state = display_gain_state()
-        self._display_gain_state.gain_changed.connect(self._display_gain_changed_during_blink)
 
         self._difference_retry_timer = QTimer(self)
         self._difference_retry_timer.setInterval(50)
@@ -186,8 +153,6 @@ class QuickCompareController(QObject):
         self.window._render_selection = OwnerCallback(self._render_selection)
 
     def _render_selection(self, preserve_view: bool = False) -> None:
-        self._end_blink()
-        self._clear_blink_cache()
         self._original_render_selection(preserve_view)
         self._update_three_view_controls()
 
@@ -232,37 +197,10 @@ class QuickCompareController(QObject):
                     drop_event.acceptProposedAction()
                     return True
 
-        if event_type in (QEvent.Type.ApplicationDeactivate, QEvent.Type.WindowDeactivate):
-            self._end_blink()
-        elif watched is self.window and event_type == QEvent.Type.Close:
+        if watched is self.window and event_type == QEvent.Type.Close:
             self._clear_pending_difference(clear_protected=True)
-            self._end_blink()
-            self._cancel_blink_render(clear_cache=True)
             self._uninstall_input_filter()
 
-        if event_type == QEvent.Type.KeyPress:
-            key_event = cast(QKeyEvent, event)
-            if (
-                self._app is not None
-                and self._app.activeWindow() is self.window
-                and key_event.key() == Qt.Key.Key_B
-                and key_event.modifiers() == Qt.KeyboardModifier.NoModifier
-                and not key_event.isAutoRepeat()
-                and not self._text_input_has_focus()
-                and self._begin_blink()
-            ):
-                event.accept()
-                return True
-        elif event_type == QEvent.Type.KeyRelease:
-            key_event = cast(QKeyEvent, event)
-            if (
-                key_event.key() == Qt.Key.Key_B
-                and not key_event.isAutoRepeat()
-                and self._blink_snapshot is not None
-            ):
-                self._end_blink()
-                event.accept()
-                return True
         # QApplication can route internal Qt objects (for example QWidgetItem) through
         # an application-level filter. Calling QObject.eventFilter() with those Python
         # wrappers raises in PySide6; the default QObject implementation is a no-op.
@@ -548,282 +486,6 @@ class QuickCompareController(QObject):
         )
         self.three_view_group.setVisible(visible)
         self._sync_three_view_buttons(self._effective_three_view_variant())
-
-    def _text_input_has_focus(self) -> bool:
-        focus = self._app.focusWidget() if self._app is not None else None
-        return isinstance(
-            focus,
-            QLineEdit | QAbstractSpinBox | QComboBox | QTextEdit | QPlainTextEdit,
-        )
-
-    def _blink_sources(self) -> tuple[ImageDocument, ImageDocument] | None:
-        if self.window._channel_split_active:
-            return None
-        sources = self.window.selected_documents
-        if len(sources) != 2:
-            return None
-        if any(document.preview is None for document in sources):
-            return None
-        return sources[0], sources[1]
-
-    def _viewer_for_document(self, document_id: str) -> ImageViewer | None:
-        single_viewer = self.window.viewer
-        if (
-            isinstance(single_viewer, ImageViewer)
-            and single_viewer.document is not None
-            and single_viewer.document.document_id == document_id
-        ):
-            return single_viewer
-        for candidate in self.view.viewers:
-            if (
-                isinstance(candidate, ImageViewer)
-                and candidate.document is not None
-                and candidate.document.document_id == document_id
-            ):
-                return candidate
-        return None
-
-    def _blink_context(self) -> tuple[ImageViewer, ImageDocument, ImageDocument] | None:
-        sources = self._blink_sources()
-        if sources is None:
-            return None
-
-        if self.window.central_stack.currentWidget() is self.window.viewer:
-            visible = self.window.viewer.document
-            if visible is None:
-                return None
-            reference = next(
-                (document for document in sources if document.document_id == visible.document_id),
-                None,
-            )
-            if reference is None:
-                return None
-            alternate = sources[1] if sources[0] is reference else sources[0]
-            return self.window.viewer, reference, alternate
-
-        reference, alternate = sources
-        reference_viewer = self._viewer_for_document(reference.document_id)
-        if reference_viewer is None:
-            return None
-        return reference_viewer, reference, alternate
-
-    def _blink_render_identity(
-        self,
-        document: ImageDocument,
-        gain: float,
-    ) -> _BlinkRenderIdentity | None:
-        source = document.source
-        preview = document.preview
-        if source is None or preview is None:
-            return None
-        return (id(document), id(source), id(preview), document.generation, float(gain))
-
-    def _blink_presentation(self, document: ImageDocument) -> tuple[object, QRectF] | None:
-        preview = document.preview
-        if preview is None:
-            return None
-        rect = QRectF(ImageViewer._presentation_rect(document))
-        gain_capable = is_display_gain_capable(document)
-        gain = self._display_gain_state.gain
-        candidate = self._viewer_for_document(document.document_id)
-        if (
-            candidate is not None
-            and candidate.image_item.image is not None
-            and (not gain_capable or gain == 1.0 or candidate._displayed_gain == gain)
-        ):
-            return candidate.image_item.image, rect
-        if not gain_capable or gain == 1.0:
-            return preview, rect
-
-        identity = self._blink_render_identity(document, gain)
-        if (
-            identity is not None
-            and identity == self._blink_cache_identity
-            and self._blink_cache_preview is not None
-        ):
-            return self._blink_cache_preview, rect
-        return None
-
-    def _request_blink_render(self, document: ImageDocument) -> bool:
-        gain = self._display_gain_state.gain
-        if not is_display_gain_capable(document) or gain == 1.0:
-            return False
-        identity = self._blink_render_identity(document, gain)
-        if identity is None:
-            return False
-        if identity == self._blink_cache_identity and self._blink_cache_preview is not None:
-            return True
-        if (
-            identity == self._blink_render_request_identity
-            and self._blink_render_worker is not None
-        ):
-            return True
-
-        clear_cache = self._blink_cache_identity != identity
-        self._cancel_blink_render(clear_cache=clear_cache)
-        source = document.source
-        preview = document.preview
-        if source is None or preview is None:
-            return False
-
-        request_serial = self._blink_render_request_serial
-        profile = document.raw_profile
-        if isinstance(profile, RawProfile):
-            worker = TaskWorker(
-                render_raw_preview,
-                source,
-                document_id=document.document_id,
-                generation=document.generation,
-                channel_layout=document.channel_layout,
-                bit_depth=profile.bit_depth,
-                black_level=profile.black_level,
-                bayer_pattern=profile.bayer_pattern,
-                gain=gain,
-            )
-        else:
-            worker = TaskWorker(
-                render_ordinary_display_preview,
-                source,
-                document_id=document.document_id,
-                generation=document.generation,
-                channel_layout=document.channel_layout,
-                transform=document.display_transform,
-                canonical_preview=preview,
-                gain=gain,
-            )
-        worker.signals.succeeded.connect(
-            lambda task_id, document_id, generation, result: self._blink_render_succeeded(
-                task_id,
-                document_id,
-                generation,
-                result,
-                request_serial=request_serial,
-                expected_identity=identity,
-                expected_document=document,
-                expected_source=source,
-                expected_preview=preview,
-                expected_gain=gain,
-            )
-        )
-        worker.signals.finished.connect(self._blink_render_finished)
-        self._blink_render_worker = worker
-        self._blink_render_request_identity = identity
-        _display_preview_thread_pool().start(worker)
-        return True
-
-    def _blink_render_succeeded(
-        self,
-        task_id: str,
-        document_id: object,
-        generation: int,
-        result: object,
-        *,
-        request_serial: int,
-        expected_identity: _BlinkRenderIdentity,
-        expected_document: ImageDocument,
-        expected_source: object,
-        expected_preview: object,
-        expected_gain: float,
-    ) -> None:
-        worker = self._blink_render_worker
-        if (
-            worker is None
-            or worker.task_id != task_id
-            or request_serial != self._blink_render_request_serial
-            or self._blink_render_request_identity != expected_identity
-            or document_id != expected_document.document_id
-            or generation != expected_document.generation
-            or expected_document.source is not expected_source
-            or expected_document.preview is not expected_preview
-            or self._display_gain_state.gain != expected_gain
-        ):
-            return
-        if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
-            return
-        if not isinstance(expected_preview, np.ndarray) or result.shape != expected_preview.shape:
-            return
-
-        self._blink_cache_identity = expected_identity
-        self._blink_cache_preview = result
-        snapshot = self._blink_snapshot
-        if snapshot is not None and snapshot.alternate is expected_document:
-            self._show_blink_alternate(snapshot)
-
-    def _blink_render_finished(self, task_id: str) -> None:
-        worker = self._blink_render_worker
-        if worker is not None and worker.task_id == task_id:
-            self._blink_render_worker = None
-            self._blink_render_request_identity = None
-
-    def _cancel_blink_render(self, *, clear_cache: bool) -> None:
-        self._blink_render_request_serial += 1
-        worker = self._blink_render_worker
-        if worker is not None:
-            worker.cancel()
-        self._blink_render_worker = None
-        self._blink_render_request_identity = None
-        if clear_cache:
-            self._clear_blink_cache()
-
-    def _clear_blink_cache(self) -> None:
-        self._blink_cache_identity = None
-        self._blink_cache_preview = None
-
-    def _show_blink_alternate(self, snapshot: _BlinkSnapshot) -> bool:
-        presentation = self._blink_presentation(snapshot.alternate)
-        if presentation is None:
-            return False
-        image, rect = presentation
-        snapshot.viewer.image_item.setImage(cast(Any, image), autoLevels=False)
-        snapshot.viewer.image_item.setRect(rect)
-        return True
-
-    def _begin_blink(self) -> bool:
-        if self._blink_snapshot is not None:
-            return True
-        context = self._blink_context()
-        if context is None:
-            return False
-        reference_viewer, reference, alternate = context
-        if reference_viewer.image_item.image is None:
-            return False
-
-        snapshot = _BlinkSnapshot(reference_viewer, reference, alternate)
-        reference_viewer._cancel_display_preview()
-        self._blink_snapshot = snapshot
-        if self._show_blink_alternate(snapshot):
-            return True
-        if self._request_blink_render(alternate):
-            return True
-
-        self._blink_snapshot = None
-        reference_viewer._ensure_display_preview()
-        return False
-
-    def _display_gain_changed_during_blink(self, _gain: float) -> None:
-        snapshot = self._blink_snapshot
-        self._cancel_blink_render(clear_cache=True)
-        if snapshot is None:
-            return
-        snapshot.viewer._cancel_display_preview()
-        if self._show_blink_alternate(snapshot):
-            return
-        if not self._request_blink_render(snapshot.alternate):
-            self._end_blink()
-
-    def _end_blink(self) -> None:
-        snapshot = self._blink_snapshot
-        if snapshot is None:
-            return
-        self._blink_snapshot = None
-        self._cancel_blink_render(clear_cache=False)
-        viewer = snapshot.viewer
-        viewer._cancel_display_preview()
-        document = viewer.document
-        if document is None or viewer._displayed_preview is None:
-            return
-        viewer._upload_preview(viewer._displayed_preview, document)
-        viewer._ensure_display_preview()
 
 
 def install_quick_compare_workflow(window: Any) -> QuickCompareController:

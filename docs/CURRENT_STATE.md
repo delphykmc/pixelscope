@@ -1,5 +1,13 @@
 # PixelScope current state
 
+> **Source cycling convenience validated (2026-10-20):** T rotates the last
+> page-local source to Primary in both Single and Multi View. Hold-B Blink is
+> retired; Difference/derived tiles are excluded. Windows full validation passed
+> 1,567 tests, including replacement of stale Blink runtime coverage; native keyboard
+> checks confirmed source cycling and Display Gain preservation. See the
+> [validation record](exec-plans/completed/pr194-source-cycle-validation.md), including
+> the non-terminating Windows diagnostic and unrelated untracked-lint limitations.
+
 > **Network interaction performance follow-up (2026-10-16, owner accepted):**
 > [PR #188](https://github.com/delphykmc/pixelscope/pull/188) addresses the owner's post-#187 interaction
 > report. Resident 4K RGB pair selection identified redundant pyqtgraph RGB

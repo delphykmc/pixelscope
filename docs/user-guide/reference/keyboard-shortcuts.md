@@ -11,6 +11,7 @@ This reference lists shortcuts and interaction keys confirmed by the current app
 | `Ctrl+1` | Single View |
 | `Ctrl+2` | Multi View |
 | `1` … `6` | Activate the corresponding visible slot on the Current Comparison Page |
+| `T` | Rotate the last actual source on the Current Comparison Page to Primary; works in Single/Multi View, never selects Difference or split-derived tiles |
 | `Left` / `Right` | Previous / next image in the complete ordered Selected set |
 | `Up` / `Down` | Normal row navigation while the Files tree has keyboard focus |
 | `PageUp` | Previous Folder Position; application-wide folder-position move |
