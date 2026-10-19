@@ -700,12 +700,6 @@ excluded; a one-source page is a no-op. The former hold-B Blink presentation is
 removed. T belongs only to the Image View and Files focus scopes, preventing
 plain-text editor interception; held-key autorepeat cannot cause repeated cycles.
 
-Initial direct-image population fits the source in the viewer. Additive D&D
-preserves the current image-coordinate center and screen-pixel zoom scale,
-including the transition from one Single View source to Multi View. Derived
-previews, native numerical sources, ROI/Line ownership, and selection order
-are not modified by this presentation transition.
-
 ## Difference contract
 
 Eligible explicit two-source drops in Files or Image View show the sources while
