@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QApplication, QLineEdit
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -97,13 +99,50 @@ def test_t_uses_only_current_page_and_skips_derived_order_entries(qtbot: object)
     window.close()
 
 
-def test_t_shortcut_is_scoped_to_viewer_and_files(qtbot: object) -> None:
+@pytest.mark.parametrize("scope", ["viewer", "document_list"])
+def test_t_shortcut_is_scoped_to_viewer_and_files(qtbot: object, scope: str) -> None:
     window, documents = _window(qtbot, 2)
     window.activateWindow()
     window.set_layout_mode("Single View")
-    window.viewer.setFocus()
-    qtbot.keyClick(window.viewer, Qt.Key.Key_T)  # type: ignore[attr-defined]
+    target = getattr(window, scope)
+    target.setFocus()
+    qtbot.keyClick(target, Qt.Key.Key_T)  # type: ignore[attr-defined]
     assert window.viewer.document is documents[1]
+    window.close()
+
+
+def test_t_leaves_editor_and_modified_key_input_alone(qtbot: object) -> None:
+    window, documents = _window(qtbot, 2)
+    window.set_layout_mode("Single View")
+    editor = QLineEdit(window)
+    editor.show()
+    window.activateWindow()
+    editor.setFocus()
+    qtbot.keyClicks(editor, "t")  # type: ignore[attr-defined]
+    assert editor.text() == "t"
+    assert window.viewer.document is documents[0]
+    window.viewer.setFocus()
+    qtbot.keyClick(  # type: ignore[attr-defined]
+        window.viewer, Qt.Key.Key_T, Qt.KeyboardModifier.ControlModifier
+    )
+    assert window.viewer.document is documents[0]
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_T, Qt.KeyboardModifier.NoModifier, "t", True)
+    QApplication.sendEvent(window.viewer, event)
+    assert window.viewer.document is documents[0]
+    window.close()
+
+
+def test_cycle_does_nothing_for_one_source_or_split_channels(qtbot: object) -> None:
+    window, documents = _window(qtbot, 1)
+    window.cycle_primary_source()
+    assert window.viewer.document is documents[0]
+    window.close()
+
+    window, documents = _window(qtbot, 2)
+    window._channel_split_active = True
+    before = list(window._multi_display_order)
+    window.cycle_primary_source()
+    assert window._multi_display_order == before
     window.close()
 
 
