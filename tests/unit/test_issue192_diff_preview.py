@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from pixelscope.core.display_transform import render_absolute_difference
+from pixelscope.core.display_transform import (
+    render_absolute_difference,
+    render_absolute_difference_range,
+    render_signed_difference,
+    render_threshold_mask,
+)
 
 
 def reference(diff, gain=1.0):
@@ -118,3 +123,21 @@ def test_array_gain_and_subclass_preserve_fallback_contract():
 
     matrix = source.view(ByteArray)
     assert np.array_equal(render_absolute_difference(matrix), reference(matrix))
+
+
+def test_other_diff_modes_keep_independent_baseline_goldens():
+    source = np.array([[0, 10, 50, 100, 255]], dtype=np.uint16)
+    assert np.array_equal(
+        render_absolute_difference_range(source, 10, 100, 2),
+        np.array([[0, 0, 227, 255, 255]], dtype=np.uint8),
+    )
+    signed = np.array([[-100, 0, 100]], dtype=np.int16)
+    assert np.array_equal(
+        render_signed_difference(signed),
+        np.array([[[127, 0, 255], [127, 127, 127], [255, 0, 127]]], dtype=np.uint8),
+    )
+    rgb = np.array([[[10, 0, 0], [0, 11, 0], [0, 0, 11]]], dtype=np.uint8)
+    assert np.array_equal(
+        render_threshold_mask(rgb, 10),
+        np.array([[[0, 0, 0], [255, 0, 0], [255, 0, 0]]], dtype=np.uint8),
+    )
