@@ -119,4 +119,3 @@ def test_b_no_longer_overlays_source_images(qtbot: object) -> None:
     assert np.array_equal(viewer.image_item.image, before_image)
     assert not hasattr(window.quick_compare_controller, "_blink_snapshot")
     window.close()
-
