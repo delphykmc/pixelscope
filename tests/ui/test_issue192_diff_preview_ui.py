@@ -23,7 +23,9 @@ def signature(viewer):
 
 
 @pytest.mark.parametrize("channels", [1, 3])
-def test_c1_matches_reference_pixels_and_geometry_through_five_cycles(qtbot, monkeypatch, channels):
+def test_c1_matches_reference_pixels_and_geometry_through_five_cycles(
+    qtbot, monkeypatch, channels, isolated_qsettings
+):
     shape = (64, 96) if channels == 1 else (64, 96, 3)
     a = np.random.default_rng(192).integers(0, 128, shape, dtype=np.uint8)
     b = np.flip(a, axis=0).copy()
