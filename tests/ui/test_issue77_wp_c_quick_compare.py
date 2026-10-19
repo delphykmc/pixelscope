@@ -14,6 +14,8 @@ from pixelscope.app.bootstrap import (
 )
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.quick_compare import QuickCompareController
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
