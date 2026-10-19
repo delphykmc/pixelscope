@@ -100,8 +100,8 @@ def test_t_uses_only_current_page_and_skips_derived_order_entries(qtbot: object)
 def test_t_shortcut_is_scoped_to_viewer_and_files(qtbot: object) -> None:
     window, documents = _window(qtbot, 2)
     window.activateWindow()
-    window.viewer.setFocus()
     window.set_layout_mode("Single View")
+    window.viewer.setFocus()
     qtbot.keyClick(window.viewer, Qt.Key.Key_T)  # type: ignore[attr-defined]
     assert window.viewer.document is documents[1]
     window.close()
