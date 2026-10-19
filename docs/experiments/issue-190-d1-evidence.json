@@ -1,0 +1,3463 @@
+{
+  "source_sha": "5e205e9501ab3519ea779ed8d387bdee51195a05",
+  "runner_sha256": "51262627ab1fb7ba1fbd63dd25ee26a9191b116b9e62e822e900c7dc60197327",
+  "fixtures": {
+    "A": {
+      "seed": 1901,
+      "encoded_bytes": 19206891,
+      "decoded_bytes": 24883200,
+      "sha256": "f89267808f0e5adbcec95d467208f9ae549b944247dfd7b16db63711d075c6d9",
+      "shape": [
+        2160,
+        3840,
+        3
+      ],
+      "dtype": "uint8",
+      "channels": "RGB",
+      "compression": "PNG lossless level 1",
+      "decoder": "production Unicode-safe np.fromfile + OpenCV imdecode BGR-to-RGB",
+      "storage": "generated real local-disk file; warm/uncontrolled OS cache"
+    },
+    "B": {
+      "seed": 1902,
+      "encoded_bytes": 19207252,
+      "decoded_bytes": 24883200,
+      "sha256": "66dac58940bbcd5b434b599e8d7535117b5bca9a21335d1b5c07f0d0c8c80718",
+      "shape": [
+        2160,
+        3840,
+        3
+      ],
+      "dtype": "uint8",
+      "channels": "RGB",
+      "compression": "PNG lossless level 1",
+      "decoder": "production Unicode-safe np.fromfile + OpenCV imdecode BGR-to-RGB",
+      "storage": "generated real local-disk file; warm/uncontrolled OS cache"
+    }
+  },
+  "samples": [
+    {
+      "status": "fail",
+      "error_type": "IndexError",
+      "events": [],
+      "trace_dropped": 0,
+      "run_id": "pair-00",
+      "warmup": true
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "handler_ms": 241.9728,
+            "handler_calls": 1,
+            "selection_render_ms": 24.6673,
+            "selection_render_calls": 1,
+            "cached_preview_ms": 215.6341,
+            "cached_preview_calls": 1,
+            "store_ms": 0.2719,
+            "store_calls": 1,
+            "action_ms": 242.1594,
+            "action_calls": 1,
+            "absolute_ms": 215.5544,
+            "absolute_calls": 1,
+            "selection_dispatch_ms": 24.7517,
+            "selection_dispatch_calls": 1,
+            "cached_display_ms": 215.8208,
+            "cached_display_calls": 1
+          },
+          "first_heartbeat_gap_ms": 246.3042,
+          "memory_before": {
+            "RSS_bytes": 359931904,
+            "private_bytes": 716390400,
+            "lifetime_peak_RSS_bytes": 484347904
+          },
+          "memory_after": {
+            "RSS_bytes": 386297856,
+            "private_bytes": 742490112,
+            "lifetime_peak_RSS_bytes": 659124224
+          }
+        },
+        "warm": {
+          "metrics": {
+            "handler_ms": 20.2376,
+            "handler_calls": 1,
+            "selection_dispatch_ms": 19.7384,
+            "selection_dispatch_calls": 1,
+            "selection_render_ms": 19.6565,
+            "selection_render_calls": 1,
+            "action_ms": 20.3183,
+            "action_calls": 1
+          },
+          "first_heartbeat_gap_ms": 29.3647,
+          "memory_before": {
+            "RSS_bytes": 386318336,
+            "private_bytes": 742490112,
+            "lifetime_peak_RSS_bytes": 659124224
+          },
+          "memory_after": {
+            "RSS_bytes": 386334720,
+            "private_bytes": 742486016,
+            "lifetime_peak_RSS_bytes": 659124224
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_preview_ms": 0.0154,
+            "cached_preview_calls": 1,
+            "cached_display_ms": 0.103,
+            "cached_display_calls": 1,
+            "probe_ms": 0.1267,
+            "probe_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 73800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 95400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 265800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 389700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 462600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 509200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 216063600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 216096700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 216210500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 216229600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 216501500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 216614400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 216650600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 241317900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 241366100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 242238600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 242254800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 293225000,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 293270000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 293283200,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 293349700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 293423600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 293456400,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 313112900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 313162000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 313587300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 313601500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 325985200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 325999200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 326015700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 326045200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 326060600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 326118700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 326125900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-01",
+      "warmup": true
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "cached_display_ms": 188.3898,
+            "cached_display_calls": 1,
+            "selection_dispatch_ms": 24.8468,
+            "selection_dispatch_calls": 1,
+            "selection_render_ms": 24.7599,
+            "selection_render_calls": 1,
+            "store_ms": 0.2598,
+            "store_calls": 1,
+            "cached_preview_ms": 188.2499,
+            "cached_preview_calls": 1,
+            "handler_ms": 214.5789,
+            "handler_calls": 1,
+            "action_ms": 214.6717,
+            "action_calls": 1,
+            "absolute_ms": 188.1889,
+            "absolute_calls": 1
+          },
+          "first_heartbeat_gap_ms": 219.0657,
+          "memory_before": {
+            "RSS_bytes": 359915520,
+            "private_bytes": 716341248,
+            "lifetime_peak_RSS_bytes": 484331520
+          },
+          "memory_after": {
+            "RSS_bytes": 386310144,
+            "private_bytes": 742473728,
+            "lifetime_peak_RSS_bytes": 659132416
+          }
+        },
+        "warm": {
+          "metrics": {
+            "selection_render_ms": 19.3959,
+            "selection_render_calls": 1,
+            "handler_ms": 20.0037,
+            "handler_calls": 1,
+            "action_ms": 20.0865,
+            "action_calls": 1,
+            "selection_dispatch_ms": 19.4747,
+            "selection_dispatch_calls": 1
+          },
+          "first_heartbeat_gap_ms": 31.0634,
+          "memory_before": {
+            "RSS_bytes": 386334720,
+            "private_bytes": 742473728,
+            "lifetime_peak_RSS_bytes": 659132416
+          },
+          "memory_after": {
+            "RSS_bytes": 386334720,
+            "private_bytes": 742469632,
+            "lifetime_peak_RSS_bytes": 659132416
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_preview_ms": 0.0157,
+            "cached_preview_calls": 1,
+            "cached_display_ms": 0.1023,
+            "cached_display_calls": 1,
+            "probe_ms": 0.1266,
+            "probe_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 39600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 52200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 128900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 203000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 237700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 260300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 188449200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 188487600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 188592800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 188609800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 188869600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 188979700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 189015800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 213775700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 213826500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 214707800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 214723900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 265416800,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 265461900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 265474200,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 265542600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 265617700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 265649100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 285045000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 285092400,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 285546300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 285560700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 298127900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 298141100,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 298158200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 298188300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 298204000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 298260500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 298267700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-02",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "store_ms": 0.2483,
+            "store_calls": 1,
+            "action_ms": 205.314,
+            "action_calls": 1,
+            "cached_display_ms": 180.2423,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 180.0653,
+            "cached_preview_calls": 1,
+            "absolute_ms": 179.9774,
+            "absolute_calls": 1,
+            "selection_render_ms": 23.622,
+            "selection_render_calls": 1,
+            "handler_ms": 205.2181,
+            "handler_calls": 1,
+            "selection_dispatch_ms": 23.705,
+            "selection_dispatch_calls": 1
+          },
+          "first_heartbeat_gap_ms": 209.7129,
+          "memory_before": {
+            "RSS_bytes": 359677952,
+            "private_bytes": 716058624,
+            "lifetime_peak_RSS_bytes": 484093952
+          },
+          "memory_after": {
+            "RSS_bytes": 385884160,
+            "private_bytes": 742019072,
+            "lifetime_peak_RSS_bytes": 658784256
+          }
+        },
+        "warm": {
+          "metrics": {
+            "action_ms": 20.3027,
+            "action_calls": 1,
+            "selection_render_ms": 19.6402,
+            "selection_render_calls": 1,
+            "selection_dispatch_ms": 19.7202,
+            "selection_dispatch_calls": 1,
+            "handler_ms": 20.2143,
+            "handler_calls": 1
+          },
+          "first_heartbeat_gap_ms": 22.9174,
+          "memory_before": {
+            "RSS_bytes": 385900544,
+            "private_bytes": 742019072,
+            "lifetime_peak_RSS_bytes": 658784256
+          },
+          "memory_after": {
+            "RSS_bytes": 386019328,
+            "private_bytes": 742014976,
+            "lifetime_peak_RSS_bytes": 658784256
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "probe_ms": 0.1652,
+            "probe_calls": 1,
+            "cached_display_ms": 0.1328,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 0.0153,
+            "cached_preview_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 41400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 54200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 133900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 203900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 241800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 270800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 180248200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 180307100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 180446200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 180463100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 180711400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 180817600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 180852700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 204474700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 204522600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 205352000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 205368200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 256945000,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 256985000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 256997300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 257071700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 257143700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 257175100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 276815300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 276863900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 277286000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 277300000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 289890500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 289903800,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 289919800,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 289949900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 289965200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 290052600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 290069000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-03",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "cached_display_ms": 188.2847,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 188.0277,
+            "cached_preview_calls": 1,
+            "selection_render_ms": 26.4718,
+            "selection_render_calls": 1,
+            "handler_ms": 216.2373,
+            "handler_calls": 1,
+            "action_ms": 216.3735,
+            "action_calls": 1,
+            "selection_dispatch_ms": 26.5622,
+            "selection_dispatch_calls": 1,
+            "absolute_ms": 187.9399,
+            "absolute_calls": 1,
+            "store_ms": 0.3172,
+            "store_calls": 1
+          },
+          "first_heartbeat_gap_ms": 222.578,
+          "memory_before": {
+            "RSS_bytes": 359776256,
+            "private_bytes": 716181504,
+            "lifetime_peak_RSS_bytes": 484192256
+          },
+          "memory_after": {
+            "RSS_bytes": 386174976,
+            "private_bytes": 742313984,
+            "lifetime_peak_RSS_bytes": 658907136
+          }
+        },
+        "warm": {
+          "metrics": {
+            "selection_render_ms": 19.6041,
+            "selection_render_calls": 1,
+            "selection_dispatch_ms": 19.6873,
+            "selection_dispatch_calls": 1,
+            "action_ms": 20.3498,
+            "action_calls": 1,
+            "handler_ms": 20.1873,
+            "handler_calls": 1
+          },
+          "first_heartbeat_gap_ms": 24.4497,
+          "memory_before": {
+            "RSS_bytes": 386191360,
+            "private_bytes": 742313984,
+            "lifetime_peak_RSS_bytes": 658907136
+          },
+          "memory_after": {
+            "RSS_bytes": 386203648,
+            "private_bytes": 742309888,
+            "lifetime_peak_RSS_bytes": 658907136
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_display_ms": 0.1038,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 0.0159,
+            "cached_preview_calls": 1,
+            "probe_ms": 0.1276,
+            "probe_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 51600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 75800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 196100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 270300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 304700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 331800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 188271700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 188332400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 188555000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 188574900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 188892100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 189011800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 189052700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 215524500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 215574000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 216433400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 216449300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 268315900,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 268369100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 268391100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 268539500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 268616400,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 268649700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 288253800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 288303700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 288726800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 288740900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 300851000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 300864500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 300881400,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 300912800,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 300928700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 300985200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 300992100,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-04",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "cached_preview_ms": 190.5469,
+            "cached_preview_calls": 1,
+            "selection_dispatch_ms": 25.5497,
+            "selection_dispatch_calls": 1,
+            "selection_render_ms": 25.4589,
+            "selection_render_calls": 1,
+            "action_ms": 217.7115,
+            "action_calls": 1,
+            "handler_ms": 217.6063,
+            "handler_calls": 1,
+            "store_ms": 0.2759,
+            "store_calls": 1,
+            "absolute_ms": 190.4866,
+            "absolute_calls": 1,
+            "cached_display_ms": 190.6941,
+            "cached_display_calls": 1
+          },
+          "first_heartbeat_gap_ms": 222.1103,
+          "memory_before": {
+            "RSS_bytes": 359616512,
+            "private_bytes": 715866112,
+            "lifetime_peak_RSS_bytes": 484032512
+          },
+          "memory_after": {
+            "RSS_bytes": 385888256,
+            "private_bytes": 741855232,
+            "lifetime_peak_RSS_bytes": 658751488
+          }
+        },
+        "warm": {
+          "metrics": {
+            "handler_ms": 21.1268,
+            "handler_calls": 1,
+            "selection_render_ms": 20.5293,
+            "selection_render_calls": 1,
+            "selection_dispatch_ms": 20.6106,
+            "selection_dispatch_calls": 1,
+            "action_ms": 21.2033,
+            "action_calls": 1
+          },
+          "first_heartbeat_gap_ms": 25.6088,
+          "memory_before": {
+            "RSS_bytes": 385908736,
+            "private_bytes": 741855232,
+            "lifetime_peak_RSS_bytes": 658751488
+          },
+          "memory_after": {
+            "RSS_bytes": 385921024,
+            "private_bytes": 741859328,
+            "lifetime_peak_RSS_bytes": 658751488
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_preview_ms": 0.0184,
+            "cached_preview_calls": 1,
+            "cached_display_ms": 0.1227,
+            "cached_display_calls": 1,
+            "probe_ms": 0.1528,
+            "probe_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 48300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 61100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 150100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 226200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 266500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 295700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 190782300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 190813400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 190920300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 190938100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 191214000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 191329600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 191369300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 216828200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 216879300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 217756400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 217772600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 272676100,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 272718600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 272729600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 272790900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 272864800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 272894800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 293424100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 293475400,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 293917700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 293932900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 307787000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 307802900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 307823800,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 307861700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 307880100,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 307946500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 307955700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-05",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "selection_render_ms": 26.8394,
+            "selection_render_calls": 1,
+            "store_ms": 0.3277,
+            "store_calls": 1,
+            "cached_display_ms": 189.5756,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 189.4234,
+            "cached_preview_calls": 1,
+            "handler_ms": 218.0395,
+            "handler_calls": 1,
+            "selection_dispatch_ms": 26.9429,
+            "selection_dispatch_calls": 1,
+            "absolute_ms": 189.3617,
+            "absolute_calls": 1,
+            "action_ms": 218.1361,
+            "action_calls": 1
+          },
+          "first_heartbeat_gap_ms": 222.5176,
+          "memory_before": {
+            "RSS_bytes": 360345600,
+            "private_bytes": 716771328,
+            "lifetime_peak_RSS_bytes": 484761600
+          },
+          "memory_after": {
+            "RSS_bytes": 386564096,
+            "private_bytes": 742768640,
+            "lifetime_peak_RSS_bytes": 659488768
+          }
+        },
+        "warm": {
+          "metrics": {
+            "selection_render_ms": 21.2644,
+            "selection_render_calls": 1,
+            "selection_dispatch_ms": 21.352,
+            "selection_dispatch_calls": 1,
+            "handler_ms": 21.9034,
+            "handler_calls": 1,
+            "action_ms": 22.0069,
+            "action_calls": 1
+          },
+          "first_heartbeat_gap_ms": 28.23,
+          "memory_before": {
+            "RSS_bytes": 386584576,
+            "private_bytes": 742768640,
+            "lifetime_peak_RSS_bytes": 659488768
+          },
+          "memory_after": {
+            "RSS_bytes": 386592768,
+            "private_bytes": 742764544,
+            "lifetime_peak_RSS_bytes": 659488768
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_display_ms": 0.1163,
+            "cached_display_calls": 1,
+            "probe_ms": 0.142,
+            "probe_calls": 1,
+            "cached_preview_ms": 0.0169,
+            "cached_preview_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 41900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 54500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 132400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 203000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 239900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 267500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 189629200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 189663300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 189778600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 189797800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 190125500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 190341700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 190393000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 217232400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 217284600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 218171900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 218190600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 271926100,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 271978400,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 271991000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 272079100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 272160600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 272197200,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 293461600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 293512600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 293982500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 293997900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 307203500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 307218700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 307237200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 307271400,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 307288300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 307353500,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 307360700,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-06",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "action_ms": 211.7996,
+            "action_calls": 1,
+            "absolute_ms": 185.0319,
+            "absolute_calls": 1,
+            "selection_render_ms": 24.9753,
+            "selection_render_calls": 1,
+            "store_ms": 0.2722,
+            "store_calls": 1,
+            "selection_dispatch_ms": 25.0595,
+            "selection_dispatch_calls": 1,
+            "handler_ms": 211.6382,
+            "handler_calls": 1,
+            "cached_display_ms": 185.245,
+            "cached_display_calls": 1,
+            "cached_preview_ms": 185.0923,
+            "cached_preview_calls": 1
+          },
+          "first_heartbeat_gap_ms": 217.1903,
+          "memory_before": {
+            "RSS_bytes": 359616512,
+            "private_bytes": 715997184,
+            "lifetime_peak_RSS_bytes": 483799040
+          },
+          "memory_after": {
+            "RSS_bytes": 385921024,
+            "private_bytes": 741961728,
+            "lifetime_peak_RSS_bytes": 658710528
+          }
+        },
+        "warm": {
+          "metrics": {
+            "selection_dispatch_ms": 34.0115,
+            "selection_dispatch_calls": 1,
+            "action_ms": 34.9405,
+            "action_calls": 1,
+            "handler_ms": 34.6914,
+            "handler_calls": 1,
+            "selection_render_ms": 33.8456,
+            "selection_render_calls": 1
+          },
+          "first_heartbeat_gap_ms": 44.9909,
+          "memory_before": {
+            "RSS_bytes": 385933312,
+            "private_bytes": 741961728,
+            "lifetime_peak_RSS_bytes": 658710528
+          },
+          "memory_after": {
+            "RSS_bytes": 385957888,
+            "private_bytes": 741957632,
+            "lifetime_peak_RSS_bytes": 658710528
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "probe_ms": 0.1319,
+            "probe_calls": 1,
+            "cached_preview_ms": 0.0158,
+            "cached_preview_calls": 1,
+            "cached_display_ms": 0.1066,
+            "cached_display_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 75900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 98800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 243400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 319800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 358100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 384800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 185416700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 185450400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 185564800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 185582900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 185855100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 185968300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 186003900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 210979200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 211027800,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 211881600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 211898400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 265401800,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 265528200,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 265578500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 265812800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 266037000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 266151300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 299996900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 300048500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 300504200,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 300519000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 312774100,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 312788200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 312806000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 312837600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 312853400,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 312912600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 312920100,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-07",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "cached_preview_ms": 180.7695,
+            "cached_preview_calls": 1,
+            "selection_render_ms": 24.1782,
+            "selection_render_calls": 1,
+            "absolute_ms": 180.7079,
+            "absolute_calls": 1,
+            "cached_display_ms": 180.9151,
+            "cached_display_calls": 1,
+            "action_ms": 206.6751,
+            "action_calls": 1,
+            "selection_dispatch_ms": 24.2644,
+            "selection_dispatch_calls": 1,
+            "handler_ms": 206.546,
+            "handler_calls": 1,
+            "store_ms": 0.2814,
+            "store_calls": 1
+          },
+          "first_heartbeat_gap_ms": 210.7917,
+          "memory_before": {
+            "RSS_bytes": 360124416,
+            "private_bytes": 716480512,
+            "lifetime_peak_RSS_bytes": 484540416
+          },
+          "memory_after": {
+            "RSS_bytes": 386478080,
+            "private_bytes": 742617088,
+            "lifetime_peak_RSS_bytes": 659320832
+          }
+        },
+        "warm": {
+          "metrics": {
+            "action_ms": 20.3018,
+            "action_calls": 1,
+            "selection_render_ms": 19.5955,
+            "selection_render_calls": 1,
+            "handler_ms": 20.1754,
+            "handler_calls": 1,
+            "selection_dispatch_ms": 19.676,
+            "selection_dispatch_calls": 1
+          },
+          "first_heartbeat_gap_ms": 23.9058,
+          "memory_before": {
+            "RSS_bytes": 386494464,
+            "private_bytes": 742617088,
+            "lifetime_peak_RSS_bytes": 659320832
+          },
+          "memory_after": {
+            "RSS_bytes": 386523136,
+            "private_bytes": 742612992,
+            "lifetime_peak_RSS_bytes": 659320832
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_preview_ms": 0.0159,
+            "cached_preview_calls": 1,
+            "probe_ms": 0.1267,
+            "probe_calls": 1,
+            "cached_display_ms": 0.1034,
+            "cached_display_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 59000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 71900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 185000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 262200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 303400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 333300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 181041200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 181072900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 181177300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 181194600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 181476000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 181592000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 181628500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 205806700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 205856400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 206731000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 206747000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 258855300,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 258917100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 258937700,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 259049600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 259124900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 259155000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 278750500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 278800900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 279225000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 279239500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 291229300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 291243900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 291259900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 291290300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 291306200,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 291363300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 291370600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-08",
+      "warmup": false
+    },
+    {
+      "status": "ok",
+      "phases": {
+        "cold": {
+          "metrics": {
+            "cached_preview_ms": 180.8777,
+            "cached_preview_calls": 1,
+            "selection_dispatch_ms": 24.0717,
+            "selection_dispatch_calls": 1,
+            "action_ms": 206.5047,
+            "action_calls": 1,
+            "handler_ms": 206.3993,
+            "handler_calls": 1,
+            "store_ms": 0.2566,
+            "store_calls": 1,
+            "selection_render_ms": 23.9879,
+            "selection_render_calls": 1,
+            "cached_display_ms": 181.0477,
+            "cached_display_calls": 1,
+            "absolute_ms": 180.7953,
+            "absolute_calls": 1
+          },
+          "first_heartbeat_gap_ms": 211.9351,
+          "memory_before": {
+            "RSS_bytes": 359759872,
+            "private_bytes": 716226560,
+            "lifetime_peak_RSS_bytes": 484175872
+          },
+          "memory_after": {
+            "RSS_bytes": 386027520,
+            "private_bytes": 742187008,
+            "lifetime_peak_RSS_bytes": 658862080
+          }
+        },
+        "warm": {
+          "metrics": {
+            "handler_ms": 20.0715,
+            "handler_calls": 1,
+            "selection_render_ms": 19.4935,
+            "selection_render_calls": 1,
+            "selection_dispatch_ms": 19.5735,
+            "selection_dispatch_calls": 1,
+            "action_ms": 20.1602,
+            "action_calls": 1
+          },
+          "first_heartbeat_gap_ms": 22.8815,
+          "memory_before": {
+            "RSS_bytes": 386043904,
+            "private_bytes": 742187008,
+            "lifetime_peak_RSS_bytes": 658862080
+          },
+          "memory_after": {
+            "RSS_bytes": 386064384,
+            "private_bytes": 742182912,
+            "lifetime_peak_RSS_bytes": 658862080
+          }
+        },
+        "warm_cache_probe": {
+          "metrics": {
+            "cached_preview_ms": 0.0157,
+            "cached_preview_calls": 1,
+            "cached_display_ms": 0.1034,
+            "cached_display_calls": 1,
+            "probe_ms": 0.1278,
+            "probe_calls": 1
+          }
+        }
+      },
+      "events": [
+        {
+          "stage": "intent_accepted",
+          "ns": 0,
+          "intent_id": "cold",
+          "selection_epoch": 1
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 39000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": false,
+          "existing_document": false
+        },
+        {
+          "stage": "action_begin",
+          "ns": 51200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 140600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 212700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 247300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true,
+          "preview_hit": false
+        },
+        {
+          "stage": "absolute_begin",
+          "ns": 270300,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "absolute_end",
+          "ns": 181065600,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 181125000,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 181260400,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_begin",
+          "ns": 181277100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "store_end",
+          "ns": 181533700,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 181641500,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 181677200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 205665100,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 205713200,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 206539900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 206555900,
+          "intent_id": "cold",
+          "selection_epoch": 1,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 257522300,
+          "intent_id": "warm",
+          "selection_epoch": 2
+        },
+        {
+          "stage": "activation_cache_state",
+          "ns": 257564600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "map_hit": true,
+          "preview_hit": true,
+          "existing_document": true
+        },
+        {
+          "stage": "action_begin",
+          "ns": 257576900,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_begin",
+          "ns": 257651000,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true,
+          "enabled": true
+        },
+        {
+          "stage": "selection_dispatch_begin",
+          "ns": 257724600,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_begin",
+          "ns": 257756300,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_render_end",
+          "ns": 277249800,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "selection_dispatch_end",
+          "ns": 277298100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "handler_end",
+          "ns": 277722500,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "action_end",
+          "ns": 277737100,
+          "intent_id": "warm",
+          "selection_epoch": 2,
+          "gui_thread": true
+        },
+        {
+          "stage": "intent_accepted",
+          "ns": 290102300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3
+        },
+        {
+          "stage": "probe_begin",
+          "ns": 290116600,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_begin",
+          "ns": 290133900,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "map_hit": true
+        },
+        {
+          "stage": "cached_preview_begin",
+          "ns": 290164300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true,
+          "preview_hit": true
+        },
+        {
+          "stage": "cached_preview_end",
+          "ns": 290180000,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "cached_display_end",
+          "ns": 290237300,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        },
+        {
+          "stage": "probe_end",
+          "ns": 290244400,
+          "intent_id": "warm_cache_probe",
+          "selection_epoch": 3,
+          "gui_thread": true
+        }
+      ],
+      "checks": [
+        "same_pair_source_preview_generation",
+        "same_preview_key_controls_ROI",
+        "passive_map_hit_both",
+        "cold_preview_miss_once",
+        "warm_preview_hit_reuses_array",
+        "exact_source_preview_Diff_pixels",
+        "no_stale_publish",
+        "GUI_thread",
+        "normal_GC"
+      ],
+      "paint": "INCONCLUSIVE; no postpaint oracle",
+      "trace_dropped": 0,
+      "run_id": "pair-09",
+      "warmup": false
+    }
+  ],
+  "median_ms": {
+    "cold": {
+      "action_ms": 213.23565,
+      "handler_ms": 213.10855,
+      "cached_display_ms": 186.76485,
+      "cached_preview_ms": 186.56,
+      "absolute_ms": 186.48590000000002,
+      "store_ms": 0.27405,
+      "selection_render_ms": 24.8676,
+      "selection_dispatch_ms": 24.95315,
+      "probe_ms": null
+    },
+    "warm": {
+      "action_ms": 20.32625,
+      "handler_ms": 20.2008,
+      "cached_display_ms": null,
+      "cached_preview_ms": null,
+      "absolute_ms": null,
+      "store_ms": null,
+      "selection_render_ms": 19.622149999999998,
+      "selection_dispatch_ms": 19.70375,
+      "probe_ms": null
+    },
+    "warm_cache_probe": {
+      "action_ms": null,
+      "handler_ms": null,
+      "cached_display_ms": 0.1052,
+      "cached_preview_ms": 0.015850000000000003,
+      "absolute_ms": null,
+      "store_ms": null,
+      "selection_render_ms": null,
+      "selection_dispatch_ms": null,
+      "probe_ms": 0.12985
+    }
+  },
+  "scope": "paired GUI callback study; OS cache warm/uncontrolled; no postpaint or optimization claim",
+  "memory_scope": "untimed process snapshots; lifetime peak RSS, not action allocation or peak private",
+  "normal_gc": true,
+  "schema": "issue190-D1-v1",
+  "measured_remote_source": "0f75def26c182d500c7c487449ce0563d317911f",
+  "measured_tree": "049cc465c035b34e883aeb980f32bdac14fb5fbd",
+  "base_main": "a9ecbf49757b0135e658cc9842722b1604c3f2f1",
+  "raw_sha256": "23a620d1e9c78035ac7b1e7c4e4f6cc7b445fa544c36ae678d0f5824eee2ed2f",
+  "qualifications": [
+    "10 attempts, 2 warmups: pair-00 failed before action with heartbeat initialization IndexError; pair-01 passed. All 8 observations pair-02..09 passed. No replacements.",
+    "Current rerun code adds an untimed bounded first-heartbeat availability gate after this study. Published measured source/hash remains the exact pre-repair version; no sample rerun or relabeling.",
+    "Cold and warm action timings use the installed DifferenceCurationLifecycle callback, not the disconnected base handler.",
+    "Cold has map+metric cache HIT but preview MISS; warm reactivation reuses existing Difference document without getter/renderer invocation.",
+    "Separate same-key warm getter probe AFTER both ON actions proves preview HIT; no extra pre-render before cold.",
+    "Inclusive nested timings overlap and must not be summed. No-call fields null, not measured zero.",
+    "All traced callbacks/numerical render on GUI thread; normal GC and unforced event processing. Diagnostic overhead uncalibrated.",
+    "Native Windows callback measurement; no new external screenshot, epoch-bound postpaint/physical scanout, end-to-end acceptance or optimization benefit claim.",
+    "Memory snapshots include untimed expected arrays and normal caches; lifetime peak RSS not causal action allocation/peak private or release/eviction proof.",
+    "Synthetic textured local PNG fixtures and warm/uncontrolled OS cache; not a representative SMB or all-format benchmark.",
+    "Old R1-R3 timeouts/range failures remain immutable; no presentation oracle adjudication or optimization change."
+  ],
+  "runtime": {
+    "python": "3.10.11",
+    "PySide6": "6.4.2",
+    "numpy": "1.24.4",
+    "opencv": "4.8.1",
+    "pyqtgraph": "0.13.7",
+    "OS": "Windows build 26200",
+    "QPA": "windows"
+  },
+  "derived": {
+    "cold": {
+      "action_ms": {
+        "values": [
+          214.6717,
+          205.314,
+          216.3735,
+          217.7115,
+          218.1361,
+          211.7996,
+          206.6751,
+          206.5047
+        ],
+        "median": 213.23565,
+        "min": 205.314,
+        "max": 218.1361
+      },
+      "handler_ms": {
+        "values": [
+          214.5789,
+          205.2181,
+          216.2373,
+          217.6063,
+          218.0395,
+          211.6382,
+          206.546,
+          206.3993
+        ],
+        "median": 213.10855,
+        "min": 205.2181,
+        "max": 218.0395
+      },
+      "absolute_ms": {
+        "values": [
+          188.1889,
+          179.9774,
+          187.9399,
+          190.4866,
+          189.3617,
+          185.0319,
+          180.7079,
+          180.7953
+        ],
+        "median": 186.48590000000002,
+        "min": 179.9774,
+        "max": 190.4866
+      },
+      "cached_display_ms": {
+        "values": [
+          188.3898,
+          180.2423,
+          188.2847,
+          190.6941,
+          189.5756,
+          185.245,
+          180.9151,
+          181.0477
+        ],
+        "median": 186.76485,
+        "min": 180.2423,
+        "max": 190.6941
+      },
+      "cached_preview_ms": {
+        "values": [
+          188.2499,
+          180.0653,
+          188.0277,
+          190.5469,
+          189.4234,
+          185.0923,
+          180.7695,
+          180.8777
+        ],
+        "median": 186.56,
+        "min": 180.0653,
+        "max": 190.5469
+      },
+      "store_ms": {
+        "values": [
+          0.2598,
+          0.2483,
+          0.3172,
+          0.2759,
+          0.3277,
+          0.2722,
+          0.2814,
+          0.2566
+        ],
+        "median": 0.27405,
+        "min": 0.2483,
+        "max": 0.3277
+      },
+      "selection_dispatch_ms": {
+        "values": [
+          24.8468,
+          23.705,
+          26.5622,
+          25.5497,
+          26.9429,
+          25.0595,
+          24.2644,
+          24.0717
+        ],
+        "median": 24.95315,
+        "min": 23.705,
+        "max": 26.9429
+      },
+      "heartbeat_gap_ms": {
+        "values": [
+          219.0657,
+          209.7129,
+          222.578,
+          222.1103,
+          222.5176,
+          217.1903,
+          210.7917,
+          211.9351
+        ],
+        "median": 218.128
+      },
+      "memory_delta_MiB": {
+        "RSS_bytes": [
+          25.171875,
+          24.9921875,
+          25.17578125,
+          25.0546875,
+          25.00390625,
+          25.0859375,
+          25.1328125,
+          25.05078125
+        ],
+        "private_bytes": [
+          24.921875,
+          24.7578125,
+          24.921875,
+          24.78515625,
+          24.79296875,
+          24.76171875,
+          24.92578125,
+          24.7578125
+        ],
+        "lifetime_peak_RSS_bytes": [
+          166.703125,
+          166.59765625,
+          166.62109375,
+          166.625,
+          166.6328125,
+          166.80859375,
+          166.68359375,
+          166.59375
+        ]
+      }
+    },
+    "warm": {
+      "action_ms": {
+        "values": [
+          20.0865,
+          20.3027,
+          20.3498,
+          21.2033,
+          22.0069,
+          34.9405,
+          20.3018,
+          20.1602
+        ],
+        "median": 20.32625,
+        "min": 20.0865,
+        "max": 34.9405
+      },
+      "handler_ms": {
+        "values": [
+          20.0037,
+          20.2143,
+          20.1873,
+          21.1268,
+          21.9034,
+          34.6914,
+          20.1754,
+          20.0715
+        ],
+        "median": 20.2008,
+        "min": 20.0037,
+        "max": 34.6914
+      },
+      "absolute_ms": {
+        "values": [],
+        "median": null,
+        "min": null,
+        "max": null
+      },
+      "cached_display_ms": {
+        "values": [],
+        "median": null,
+        "min": null,
+        "max": null
+      },
+      "cached_preview_ms": {
+        "values": [],
+        "median": null,
+        "min": null,
+        "max": null
+      },
+      "store_ms": {
+        "values": [],
+        "median": null,
+        "min": null,
+        "max": null
+      },
+      "selection_dispatch_ms": {
+        "values": [
+          19.4747,
+          19.7202,
+          19.6873,
+          20.6106,
+          21.352,
+          34.0115,
+          19.676,
+          19.5735
+        ],
+        "median": 19.70375,
+        "min": 19.4747,
+        "max": 34.0115
+      },
+      "heartbeat_gap_ms": {
+        "values": [
+          31.0634,
+          22.9174,
+          24.4497,
+          25.6088,
+          28.23,
+          44.9909,
+          23.9058,
+          22.8815
+        ],
+        "median": 25.029249999999998
+      },
+      "memory_delta_MiB": {
+        "RSS_bytes": [
+          0.0,
+          0.11328125,
+          0.01171875,
+          0.01171875,
+          0.0078125,
+          0.0234375,
+          0.02734375,
+          0.01953125
+        ],
+        "private_bytes": [
+          -0.00390625,
+          -0.00390625,
+          -0.00390625,
+          0.00390625,
+          -0.00390625,
+          -0.00390625,
+          -0.00390625,
+          -0.00390625
+        ],
+        "lifetime_peak_RSS_bytes": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "paired_action_difference_ms": [
+      194.5852,
+      185.0113,
+      196.02370000000002,
+      196.5082,
+      196.1292,
+      176.8591,
+      186.37329999999997,
+      186.3445
+    ],
+    "cold_absolute_fraction": [
+      0.8766358118000649,
+      0.8765958483103928,
+      0.8685901924219,
+      0.8749496466654265,
+      0.8680896926276761,
+      0.8736177972007502,
+      0.8743573850938019,
+      0.8755021072159616
+    ]
+  }
+}

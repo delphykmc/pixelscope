@@ -226,6 +226,7 @@ def child(fixtures: Path) -> dict:
             wait(idle)
             before = memory()
             QTest.qWait(15)
+            wait(lambda: bool(heartbeat), seconds=2)  # Untimed first-tick availability gate.
             tick = heartbeat[-1]
             count = len(heartbeat)
             trace.active = True

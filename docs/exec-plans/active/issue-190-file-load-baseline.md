@@ -660,3 +660,113 @@ uses sequential real registration/loading, and the cold/warm smoke passed.
 An early timer on the disconnected base callback was corrected to the installed
 curation callback before the final source freeze. Old 9+14 R1-R3 failures remain
 immutable. No timeout or correctness tolerance was increased.
+
+### D1 measured result: first ON preview MISS dominates the GUI callback
+
+Measured local source `5e205e9501ab3519ea779ed8d387bdee51195a05`, published source
+`0f75def26c182d500c7c487449ce0563d317911f`, complete tree
+`049cc465c035b34e883aeb980f32bdac14fb5fbd`. Measured runner SHA256:
+`51262627ab1fb7ba1fbd63dd25ee26a9191b116b9e62e822e900c7dc60197327`.
+Native Windows 26200, CPython 3.10.11, PySide6 6.4.2, NumPy 1.24.4,
+OpenCV 4.8.1, pyqtgraph 0.13.7; same public main and fixture manifest as above.
+
+Final study attempted ten fresh-process pairs: two warm-up attempts plus eight
+observations. **All eight observed pairs passed**, plus warm-up 01. Warm-up 00
+failed before any action with a heartbeat initialization IndexError (the first
+10ms tick was not available after qWait(15)); preserved, never replaced. Parent
+correctly exited 1, **not a clean 10/10 PASS**. The published rerun runner adds
+an untimed bounded first-tick availability gate after this immutable study.
+One separate post-repair smoke pair passed; it is not pooled into the eight
+observations. No earlier result or failed sample was relabeled.
+
+| Synchronous stage | Cold first ON median ms | Same-pair re-ON median ms |
+| --- | ---: | ---: |
+| QAction trigger to return | 213.236 | 20.326 |
+| Installed curation callback | 213.109 | 20.201 |
+| cached_display_for_current | 186.765 | not called |
+| _cached_preview | 186.560 | not called |
+| render_absolute_difference | 186.486 | not called |
+| Store Difference document | 0.274 | not called |
+| Composed render-selection dispatch | 24.953 | 19.704 |
+| First post-action 10ms heartbeat gap | 218.128 | 25.029 |
+
+Inclusive nested durations overlap; do not sum them. In **8/8** observations,
+first ON map/metrics were cached, preview missed and the absolute renderer ran
+exactly once **on the GUI thread**. First action range: **205.314–218.136ms**;
+renderer range: **179.977–190.487ms**. Per-pair renderer/action fraction median
+is **87.47%**. This confirms the cold synchronous preview conversion is the
+dominant measured first-click callback component for this fixture. It does not
+prove the whole GUI response, paint completion or an achievable optimization gain.
+
+Cold action raw ms (pair-02 through pair-09): 214.6717, 205.3140, 216.3735,
+217.7115, 218.1361, 211.7996, 206.6751, 206.5047. Warm re-ON: 20.0865,
+20.3027, 20.3498, 21.2033, 22.0069, 34.9405, 20.3018, 20.1602. The paired
+action differences are observations of different retained state, **not a tested
+candidate's speedup**. No-call timing fields are null, not inferred zero-ms calls.
+
+The actual installed first-ON path is DifferenceCurationLifecycle's callback,
+which calls cached_display_for_current then stores/displays the derived document.
+The base MainWindow callback is disconnected by normal composition. Warm re-ON
+re-shows the established Difference document and **bypasses** the cache getter;
+it is not evidence of eight getter HIT calls. After both ON actions, a separate
+same-key getter probe confirms **8/8 preview HIT**, median getter **0.1052ms**,
+inner preview lookup **0.01585ms**, no absolute renderer invocation, same preview
+array. This distinction corrects the earlier source-chain shorthand in #189.
+
+Map, source/preview identities, generations, selected pair/order, cache key,
+channel/mode/gain/threshold/region/ROI remained unchanged. Exact source/canonical
+preview and widened absolute-map/display pixels passed, stale counters stayed
+zero, trace capacity never overflowed, callbacks ran on the GUI thread, normal
+GC stayed ON and all valid children closed/drained normally. No new postpaint
+oracle, external D1 screenshot, forced paint, cache clear, policy or source change.
+
+Process snapshots: cold RSS increased 24.99–25.18MiB and private bytes
+24.76–24.93MiB; lifetime-peak RSS counter increased 166.59–166.81MiB. Warm RSS
+delta 0–0.113MiB, private about +/-0.004MiB, lifetime peak unchanged. These
+include validation buffers/normal caches and post-action event processing;
+peak counter is process-lifetime, not exact action allocation or peak private.
+No reclamation, eviction-budget, residency optimization or leak conclusion.
+
+Safe primitive evidence (all ten attempt records, eight paired vectors and
+memory snapshots): `docs/experiments/issue-190-d1-evidence.json`, SHA256
+`36cf54c85d50dd1d4040b3a36d4aa186faae2f6ce4684e3c0bf034d6d6a3eee7`.
+No paths/settings/error text/pixels/QObjects or array addresses are exported.
+Raw evidence hash and fixture hashes are included; local logs remain ignored.
+Exact valid-slot/Diff postpaint and original broader R1-R3 correctness disposition
+remain INCONCLUSIVE. This study supports D1 attribution, not a chosen solution.
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD/src"
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+python scripts/issue190_diff_on.py --output temp/issue190-d1-owner --warmups 2 --repeats 8
+```
+
+For byte-identical measured code use published measured source 0f75def; the
+current runner's only post-study timing-path change is the untimed first-tick
+availability guard. Do not replay into an existing output directory.
+
+Focused post-study validation:
+
+```powershell
+python -m pytest -q tests/unit/test_issue190_diff_on.py tests/unit/test_issue190_summary.py tests/unit/test_qt_lifecycle_architecture.py
+# 14 passed in 0.22s
+$env:QT_QPA_PLATFORM = 'offscreen'
+python -m pytest -q -o usefixtures=isolated_qsettings tests/ui/test_difference_cache_toolbar_lifecycle.py tests/ui/test_large_folder_registration_lifecycle_review.py tests/ui/test_issue121_qt_gc_lifecycle.py tests/ui/test_multiview_gain_diff_stability.py
+# 15 passed in 9.69s; cache/toolbar, registration stale/close, normal-GC close and gain/Diff
+python -m ruff check .
+python -m ruff format --check .
+# Passed; 360 files formatted
+python -m mypy src
+# Success: 108 source files
+python -m pip check
+# No broken requirements
+python scripts/check_docs.py
+# Documentation contract passed
+git diff --check
+# Passed
+```
+
+Full pytest was not run. Changed files are the new D1 runner/unit module, this
+cumulative report and safe D1 evidence JSON. Owner-authenticated publication is
+ChatGPT-assisted with coauthor commit trailers. Return these results to #189
+and #191 for Qt/System/QA review; no optimization implementation or merge.
