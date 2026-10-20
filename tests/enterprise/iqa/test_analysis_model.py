@@ -202,9 +202,7 @@ def test_reference_tint_preserves_external_verdict_colors_and_signal_alpha() -> 
     np.testing.assert_array_equal(tint[..., :3], original[..., :3])
     assert tint[0, :, 3].tolist() == [176, 176, 50, 38, 0, 0]
     np.testing.assert_array_equal(quality_rgba, original)
-    np.testing.assert_array_equal(
-        grid.valid_mask, [[True, True, True, True, True, False]]
-    )
+    np.testing.assert_array_equal(grid.valid_mask, [[True, True, True, True, True, False]])
     assert not np.shares_memory(tint, quality_rgba)
     with pytest.raises(ValueError, match="matching uint8 RGBA"):
         apply_spatial_reference_tint_rgba(attribute, 3.0, quality_rgba[..., :3])
