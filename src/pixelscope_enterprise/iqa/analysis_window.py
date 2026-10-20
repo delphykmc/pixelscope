@@ -11,6 +11,7 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 
 import numpy as np
 from PySide6.QtCore import (
@@ -113,6 +114,33 @@ from pixelscope_enterprise.iqa.visual_export import (
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 IqaSettingsFactory = Callable[[], QSettings]
+
+
+@dataclass(frozen=True)
+class ResultFileType:
+    """Reader/writer-contributed portable result type; presentation metadata only."""
+
+    description: str
+    suffix: str
+
+    def __post_init__(self) -> None:
+        if (
+            not self.description.strip()
+            or len(self.description) > 80
+            or any(char in self.description for char in "\r\n();*")
+        ):
+            raise ValueError("result file type description must be a plain, short label")
+        if re.fullmatch(r"\.[A-Za-z0-9]+", self.suffix) is None:
+            raise ValueError("result file suffix must look like '.pxiqa'")
+
+    @property
+    def dialog_filter(self) -> str:
+        return f"{self.description} (*{self.suffix})"
+
+    def suggested_name(self, result_id: str) -> str:
+        # A result ID is scientific identity, never a trusted filesystem component.
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "_", result_id).strip("._")[:100]
+        return f"{stem or 'iqa_result'}{self.suffix}"
 
 
 def default_iqa_settings() -> QSettings:
@@ -405,6 +433,7 @@ class AnalysisWindow(QMainWindow):
         self._active_id: str | None = None
         self._loader: ResultLoader | None = None
         self._saver: ResultSaver | None = None
+        self._file_type: ResultFileType | None = None
         self._switching = False
         self._rendering = False
         self._views: list[_LinkedView] = []
@@ -452,6 +481,14 @@ class AnalysisWindow(QMainWindow):
         self.save_action.triggered.connect(  # type: ignore[attr-defined]
             self._save_from_dialog
         )
+        self.close_result_action = file_menu.addAction("Close IQA Result")
+        self.close_result_action.setObjectName("enterpriseIqaCloseResult")
+        self.close_result_action.setShortcut(QKeySequence("Ctrl+W"))
+        self.close_result_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.close_result_action.setEnabled(False)
+        self.close_result_action.triggered.connect(  # type: ignore[attr-defined]
+            self._close_current_result
+        )
         self.export_menu = QMenu("Export Result", file_menu)
         self.export_menu.setObjectName("enterpriseIqaExportResultMenu")
         file_menu.addMenu(self.export_menu)
@@ -487,6 +524,10 @@ class AnalysisWindow(QMainWindow):
         self.report_export_action.triggered.connect(  # type: ignore[attr-defined]
             self._export_html_from_dialog
         )
+        file_menu.addSeparator()
+        self.exit_action = file_menu.addAction("Exit")
+        self.exit_action.setObjectName("enterpriseIqaExit")
+        self.exit_action.triggered.connect(self.close)  # type: ignore[attr-defined]
         view_menu = self.menuBar().addMenu("View")
         self.clear_roi_action = view_menu.addAction("Clear ROI")
         self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
@@ -650,8 +691,10 @@ class AnalysisWindow(QMainWindow):
         self.inspector_tabs.setMinimumHeight(140)
         self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
         self.attribute_table.hide()
+        self._empty_attribute_table = self.attribute_table
         self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
         self.range_editor.hide()
+        self._empty_range_editor = self.range_editor
         self.group_scroll = QScrollArea(self.inspector_tabs)
         self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
         self.group_scroll.setWidgetResizable(True)
@@ -868,10 +911,14 @@ class AnalysisWindow(QMainWindow):
         return state.roi if state is not None else None
 
     def install_file_handlers(
-        self, *, load: ResultLoader | None = None, save: ResultSaver | None = None
+        self,
+        *,
+        load: ResultLoader | None = None,
+        save: ResultSaver | None = None,
+        file_type: ResultFileType | None = None,
     ) -> None:
-        """Only verified H2 readers/writers enable on-disk actions."""
-        self._loader, self._saver = load, save
+        """Only injected handlers enable disk actions; their format is UI metadata."""
+        self._loader, self._saver, self._file_type = load, save, file_type
         self.open_action.setEnabled(load is not None)
         self.save_action.setEnabled(save is not None and self._active_id is not None)
 
@@ -1049,6 +1096,7 @@ class AnalysisWindow(QMainWindow):
             f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
         )
         self.fit_action.setEnabled(True)
+        self.close_result_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self.export_menu_action.setEnabled(True)
         self.export_action.setEnabled(True)
@@ -1130,6 +1178,57 @@ class AnalysisWindow(QMainWindow):
         state.attribute_id = self._top3_attribute_ids[index]
         self._select_active_attribute()
         self._render_result()
+
+    def _close_current_result(self) -> None:
+        """Unload only the selected in-memory view; never touch a file or job."""
+
+        result_id = self._active_id
+        if result_id is None:
+            return
+        index = self.result_combo.currentIndex()
+        for view in self._views:
+            view.cancel_roi_drag()
+        self._spatial_timer.stop()
+        future = self._spatial_future
+        if future is not None and not future.done():
+            future.cancel()
+        self._spatial_future = None
+        self._spatial_pending = None
+        self._spatial_displayed = None
+        self._spatial_cache = {
+            key: candidates
+            for key, candidates in self._spatial_cache.items()
+            if key[0] != result_id
+        }
+
+        self._results.pop(result_id)
+        self._states.pop(result_id, None)
+        self._active_id = None
+        self._fit_pending_result_id = None
+        self._scene_result_id = None
+        self._source_result_id = None
+        self._source_pixmaps = (None, None)
+        self._map_item = None
+        self._map_placeholder = None
+        self.result_combo.blockSignals(True)
+        try:
+            self.result_combo.removeItem(index)
+            next_index = min(index, self.result_combo.count() - 1)
+            self.result_combo.setCurrentIndex(next_index)
+            next_id = self.result_combo.currentData()
+        finally:
+            self.result_combo.blockSignals(False)
+
+        if isinstance(next_id, str) and next_id in self._results:
+            self.present_result(self._results[next_id])
+        else:
+            self.setWindowTitle("IQA Analysis")
+            self.close_result_action.setEnabled(False)
+            self.save_action.setEnabled(False)
+            self.export_menu_action.setEnabled(False)
+            self.export_action.setEnabled(False)
+            self._render_empty()
+            self.statusBar().showMessage("No IQA result open.")
 
     def _on_result_selected(self, _index: int) -> None:
         result_id = self.result_combo.currentData()
@@ -1430,10 +1529,41 @@ class AnalysisWindow(QMainWindow):
     def _render_empty(self) -> None:
         self.image_export_action.setEnabled(False)
         self.report_export_action.setEnabled(False)
+        self._switching = True
+        while self._groups_layout.count():
+            layout_item = self._groups_layout.takeAt(0)
+            section = layout_item.widget() if layout_item is not None else None
+            if section is not None:
+                section.hide()
+                section.deleteLater()
+        self._group_sections = {}
+        self._group_tables = {}
+        self._range_editors = {}
+        self._group_units = []
+        self._top3_attribute_ids = []
+        self.attribute_table = self._empty_attribute_table
+        self.range_editor = self._empty_range_editor
+        self._switching = False
+        for caption, title in zip(
+            self._pane_labels, ("Image A", "Image B", "Relative Spatial Map"), strict=True
+        ):
+            caption.setText(title)
+        self.top3_title.setText("TOP 3   ·   NO RESULT")
+        for index, card in enumerate(self.top3_buttons):
+            card.setText(f"#{index + 1}  —")
+            card.setToolTip("")
+            card.setChecked(False)
+            card.setEnabled(False)
+        self.spatial_panel.set_unavailable("No result loaded.")
+        self._roi_items = []
+        self._candidate_overlay_items = []
         for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
+            old_scene = view.scene()
             scene = QGraphicsScene(view)
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
+            if old_scene is not None:
+                old_scene.deleteLater()
         self.official_label.setText("Full-pair comparison: —")
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
@@ -2089,8 +2219,9 @@ class AnalysisWindow(QMainWindow):
     def _open_from_dialog(self) -> None:
         if self._loader is None:
             return
+        dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Open saved IQA result", "", "Saved results (*)"
+            self, "Open saved IQA result", "", dialog_filter
         )
         if not filename:
             return
@@ -2249,14 +2380,21 @@ class AnalysisWindow(QMainWindow):
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
             return
+        suggested = (
+            self._file_type.suggested_name(self._active_id) if self._file_type else ""
+        )
+        dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save portable IQA result", "", "Saved results (*)"
+            self, "Save portable IQA result", suggested, dialog_filter
         )
         if not filename:
             return
+        destination = Path(filename)
+        if self._file_type is not None and not destination.suffix:
+            destination = destination.with_suffix(self._file_type.suffix)
         try:
             self._saver(
-                self._results[self._active_id], self.current_analysis_state(), Path(filename)
+                self._results[self._active_id], self.current_analysis_state(), destination
             )
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be saved.")
@@ -2290,11 +2428,13 @@ class AnalysisWindowManager:
         settings_factory: IqaSettingsFactory | None = None,
         load: ResultLoader | None = None,
         save: ResultSaver | None = None,
+        file_type: ResultFileType | None = None,
     ) -> None:
         self._window: AnalysisWindow | None = None
         self._settings_factory = settings_factory or default_iqa_settings
         self._load = load
         self._save = save
+        self._file_type = file_type
         self._closed = False
 
     @property
@@ -2306,7 +2446,9 @@ class AnalysisWindowManager:
             raise RuntimeError("analysis manager is shut down")
         if self._window is None:
             self._window = AnalysisWindow(settings_factory=self._settings_factory)
-            self._window.install_file_handlers(load=self._load, save=self._save)
+            self._window.install_file_handlers(
+                load=self._load, save=self._save, file_type=self._file_type
+            )
             self._place_first_window(self._window, self._settings_factory)
         if result is not None:
             self._window.present_result(result)
