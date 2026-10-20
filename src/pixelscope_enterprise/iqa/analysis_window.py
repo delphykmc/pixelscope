@@ -105,8 +105,8 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
-from pixelscope_enterprise.iqa.html_report import report_folder, write_html_report
 from pixelscope_enterprise.iqa.hover_status import ReservedHoverPair
+from pixelscope_enterprise.iqa.html_report import report_folder, write_html_report
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.quality_presentation import (
@@ -2385,8 +2385,7 @@ class AnalysisWindow(QMainWindow):
                     formatted = f"{magnitude:+.4f}"
                     widest = "".join(widest_digit if ch.isdigit() else ch for ch in formatted)
                     map_choices.append(
-                        f"{attr.label} Map [{row_digits}, {col_digits}]: "
-                        f"{widest} {attr.unit}"
+                        f"{attr.label} Map [{row_digits}, {col_digits}]: " f"{widest} {attr.unit}"
                     )
         separator = "  ·  "
         values = tuple(
