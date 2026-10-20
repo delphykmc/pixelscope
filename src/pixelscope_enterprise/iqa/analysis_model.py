@@ -155,13 +155,18 @@ class LoadedAnalysis:
     analysis_state: dict[str, object] | None = None
 
 
+# A neutral signed result must read as a distinct dark tint on a light track,
+# never as an A/B or quality-direction verdict. Shared with Qt presentation.
+NEUTRAL_PRESENTATION_RGB = (94, 104, 115)
+
+
 def colorize_spatial_rgba(
     attribute: AttributeDisplay, half_range: float
 ) -> NDArray[np.uint8] | None:
     """Vectorized signed grid -> RGBA; invalid cells are transparent.
 
     Oriented red/blue encodes A-better/B-better only with verified direction.
-    Unoriented purple/teal encodes signed polarity, never a quality winner.
+    Unoriented dark gray encodes magnitude only, never a quality winner.
     Color clipping is display-only; raw numbers and mask remain unchanged.
     """
 
@@ -178,7 +183,7 @@ def colorize_spatial_rgba(
     if attribute.quality_oriented:
         plus, minus = (245, 0, 0), (0, 0, 245)
     else:
-        plus, minus = (181, 72, 193), (35, 145, 148)
+        plus = minus = NEUTRAL_PRESENTATION_RGB
     rgba = np.empty((*grid.values.shape, 4), dtype=np.uint8)
     for channel in range(3):
         endpoint = np.where(positive, plus[channel], minus[channel])
@@ -202,7 +207,7 @@ def map_polarity_legend(attribute: AttributeDisplay) -> str:
 
     if attribute.quality_oriented:
         return "Red: A better (+) | Blue: B better (−)"
-    return "Purple: positive signed value | Teal: negative (NO quality winner)"
+    return "Dark gray: signed magnitude (+/−), NO quality winner inferred"
 
 
 @dataclass(frozen=True)

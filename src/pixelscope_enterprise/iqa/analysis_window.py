@@ -38,6 +38,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QResizeEvent,
     QShowEvent,
     QStandardItemModel,
     QTransform,
@@ -65,6 +66,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRubberBand,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -78,6 +80,7 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     AttributeDisplay,
     LoadedAnalysis,
@@ -118,6 +121,34 @@ IqaSettingsFactory = Callable[[], QSettings]
 def default_iqa_settings() -> QSettings:
     """Preserve the legacy IQA namespace without changing QApplication identity."""
     return QSettings("PixelScope", "EnterpriseIqa")
+
+
+class _PaneCaption(QLabel):
+    """Single-line middle elision without imposing a filename minimum width."""
+
+    def __init__(self, text: str, parent: QWidget) -> None:
+        super().__init__("", parent)
+        self._full_text = text
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setWordWrap(False)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        self._full_text = text
+        self.setToolTip(text)
+        self._update_elision()
+
+    def _update_elision(self) -> None:
+        available = max(0, self.contentsRect().width() - 2)
+        super().setText(
+            self.fontMetrics().elidedText(self._full_text, Qt.TextElideMode.ElideMiddle, available)
+        )
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._update_elision()
 
 
 @dataclass
@@ -319,7 +350,7 @@ def _analysis_action_icon(kind: str) -> QIcon:
 _INSIGHT_COLORS = {
     "a": ("#e5857d", "A"),
     "b": ("#79afe6", "B"),
-    "signed": ("#b99bdc", "±"),
+    "signed": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "±"),
     "empty": (TOKENS.border, "—"),
 }
 
@@ -412,7 +443,7 @@ class AnalysisWindow(QMainWindow):
         self._scene_result_id: str | None = None
         self._map_item: QGraphicsPixmapItem | None = None
         self._map_placeholder: QGraphicsTextItem | None = None
-        self._pane_labels: list[QLabel] = []
+        self._pane_labels: list[_PaneCaption] = []
         self._pane_wrappers: list[QWidget] = []
         self._sources_swapped = False
         self._group_tables: dict[str, QTableWidget] = {}
@@ -567,10 +598,8 @@ class AnalysisWindow(QMainWindow):
             self._pane_wrappers.append(wrapper)
             column = QVBoxLayout(wrapper)
             column.setContentsMargins(2, 2, 2, 2)
-            caption = QLabel(title, wrapper)
+            caption = _PaneCaption(title, wrapper)
             caption.setObjectName("enterpriseIqaPaneCaption" + title.replace(" ", ""))
-            caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            caption.setWordWrap(True)
             self._pane_labels.append(caption)
             column.addWidget(caption)
             view = _LinkedView(wrapper)
@@ -1829,9 +1858,14 @@ class AnalysisWindow(QMainWindow):
     def _set_pane_order(self) -> None:
         """Reorder only visual containers, keeping the A/B science immutable."""
 
+        # QSplitter remembers sizes per child while insertWidget moves children.
+        # The user's sizes belong to visual slots, even when A and B exchange them.
+        slot_widths = self._image_split.sizes()
         indices = (1, 2, 0) if self._sources_swapped else (0, 2, 1)
         for visual_index, semantic_index in enumerate(indices):
             self._image_split.insertWidget(visual_index, self._pane_wrappers[semantic_index])
+        if len(slot_widths) == 3 and all(width > 0 for width in slot_widths):
+            self._image_split.setSizes(slot_widths)
 
     def _swap_sources(self) -> None:
         """Toggle A/Map/B placement without mutating A/B data or zoom state."""

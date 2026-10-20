@@ -4,6 +4,20 @@
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
+## Analysis Window second usability follow-up (2026-10-20)
+
+- Source pane captions are single-line, **middle-elided** with the complete label
+  in the tooltip. Long source filenames do not expand a splitter pane; swapping
+  A/B preserves the three visual **slot widths** (as well as semantic identity).
+- A hotspot slot without a candidate displays **No further qualifying patch**,
+  not an image-loading error. **A/B source unavailable** is reserved for an
+  actual ranked candidate whose corresponding source crop cannot be displayed.
+- Neutral attributes use a distinct **dark gray** tint for their map, insight
+  accent and bipolar bar, on a **light gray** chart track. Signed values remain
+  unchanged; gray communicates magnitude but deliberately not a quality verdict.
+  The historical signed purple/teal colors documented below were superseded
+  only for current neutral presentation; original mask and exports are unchanged.
+
 ## Latest authoritative state (2026-10-09)
 
 - **Merged H0/H1:** PR #144 was **squash-merged only** into

@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope_enterprise.iqa.spatial_candidates import SpatialCandidate
 
+NO_CANDIDATE_TEXT = "No further qualifying patch"
+
 
 class StitchedRoiCanvas(QWidget):
     """Paint source-native A|B crops with one fit transform and no inner gutters."""
@@ -36,8 +38,9 @@ class StitchedRoiCanvas(QWidget):
         self.setMinimumHeight(64)
         self._a: QPixmap | None = None
         self._b: QPixmap | None = None
+        self._has_candidate = False
         self._roi_size: tuple[int, int] = (512, 512)
-        self.setToolTip("Original source-pixel ROI: A left | B right, common fit, no crop offset")
+        self.setToolTip(NO_CANDIDATE_TEXT)
 
     @property
     def has_a(self) -> bool:
@@ -57,7 +60,17 @@ class StitchedRoiCanvas(QWidget):
 
         self._a = a if a is not None and not a.isNull() else None
         self._b = b if b is not None and not b.isNull() else None
+        self._has_candidate = True
         self._roi_size = source_size
+        self.setToolTip("Original source-pixel ROI: A left | B right, common fit, no crop offset")
+        self.update()
+
+    def clear_candidate(self) -> None:
+        """No ranking candidate is different from a candidate with missing RGB."""
+
+        self._a = self._b = None
+        self._has_candidate = False
+        self.setToolTip(NO_CANDIDATE_TEXT)
         self.update()
 
     def fitted_rect(self) -> QRectF:
@@ -84,6 +97,16 @@ class StitchedRoiCanvas(QWidget):
         painter.fillRect(self.rect(), QColor(TOKENS.raised_background))
         frame = self.fitted_rect()
         if frame.isEmpty():
+            painter.end()
+            return
+        if not self._has_candidate:
+            painter.fillRect(frame, QColor(TOKENS.workspace_background))
+            painter.setPen(QColor(TOKENS.text_secondary))
+            painter.drawText(
+                frame.adjusted(5, 5, -5, -5),
+                int(Qt.AlignmentFlag.AlignCenter) | int(Qt.TextFlag.TextWordWrap),
+                NO_CANDIDATE_TEXT,
+            )
             painter.end()
             return
         half = frame.width() / 2.0
@@ -368,7 +391,7 @@ class SpatialCandidatesPanel(QWidget):
             card.setChecked(False)
             self.titles[i].setText("—")
             self.details[i].setText("—")
-            self.previews[i].set_patches(None, None, (512, 512))
+            self.previews[i].clear_candidate()
             self.impact_bars[i].setValue(0)
 
     def populate(
