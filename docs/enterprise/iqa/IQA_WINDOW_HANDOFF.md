@@ -54,7 +54,10 @@ complete, but PRIVATE SUB transfer and runtime validation remain separate gates.
   geometry is rejected in favor of an on-screen fallback.
 - Empty opening supported; file **Open/Save As** actions are disabled until a real
   versioned, verified file reader/writer is injected. Result presentation itself
-  is strictly user-directed, not triggered by a background job.
+  is strictly user-directed, not triggered by a background job. Injected callback
+  exceptions are caught at the Qt action boundary; only explicit `user_message`
+  text is shown in the status bar (single line, up to 160 characters). Other
+  failures show a generic message without exposing exception internals.
 - Three source-pixel-coordinate A/B/Map views with shared zoom/pan and Shift+drag ROI.
   Source RGB absence retains official and spatial results. A spatial image uses the
   declared grid geometry and is rendered at grid resolution, not upsampled to 4K.

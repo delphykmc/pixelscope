@@ -115,6 +115,24 @@ ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 IqaSettingsFactory = Callable[[], QSettings]
 
 
+def _result_file_error_message(error: Exception, fallback: str) -> str:
+    """Expose only an explicit, bounded, single-line adapter message."""
+    try:
+        message = getattr(error, "user_message", None)
+    except Exception:
+        return fallback
+    if not isinstance(message, str):
+        return fallback
+    single_line = " ".join(
+        "".join(char if char.isprintable() else " " for char in message).split()
+    )
+    if not single_line:
+        return fallback
+    if len(single_line) > 160:
+        return single_line[:159].rstrip() + "…"
+    return single_line
+
+
 def default_iqa_settings() -> QSettings:
     """Preserve the legacy IQA namespace without changing QApplication identity."""
     return QSettings("PixelScope", "EnterpriseIqa")
@@ -2099,8 +2117,10 @@ class AnalysisWindow(QMainWindow):
             if not isinstance(loaded, LoadedAnalysis):
                 raise ValueError("reader must return a verified LoadedAnalysis")
             self.present_result(loaded.result, analysis_state=loaded.analysis_state)
-        except (OSError, ValueError):
-            self.statusBar().showMessage("Result could not be opened or validated.")
+        except Exception as error:
+            self.statusBar().showMessage(
+                _result_file_error_message(error, "Result could not be opened or validated.")
+            )
 
     def _export_csv_from_dialog(self) -> None:
         """Export scientific measurements, not a portable result or pair score for an ROI."""
@@ -2258,8 +2278,10 @@ class AnalysisWindow(QMainWindow):
             self._saver(
                 self._results[self._active_id], self.current_analysis_state(), Path(filename)
             )
-        except (OSError, ValueError):
-            self.statusBar().showMessage("Result could not be saved.")
+        except Exception as error:
+            self.statusBar().showMessage(
+                _result_file_error_message(error, "Result could not be saved.")
+            )
             return
         self.statusBar().showMessage("Portable result saved by installed writer.")
 

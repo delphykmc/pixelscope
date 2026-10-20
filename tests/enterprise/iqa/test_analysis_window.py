@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 
 import numpy as np
 import pytest
@@ -223,6 +224,68 @@ def test_reader_carries_validated_state_separate_from_official_result(
     assert win.active_result_id == "reopened"
     assert win.current_roi == (0, 0, 64, 64)
     assert win._state().ranges == {"dB": 3.0}  # type: ignore[union-attr]
+    win.close()
+
+
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_result_file_callback_errors_are_safe_and_bounded(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    from PySide6.QtWidgets import QFileDialog
+
+    class UserFacingError(RuntimeError):
+        user_message = "  Portable result\nchecksum mismatch  "
+
+    class LongUserFacingError(RuntimeError):
+        user_message = "  Invalid\n" + "x" * 300
+
+    class BrokenUserFacingError(RuntimeError):
+        @property
+        def user_message(self) -> str:
+            raise RuntimeError("private property failure")
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("unchanged"))
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.open_action
+        generic = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.save_action
+        generic = "Result could not be saved."
+
+    failures: tuple[tuple[Exception, str | None], ...] = (
+        (OSError("private file path"), None),
+        (RuntimeError("unexpected implementation details"), None),
+        (
+            UserFacingError("private implementation details"),
+            "Portable result checksum mismatch",
+        ),
+        (LongUserFacingError("private details"), "Invalid " + "x" * 151 + "…"),
+        (BrokenUserFacingError("private details"), None),
+    )
+    for failure, expected_message in failures:
+        def fail(*_args: object) -> NoReturn:
+            raise failure
+
+        if operation == "open":
+            win.install_file_handlers(load=fail)
+        else:
+            win.install_file_handlers(save=fail)
+        assert action.isEnabled()
+        action.trigger()  # The actual QAction -> Qt slot path must report all exceptions.
+        message = win.statusBar().currentMessage()
+        assert message == (expected_message or generic)
+        assert len(message) <= 160
+        assert not any(char in message for char in "\r\n\t")
+        assert "private" not in message
+        assert win.active_result_id == "unchanged"
     win.close()
 
 
