@@ -124,8 +124,10 @@ class AnalysisResult:
     source_b: Path | None = None
 
     def __post_init__(self) -> None:
-        if not self.result_id or not self.source_a_label or not self.source_b_label:
-            raise ValueError("result and source identities must be nonempty")
+        if not self.result_id:
+            raise ValueError("result identity must be nonempty")
+        if not isinstance(self.source_a_label, str) or not isinstance(self.source_b_label, str):
+            raise ValueError("source labels must be strings (empty when unavailable)")
         if self.image_width <= 0 or self.image_height <= 0:
             raise ValueError("image geometry must be positive")
         if not self.attributes:
@@ -185,6 +187,28 @@ def colorize_spatial_rgba(
         rgba[..., channel] = np.rint(239 + magnitude * (endpoint - 239)).astype(np.uint8)
     rgba[..., 3] = np.where(grid.valid_mask, 255, 0).astype(np.uint8)
     return np.ascontiguousarray(rgba)
+
+
+def colorize_spatial_tint_rgba(
+    attribute: AttributeDisplay, half_range: float, *, max_alpha: int = 176
+) -> NDArray[np.uint8] | None:
+    """Optional translucent spatial tint, leaving signed zero and invalid cells clear.
+
+    The standard opaque-map palette and all scientific values/masks are unchanged.
+    Opacity tracks magnitude relative to the *display* range, not validity or
+    any inferred quality score. A fully saturated cell stays translucent.
+    """
+
+    if not 0 <= max_alpha <= 255:
+        raise ValueError("maximum tint opacity must be a byte")
+    rgba = colorize_spatial_rgba(attribute, half_range)
+    if rgba is None:
+        return None
+    grid = attribute.spatial
+    assert grid is not None
+    magnitude = np.clip(np.abs(np.where(grid.valid_mask, grid.values, 0.0)) / half_range, 0, 1)
+    rgba[..., 3] = np.rint(magnitude * max_alpha).astype(np.uint8)
+    return rgba
 
 
 def spatial_display_half_range(group_range: float, display_gain: float) -> float:

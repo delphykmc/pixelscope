@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -98,6 +99,73 @@ def test_missing_sources_do_not_invalidate_spatial_analysis(qtbot: object) -> No
     assert "Clamped:" in win.clamp_label.text()
     assert win._views[0].scene().items()  # type: ignore[union-attr]
     assert win._views[1].scene().items()  # type: ignore[union-attr]
+    assert not win.map_reference_action.isEnabled()
+    win.close()
+
+
+def test_map_tint_option_reveals_grayscale_reference_without_changing_analysis(
+    qtbot: object, tmp_path: Path
+) -> None:
+    image = QImage(128, 128, QImage.Format.Format_RGB32)
+    image.fill(QColor(210, 110, 40))
+    source = tmp_path / "a.png"
+    assert image.save(str(source))
+    result = replace(_result("tint"), source_a=source)
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(result)
+    assert win.map_reference_action.isEnabled()
+    assert not win.map_reference_action.isChecked()  # unchanged default presentation
+    assert win._map_reference_item is None
+    assert win._map_item is not None
+    assert win._map_item.pixmap().toImage().pixelColor(0, 1).alpha() == 255
+
+    win._set_roi(0, 0, 64, 64)
+    old_scene = win._views[2].scene()
+    old_roi = win.current_roi
+    old_stats = win.roi_label.text()
+    old_state = win.current_analysis_state()
+    original_values = result.attributes[0].spatial.values.copy()  # type: ignore[union-attr]
+    original_mask = result.attributes[0].spatial.valid_mask.copy()  # type: ignore[union-attr]
+    win.map_reference_action.setChecked(True)
+    assert win._views[2].scene() is old_scene
+    assert win._map_reference_item is not None
+    assert win._map_reference_item.isVisible()
+    assert 0 < win._map_reference_item.opacity() < 1
+    reference_pixel = win._map_reference_item.pixmap().toImage().pixelColor(12, 12)
+    assert reference_pixel.red() == reference_pixel.green() == reference_pixel.blue()
+    tint_image = win._map_item.pixmap().toImage()
+    assert 0 < tint_image.pixelColor(0, 0).alpha() < 255
+    assert tint_image.pixelColor(0, 1).alpha() == 0  # valid signed zero
+    assert tint_image.pixelColor(1, 1).alpha() == 0  # invalid, not numeric zero
+    assert win.current_roi == old_roi
+    assert win.roi_label.text() == old_stats
+    assert win.current_analysis_state() == old_state
+    np.testing.assert_array_equal(result.attributes[0].spatial.values, original_values)  # type: ignore[union-attr]
+    np.testing.assert_array_equal(result.attributes[0].spatial.valid_mask, original_mask)  # type: ignore[union-attr]
+
+    win.map_reference_action.setChecked(False)
+    assert not win._map_reference_item.isVisible()
+    assert win._map_item.pixmap().toImage().pixelColor(0, 1).alpha() == 255
+    assert win._views[2].scene() is old_scene
+    win.close()
+
+
+def test_title_uses_source_labels_and_falls_back_to_result_id(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    assert win.windowTitle() == "IQA Analysis"
+    named = replace(_result("named"), source_a_label="a.png", source_b_label="b.png")
+    win.present_result(named)
+    assert win.windowTitle() == "IQA Analysis — a.png vs b.png"
+    unlabeled = replace(_result("unlabeled"), source_a_label="", source_b_label=" ")
+    win.present_result(unlabeled)
+    assert win.windowTitle() == "IQA Analysis — unlabeled"
+    partial = replace(_result("partial"), source_a_label="a.png", source_b_label="")
+    win.present_result(partial)
+    assert win.windowTitle() == "IQA Analysis — partial"
+    win.result_combo.setCurrentIndex(win.result_combo.findData("named"))
+    assert win.windowTitle() == "IQA Analysis — a.png vs b.png"
     win.close()
 
 

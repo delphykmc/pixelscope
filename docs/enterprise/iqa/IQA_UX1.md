@@ -112,6 +112,25 @@ and low detail allocations, and changing Attribute updates the details
 heading. See `test_ux1_fhd_inspector_splitter_and_metric_explanations`
 for focused Qt geometry and semantics regression.
 
+## Optional Map-on-Reference presentation (2026-10-20)
+
+- The Analysis Window's **View → Tint Map over Reference A** option is **off by
+  default**, preserving the existing opaque signed color map and its transparent
+  invalid cells. It is enabled only when original source A resolves at the
+  declared image dimensions.
+- When enabled, the Map pane shows a dimmed grayscale copy of semantic source
+  **A** beneath a translucent, nearest-neighbor signed tint. Valid zero-valued
+  cells and invalid/masked cells have **zero tint opacity** and reveal the
+  picture; larger absolute signed values have stronger tint, capped below fully
+  opaque. RGB/color meaning remains oriented or neutral per the existing metric.
+- This is a window-only, reversible visualization: original numeric values,
+  validity masks, official/ROI statistics, Save Result and CSV/PNG/HTML exports
+  are unchanged. Missing original A retains the existing map-only presentation;
+  A/B visual pane swaps do not alter the scientific reference identity.
+- The result window title reads `IQA Analysis — <source A label> vs <source B label>`;
+  if either label is empty/whitespace, the result ID is used instead. The empty
+  window keeps the short `IQA Analysis` title.
+
 ## Operator sequence
 
 1. A first result shows identity, source labels/dimensions and a compact **Fit

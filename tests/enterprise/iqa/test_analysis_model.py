@@ -13,6 +13,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     SpatialMap,
     clipped_cells,
     colorize_spatial_rgba,
+    colorize_spatial_tint_rgba,
     map_polarity_legend,
     roi_statistics,
 )
@@ -144,6 +145,36 @@ def test_quality_oriented_and_signed_polarity_use_distinct_map_colors() -> None:
     assert "A better" in map_polarity_legend(attribute(True))
     assert "NO quality winner" in map_polarity_legend(attribute(False))
     assert not np.shares_memory(signed, grid.values)
+
+
+def test_optional_spatial_tint_reveals_zero_and_invalid_without_mutating_map() -> None:
+    grid = _grid()
+    attribute = AttributeDisplay(
+        "signed", "Signed", "delta", "signed", None, "missing", False, 3.0, grid
+    )
+    original_values = grid.values.copy()
+    original_mask = grid.valid_mask.copy()
+    opaque = colorize_spatial_rgba(attribute, 3.0)
+    tint = colorize_spatial_tint_rgba(attribute, 3.0)
+    assert opaque is not None and tint is not None
+    np.testing.assert_array_equal(tint[..., :3], opaque[..., :3])
+    assert tint[..., 3].tolist() == [[117, 176], [0, 0]]
+    assert opaque[..., 3].tolist() == [[255, 255], [255, 0]]
+    np.testing.assert_array_equal(grid.values, original_values)
+    np.testing.assert_array_equal(grid.valid_mask, original_mask)
+    assert roi_statistics(grid, (0, 0, 128, 128)).valid_coverage == 0.75
+    with pytest.raises(ValueError, match="opacity"):
+        colorize_spatial_tint_rgba(attribute, 3.0, max_alpha=256)
+
+
+def test_result_allows_missing_source_labels_but_still_requires_result_identity() -> None:
+    attribute = AttributeDisplay(
+        "signed", "Signed", "delta", "signed", None, "missing", False, 3.0, _grid()
+    )
+    result = AnalysisResult("fallback-id", 128, 128, "", "", (attribute,))
+    assert result.source_a_label == result.source_b_label == ""
+    with pytest.raises(ValueError, match="result identity"):
+        AnalysisResult("", 128, 128, "", "", (attribute,))
 
 
 def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:

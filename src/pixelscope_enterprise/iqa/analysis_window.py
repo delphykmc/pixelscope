@@ -84,6 +84,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     Roi,
     clipped_cells,
     colorize_spatial_rgba,
+    colorize_spatial_tint_rgba,
     map_polarity_legend,
     roi_statistics,
     spatial_display_half_range,
@@ -268,10 +269,16 @@ class _LinkedView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
 
-def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | None:
+def _map_pixmap(
+    attribute: AttributeDisplay, half_range: float, *, translucent: bool = False
+) -> QPixmap | None:
     """Construct one safe Qt image from the bounded, vectorized signed grid."""
 
-    rgba = colorize_spatial_rgba(attribute, half_range)
+    rgba = (
+        colorize_spatial_tint_rgba(attribute, half_range)
+        if translucent
+        else colorize_spatial_rgba(attribute, half_range)
+    )
     if rgba is None:
         return None
     height, width, _ = rgba.shape
@@ -411,6 +418,7 @@ class AnalysisWindow(QMainWindow):
         self._roi_items: list[QGraphicsRectItem] = []
         self._scene_result_id: str | None = None
         self._map_item: QGraphicsPixmapItem | None = None
+        self._map_reference_item: QGraphicsPixmapItem | None = None
         self._map_placeholder: QGraphicsTextItem | None = None
         self._pane_labels: list[QLabel] = []
         self._pane_wrappers: list[QWidget] = []
@@ -534,6 +542,19 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
             self._hotspot_overlay_toggled
         )
+        self.map_reference_action = view_menu.addAction("Tint Map over Reference A")
+        self.map_reference_action.setObjectName("enterpriseIqaMapReferenceTint")
+        self.map_reference_action.setCheckable(True)
+        self.map_reference_action.setChecked(False)
+        self.map_reference_action.setEnabled(False)
+        self.map_reference_action.setToolTip(
+            "Show a translucent signed Map over a dimmed grayscale source A. "
+            "Zero and invalid cells reveal the plain image; "
+            "numbers, masks, and exports are unchanged."
+        )
+        self.map_reference_action.toggled.connect(  # type: ignore[attr-defined]
+            self._map_reference_toggled
+        )
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
         self.iqa_toolbar = QToolBar("IQA analysis tools", self)
@@ -556,6 +577,7 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_tool_button = action_button(self.clear_roi_action)
         self.iqa_toolbar.addSeparator()
         self.iqa_toolbar.addAction(self.hotspot_overlay_action)
+        self.iqa_toolbar.addAction(self.map_reference_action)
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
@@ -1040,7 +1062,9 @@ class AnalysisWindow(QMainWindow):
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
-        self.setWindowTitle(f"IQA Analysis — {result.result_id}")
+        label_a, label_b = result.source_a_label.strip(), result.source_b_label.strip()
+        pair_title = f"{label_a} vs {label_b}" if label_a and label_b else result.result_id
+        self.setWindowTitle(f"IQA Analysis — {pair_title}")
         self.pair_summary.setText(
             f"A: {result.source_a_label}  /  B: {result.source_b_label}  "
             f"• {result.image_width}×{result.image_height}"
@@ -1428,6 +1452,8 @@ class AnalysisWindow(QMainWindow):
         self._render_result()
 
     def _render_empty(self) -> None:
+        self.setWindowTitle("IQA Analysis")
+        self.map_reference_action.setEnabled(False)
         self.image_export_action.setEnabled(False)
         self.report_export_action.setEnabled(False)
         for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
@@ -1467,6 +1493,7 @@ class AnalysisWindow(QMainWindow):
         # Recreate only when the actual result identity changes.
         new_result = self._scene_result_id != result.result_id
         if new_result:
+            self._map_reference_item = None
             if self._source_result_id != result.result_id:
                 images: list[QPixmap | None] = []
                 for source in (result.source_a, result.source_b):
@@ -1551,6 +1578,7 @@ class AnalysisWindow(QMainWindow):
                 view._muted = False
 
         self._refresh_map(attr, limit)
+        self.map_reference_action.setEnabled(self._source_pixmaps[0] is not None)
         self.image_export_action.setEnabled(
             attr.spatial is not None or any(image is not None for image in self._source_pixmaps)
         )
@@ -1594,11 +1622,23 @@ class AnalysisWindow(QMainWindow):
 
         if self._map_item is None or self._map_placeholder is None:
             return
+        source_a = self._source_pixmaps[0]
+        show_reference = self.map_reference_action.isChecked() and source_a is not None
+        if show_reference and self._map_reference_item is None and source_a is not None:
+            scene = self._views[2].scene()
+            if scene is not None:
+                grayscale = source_a.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+                reference_item = scene.addPixmap(QPixmap.fromImage(grayscale))
+                reference_item.setZValue(-1)
+                reference_item.setOpacity(0.6)  # dim the picture against the dark scene
+                self._map_reference_item = reference_item
+        if self._map_reference_item is not None:
+            self._map_reference_item.setVisible(show_reference)
         state = self._state()
         effective = spatial_display_half_range(
             limit, state.display_gain if state is not None else 1.0
         )
-        pixmap = _map_pixmap(attr, effective)
+        pixmap = _map_pixmap(attr, effective, translucent=show_reference)
         grid = attr.spatial
         available = pixmap is not None and grid is not None
         if available and pixmap is not None and grid is not None:
@@ -1609,6 +1649,13 @@ class AnalysisWindow(QMainWindow):
             self._map_item.setPixmap(QPixmap())
         self._map_item.setVisible(available)
         self._map_placeholder.setVisible(not available)
+
+    def _map_reference_toggled(self, _enabled: bool) -> None:
+        """Change only Map presentation, without rebuilding scenes or analysis state."""
+
+        state, attr = self._state(), self._attribute()
+        if state is not None and attr is not None:
+            self._refresh_map(attr, self._display_range(attr, state))
 
     def _spatial_key(self) -> tuple[str, str, int] | None:
         state = self._state()
