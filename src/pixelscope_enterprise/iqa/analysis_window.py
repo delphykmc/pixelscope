@@ -106,6 +106,7 @@ from pixelscope_enterprise.iqa.attribute_chart import (
 )
 from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.html_report import report_folder, write_html_report
+from pixelscope_enterprise.iqa.hover_status import ReservedHoverPair
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.quality_presentation import (
@@ -133,6 +134,17 @@ IqaSettingsFactory = Callable[[], QSettings]
 def default_iqa_settings() -> QSettings:
     """Preserve the legacy IQA namespace without changing QApplication identity."""
     return QSettings("PixelScope", "EnterpriseIqa")
+
+
+def _unknown_signal_level_note(attr: AttributeDisplay) -> str:
+    """Explain unknown original-relative levels without altering a quality verdict."""
+
+    if attr.unit != "dB" or attr.summary_signal_gate is not None:
+        return ""
+    return (
+        " Signal level unknown: no usable original-relative level information "
+        "for A/B is available to this view; visibility cannot be verified."
+    )
 
 
 class _PaneCaption(QLabel):
@@ -1005,6 +1017,9 @@ class AnalysisWindow(QMainWindow):
             f"QLabel#enterpriseIqaTop3Title {{ color: {TOKENS.text_secondary}; "
             "font-weight: 700; }"
         )
+        self._hover_readouts = ReservedHoverPair(self.statusBar())
+        self.hover_readout_changed.connect(self._update_hover_readouts)
+        self.hover_readout_cleared.connect(self._hover_readouts.clear)
         self.statusBar().showMessage(
             "Shift+drag ROI · T swaps A/B · Map Gain changes visualization only."
         )
@@ -1190,6 +1205,8 @@ class AnalysisWindow(QMainWindow):
             self._states[result.result_id] = _ResultViewState(first_view.attribute_id)
         self._active_id = result.result_id
         self._hide_hover_pixel()
+        # All possible RGB/map attributes share one status-bar width for this result.
+        self._reserve_hover_readouts(result)
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
@@ -1443,6 +1460,7 @@ class AnalysisWindow(QMainWindow):
                     item.setToolTip(
                         f"{attr.label} · {attr.group} · {unit}; "
                         f"full-pair value {attr.official_availability}; group scale ±{limit:g}"
+                        f".{_unknown_signal_level_note(attr)}"
                     )
                     table.setItem(row, col, item)
             table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
@@ -1592,7 +1610,9 @@ class AnalysisWindow(QMainWindow):
                 cell.setToolTip(
                     f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
                     f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
-                    "signed local evidence, no regional quality winner." + policy_note
+                    "signed local evidence, no regional quality winner."
+                    + policy_note
+                    + _unknown_signal_level_note(attr)
                 )
             else:
                 cell.setData(CHART_MEASUREMENT_ROLE, None)
@@ -1606,6 +1626,7 @@ class AnalysisWindow(QMainWindow):
                     f"{attr.label}: full-pair producer comparison "
                     f"({attr.official_availability}); display range ±{limit:g} {unit}."
                     + policy_note
+                    + _unknown_signal_level_note(attr)
                 )
         table.viewport().update()
 
@@ -2320,6 +2341,69 @@ class AnalysisWindow(QMainWindow):
         if attr is not None:
             self._update_group_range(attr.unit, value)
 
+    def _reserve_hover_readouts(self, result: AnalysisResult) -> None:
+        """Reserve both columns once for all expected texts in this result.
+
+        Attribute switches do not resize the Status Bar: every map's label,
+        grid location and formatted value is considered at this boundary.
+        """
+
+        metrics = self._hover_readouts.values.fontMetrics()
+        widest_digit = max("0123456789", key=metrics.horizontalAdvance)
+        x_digits = widest_digit * len(str(max(0, result.image_width - 1)))
+        y_digits = widest_digit * len(str(max(0, result.image_height - 1)))
+        positions = (f"Pixel ({x_digits}, {y_digits})",)
+
+        roles = self._source_roles(result)
+        rgb_choices = tuple(
+            (
+                f"{role} RGB: unavailable",
+                f"{role} RGB8: {widest_digit * 3}, {widest_digit * 3}, {widest_digit * 3}",
+                f"{role} RGB16: {widest_digit * 5}, {widest_digit * 5}, {widest_digit * 5}",
+            )
+            for role in roles
+        )
+        map_choices = ["Map: unavailable"]
+        for attr in result.attributes:
+            grid = attr.spatial
+            if grid is None:
+                continue
+            row_digits = widest_digit * len(str(max(0, grid.rows - 1)))
+            col_digits = widest_digit * len(str(max(0, grid.columns - 1)))
+            map_choices.extend(
+                (
+                    f"{attr.label} Map [{row_digits}, {col_digits}]: invalid",
+                    f"{attr.label} Map: outside grid",
+                )
+            )
+            # Read existing valid data for display bounds, never infer new scores.
+            valid = grid.values[grid.valid_mask]
+            finite = valid[np.isfinite(valid)]
+            if finite.size:
+                extrema = (float(np.min(finite)), float(np.max(finite)))
+                for magnitude in extrema:
+                    formatted = f"{magnitude:+.4f}"
+                    widest = "".join(widest_digit if ch.isdigit() else ch for ch in formatted)
+                    map_choices.append(
+                        f"{attr.label} Map [{row_digits}, {col_digits}]: "
+                        f"{widest} {attr.unit}"
+                    )
+        separator = "  ·  "
+        values = tuple(
+            separator.join((source_a, source_b, map_value))
+            for source_a in rgb_choices[0]
+            for source_b in rgb_choices[1]
+            for map_value in map_choices
+        )
+        self._hover_readouts.reserve_for_result(positions, values)
+
+    def _update_hover_readouts(
+        self, position: str, source_a: str, source_b: str, map_value: str
+    ) -> None:
+        """Keep source A/B fields independent for request 7's later formatter."""
+
+        self._hover_readouts.update(position, "  ·  ".join((source_a, source_b, map_value)))
+
     def _show_hover_pixel(self, x: int, y: int) -> None:
         """One source-pixel cursor and readout shared by A, B and the Map."""
 
@@ -2374,11 +2458,7 @@ class AnalysisWindow(QMainWindow):
             else:
                 map_text = f"{attr.label} Map: outside grid"
         position_text = f"Pixel ({x}, {y})"
-        values_text = "  ·  ".join((*rgb_parts, map_text))
         self.hover_readout_changed.emit(position_text, rgb_parts[0], rgb_parts[1], map_text)
-        # Standalone fallback. Integration #201/#199 owns the persistent widget
-        # layout and can consume the two fields without changing hover science.
-        self.statusBar().showMessage(f"{position_text}  ·  {values_text}")
 
     def _hide_hover_pixel(self) -> None:
         if self._hovered_pixel is None:
@@ -2388,7 +2468,6 @@ class AnalysisWindow(QMainWindow):
             vertical.hide()
             horizontal.hide()
         self.hover_readout_cleared.emit()
-        self.statusBar().showMessage("Hover A, B or Map to inspect source RGB and spatial values.")
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()

@@ -151,17 +151,17 @@ def test_hover_links_three_guides_and_reads_rgb_and_masked_map(
             assert vertical.isVisible() and horizontal.isVisible()
             assert vertical.line().x1() == 16.5
             assert horizontal.line().y1() == 16.5
-        status = win.statusBar().currentMessage()
-        assert "Reference RGB8: 17, 33, 65" in status
-        assert "Target RGB8: 111, 127, 201" in status
-        assert "Detail Map [0, 0]: +3.0000 dB" in status
+        readout = win._hover_readouts.values.toolTip()
+        assert "Reference RGB8: 17, 33, 65" in readout
+        assert "Target RGB8: 111, 127, 201" in readout
+        assert "Detail Map [0, 0]: +3.0000 dB" in readout
         assert emitted[-1][0] == "Pixel (16, 16)"
         assert emitted[-1][1] == "Reference RGB8: 17, 33, 65"
         assert emitted[-1][2] == "Target RGB8: 111, 127, 201"
         assert emitted[-1][3] == "Detail Map [0, 0]: +3.0000 dB"
 
     win._views[2]._report_hover(win._views[2].mapFromScene(QPointF(100.5, 100.5)))
-    assert "Detail Map [1, 1]: invalid" in win.statusBar().currentMessage()
+    assert "Detail Map [1, 1]: invalid" in win._hover_readouts.values.toolTip()
     win._views[2]._report_hover(QPoint(-10000, -10000))
     assert win._hovered_pixel is None
     assert clears
