@@ -107,7 +107,8 @@ def test_close_during_running_spatial_scan_discards_late_completion(
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(_result("closing"))
-    key = ("closing", "metric_db", 128)
+    key = win._spatial_key()
+    assert key is not None
     win._spatial_cache[key] = ()
     running: Future[tuple[object, ...]] = Future()
     assert running.set_running_or_notify_cancel()
