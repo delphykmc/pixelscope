@@ -251,10 +251,20 @@ def test_pane_caption_middle_elision_does_not_reallocate_splitter_slots(qtbot: o
     assert "\n" not in caption.text()
     assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
 
+    # Request 3 may decorate the original filename with a semantic source role.
+    # It must still use this same width-independent caption presentation path.
+    role_caption = f"REFERENCE · {long_name}"
+    caption.setText(role_caption)
+    QApplication.processEvents()
+    assert caption.toolTip() == role_caption
+    assert "…" in caption.text()
+    assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
+
     for _ in range(4):
         win.swap_sources_action.trigger()
         QApplication.processEvents()
         assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
+        assert caption.toolTip() == role_caption
         assert "…" in caption.text()
     win.close()
 
