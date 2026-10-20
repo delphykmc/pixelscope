@@ -13,7 +13,11 @@ from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRect, Qt
 from PySide6.QtGui import QColor, QPainter, QPalette
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
-from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, official_chart_fraction
+from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
+    AttributeDisplay,
+    official_chart_fraction,
+)
 
 ATTRIBUTE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 DISPLAY_RANGE_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -33,6 +37,8 @@ _A_COLOR = QColor(222, 88, 79)
 _B_COLOR = QColor(69, 139, 212)
 _POS_COLOR = QColor(177, 90, 191)
 _NEG_COLOR = QColor(43, 155, 155)
+_NEUTRAL_COLOR = QColor(*NEUTRAL_PRESENTATION_RGB)
+_NEUTRAL_TRACK = QColor(225, 229, 233)
 
 
 class _OptionFields(Protocol):
@@ -124,14 +130,29 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         x = content.left() + 20
         width = max(16, content.width() - 40)
         middle = x + width // 2
-        painter.fillRect(QRect(x, y, width, 7), palette.midlight())
+        painter.fillRect(
+            QRect(x, y, width, 7),
+            _NEUTRAL_TRACK if not attr.quality_oriented else palette.midlight(),
+        )
         painter.fillRect(QRect(middle, y - 3, 1, 13), text_color)
         extent = round(abs(fraction) * width / 2)
         if extent:
             if fraction > 0:
-                color = _A_COLOR if attr.quality_oriented and not is_roi else _POS_COLOR
+                color = (
+                    _NEUTRAL_COLOR
+                    if not attr.quality_oriented
+                    else _A_COLOR
+                    if not is_roi
+                    else _POS_COLOR
+                )
                 painter.fillRect(QRect(middle + 1, y, extent, 7), color)
             else:
-                color = _B_COLOR if attr.quality_oriented and not is_roi else _NEG_COLOR
+                color = (
+                    _NEUTRAL_COLOR
+                    if not attr.quality_oriented
+                    else _B_COLOR
+                    if not is_roi
+                    else _NEG_COLOR
+                )
                 painter.fillRect(QRect(middle - extent, y, extent, 7), color)
         painter.restore()

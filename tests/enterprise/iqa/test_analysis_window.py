@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor, QImage, QWheelEvent
 from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QGraphicsRectItem
 
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     AttributeDisplay,
     LoadedAnalysis,
@@ -335,8 +336,8 @@ def test_qt_map_pixmap_respects_non_oriented_signed_polarity(qtbot: object) -> N
     images = [item for item in scene.items() if isinstance(item, QGraphicsPixmapItem)]
     assert len(images) == 1
     raster = images[0].pixmap().toImage()
-    assert raster.pixelColor(0, 0).getRgb() == (181, 72, 193, 255)
-    assert raster.pixelColor(1, 0).getRgb() == (35, 145, 148, 255)
+    assert raster.pixelColor(0, 0).getRgb() == (*NEUTRAL_PRESENTATION_RGB, 255)
+    assert raster.pixelColor(1, 0).getRgb() == (*NEUTRAL_PRESENTATION_RGB, 255)
     assert raster.pixelColor(2, 0).alpha() == 0
     win.close()
 

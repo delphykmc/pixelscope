@@ -76,8 +76,8 @@ def test_source_role_names_are_opt_in_and_do_not_change_scientific_identity(qtbo
     assert "Reference: ref.png vs Target: target.png" in win2.windowTitle()
     assert "Reference: ref.png" in win2.pair_summary.text()
     assert "Target: target.png" in win2.pair_summary.text()
-    assert win2._pane_labels[0].text().startswith("REFERENCE")
-    assert win2._pane_labels[1].text().startswith("TARGET")
+    assert win2._pane_labels[0].toolTip().startswith("REFERENCE")
+    assert win2._pane_labels[1].toolTip().startswith("TARGET")
     assert win2.spatial_panel.previews[0]._source_roles == ("Reference", "Target")
     assert "Reference/Target ROI" in win2.spatial_panel.status_label.text()
     assert named.attributes is baseline.attributes

@@ -81,8 +81,8 @@ def test_roles_and_reference_tint_keep_hover_science_and_exports(
     qtbot.waitUntil(lambda: window._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
 
     assert window.windowTitle() == "IQA Analysis — Reference: ref.png vs Target: target.png"
-    assert window._pane_labels[0].text().startswith("REFERENCE")
-    assert window._pane_labels[1].text().startswith("TARGET")
+    assert window._pane_labels[0].toolTip().startswith("REFERENCE")
+    assert window._pane_labels[1].toolTip().startswith("TARGET")
     assert "Reference: ref.png" in window.pair_summary.text()
     assert window.map_reference_action.isEnabled()
     assert not window.map_reference_action.isChecked()
@@ -171,8 +171,10 @@ def test_missing_source_label_uses_result_id_without_losing_role_or_rgb(
     window.hover_readout_changed.connect(lambda *fields: hover.append(fields))
     window.present_result(missing_b)
     assert window.windowTitle() == "IQA Analysis — missing-target"
-    assert window._pane_labels[0].text().startswith("REFERENCE")
-    assert window._pane_labels[1].text().startswith("TARGET")
+    # Request 4 middle-elides the visible text before a window is first shown;
+    # the full role/source caption must remain available in the tooltip.
+    assert window._pane_labels[0].toolTip().startswith("REFERENCE")
+    assert window._pane_labels[1].toolTip().startswith("TARGET")
     assert window.map_reference_action.isEnabled()  # source A still exists
     window.map_reference_action.setChecked(True)
     window._show_hover_pixel(16, 16)
@@ -182,7 +184,7 @@ def test_missing_source_label_uses_result_id_without_losing_role_or_rgb(
     partial = replace(original, result_id="missing-reference-label", source_a_label=" ")
     window.present_result(partial)
     assert window.windowTitle() == "IQA Analysis — missing-reference-label"
-    assert window._pane_labels[0].text().startswith("REFERENCE")
+    assert window._pane_labels[0].toolTip().startswith("REFERENCE")
     assert window._map_reference_item is not None
     assert window._map_reference_item.isVisible()
     window._show_hover_pixel(16, 16)

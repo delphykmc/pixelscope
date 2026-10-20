@@ -4,14 +4,16 @@
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
-## Sequential integration checkpoint — requests 1/7 + 3/7 (2026-10-20)
+## Sequential integration checkpoint — requests 1/7 + 3/7 + 4/7 (2026-10-20)
 
 - Integration branch: `integration/iqa-seven-requests-20261020`, based on
   `handoff/enterprise-iqa-window@8420be5`. Only the complete changes from
   [PR #200](https://github.com/delphykmc/pixelscope/pull/200) (reference-image
-  tint and source-label title) and [PR #195](https://github.com/delphykmc/pixelscope/pull/195)
-  (role naming, linked resize and three-pane hover) are integrated here.
-  Both original PRs, Handoff and PUBLIC main remain independently unchanged.
+  tint and source-label title), [PR #195](https://github.com/delphykmc/pixelscope/pull/195)
+  (role naming, linked resize and three-pane hover), and
+  [PR #198](https://github.com/delphykmc/pixelscope/pull/198) (captions, hotspot
+  placeholders and dark neutral) are integrated here. The original PRs,
+  Handoff and PUBLIC main remain independently unchanged.
 - **Title/role contract:** nonempty Reference/Target roles decorate each
   nonempty source label in the window title; if either source label is blank,
   the window title falls back to the Result ID. Role names also drive pane
@@ -30,9 +32,26 @@ Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementa
   provides fixed-pitch/padded formatting. Their widgets/helpers are **not**
   included in this checkpoint and must consume these signals in later steps.
 - Integration regressions are in
-  `tests/enterprise/iqa/test_analysis_integration_req1_req3.py`. Subsequent
-  merge: [PR #198](https://github.com/delphykmc/pixelscope/pull/198)
-  (request 4/7), after integrator review.
+  `tests/enterprise/iqa/test_analysis_integration_req1_req3.py` and the
+  request-4 caption/hotspot/neutral regression tests. Subsequent merge:
+  [PR #196](https://github.com/delphykmc/pixelscope/pull/196) (request 2/7)
+  after integrator review. The selected visible-neutral RGB is (94, 104, 115),
+  distinct from the future muted/untrusted light gray.
+
+## Analysis Window second usability follow-up (2026-10-20)
+
+- Source pane captions are single-line, **middle-elided** with the complete label
+  in the tooltip. Long source filenames do not expand a splitter pane; swapping
+  A/B preserves the three visual **slot widths** (as well as semantic identity).
+- A hotspot slot without a candidate displays **No further qualifying patch**,
+  not an image-loading error. **Role-specific source unavailable** is reserved
+  for an actual ranked candidate whose corresponding source crop cannot be
+  displayed. Role changes preserve the candidate/placeholder distinction.
+- Neutral attributes use a distinct **dark gray** tint for their map, insight
+  accent and bipolar bar, on a **light gray** chart track. Signed values remain
+  unchanged; gray communicates magnitude but deliberately not a quality verdict.
+  The historical signed purple/teal colors documented below were superseded
+  only for current neutral presentation; original mask and exports are unchanged.
 
 ## Latest authoritative state (2026-10-09)
 

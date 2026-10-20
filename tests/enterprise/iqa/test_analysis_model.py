@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     AttributeDisplay,
     SpatialMap,
@@ -139,12 +140,13 @@ def test_quality_oriented_and_signed_polarity_use_distinct_map_colors() -> None:
     assert oriented is not None and signed is not None
     assert tuple(oriented[0, 0]) == (245, 0, 0, 255)  # + means A better
     assert tuple(oriented[0, 1]) == (0, 0, 245, 255)  # - means B better
-    assert tuple(signed[0, 0]) == (181, 72, 193, 255)  # + signed only
-    assert tuple(signed[0, 1]) == (35, 145, 148, 255)  # - signed only
+    assert tuple(signed[0, 0]) == (*NEUTRAL_PRESENTATION_RGB, 255)  # no quality direction
+    assert tuple(signed[0, 1]) == (*NEUTRAL_PRESENTATION_RGB, 255)  # sign retained in data
     assert tuple(signed[0, 2]) == (239, 239, 239, 255)
     assert signed[0, 3, 3] == 0  # invalid is transparent, not zero
     assert "A better" in map_polarity_legend(attribute(True))
     assert "NO quality winner" in map_polarity_legend(attribute(False))
+    assert "Dark gray" in map_polarity_legend(attribute(False))
     assert not np.shares_memory(signed, grid.values)
 
 

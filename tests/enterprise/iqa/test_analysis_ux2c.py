@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow
 
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
+from pixelscope_enterprise.iqa.spatial_candidates import SpatialCandidate
+from pixelscope_enterprise.iqa.spatial_dock import NO_CANDIDATE_TEXT, SpatialCandidatesPanel
 
 
 def _image(path: Path, color: QColor) -> None:
@@ -128,6 +130,33 @@ def test_spatial_dock_without_source_still_shows_grid_provenance(qtbot: object) 
     assert any(rect.isVisible() for rect, _ in win._candidate_overlay_items[2])
     win.close()
     win._shutdown_spatial_worker()
+
+
+def test_missing_hotspot_slots_are_not_reported_as_missing_source(qtbot: object) -> None:
+    panel = SpatialCandidatesPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    candidate = SpatialCandidate(
+        rank=1,
+        x=0,
+        y=0,
+        width=512,
+        height=512,
+        mean=3.0,
+        valid_coverage=1.0,
+        valid_area=512.0 * 512.0,
+        score=3.0,
+        mode="aligned",
+    )
+    panel.populate((candidate,), (None, None), "dB")
+    assert panel.buttons[0].isEnabled()
+    assert panel.previews[0]._has_candidate
+    assert "source-pixel ROI" in panel.previews[0].toolTip()
+    for index in (1, 2):
+        assert not panel.buttons[index].isEnabled()
+        assert not panel.previews[index]._has_candidate
+        assert panel.previews[index].toolTip() == NO_CANDIDATE_TEXT
+    panel.populate((), (None, None), "dB")
+    assert all(preview.toolTip() == NO_CANDIDATE_TEXT for preview in panel.previews)
 
 
 def test_spatial_dock_result_switch_and_close_reopen(qtbot: object) -> None:
