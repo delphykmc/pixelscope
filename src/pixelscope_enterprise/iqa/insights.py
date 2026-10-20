@@ -40,6 +40,7 @@ def rank_top_differences(result: AnalysisResult, *, count: int = 3) -> tuple[Top
         attr
         for attr in result.attributes
         if attr.unit == "dB"
+        and attr.quality_oriented
         and attr.summary_signal_gate is True
         and attr.official_availability == "available"
         and attr.official_value is not None

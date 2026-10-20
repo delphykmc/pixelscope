@@ -297,3 +297,35 @@ Since history was intentionally squashed, do **not** run the obsolete
 Fresh local clones/worktrees should fetch the rewritten Enterprise ref
 and, if needed, branch anew from the updated remote feature. Preserve the
 archive ref until the PRIVATE SUB transfer is verified.
+
+## Analysis Window usability request 3 (2026-10-20)
+
+This change is confined to the Handoff-owned Enterprise implementation and
+tests, not the public MAIN Base/Reference package.
+
+- `AnalysisResult` optionally accepts `source_a_role` and `source_b_role`
+  (for example, `Reference` and `Target`). These decorate the pane captions,
+  pair summary, window title and stitched Hotspot ROI canvas. Missing roles
+  retain legacy A/B presentation and source identities, signed values,
+  provenance and export semantics are unchanged. When roles are present, the
+  window title includes roles and filenames; the unconfigured title continues
+  to use the Result ID pending the separately scoped title request.
+- `_LinkedView` keeps a canonical floating-point scene center across viewport
+  resizing. A resize is silent to linked-view navigation signals and cannot
+  accumulate center changes from integer scroll-bar rounding. Qt still rasterizes
+  scroll positions to device pixels, so subpixel display quantization is distinct
+  from the exact saved scene center.
+- Hovering A, B or Map sends one integer source coordinate to all three guide
+  overlays and a status-bar readout with both decoded-source RGB values (8-bit or
+  16-bit according to Qt's decoded image format), the selected attribute's raw
+  signed grid cell and explicit invalid/outside/unavailable states. Hover only
+  reads data; it does not modify mask, ROI, statistics, result or exports.
+- First-insight ranking now excludes attributes without a verified quality
+  orientation, even when an eligible absolute dB difference is large. It does
+  not change the full attribute chart or signed spatial map.
+
+Linux offscreen CPython 3.10.22 / PySide6 6.4.2 focused regression run:
+`test_analysis_insights.py`, `test_analysis_usability_request3.py`,
+`test_analysis_model.py`, `test_analysis_window.py`, `test_analysis_ux1.py`,
+`test_analysis_ux2c.py` — **63 passed**. Owner-local Windows native GUI/DPI
+inspection and full-suite acceptance remain separate gates.

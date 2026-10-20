@@ -36,8 +36,19 @@ class StitchedRoiCanvas(QWidget):
         self.setMinimumHeight(64)
         self._a: QPixmap | None = None
         self._b: QPixmap | None = None
+        self._source_roles = ("A", "B")
         self._roi_size: tuple[int, int] = (512, 512)
         self.setToolTip("Original source-pixel ROI: A left | B right, common fit, no crop offset")
+
+    def set_source_roles(self, a_role: str, b_role: str) -> None:
+        """Rename only the canvas presentation; A/B source identity is fixed."""
+
+        self._source_roles = (a_role, b_role)
+        self.setToolTip(
+            f"Original source-pixel ROI: {a_role} left | {b_role} right, "
+            "common fit, no crop offset"
+        )
+        self.update()
 
     @property
     def has_a(self) -> bool:
@@ -96,7 +107,7 @@ class StitchedRoiCanvas(QWidget):
                 painter.drawText(
                     region.adjusted(4, 4, -4, -4),
                     Qt.AlignmentFlag.AlignCenter,
-                    f"{'A' if index == 0 else 'B'} source unavailable",
+                    f"{self._source_roles[index]} source unavailable",
                 )
             else:
                 painter.drawPixmap(
@@ -105,14 +116,18 @@ class StitchedRoiCanvas(QWidget):
                     QRectF(0, 0, source_width, source_height),
                 )
             # Labels identify semantic sources, not left/right preference or quality.
-            tag = QRectF(region.left() + 5, region.top() + 5, 19, 18)
+            role = self._source_roles[index]
+            available_width = max(19.0, region.width() - 10.0)
+            tag_width = min(
+                available_width, max(19.0, painter.fontMetrics().horizontalAdvance(role) + 10)
+            )
+            tag = QRectF(region.left() + 5, region.top() + 5, tag_width, 18)
             painter.fillRect(tag, QColor(22, 25, 30, 215))
             painter.setPen(QColor("#f2f4f5"))
-            painter.drawText(
-                tag,
-                Qt.AlignmentFlag.AlignCenter,
-                "A" if index == 0 else "B",
+            clipped_role = painter.fontMetrics().elidedText(
+                role, Qt.TextElideMode.ElideRight, int(tag_width - 4)
             )
+            painter.drawText(tag, Qt.AlignmentFlag.AlignCenter, clipped_role)
         painter.setPen(QColor(TOKENS.accent))
         seam_x = frame.left() + half
         painter.drawLine(
@@ -190,6 +205,7 @@ class SpatialCandidatesPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._source_roles = ("A", "B")
         self.setObjectName("enterpriseIqaSpatialCandidatesPanel")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(7, 3, 7, 5)
@@ -334,6 +350,13 @@ class SpatialCandidatesPanel(QWidget):
             self.impact_bars.append(impact)
         layout.addLayout(row, 1)
 
+    def set_source_roles(self, a_role: str, b_role: str) -> None:
+        self._source_roles = (a_role, b_role)
+        for preview in self.previews:
+            preview.set_source_roles(a_role, b_role)
+        if not self.progress.isVisible():
+            self.status_label.setText(f"Peak |Δ|  ↓   ·   {a_role}/{b_role} ROI")
+
     def _stride_selected(self, _index: int) -> None:
         value = self.stride_selector.currentData()
         if isinstance(value, int):
@@ -382,7 +405,9 @@ class SpatialCandidatesPanel(QWidget):
         if not candidates:
             self.status_label.setText("No qualifying local GRID hotspot for this Attribute.")
             return
-        self.status_label.setText("Peak |Δ|  ↓   ·   A/B ROI")
+        self.status_label.setText(
+            f"Peak |Δ|  ↓   ·   {self._source_roles[0]}/{self._source_roles[1]} ROI"
+        )
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
             self.buttons[i].setEnabled(True)

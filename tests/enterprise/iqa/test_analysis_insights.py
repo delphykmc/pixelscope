@@ -57,6 +57,17 @@ def test_top_three_never_infers_signal_validity_from_large_official_delta() -> N
     assert rank_top_differences(_result(_attr("valid", -2.0)))[0].delta_db == -2.0
 
 
+def test_first_insight_skips_attributes_without_quality_direction() -> None:
+    result = _result(
+        _attr("neutral-strongest", 120.0, quality_oriented=False),
+        _attr("quality", -1.0),
+        _attr("neutral-second", -80.0, quality_oriented=False),
+    )
+    ranked = rank_top_differences(result)
+    assert [item.attribute_id for item in ranked] == ["quality"]
+    assert all(item.quality_oriented for item in ranked)
+
+
 def test_top_three_empty_and_invalid_request() -> None:
     result = _result(_attr("below", 0.05))
     assert rank_top_differences(result) == ()

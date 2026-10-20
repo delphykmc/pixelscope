@@ -122,10 +122,21 @@ class AnalysisResult:
     attributes: tuple[AttributeDisplay, ...]
     source_a: Path | None = None
     source_b: Path | None = None
+    # Optional presentation names for the immutable A/B source identities.
+    # An adapter may call them Reference/Target without swapping source data.
+    source_a_role: str | None = None
+    source_b_role: str | None = None
 
     def __post_init__(self) -> None:
         if not self.result_id or not self.source_a_label or not self.source_b_label:
             raise ValueError("result and source identities must be nonempty")
+        for role in (self.source_a_role, self.source_b_role):
+            if role is not None and (
+                not isinstance(role, str)
+                or not role.strip()
+                or any(char in role for char in "\r\n\t")
+            ):
+                raise ValueError("source role names must be nonempty single-line strings")
         if self.image_width <= 0 or self.image_height <= 0:
             raise ValueError("image geometry must be positive")
         if not self.attributes:
