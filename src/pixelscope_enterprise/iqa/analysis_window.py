@@ -11,6 +11,7 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from PySide6.QtCore import (
@@ -183,7 +184,8 @@ class _LinkedView(QGraphicsView):
 
     def _actual_center(self) -> QPointF:
         inverse, _ = self.viewportTransform().inverted()
-        return inverse.map(QPointF(self.viewport().width() / 2.0, self.viewport().height() / 2.0))
+        center = QPointF(self.viewport().width() / 2.0, self.viewport().height() / 2.0)
+        return cast(QPointF, inverse.map(center))
 
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         # Preserve the canonical floating-point center across geometry changes.
