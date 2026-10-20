@@ -45,8 +45,6 @@ def format_source_rgb_field(
     else:
         if len(rgb) != 3 or any(channel < 0 or channel > maximum for channel in rgb):
             raise ValueError("RGB hover values exceed the declared source bit depth")
-        value = (
-            f"{role} RGB{depth}: "
-            f"{rgb[0]:>{digits}}, {rgb[1]:>{digits}}, {rgb[2]:>{digits}}"
-        )
+        channels = ", ".join(f"{channel:>{digits}}" for channel in rgb)
+        value = f"{role} RGB{depth}: {channels}"
     return value.ljust(len(full_example))
