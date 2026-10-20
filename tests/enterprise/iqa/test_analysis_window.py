@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import NoReturn
 
 import numpy as np
 import pytest
@@ -18,7 +19,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     LoadedAnalysis,
     SpatialMap,
 )
-from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
+from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager, ResultFileType
 
 
 def _result(result_id: str) -> AnalysisResult:
@@ -649,3 +650,130 @@ def test_clear_roi_keyboard_alias_and_per_result_independence(qtbot: object) -> 
     assert "ROI: none" in win.roi_label.text()
     assert win._states["roi-two"].roi is None
     win.close()
+
+
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_result_file_callback_errors_are_safe_and_bounded(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    from PySide6.QtWidgets import QFileDialog
+
+    class UserFacingError(RuntimeError):
+        user_message = "  Portable result\nchecksum mismatch  "
+
+    class LongUserFacingError(RuntimeError):
+        user_message = "  Invalid\n" + "x" * 300
+
+    class BrokenUserFacingError(RuntimeError):
+        @property
+        def user_message(self) -> str:
+            raise RuntimeError("private property failure")
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("unchanged"))
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.open_action
+        generic = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.save_action
+        generic = "Result could not be saved."
+
+    failures: tuple[tuple[Exception, str | None], ...] = (
+        (OSError("private file path"), None),
+        (RuntimeError("unexpected implementation details"), None),
+        (
+            UserFacingError("private implementation details"),
+            "Portable result checksum mismatch",
+        ),
+        (LongUserFacingError("private details"), "Invalid " + "x" * 151 + "…"),
+        (BrokenUserFacingError("private details"), None),
+    )
+    for failure, expected_message in failures:
+
+        def fail(*_args: object, error: Exception = failure) -> NoReturn:
+            raise error
+
+        if operation == "open":
+            win.install_file_handlers(load=fail)
+        else:
+            win.install_file_handlers(save=fail)
+        assert action.isEnabled()
+        action.trigger()  # The actual QAction -> Qt slot path must report all exceptions.
+        message = win.statusBar().currentMessage()
+        assert message == (expected_message or generic)
+        assert len(message) <= 160
+        assert not any(char in message for char in "\r\n\t")
+        assert "private" not in message
+        assert win.active_result_id == "unchanged"
+    win.close()
+
+
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_contributed_result_file_type_keeps_callback_errors_safe(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    """Cross-PR contract: request 5 errors survive request 7 file-type injection."""
+    from PySide6.QtWidgets import QFileDialog
+
+    file_type = ResultFileType("PixelScope IQA result", ".pxiqa")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("combined"))
+    seen_paths: list[Path] = []
+
+    def select_file(*args: object) -> tuple[str, str]:
+        assert args[3] == "PixelScope IQA result (*.pxiqa)"
+        if operation == "save":
+            assert args[2] == "combined.pxiqa"
+            return str(tmp_path / "portable"), ""
+        assert args[2] == ""
+        return str(tmp_path / "portable.pxiqa"), ""
+
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", select_file
+        )
+        action = win.open_action
+        fallback = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", select_file
+        )
+        action = win.save_action
+        fallback = "Result could not be saved."
+
+    class UserFacingFailure(RuntimeError):
+        user_message = "  Invalid\n result checksum  "
+
+    for failure, expected in (
+        (UserFacingFailure("private absolute path"), "Invalid result checksum"),
+        (RuntimeError("private absolute path"), fallback),
+    ):
+
+        def failed_callback(*args: object, error: Exception = failure) -> NoReturn:
+            assert isinstance(args[-1], Path)
+            seen_paths.append(args[-1])
+            raise error
+
+        if operation == "open":
+            win.install_file_handlers(load=failed_callback, file_type=file_type)
+        else:
+            win.install_file_handlers(save=failed_callback, file_type=file_type)
+
+        assert action.isEnabled()
+        action.trigger()
+        assert seen_paths[-1] == tmp_path / "portable.pxiqa"
+        assert win.statusBar().currentMessage() == expected
+        assert "private" not in win.statusBar().currentMessage()
+        assert win.statusBar().currentMessage() != "Portable result saved by installed writer."
+        assert win.active_result_id == "combined"
+    win.close()
+
+
