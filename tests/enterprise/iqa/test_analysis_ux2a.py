@@ -8,6 +8,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QToolBar, QToolButton
 
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
+from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
 
 
@@ -81,8 +82,15 @@ def test_ux2a_neutral_signed_metric_is_navigable_but_excluded_from_insight(qtbot
     # magnitude. They remain accessible as unchanged signed chart/map data.
     assert "synthetic_00" not in win._top3_attribute_ids
     assert all(card.property("insightTone") != "signed" for card in win.top3_buttons)
-    table = win._group_tables["dB"]
-    table.setCurrentCell(0, 0)
+    rows = win._group_tables["dB"]
+    neutral_row = next(
+        i
+        for i in range(rows.rowCount())
+        if rows.item(i, 1).data(ATTRIBUTE_ROLE).attribute_id == "synthetic_00"
+    )
+    rows.selectRow(neutral_row)
+    assert win._attribute() is not None
+    assert win._attribute().attribute_id == "synthetic_00"
     assert win.current_analysis_state()["attribute_id"] == "synthetic_00"
     assert win._attribute().official_value == -12.0  # type: ignore[union-attr]
     win.close()

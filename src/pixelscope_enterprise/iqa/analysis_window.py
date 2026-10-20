@@ -99,6 +99,8 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     CHART_MEASUREMENT_ROLE,
     DISPLAY_RANGE_ROLE,
+    QUALITY_POLICY_ROLE,
+    VISIBILITY_THRESHOLD_ROLE,
     ChartMeasurement,
     RelativeDifferenceDelegate,
 )
@@ -106,6 +108,12 @@ from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.html_report import report_folder, write_html_report
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
+from pixelscope_enterprise.iqa.quality_presentation import (
+    DEFAULT_VISIBILITY_THRESHOLD,
+    quality_map_legend,
+    quality_spatial_rgba,
+    verdict_for_value,
+)
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
@@ -351,11 +359,24 @@ class _LinkedView(QGraphicsView):
 
 
 def _map_pixmap(
-    attribute: AttributeDisplay, half_range: float, *, translucent: bool = False
+    attribute: AttributeDisplay,
+    half_range: float,
+    *,
+    translucent: bool = False,
+    quality_policy: bool = False,
+    visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
 ) -> QPixmap | None:
-    """Construct one image; optionally attenuate whichever color policy supplied its RGB."""
+    """Choose one RGB palette and apply at most one reference-tint attenuation."""
 
-    rgba = colorize_spatial_rgba(attribute, half_range)
+    rgba = (
+        quality_spatial_rgba(
+            attribute,
+            half_range,
+            threshold=visibility_threshold,
+        )
+        if quality_policy
+        else colorize_spatial_rgba(attribute, half_range)
+    )
     if rgba is None:
         return None
     if translucent:
@@ -406,6 +427,10 @@ _INSIGHT_COLORS = {
     "a": ("#e5857d", "A"),
     "b": ("#79afe6", "B"),
     "signed": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "±"),
+    "superior": ("#408fda", "S"),
+    "inferior": ("#e0555a", "I"),
+    "neutral": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "—"),
+    "muted": ("#d3d6db", "·"),
     "empty": (TOKENS.border, "—"),
 }
 
@@ -510,6 +535,8 @@ class AnalysisWindow(QMainWindow):
         self._pane_labels: list[_PaneCaption] = []
         self._pane_wrappers: list[QWidget] = []
         self._sources_swapped = False
+        self._quality_policy_enabled = False
+        self._visibility_threshold = DEFAULT_VISIBILITY_THRESHOLD
         self._group_tables: dict[str, QTableWidget] = {}
         self._range_editors: dict[str, QDoubleSpinBox] = {}
         self._group_sections: dict[str, QWidget] = {}
@@ -584,6 +611,21 @@ class AnalysisWindow(QMainWindow):
             self._export_html_from_dialog
         )
         view_menu = self.menuBar().addMenu("View")
+        self.quality_policy_action = view_menu.addAction("Color by Quality Verdict")
+        self.quality_policy_action.setObjectName("enterpriseIqaQualityVerdictColors")
+        self.quality_policy_action.setCheckable(True)
+        self.quality_policy_action.setChecked(False)
+        self.quality_policy_action.setToolTip(
+            "Optional: use per-attribute higher/lower/none direction; preserve signed values."
+        )
+        self.quality_policy_action.toggled.connect(  # type: ignore[attr-defined]
+            self.set_quality_presentation
+        )
+        self.visibility_threshold_action = view_menu.addAction("Set Visibility Threshold...")
+        self.visibility_threshold_action.setObjectName("enterpriseIqaVisibilityThreshold")
+        self.visibility_threshold_action.triggered.connect(  # type: ignore[attr-defined]
+            self._prompt_visibility_threshold
+        )
         self.clear_roi_action = view_menu.addAction("Clear ROI")
         self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
         # MAIN uses Esc for ROI; also accept Shift+Esc as a documented alias.
@@ -1206,13 +1248,17 @@ class AnalysisWindow(QMainWindow):
         if self._active_id is None:
             return
         result = self._results[self._active_id]
-        ranked = rank_top_differences(result)
+        ranked = rank_top_differences(result, quality_policy=self._quality_policy_enabled)
         self._top3_attribute_ids = [item.attribute_id for item in ranked]
         unknown_gate = any(
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
-            "TOP 3   ·   VERIFIED FULL-PAIR dB"
+            "TOP 3   ·   QUALITY DISPLAY (FULL-PAIR dB)"
+            if self._quality_policy_enabled and ranked
+            else "TOP 3   ·   QUALITY DISPLAY EMPTY"
+            if self._quality_policy_enabled
+            else "TOP 3   ·   VERIFIED FULL-PAIR dB"
             if ranked
             else "TOP 3   ·   NO QUALIFYING dB"
             if not unknown_gate
@@ -1230,13 +1276,20 @@ class AnalysisWindow(QMainWindow):
                 card.setChecked(False)
                 continue
             item = ranked[index]
-            tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
+            if self._quality_policy_enabled:
+                attr = result.attribute(item.attribute_id)
+                verdict = verdict_for_value(
+                    attr, item.delta_db, threshold=self._visibility_threshold
+                )
+                tone, conclusion = verdict.tone, verdict.verdict
+            else:
+                tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
+                conclusion = (
+                    ("A better" if item.delta_db > 0 else "B better")
+                    if item.quality_oriented
+                    else "signed only · no winner"
+                )
             _style_insight_card(card, tone)
-            conclusion = (
-                ("A better" if item.delta_db > 0 else "B better")
-                if item.quality_oriented
-                else "signed only · no winner"
-            )
             rank_symbol = "★ 1" if index == 0 else str(index + 1)
             card.setText(
                 f"{rank_symbol}   {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
@@ -1245,6 +1298,12 @@ class AnalysisWindow(QMainWindow):
                 f"Rank {index + 1} of verified global |dB| differences: "
                 f"{item.label} {item.delta_db:+.4f} dB (full pair). "
                 "Card selection opens its spatial evidence, not an ROI quality score."
+                + (
+                    " Quality colors require |Δ| above the visibility threshold and a trusted "
+                    "original-relative signal gate; muted means no verdict."
+                    if self._quality_policy_enabled
+                    else ""
+                )
             )
             card.setEnabled(True)
         self._sync_top_cards()
@@ -1506,6 +1565,8 @@ class AnalysisWindow(QMainWindow):
             if cell is None:
                 continue
             cell.setData(DISPLAY_RANGE_ROLE, limit)
+            cell.setData(QUALITY_POLICY_ROLE, self._quality_policy_enabled)
+            cell.setData(VISIBILITY_THRESHOLD_ROLE, self._visibility_threshold)
             attr = cell.data(ATTRIBUTE_ROLE)
             if not isinstance(attr, AttributeDisplay):
                 continue
@@ -1522,18 +1583,65 @@ class AnalysisWindow(QMainWindow):
                         stats.valid_coverage,
                     )
                 cell.setData(CHART_MEASUREMENT_ROLE, measurement)
+                policy_note = ""
+                if self._quality_policy_enabled:
+                    verdict = verdict_for_value(
+                        attr, measurement.value, threshold=self._visibility_threshold
+                    )
+                    policy_note = f" Optional color: {verdict.verdict}."
                 cell.setToolTip(
                     f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
                     f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
-                    "signed local evidence, no regional quality winner."
+                    "signed local evidence, no regional quality winner." + policy_note
                 )
             else:
                 cell.setData(CHART_MEASUREMENT_ROLE, None)
+                policy_note = ""
+                if self._quality_policy_enabled:
+                    verdict = verdict_for_value(
+                        attr, attr.official_value, threshold=self._visibility_threshold
+                    )
+                    policy_note = f" Optional color: {verdict.verdict}."
                 cell.setToolTip(
                     f"{attr.label}: full-pair producer comparison "
                     f"({attr.official_availability}); display range ±{limit:g} {unit}."
+                    + policy_note
                 )
         table.viewport().update()
+
+    def set_quality_presentation(self, enabled: bool, *, threshold: float | None = None) -> None:
+        """Opt in to verdict colors; redraw presentation without recomputing data."""
+
+        if threshold is not None:
+            if not np.isfinite(threshold) or threshold < 0:
+                raise ValueError("visibility threshold must be finite and nonnegative")
+            self._visibility_threshold = float(threshold)
+        self._quality_policy_enabled = bool(enabled)
+        if self.quality_policy_action.isChecked() != self._quality_policy_enabled:
+            self.quality_policy_action.blockSignals(True)
+            self.quality_policy_action.setChecked(self._quality_policy_enabled)
+            self.quality_policy_action.blockSignals(False)
+        if self._active_id is None:
+            return
+        self._refresh_all_group_bars()
+        self._update_top_cards()
+        self._render_result()
+        key = self._spatial_key()
+        if key is not None and key == self._spatial_displayed and key in self._spatial_cache:
+            self._present_spatial_candidates(key, self._spatial_cache[key])
+
+    def _prompt_visibility_threshold(self) -> None:
+        value, accepted = QInputDialog.getDouble(
+            self,
+            "IQA Quality Visibility Threshold",
+            "Show verdict only when |signed difference| is greater than:",
+            self._visibility_threshold,
+            0.0,
+            1_000_000.0,
+            2,
+        )
+        if accepted:
+            self.set_quality_presentation(self._quality_policy_enabled, threshold=value)
 
     def _update_group_range(self, unit: str, value: float) -> None:
         state = self._state()
@@ -1773,7 +1881,13 @@ class AnalysisWindow(QMainWindow):
         effective = spatial_display_half_range(
             limit, state.display_gain if state is not None else 1.0
         )
-        pixmap = _map_pixmap(attr, effective, translucent=show_reference)
+        pixmap = _map_pixmap(
+            attr,
+            effective,
+            translucent=show_reference,
+            quality_policy=self._quality_policy_enabled,
+            visibility_threshold=self._visibility_threshold,
+        )
         grid = attr.spatial
         available = pixmap is not None and grid is not None
         if available and pixmap is not None and grid is not None:
@@ -1900,7 +2014,13 @@ class AnalysisWindow(QMainWindow):
         self._spatial_pending = None
         self._spatial_timer.stop()
         self._spatial_displayed = key
-        self.spatial_panel.populate(candidates, self._source_pixmaps, attr.unit)
+        self.spatial_panel.populate(
+            candidates,
+            self._source_pixmaps,
+            attr.unit,
+            quality_attribute=attr if self._quality_policy_enabled else None,
+            visibility_threshold=self._visibility_threshold,
+        )
         self._sync_spatial_selection()
         self._draw_candidate_overlays()
 
@@ -2058,7 +2178,16 @@ class AnalysisWindow(QMainWindow):
             text = attr.official_availability.upper() + " (not zero)"
         else:
             text = f"{attr.official_value:+.4f} {attr.unit} ({attr.official_availability})"
-        orientation = "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
+        if self._quality_policy_enabled:
+            direction = attr.quality_direction.replace("_", " ")
+            verdict = verdict_for_value(
+                attr, attr.official_value, threshold=self._visibility_threshold
+            )
+            orientation = f"Quality direction: {direction} · {verdict.verdict} (display only)"
+        else:
+            orientation = (
+                "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
+            )
         self.official_label.setText(f"Full-pair comparison: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
@@ -2095,9 +2224,14 @@ class AnalysisWindow(QMainWindow):
             clipped, total = clipped_cells(grid, spatial_display_half_range(limit, gain))
             pct = 0.0 if total == 0 else (clipped / total)
             invalid = grid.values.size - total
+            polarity_legend = (
+                quality_map_legend(self._visibility_threshold)
+                if self._quality_policy_enabled
+                else map_polarity_legend(attr)
+            )
             self.clamp_label.setText(
                 f"Group ±{limit:g} {attr.unit} · Map gain ×{gain:g}\n"
-                f"{map_polarity_legend(attr)}\n"
+                f"{polarity_legend}\n"
                 f"Cells: {grid.rows}×{grid.columns} • "
                 f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
                 f"Invalid: {invalid} transparent cells (not zero)\n"

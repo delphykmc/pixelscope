@@ -53,6 +53,16 @@ Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementa
   The historical signed purple/teal colors documented below were superseded
   only for current neutral presentation; original mask and exports are unchanged.
 
+## Request 2/7 — optional Quality Verdict presentation (PR #196)
+
+The [quality-verdict policy](IQA_QUALITY_PRESENTATION.md) adds an opt-in
+`higher_is_better` / `lower_is_better` / `none` interpretation, with an
+inclusive signed-magnitude visibility threshold and trusted signal gating.
+It composes with request 1's reference-A tint by choosing the quality RGB
+**before** request 1's single alpha-attenuation helper, leaving raw values,
+mask, ROI/statistics, and all exports unaffected. Requests 3 and 4 retain
+source roles, linked navigation, middle-elided captions and slot geometry.
+
 ## Latest authoritative state (2026-10-09)
 
 - **Merged H0/H1:** PR #144 was **squash-merged only** into
