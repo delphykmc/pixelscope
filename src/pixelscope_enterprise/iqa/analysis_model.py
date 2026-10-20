@@ -192,23 +192,48 @@ def colorize_spatial_rgba(
 def colorize_spatial_tint_rgba(
     attribute: AttributeDisplay, half_range: float, *, max_alpha: int = 176
 ) -> NDArray[np.uint8] | None:
-    """Optional translucent spatial tint, leaving signed zero and invalid cells clear.
-
-    The standard opaque-map palette and all scientific values/masks are unchanged.
-    Opacity tracks magnitude relative to the *display* range, not validity or
-    any inferred quality score. A fully saturated cell stays translucent.
-    """
+    """Convenience tint using the legacy palette; composable renderers use the helper below."""
 
     if not 0 <= max_alpha <= 255:
         raise ValueError("maximum tint opacity must be a byte")
     rgba = colorize_spatial_rgba(attribute, half_range)
     if rgba is None:
         return None
+    return apply_spatial_reference_tint_rgba(attribute, half_range, rgba, max_alpha=max_alpha)
+
+
+def apply_spatial_reference_tint_rgba(
+    attribute: AttributeDisplay,
+    half_range: float,
+    base_rgba: NDArray[np.uint8],
+    *,
+    max_alpha: int = 176,
+) -> NDArray[np.uint8]:
+    """Composite-safe reference tint: preserve the selected renderer's RGB and alpha gate.
+
+    The caller chooses the legacy or quality-verdict color palette *first*;
+    this independent presentation effect only attenuates the resulting alpha.
+    Invalid and signed-zero cells reveal the reference, and a renderer's
+    reduced opacity for an untrusted signal remains reduced. Never modify
+    the input pixels, scientific values, validity mask, statistics or exports.
+    """
+
+    if not 0 <= max_alpha <= 255:
+        raise ValueError("maximum tint opacity must be a byte")
+    if not np.isfinite(half_range) or half_range <= 0.0:
+        raise ValueError("display half-range must be positive")
     grid = attribute.spatial
-    assert grid is not None
+    if grid is None:
+        raise ValueError("reference tint requires a spatial grid")
+    if base_rgba.dtype != np.uint8 or base_rgba.shape != (*grid.values.shape, 4):
+        raise ValueError("reference tint requires matching uint8 RGBA pixels")
     magnitude = np.clip(np.abs(np.where(grid.valid_mask, grid.values, 0.0)) / half_range, 0, 1)
-    rgba[..., 3] = np.rint(magnitude * max_alpha).astype(np.uint8)
-    return rgba
+    rgba = np.array(base_rgba, copy=True)
+    rgba[..., 3] = np.rint(
+        magnitude * max_alpha * (base_rgba[..., 3].astype(np.float64) / 255.0)
+    ).astype(np.uint8)
+    rgba[..., 3] = np.where(grid.valid_mask, rgba[..., 3], 0).astype(np.uint8)
+    return np.ascontiguousarray(rgba)
 
 
 def spatial_display_half_range(group_range: float, display_gain: float) -> float:

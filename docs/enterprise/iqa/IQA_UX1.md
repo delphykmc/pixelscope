@@ -122,14 +122,19 @@ for focused Qt geometry and semantics regression.
   **A** beneath a translucent, nearest-neighbor signed tint. Valid zero-valued
   cells and invalid/masked cells have **zero tint opacity** and reveal the
   picture; larger absolute signed values have stronger tint, capped below fully
-  opaque. RGB/color meaning remains oriented or neutral per the existing metric.
+  opaque. The reference-tint layer preserves the selected color policy's RGB
+  (legacy polarity or optional quality verdict) and only attenuates its existing
+  alpha. A quality policy's reduced opacity for untrusted signals remains
+  reduced; later neutral-palette changes also pass through unchanged.
 - This is a window-only, reversible visualization: original numeric values,
   validity masks, official/ROI statistics, Save Result and CSV/PNG/HTML exports
   are unchanged. Missing original A retains the existing map-only presentation;
   A/B visual pane swaps do not alter the scientific reference identity.
 - The result window title reads `IQA Analysis — <source A label> vs <source B label>`;
   if either label is empty/whitespace, the result ID is used instead. The empty
-  window keeps the short `IQA Analysis` title.
+  window keeps the short `IQA Analysis` title. If downstream supplies optional
+  Reference/Target role names, keep both names and source labels in the title;
+  labels still take precedence over the result identifier.
 
 ## Operator sequence
 

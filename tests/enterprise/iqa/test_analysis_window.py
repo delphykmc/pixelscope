@@ -148,6 +148,17 @@ def test_map_tint_option_reveals_grayscale_reference_without_changing_analysis(
     assert not win._map_reference_item.isVisible()
     assert win._map_item.pixmap().toImage().pixelColor(0, 1).alpha() == 255
     assert win._views[2].scene() is old_scene
+
+    # #199 Close Result can replace these scenes; the semantic source A
+    # underlay must not survive as a stale item when changing result identity.
+    win.map_reference_action.setChecked(True)
+    win.present_result(_result("other_without_images"))
+    assert not win.map_reference_action.isEnabled()
+    assert win._map_reference_item is None
+    win.result_combo.setCurrentIndex(win.result_combo.findData("tint"))
+    assert win.map_reference_action.isEnabled()
+    assert win._map_reference_item is not None
+    assert win._map_reference_item.isVisible()
     win.close()
 
 

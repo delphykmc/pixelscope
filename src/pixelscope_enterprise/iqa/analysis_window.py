@@ -82,9 +82,9 @@ from pixelscope_enterprise.iqa.analysis_model import (
     AttributeDisplay,
     LoadedAnalysis,
     Roi,
+    apply_spatial_reference_tint_rgba,
     clipped_cells,
     colorize_spatial_rgba,
-    colorize_spatial_tint_rgba,
     map_polarity_legend,
     roi_statistics,
     spatial_display_half_range,
@@ -272,15 +272,13 @@ class _LinkedView(QGraphicsView):
 def _map_pixmap(
     attribute: AttributeDisplay, half_range: float, *, translucent: bool = False
 ) -> QPixmap | None:
-    """Construct one safe Qt image from the bounded, vectorized signed grid."""
+    """Construct one image; optionally attenuate whichever color policy supplied its RGB."""
 
-    rgba = (
-        colorize_spatial_tint_rgba(attribute, half_range)
-        if translucent
-        else colorize_spatial_rgba(attribute, half_range)
-    )
+    rgba = colorize_spatial_rgba(attribute, half_range)
     if rgba is None:
         return None
+    if translucent:
+        rgba = apply_spatial_reference_tint_rgba(attribute, half_range, rgba)
     height, width, _ = rgba.shape
     # QImage can alias buffers; copy the image before numpy memory is released.
     image = QImage(rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
@@ -1453,6 +1451,7 @@ class AnalysisWindow(QMainWindow):
 
     def _render_empty(self) -> None:
         self.setWindowTitle("IQA Analysis")
+        self._map_reference_item = None  # the old underlay belonged to the replaced scene
         self.map_reference_action.setEnabled(False)
         self.image_export_action.setEnabled(False)
         self.report_export_action.setEnabled(False)
