@@ -7,11 +7,11 @@ Base modifications, network access, background worker or inferred metric formula
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-import re
 
 import numpy as np
 from PySide6.QtCore import (
