@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
-from pixelscope_enterprise.iqa.hover_status import ReservedHoverReadout
+from pixelscope_enterprise.iqa.hover_status import ReservedHoverPair, ReservedHoverReadout
 
 
 def test_hover_label_reserves_once_and_elides_right_without_losing_value(qtbot: object) -> None:
@@ -40,6 +41,62 @@ def test_hover_label_rejects_empty_reservation(qtbot: object) -> None:
     qtbot.addWidget(label)  # type: ignore[attr-defined]
     with pytest.raises(ValueError, match="at least one"):
         label.reserve_width(())
+
+
+def test_two_hover_fields_hold_statusbar_geometry_and_do_not_override_errors(
+    qtbot: object,
+) -> None:
+    window = QMainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.resize(1180, 320)
+    status = window.statusBar()
+    hover = ReservedHoverPair(status)
+    hover.reserve_for_result(
+        ("Pixel (9999, 9999)", "Pixel (0, 0)"),
+        ("Reference RGB16: 65535, 65535, 65535 · Target RGB16: 65535, 65535, 65535",),
+    )
+    window.show()
+    status.showMessage("Open result failed: saved user-facing error", 0)
+    QApplication.processEvents()
+
+    def geometry() -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        return (
+            (hover.position.x(), hover.position.y(), hover.position.width()),
+            (hover.values.x(), hover.values.y(), hover.values.width()),
+        )
+
+    initial = geometry()
+    for position, values in (
+        ("Pixel (1, 2)", "Reference RGB8: 1, 2, 3 · Target RGB: unavailable"),
+        ("Pixel (9999, 9999)", "Very long full RGB and map readout " * 9),
+        ("Pixel (50, 60)", "Map: invalid"),
+    ):
+        hover.update(position, values)
+        QApplication.processEvents()
+        assert geometry() == initial
+        assert status.currentMessage() == "Open result failed: saved user-facing error"
+        assert hover.position.toolTip() == position
+        assert hover.values.toolTip() == values
+
+    assert hover.values.text() == "Map: invalid"
+    overflowing = "A large, overflowing value " * 30
+    hover.update("Pixel (1, 1)", overflowing)
+    assert hover.values.text().endswith("…")
+    assert hover.values.toolTip() == overflowing
+    assert geometry() == initial
+
+    hover.clear()
+    assert geometry() == initial
+    assert hover.position.text() == "—"
+    assert status.currentMessage() == "Open result failed: saved user-facing error"
+
+    hover.reserve_for_result(("Pixel (999999, 999999)",), ("Map [+999, +999]: +9999.0000",))
+    QApplication.processEvents()
+    next_result_geometry = geometry()
+    hover.update("Pixel (5, 7)", "Map: unavailable")
+    QApplication.processEvents()
+    assert geometry() == next_result_geometry
+    window.close()
 
 
 def test_unknown_source_signal_is_explained_in_both_attribute_row_cells(

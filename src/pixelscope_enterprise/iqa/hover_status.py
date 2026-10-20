@@ -8,7 +8,7 @@ remains available through the tooltip and accessibility name.
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
+from PySide6.QtWidgets import QLabel, QSizePolicy, QStatusBar, QWidget
 
 
 class ReservedHoverReadout(QLabel):
@@ -43,9 +43,7 @@ class ReservedHoverReadout(QLabel):
 
     def _refresh_text(self) -> None:
         width = max(0, self.contentsRect().width() - 2 * self.margin())
-        shown = self.fontMetrics().elidedText(
-            self._full_text, Qt.TextElideMode.ElideRight, width
-        )
+        shown = self.fontMetrics().elidedText(self._full_text, Qt.TextElideMode.ElideRight, width)
         super().setText(shown)
         self.setToolTip(self._full_text)
         self.setAccessibleName(self._full_text)
@@ -54,3 +52,36 @@ class ReservedHoverReadout(QLabel):
         super().changeEvent(event)
         if event.type() == QEvent.Type.FontChange and hasattr(self, "_reserved_samples"):
             self.reserve_width(self._reserved_samples)
+
+
+class ReservedHoverPair:
+    """Two independent permanent readouts, leaving status messages untouched.
+
+    The integration caller supplies the final position/RGB/map strings and
+    widest expected candidates for each Result. This helper owns no scientific
+    formatting, pixel lookup, or message priority decisions.
+    """
+
+    def __init__(self, status_bar: QStatusBar) -> None:
+        self.position = ReservedHoverReadout(status_bar)
+        self.position.setObjectName("enterpriseIqaHoverPosition")
+        self.values = ReservedHoverReadout(status_bar)
+        self.values.setObjectName("enterpriseIqaHoverValues")
+        status_bar.addPermanentWidget(self.position)
+        status_bar.addPermanentWidget(self.values)
+
+    def reserve_for_result(
+        self, position_candidates: tuple[str, ...], value_candidates: tuple[str, ...]
+    ) -> None:
+        """Change geometry at the result boundary, not for each hovered pixel."""
+
+        self.position.reserve_width(position_candidates)
+        self.values.reserve_width(value_candidates)
+        self.clear()
+
+    def update(self, position: str, values: str) -> None:
+        self.position.set_readout(position)
+        self.values.set_readout(values)
+
+    def clear(self) -> None:
+        self.update("—", "—")
