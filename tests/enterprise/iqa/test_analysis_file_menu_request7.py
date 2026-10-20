@@ -35,8 +35,14 @@ def _result(result_id: str) -> AnalysisResult:
         "metric_db", "Example dB", "dB", "power", 1.5, "available", True, 5.0, spatial
     )
     return AnalysisResult(
-        result_id, 128, 128, "Synthetic A", "Synthetic B", (attribute,),
-        source_a=Path("missing-a.png"), source_b=Path("missing-b.png"),
+        result_id,
+        128,
+        128,
+        "Synthetic A",
+        "Synthetic B",
+        (attribute,),
+        source_a=Path("missing-a.png"),
+        source_b=Path("missing-b.png"),
     )
 
 
@@ -80,8 +86,7 @@ def test_close_iqa_result_chooses_next_and_preserves_jobs_and_files(
     assert not win._group_tables
     assert not win._top3_attribute_ids
     assert win.windowTitle() == "IQA Analysis"
-    assert all("No result loaded" in view.scene().items()[0].toPlainText()
-               for view in win._views)
+    assert all("No result loaded" in view.scene().items()[0].toPlainText() for view in win._views)
     assert calls == []  # Close must never call injected disk I/O.
 
     # Clearing the final result does not poison later reuse of the same window.
