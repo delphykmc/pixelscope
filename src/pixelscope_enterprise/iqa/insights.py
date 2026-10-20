@@ -34,8 +34,10 @@ def rank_top_differences(
     False = invalid; neither can enter a conclusive Top 3. No rank across
     different units, no map-derived global score, no quality-direction guess.
     The legacy 0.3 dB threshold is strict, and ties preserve supplied source
-    order. In optional quality-presentation mode, include otherwise measurable
-    but untrusted/small differences as visibly muted cards, not false verdicts.
+    order. Following request 3, Top-3 never includes a legacy un-oriented
+    attribute. In optional quality-presentation mode, direction metadata must
+    additionally be explicit (not ``none``); otherwise measurable but
+    untrusted/small differences can still appear as visibly muted cards.
     """
 
     if count < 0:
@@ -44,6 +46,8 @@ def rank_top_differences(
         attr
         for attr in result.attributes
         if attr.unit == "dB"
+        and attr.quality_oriented
+        and (not quality_policy or attr.quality_direction != "none")
         and (quality_policy or attr.summary_signal_gate is True)
         and attr.official_availability == "available"
         and attr.official_value is not None

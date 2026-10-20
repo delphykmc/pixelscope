@@ -8,6 +8,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QToolBar, QToolButton
 
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
+from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
 
 
@@ -70,21 +71,27 @@ def test_ux2a_unknown_signal_gate_does_not_claim_top_three(qtbot: object) -> Non
     win.close()
 
 
-def test_ux2a_neutral_signed_and_selected_card_visuals(qtbot: object) -> None:
+def test_ux2a_neutral_signed_stays_in_chart_but_not_first_insight(qtbot: object) -> None:
     original = make_synthetic_result("ux2a-neutral-visual")
     attributes = list(original.attributes)
     attributes[0] = replace(attributes[0], official_value=-12.0, quality_oriented=False)
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(replace(original, attributes=tuple(attributes)))
-    assert win._top3_attribute_ids[0] == "synthetic_00"
-    neutral = win.top3_buttons[0]
-    assert neutral.property("insightTone") == "signed"
-    assert "no winner" in neutral.text()
-    assert not neutral.icon().isNull()
-    neutral.click()
-    assert neutral.isChecked()
-    assert "QPushButton:checked" in neutral.styleSheet()
+    # Request 3 excludes no-direction metrics from First Insight; prior UX-2A
+    # expected a neutral Top-3 card, but the full chart/map must remain usable.
+    assert "synthetic_00" not in win._top3_attribute_ids
+    assert win._top3_attribute_ids
+    assert all(not card.icon().isNull() for card in win.top3_buttons if card.isEnabled())
+    rows = win._group_tables["dB"]
+    neutral_row = next(
+        i
+        for i in range(rows.rowCount())
+        if rows.item(i, 1).data(ATTRIBUTE_ROLE).attribute_id == "synthetic_00"
+    )
+    rows.selectRow(neutral_row)
+    assert win._attribute() is not None
+    assert win._attribute().attribute_id == "synthetic_00"
     assert win.current_analysis_state()["attribute_id"] == "synthetic_00"
     win.close()
 

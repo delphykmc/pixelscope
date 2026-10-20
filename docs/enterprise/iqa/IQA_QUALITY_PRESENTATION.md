@@ -23,13 +23,45 @@ per-attribute metadata. Does not change scientific values, algorithms or exports
   values; it is never a normalization or change to `fixed_range`.
 - Visible, higher-is-better positive / lower-is-better negative -> **Superior**
   (blue). The opposite signs -> **Inferior** (red). Direction `none` ->
-  **No quality direction** (gray). Untrusted or below-threshold values ->
+  **No quality direction** (dark gray `#5E6873`, matching request 4).
+  Untrusted or below-threshold values ->
   **Not visible**, drawn light gray at reduced opacity. Mask-invalid cells
   remain transparent regardless of policy.
+- In conjunction with request 3 (#195), the Top-3 first-insight ranker skips
+  un-oriented metrics; quality mode also skips explicit `quality_direction=none`.
+  Direction-known metrics with an untrusted signal gate may still appear muted,
+  with no claim of a quality verdict. The complete chart/map retain all metrics.
 - The verdict is about the supplied **difference in its declared direction**,
   not an A/B positional preference and not an independent scientific score.
   GRID-derived ROI/hotspot colors are explicitly provisional local evidence,
   not an official ROI quality winner.
+- Exploratory hotspots (`mode=exploratory_abs`) have no aligned official sign.
+  In quality mode their cards are **muted** and read **Exploratory · No verified
+  verdict** even if the local raw mean is positive/negative; they never assert
+  Superior/Inferior. Aligned GRID candidates still carry only provisional color
+  evidence, not verified local ROI quality.
+
+## Coordination with other open handoff PRs
+
+- **Request 1 / #200:** Its optional grayscale reference-A underlay owns the
+  window toggle, image cache, and map-compositing path. This PR supplies only
+  `quality_spatial_rgba(..., translucent=True)` and
+  `_map_pixmap(..., quality_policy=True, translucent=True)` so the integration
+  may select the quality tint when **both** options are on. Exact zero and
+  invalid cells have zero alpha; nonzero below-threshold/untrusted values have
+  faint gray alpha; visible colors are capped at alpha 176. With no underlay,
+  quality-map alpha and default presentation remain as before. Neither branch
+  alone enables the other branch's View menu or replaces the other's renderer.
+- **Request 4 / #198:** Visible neutral pixels/cards/bars match `#5E6873` and
+  the quality-mode neutral chart track is `#E1E5E9`. The lighter muted gray
+  (`#D3D6DB`) stays distinct. Integrators may consolidate shared color constants.
+- **Request 6 / #201:** The trusted-gate contract remains `True` only; `None`
+  stays unknown without guessing source-original levels. Attribute-row tooltip
+  explanations remain owned by #201.
+
+All seven requests share base `8420be5`; these explicit hooks/tests are not a
+substitute for integration-branch Qt/Windows validation or permission to merge
+individual branches independently.
 
 ## Scope and invariants
 

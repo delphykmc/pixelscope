@@ -39,6 +39,7 @@ _A_COLOR = QColor(222, 88, 79)
 _B_COLOR = QColor(69, 139, 212)
 _POS_COLOR = QColor(177, 90, 191)
 _NEG_COLOR = QColor(43, 155, 155)
+_QUALITY_NEUTRAL_TRACK = QColor(225, 229, 233)  # request 4's light #E1E5E9 track
 
 
 class _OptionFields(Protocol):
@@ -141,7 +142,12 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         x = content.left() + 20
         width = max(16, content.width() - 40)
         middle = x + width // 2
-        painter.fillRect(QRect(x, y, width, 7), palette.midlight())
+        painter.fillRect(
+            QRect(x, y, width, 7),
+            _QUALITY_NEUTRAL_TRACK
+            if quality_policy and attr.quality_direction == "none"
+            else palette.midlight(),
+        )
         painter.fillRect(QRect(middle, y - 3, 1, 13), text_color)
         extent = round(abs(fraction) * width / 2)
         if extent:

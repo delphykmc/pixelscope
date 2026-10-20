@@ -16,9 +16,12 @@ from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay
 
 SUPERIOR_RGB = (64, 143, 218)
 INFERIOR_RGB = (224, 85, 90)
-NEUTRAL_RGB = (153, 158, 165)
+# Match request 4's visible neutral (#5E6873); muted/untrusted gray is lighter.
+# The coordinated integration will share request 4's presentation constant.
+NEUTRAL_RGB = (94, 104, 115)
 MUTED_RGB = (211, 214, 219)
 DEFAULT_VISIBILITY_THRESHOLD = 0.5
+REFERENCE_TINT_MAX_ALPHA = 176
 
 
 @dataclass(frozen=True)
@@ -60,11 +63,17 @@ def quality_spatial_rgba(
     half_range: float,
     *,
     threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
+    translucent: bool = False,
 ) -> NDArray[np.uint8] | None:
     """Render verdict colors on the bounded grid, preserving invalid alpha=0.
 
     The visibility gate is metadata about source-signal trust, never inferred
     from the signed difference itself.  No per-cell value or mask is rewritten.
+    For request 1's optional reference underlay, ``translucent=True`` keeps
+    both invalid and exact-zero cells fully transparent, fades other cells by
+    magnitude, and caps visible tint alpha at the same 176 as its signed tint.
+    The window's coordinated integration chooses this only with the underlay;
+    the existing default quality map retains its prior alpha behavior.
     """
 
     grid = attribute.spatial
@@ -94,11 +103,17 @@ def quality_spatial_rgba(
             endpoints = np.where(superior, SUPERIOR_RGB[channel], INFERIOR_RGB[channel])
             colored = np.rint(239.0 + magnitude * (endpoints - 239.0)).astype(np.uint8)
         rgba[..., channel] = np.where(eligible, colored, MUTED_RGB[channel])
-    rgba[..., 3] = np.where(
-        grid.valid_mask,
-        np.where(eligible, 217 if attribute.quality_direction == "none" else 255, 82),
-        0,
-    ).astype(np.uint8)
+    if translucent:
+        # A zero difference cannot paint a hole in the reference photograph.
+        # Ineligible nonzero cells still have a faint gray tint, not a verdict.
+        opacity = np.where(eligible, REFERENCE_TINT_MAX_ALPHA, 82)
+        rgba[..., 3] = np.where(grid.valid_mask, np.rint(magnitude * opacity), 0).astype(np.uint8)
+    else:
+        rgba[..., 3] = np.where(
+            grid.valid_mask,
+            np.where(eligible, 217 if attribute.quality_direction == "none" else 255, 82),
+            0,
+        ).astype(np.uint8)
     return np.ascontiguousarray(rgba)
 
 

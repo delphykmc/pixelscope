@@ -7,10 +7,18 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, SpatialMap
+from pixelscope_enterprise.iqa.analysis_model import (
+    AnalysisResult,
+    AttributeDisplay,
+    SpatialMap,
+    roi_statistics,
+)
+from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.quality_presentation import (
     INFERIOR_RGB,
     MUTED_RGB,
+    NEUTRAL_RGB,
+    REFERENCE_TINT_MAX_ALPHA,
     SUPERIOR_RGB,
     quality_spatial_rgba,
     verdict_for_value,
@@ -105,7 +113,76 @@ def test_lower_direction_flips_only_color_and_neutral_has_no_winner() -> None:
     assert high is not None and low is not None and neutral is not None
     assert tuple(low[0, 0, :3]) == INFERIOR_RGB
     assert tuple(low[0, 1, :3]) == SUPERIOR_RGB
-    assert tuple(neutral[0, 0]) == (153, 158, 165, 217)
+    assert tuple(neutral[0, 0]) == (*NEUTRAL_RGB, 217)
+    assert tuple(neutral[0, 1]) == (*NEUTRAL_RGB, 217)
+    assert NEUTRAL_RGB == (94, 104, 115)  # same visible neutral as request 4
+    assert all(a < b for a, b in zip(NEUTRAL_RGB, MUTED_RGB, strict=True))
+
+
+def test_top3_combines_request3_direction_exclusion_with_muted_gate() -> None:
+    base = _attribute()
+    items = (
+        replace(base, attribute_id="neutral", official_value=200.0, quality_direction="none"),
+        replace(base, attribute_id="not-oriented", official_value=30.0, quality_oriented=False),
+        replace(base, attribute_id="untrusted", official_value=-2.0, summary_signal_gate=None),
+        replace(base, attribute_id="trusted", official_value=1.0),
+    )
+    result = AnalysisResult("policy-top", 384, 64, "A", "B", items)
+    # Legacy uses the existing quality_oriented flag; the new metadata is
+    # intentionally consulted only in the opt-in direction-aware policy.
+    assert [item.attribute_id for item in rank_top_differences(result)] == [
+        "neutral",
+        "trusted",
+    ]
+    assert [item.attribute_id for item in rank_top_differences(result, quality_policy=True)] == [
+        "untrusted",
+        "trusted",
+    ]
+
+
+def test_quality_map_reference_underlay_composition_alpha_and_raw_invariants() -> None:
+    attr = _attribute()
+    assert attr.spatial is not None
+    original_values = attr.spatial.values.copy()
+    original_mask = attr.spatial.valid_mask.copy()
+    original_stats = roi_statistics(attr.spatial, (0, 0, 384, 64))
+    quality_only = quality_spatial_rgba(attr, 2.0)
+    tint = quality_spatial_rgba(attr, 2.0, translucent=True)
+    assert quality_only is not None and tint is not None
+    assert np.array_equal(quality_only[..., :3], tint[..., :3])
+    assert tint[0, 0, 3] == REFERENCE_TINT_MAX_ALPHA  # +2: blue, visible
+    assert tint[0, 1, 3] == REFERENCE_TINT_MAX_ALPHA  # -2: red, visible
+    assert tuple(tint[0, 0, :3]) == SUPERIOR_RGB
+    assert tuple(tint[0, 1, :3]) == INFERIOR_RGB
+    assert 0 < tint[0, 2, 3] < 82  # inclusive +0.5: faint only
+    assert 0 < tint[0, 3, 3] < 82  # inclusive -0.5: faint only
+    assert tuple(tint[0, 2, :3]) == MUTED_RGB
+    assert tuple(tint[0, 3, :3]) == MUTED_RGB
+    assert tint[0, 4, 3] == 0  # signed zero reveals the photograph
+    assert tint[0, 5, 3] == 0  # invalid mask also reveals the photograph
+    assert quality_only[0, 4, 3] == 82  # default quality display remains unchanged
+
+    # Source A's dimmed-gray pixel is unaffected by transparent tint. The
+    # requested RGBA variant composes without replacing request 1's renderer.
+    underlay = np.array((101, 101, 101), dtype=np.float64)
+    fraction = tint[0, :, 3:4].astype(np.float64) / 255.0
+    composited = np.rint(
+        fraction * tint[0, :, :3].astype(np.float64) + (1.0 - fraction) * underlay
+    ).astype(np.uint8)
+    assert tuple(composited[4]) == (101, 101, 101)
+    assert tuple(composited[5]) == (101, 101, 101)
+    assert tuple(composited[0]) != (101, 101, 101)
+    assert tuple(composited[1]) != (101, 101, 101)
+    assert np.array_equal(attr.spatial.values, original_values, equal_nan=True)
+    np.testing.assert_array_equal(attr.spatial.valid_mask, original_mask)
+    assert roi_statistics(attr.spatial, (0, 0, 384, 64)) == original_stats
+
+    untrusted = replace(attr, summary_signal_gate=None)
+    untrusted_tint = quality_spatial_rgba(untrusted, 2.0, translucent=True)
+    assert untrusted_tint is not None
+    assert tuple(untrusted_tint[0, 0, :3]) == MUTED_RGB
+    assert 0 < untrusted_tint[0, 0, 3] <= 82
+    assert untrusted_tint[0, 4, 3] == untrusted_tint[0, 5, 3] == 0
 
 
 def test_invalid_direction_and_threshold_rejected() -> None:

@@ -101,3 +101,18 @@ def test_local_hotspot_cards_show_directional_verdict_without_recomputing_scores
     panel.populate((candidate,), (None, None), "dB")
     assert panel.buttons[0].property("spatialVerdict") is None
     panel.close()
+
+
+def test_exploratory_hotspot_does_not_claim_superior_or_inferior(qtbot: object) -> None:
+    panel = SpatialCandidatesPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    attr = make_synthetic_result().attributes[5]
+    exploratory = SpatialCandidate(1, 0, 0, 512, 512, -3.0, 1.0, 262144.0, 3.0, "exploratory_abs")
+    panel.populate((exploratory,), (None, None), "dB", quality_attribute=attr)
+    assert "Exploratory · No verified verdict" in panel.details[0].text()
+    assert "Superior" not in panel.details[0].text()
+    assert "Inferior" not in panel.details[0].text()
+    assert panel.buttons[0].property("spatialVerdict") == "muted"
+    assert "full-pair comparison sign unavailable" in panel.details[0].toolTip()
+    assert exploratory.mean == -3.0
+    panel.close()

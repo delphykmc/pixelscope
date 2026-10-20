@@ -282,11 +282,17 @@ def _map_pixmap(
     *,
     quality_policy: bool = False,
     visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
+    translucent: bool = False,
 ) -> QPixmap | None:
-    """Construct one safe Qt image from the bounded, vectorized signed grid."""
+    """Construct the map image; transparency may compose over request 1's underlay."""
 
     rgba = (
-        quality_spatial_rgba(attribute, half_range, threshold=visibility_threshold)
+        quality_spatial_rgba(
+            attribute,
+            half_range,
+            threshold=visibility_threshold,
+            translucent=translucent,
+        )
         if quality_policy
         else colorize_spatial_rgba(attribute, half_range)
     )

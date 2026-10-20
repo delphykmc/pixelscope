@@ -409,7 +409,9 @@ class SpatialCandidatesPanel(QWidget):
                 verdict_suffix = ""
             else:
                 verdict = verdict_for_value(
-                    quality_attribute, candidate.mean, threshold=visibility_threshold
+                    quality_attribute,
+                    None if candidate.mode == "exploratory_abs" else candidate.mean,
+                    threshold=visibility_threshold,
                 )
                 accent = QColor(*verdict.rgb).name()
                 faint = 0.06 if not verdict.visible else 0.14
@@ -434,7 +436,11 @@ class SpatialCandidatesPanel(QWidget):
                     f"QProgressBar {{ background-color: {TOKENS.panel_background}; border: none; }}"
                     f"QProgressBar::chunk {{ background-color: {accent}; }}"
                 )
-                verdict_suffix = f" · {verdict.verdict}"
+                verdict_suffix = (
+                    " · Exploratory · No verified verdict"
+                    if candidate.mode == "exploratory_abs"
+                    else f" · {verdict.verdict}"
+                )
             self.buttons[i].setEnabled(True)
             self.titles[i].setText(f"({candidate.x}, {candidate.y})")
             self.titles[i].setToolTip(
@@ -443,7 +449,11 @@ class SpatialCandidatesPanel(QWidget):
             )
             self.details[i].setText(
                 f"Δ {candidate.mean:+.2f} {unit}  ·  {candidate.valid_coverage:.0%}"
-                + (" · ?" if candidate.mode == "exploratory_abs" else "")
+                + (
+                    " · ?"
+                    if quality_attribute is None and candidate.mode == "exploratory_abs"
+                    else ""
+                )
                 + verdict_suffix
             )
             self.details[i].setToolTip(
@@ -456,7 +466,8 @@ class SpatialCandidatesPanel(QWidget):
                     else ""
                 )
                 + (
-                    "Exploratory (full-pair comparison sign unavailable)."
+                    "Exploratory (full-pair comparison sign unavailable); "
+                    "no verified local quality direction or ROI winner."
                     if candidate.mode == "exploratory_abs"
                     else ""
                 )
