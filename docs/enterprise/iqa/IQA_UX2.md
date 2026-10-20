@@ -49,6 +49,15 @@ controls must always be explicitly distinguished.
   `AnalysisResult` measurements, `roi_statistics`, group range or Map gain.
   Missing eligibility produces an explicit verification-pending state, rather
   than an invented Top 3.
+- For an Attribute with `unit == "dB"` and `summary_signal_gate is None`,
+  both Inspector-row tooltips explain that usable source-relative signal levels
+  are unknown. `False` is a rejected gate, never mislabeled unknown; the
+  explanation survives Full/ROI, Quality toggle and Result selection.
+- The three-view hover producer feeds two permanent, per-Result fixed-width
+  Status Bar labels (position and source RGB/map). Pointer or Attribute changes
+  do not shift the labels; overlong text is right-elided with a full tooltip.
+  Transient Open/Save status messages are separate. Request 7 provides the
+  eventual fixed-pitch/source-unavailable-padding formatter.
 
 ### UX-2B — spatial proposal engine (#148; next PR)
 

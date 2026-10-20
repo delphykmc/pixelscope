@@ -6,11 +6,12 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QImage, QPainter
-from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QWidget
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtGui import QColor, QImage, QPainter, QStandardItemModel
+from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QStyleOptionViewItem, QWidget
 
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     official_chart_fraction,
     spatial_display_half_range,
@@ -224,6 +225,78 @@ def test_ux1_a_map_b_swap_changes_placement_not_scientific_identity(qtbot: objec
     assert [splitter.widget(i) for i in range(3)] == [panes[0], panes[2], panes[1]]
     assert win.active_result_id == fixture.result_id
     win.close()
+
+
+def test_pane_caption_middle_elision_does_not_reallocate_splitter_slots(qtbot: object) -> None:
+    long_name = "reference_" + "capture-series-very-long-name_" * 15 + ".png"
+    result = replace(
+        make_synthetic_result("ux1-elided-caption"),
+        source_a_label=long_name,
+        source_b_label="target.png",
+    )
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.resize(1440, 800)
+    win.present_result(result)
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    splitter = win._image_split
+    splitter.setSizes([250, 390, 280])
+    QApplication.processEvents()
+    expected = splitter.sizes()
+    assert min(expected) >= 180
+    caption = win._pane_labels[0]
+    assert caption.toolTip() == f"IMAGE A  ·  {long_name}"
+    assert "…" in caption.text()  # middle elision, one line
+    assert "\n" not in caption.text()
+    assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
+
+    # Request 3 may decorate the original filename with a semantic source role.
+    # It must still use this same width-independent caption presentation path.
+    role_caption = f"REFERENCE · {long_name}"
+    caption.setText(role_caption)
+    QApplication.processEvents()
+    assert caption.toolTip() == role_caption
+    assert "…" in caption.text()
+    assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
+
+    for _ in range(4):
+        win.swap_sources_action.trigger()
+        QApplication.processEvents()
+        assert all(abs(a - b) <= 2 for a, b in zip(splitter.sizes(), expected, strict=True))
+        assert caption.toolTip() == role_caption
+        assert "…" in caption.text()
+    win.close()
+
+
+@pytest.mark.parametrize("signed_value", [-4.0, 4.0])
+def test_neutral_chart_uses_dark_gray_bar_on_light_track(signed_value: float) -> None:
+    from pixelscope_enterprise.iqa.attribute_chart import _NEUTRAL_TRACK
+
+    attr = replace(
+        make_synthetic_result("neutral-chart").attributes[10],
+        quality_oriented=False,
+        official_value=signed_value,
+        official_availability="available",
+        chart_axis_range=4.0,
+    )
+    model = QStandardItemModel(1, 1)
+    cell = model.index(0, 0)
+    model.setData(cell, attr, ATTRIBUTE_ROLE)
+    model.setData(cell, 4.0, DISPLAY_RANGE_ROLE)
+    option = QStyleOptionViewItem()
+    option.rect = QRect(0, 0, 320, 36)
+    option.palette = QApplication.palette()
+    surface = QImage(320, 36, QImage.Format.Format_ARGB32)
+    surface.fill(QColor("white"))
+    painter = QPainter(surface)
+    delegate = RelativeDifferenceDelegate(QWidget())
+    delegate.paint(painter, option, cell)
+    painter.end()
+
+    fill_x, track_x = (200, 75) if signed_value > 0 else (75, 235)
+    assert surface.pixelColor(fill_x, 21) == QColor(*NEUTRAL_PRESENTATION_RGB)
+    assert surface.pixelColor(track_x, 21) == _NEUTRAL_TRACK
 
 
 def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:

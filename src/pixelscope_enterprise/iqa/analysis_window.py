@@ -7,10 +7,12 @@ Base modifications, network access, background worker or inferred metric formula
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from PySide6.QtCore import (
@@ -18,6 +20,7 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPoint,
+    QPointF,
     QRect,
     QRectF,
     QSettings,
@@ -38,6 +41,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QResizeEvent,
     QShowEvent,
     QStandardItemModel,
     QTransform,
@@ -51,6 +55,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGraphicsItem,
+    QGraphicsLineItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
@@ -65,6 +70,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRubberBand,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -78,10 +84,12 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     AttributeDisplay,
     LoadedAnalysis,
     Roi,
+    apply_spatial_reference_tint_rgba,
     clipped_cells,
     colorize_spatial_rgba,
     map_polarity_legend,
@@ -92,13 +100,26 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     CHART_MEASUREMENT_ROLE,
     DISPLAY_RANGE_ROLE,
+    QUALITY_POLICY_ROLE,
+    VISIBILITY_THRESHOLD_ROLE,
     ChartMeasurement,
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
+from pixelscope_enterprise.iqa.hover_fields import (
+    format_source_rgb_field,
+    hover_fixed_pitch_font,
+)
+from pixelscope_enterprise.iqa.hover_status import ReservedHoverPair
 from pixelscope_enterprise.iqa.html_report import report_folder, write_html_report
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
+from pixelscope_enterprise.iqa.quality_presentation import (
+    DEFAULT_VISIBILITY_THRESHOLD,
+    quality_map_legend,
+    quality_spatial_rgba,
+    verdict_for_value,
+)
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
@@ -115,9 +136,91 @@ ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 IqaSettingsFactory = Callable[[], QSettings]
 
 
+@dataclass(frozen=True)
+class ResultFileType:
+    """Reader/writer-contributed portable result type; presentation metadata only."""
+
+    description: str
+    suffix: str
+
+    def __post_init__(self) -> None:
+        if (
+            not self.description.strip()
+            or len(self.description) > 80
+            or any(char in self.description for char in "\r\n();*")
+        ):
+            raise ValueError("result file type description must be a plain, short label")
+        if re.fullmatch(r"\.[A-Za-z0-9]+", self.suffix) is None:
+            raise ValueError("result file suffix must look like '.pxiqa'")
+
+    @property
+    def dialog_filter(self) -> str:
+        return f"{self.description} (*{self.suffix})"
+
+    def suggested_name(self, result_id: str) -> str:
+        # A result ID is scientific identity, never a trusted filesystem component.
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "_", result_id).strip("._")[:100]
+        return f"{stem or 'iqa_result'}{self.suffix}"
+
+
+def _result_file_error_message(error: Exception, fallback: str) -> str:
+    """Expose only an explicit, bounded, single-line adapter message."""
+    try:
+        message = getattr(error, "user_message", None)
+    except Exception:
+        return fallback
+    if not isinstance(message, str):
+        return fallback
+    single_line = " ".join("".join(char if char.isprintable() else " " for char in message).split())
+    if not single_line:
+        return fallback
+    if len(single_line) > 160:
+        return single_line[:159].rstrip() + "…"
+    return single_line
+
+
 def default_iqa_settings() -> QSettings:
     """Preserve the legacy IQA namespace without changing QApplication identity."""
     return QSettings("PixelScope", "EnterpriseIqa")
+
+
+def _unknown_signal_level_note(attr: AttributeDisplay) -> str:
+    """Explain unknown original-relative levels without altering a quality verdict."""
+
+    if attr.unit != "dB" or attr.summary_signal_gate is not None:
+        return ""
+    return (
+        " Signal level unknown: no usable original-relative level information "
+        "for A/B is available to this view; visibility cannot be verified."
+    )
+
+
+class _PaneCaption(QLabel):
+    """Single-line middle elision without imposing a filename minimum width."""
+
+    def __init__(self, text: str, parent: QWidget) -> None:
+        super().__init__("", parent)
+        self._full_text = text
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setWordWrap(False)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        self._full_text = text
+        self.setToolTip(text)
+        self._update_elision()
+
+    def _update_elision(self) -> None:
+        available = max(0, self.contentsRect().width() - 2)
+        super().setText(
+            self.fontMetrics().elidedText(self._full_text, Qt.TextElideMode.ElideMiddle, available)
+        )
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._update_elision()
 
 
 @dataclass
@@ -138,6 +241,8 @@ class _LinkedView(QGraphicsView):
 
     navigation_changed = Signal(float, float, float)
     roi_requested = Signal(float, float, float, float)
+    pixel_hovered = Signal(int, int)
+    pixel_exited = Signal()
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -147,7 +252,12 @@ class _LinkedView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setMinimumSize(180, 160)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self._muted = False
+        # QGraphicsView scrollbars use integer device pixels. Never re-read
+        # their rounded center after a resize as a new navigation request.
+        self._navigation_center: QPointF | None = None
         self._roi_start: QPoint | None = None
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
         self._rubber_band.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -167,16 +277,55 @@ class _LinkedView(QGraphicsView):
     def _navigation_changed(self, _value: int = 0) -> None:
         if self._muted or self.scene() is None:
             return
-        center = self.mapToScene(self.viewport().rect().center())
+        center = self._actual_center()
+        self._navigation_center = center
         self.navigation_changed.emit(self.transform().m11(), center.x(), center.y())
+
+    def _actual_center(self) -> QPointF:
+        inverse, _ = self.viewportTransform().inverted()
+        center = QPointF(self.viewport().width() / 2.0, self.viewport().height() / 2.0)
+        return cast(QPointF, inverse.map(center))
+
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        # Preserve the canonical floating-point center across geometry changes.
+        # Resizing is not user pan/zoom, and must not synchronize sibling views.
+        center = self._navigation_center
+        previous_muted = self._muted
+        self._muted = True
+        try:
+            super().resizeEvent(event)
+            if center is not None:
+                self.centerOn(center)
+        finally:
+            self._muted = previous_muted
 
     def apply_navigation(self, scale: float, center_x: float, center_y: float) -> None:
         if scale <= 0 or not np.isfinite([scale, center_x, center_y]).all():
             return
+        previous_muted = self._muted
         self._muted = True
-        self.setTransform(QTransform().scale(scale, scale))
-        self.centerOn(center_x, center_y)
-        self._muted = False
+        try:
+            self._navigation_center = QPointF(center_x, center_y)
+            self.setTransform(QTransform().scale(scale, scale))
+            self.centerOn(self._navigation_center)
+        finally:
+            self._muted = previous_muted
+
+    def viewportEvent(self, event: QEvent) -> bool:  # noqa: N802
+        if event.type() == QEvent.Type.Leave:
+            self.pixel_exited.emit()
+        return super().viewportEvent(event)
+
+    def _report_hover(self, position: QPoint) -> None:
+        scene = self.scene()
+        if scene is None:
+            self.pixel_exited.emit()
+            return
+        point = self.mapToScene(position)
+        if not scene.sceneRect().contains(point):
+            self.pixel_exited.emit()
+            return
+        self.pixel_hovered.emit(int(np.floor(point.x())), int(np.floor(point.y())))
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         # Minimum zoom is relative to a *post-layout* fit. A 4K fit can be <0.04.
@@ -243,6 +392,7 @@ class _LinkedView(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        self._report_hover(event.position().toPoint())
         if self._roi_start is not None:
             self._rubber_band.setGeometry(
                 QRect(self._roi_start, event.position().toPoint()).normalized()
@@ -268,12 +418,29 @@ class _LinkedView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
 
-def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | None:
-    """Construct one safe Qt image from the bounded, vectorized signed grid."""
+def _map_pixmap(
+    attribute: AttributeDisplay,
+    half_range: float,
+    *,
+    translucent: bool = False,
+    quality_policy: bool = False,
+    visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
+) -> QPixmap | None:
+    """Choose one RGB palette and apply at most one reference-tint attenuation."""
 
-    rgba = colorize_spatial_rgba(attribute, half_range)
+    rgba = (
+        quality_spatial_rgba(
+            attribute,
+            half_range,
+            threshold=visibility_threshold,
+        )
+        if quality_policy
+        else colorize_spatial_rgba(attribute, half_range)
+    )
     if rgba is None:
         return None
+    if translucent:
+        rgba = apply_spatial_reference_tint_rgba(attribute, half_range, rgba)
     height, width, _ = rgba.shape
     # QImage can alias buffers; copy the image before numpy memory is released.
     image = QImage(rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
@@ -319,7 +486,11 @@ def _analysis_action_icon(kind: str) -> QIcon:
 _INSIGHT_COLORS = {
     "a": ("#e5857d", "A"),
     "b": ("#79afe6", "B"),
-    "signed": ("#b99bdc", "±"),
+    "signed": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "±"),
+    "superior": ("#408fda", "S"),
+    "inferior": ("#e0555a", "I"),
+    "neutral": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "—"),
+    "muted": ("#d3d6db", "·"),
     "empty": (TOKENS.border, "—"),
 }
 
@@ -388,6 +559,12 @@ class _EnterpriseSpatialDockTitle(PlotsDockTitleBar):
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
+    # Request 3 owns hover *data*; requests 6/7 can compose two reserved-width,
+    # fixed-pitch readouts and pad missing A/B fields without parsing text.
+    # Fields: position, source A RGB, source B RGB, selected map cell.
+    hover_readout_changed = Signal(str, str, str, str)
+    hover_readout_cleared = Signal()
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -405,16 +582,22 @@ class AnalysisWindow(QMainWindow):
         self._active_id: str | None = None
         self._loader: ResultLoader | None = None
         self._saver: ResultSaver | None = None
+        self._file_type: ResultFileType | None = None
         self._switching = False
         self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[QGraphicsRectItem] = []
+        self._guide_items: list[tuple[QGraphicsLineItem, QGraphicsLineItem]] = []
+        self._hovered_pixel: tuple[int, int] | None = None
         self._scene_result_id: str | None = None
         self._map_item: QGraphicsPixmapItem | None = None
+        self._map_reference_item: QGraphicsPixmapItem | None = None
         self._map_placeholder: QGraphicsTextItem | None = None
-        self._pane_labels: list[QLabel] = []
+        self._pane_labels: list[_PaneCaption] = []
         self._pane_wrappers: list[QWidget] = []
         self._sources_swapped = False
+        self._quality_policy_enabled = False
+        self._visibility_threshold = DEFAULT_VISIBILITY_THRESHOLD
         self._group_tables: dict[str, QTableWidget] = {}
         self._range_editors: dict[str, QDoubleSpinBox] = {}
         self._group_sections: dict[str, QWidget] = {}
@@ -422,6 +605,7 @@ class AnalysisWindow(QMainWindow):
         self._top3_attribute_ids: list[str] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
+        self._source_images: tuple[QImage | None, QImage | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
@@ -451,6 +635,14 @@ class AnalysisWindow(QMainWindow):
         self.save_action.setEnabled(False)  # Not a fake fixture export.
         self.save_action.triggered.connect(  # type: ignore[attr-defined]
             self._save_from_dialog
+        )
+        self.close_result_action = file_menu.addAction("Close IQA Result")
+        self.close_result_action.setObjectName("enterpriseIqaCloseResult")
+        self.close_result_action.setShortcut(QKeySequence("Ctrl+W"))
+        self.close_result_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.close_result_action.setEnabled(False)
+        self.close_result_action.triggered.connect(  # type: ignore[attr-defined]
+            self._close_current_result
         )
         self.export_menu = QMenu("Export Result", file_menu)
         self.export_menu.setObjectName("enterpriseIqaExportResultMenu")
@@ -487,7 +679,26 @@ class AnalysisWindow(QMainWindow):
         self.report_export_action.triggered.connect(  # type: ignore[attr-defined]
             self._export_html_from_dialog
         )
+        file_menu.addSeparator()
+        self.exit_action = file_menu.addAction("Exit")
+        self.exit_action.setObjectName("enterpriseIqaExit")
+        self.exit_action.triggered.connect(self.close)  # type: ignore[attr-defined]
         view_menu = self.menuBar().addMenu("View")
+        self.quality_policy_action = view_menu.addAction("Color by Quality Verdict")
+        self.quality_policy_action.setObjectName("enterpriseIqaQualityVerdictColors")
+        self.quality_policy_action.setCheckable(True)
+        self.quality_policy_action.setChecked(False)
+        self.quality_policy_action.setToolTip(
+            "Optional: use per-attribute higher/lower/none direction; preserve signed values."
+        )
+        self.quality_policy_action.toggled.connect(  # type: ignore[attr-defined]
+            self.set_quality_presentation
+        )
+        self.visibility_threshold_action = view_menu.addAction("Set Visibility Threshold...")
+        self.visibility_threshold_action.setObjectName("enterpriseIqaVisibilityThreshold")
+        self.visibility_threshold_action.triggered.connect(  # type: ignore[attr-defined]
+            self._prompt_visibility_threshold
+        )
         self.clear_roi_action = view_menu.addAction("Clear ROI")
         self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
         # MAIN uses Esc for ROI; also accept Shift+Esc as a documented alias.
@@ -534,6 +745,19 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
             self._hotspot_overlay_toggled
         )
+        self.map_reference_action = view_menu.addAction("Tint Map over Reference A")
+        self.map_reference_action.setObjectName("enterpriseIqaMapReferenceTint")
+        self.map_reference_action.setCheckable(True)
+        self.map_reference_action.setChecked(False)
+        self.map_reference_action.setEnabled(False)
+        self.map_reference_action.setToolTip(
+            "Show a translucent signed Map over a dimmed grayscale source A. "
+            "Zero and invalid cells reveal the plain image; "
+            "numbers, masks, and exports are unchanged."
+        )
+        self.map_reference_action.toggled.connect(  # type: ignore[attr-defined]
+            self._map_reference_toggled
+        )
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
         self.iqa_toolbar = QToolBar("IQA analysis tools", self)
@@ -556,6 +780,7 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_tool_button = action_button(self.clear_roi_action)
         self.iqa_toolbar.addSeparator()
         self.iqa_toolbar.addAction(self.hotspot_overlay_action)
+        self.iqa_toolbar.addAction(self.map_reference_action)
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
@@ -567,10 +792,8 @@ class AnalysisWindow(QMainWindow):
             self._pane_wrappers.append(wrapper)
             column = QVBoxLayout(wrapper)
             column.setContentsMargins(2, 2, 2, 2)
-            caption = QLabel(title, wrapper)
+            caption = _PaneCaption(title, wrapper)
             caption.setObjectName("enterpriseIqaPaneCaption" + title.replace(" ", ""))
-            caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            caption.setWordWrap(True)
             self._pane_labels.append(caption)
             column.addWidget(caption)
             view = _LinkedView(wrapper)
@@ -579,6 +802,8 @@ class AnalysisWindow(QMainWindow):
                 lambda scale, x, y, source=view: self._sync_views(source, scale, x, y)
             )
             view.roi_requested.connect(self._set_roi)
+            view.pixel_hovered.connect(self._show_hover_pixel)
+            view.pixel_exited.connect(self._hide_hover_pixel)
             column.addWidget(view, 1)
             image_split.addWidget(wrapper)
             self._views.append(view)
@@ -650,8 +875,10 @@ class AnalysisWindow(QMainWindow):
         self.inspector_tabs.setMinimumHeight(140)
         self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
         self.attribute_table.hide()
+        self._empty_attribute_table = self.attribute_table
         self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
         self.range_editor.hide()
+        self._empty_range_editor = self.range_editor
         self.group_scroll = QScrollArea(self.inspector_tabs)
         self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
         self.group_scroll.setWidgetResizable(True)
@@ -853,6 +1080,12 @@ class AnalysisWindow(QMainWindow):
             f"QLabel#enterpriseIqaTop3Title {{ color: {TOKENS.text_secondary}; "
             "font-weight: 700; }"
         )
+        self._hover_readouts = ReservedHoverPair(self.statusBar())
+        fixed_pitch = hover_fixed_pitch_font()
+        self._hover_readouts.position.setFont(fixed_pitch)
+        self._hover_readouts.values.setFont(fixed_pitch)
+        self.hover_readout_changed.connect(self._update_hover_readouts)
+        self.hover_readout_cleared.connect(self._hover_readouts.clear)
         self.statusBar().showMessage(
             "Shift+drag ROI · T swaps A/B · Map Gain changes visualization only."
         )
@@ -868,10 +1101,14 @@ class AnalysisWindow(QMainWindow):
         return state.roi if state is not None else None
 
     def install_file_handlers(
-        self, *, load: ResultLoader | None = None, save: ResultSaver | None = None
+        self,
+        *,
+        load: ResultLoader | None = None,
+        save: ResultSaver | None = None,
+        file_type: ResultFileType | None = None,
     ) -> None:
-        """Only verified H2 readers/writers enable on-disk actions."""
-        self._loader, self._saver = load, save
+        """Only injected handlers enable disk actions; their format is UI metadata."""
+        self._loader, self._saver, self._file_type = load, save, file_type
         self.open_action.setEnabled(load is not None)
         self.save_action.setEnabled(save is not None and self._active_id is not None)
 
@@ -1037,18 +1274,28 @@ class AnalysisWindow(QMainWindow):
             )
             self._states[result.result_id] = _ResultViewState(first_view.attribute_id)
         self._active_id = result.result_id
+        self._hide_hover_pixel()
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
-        self.setWindowTitle(f"IQA Analysis — {result.result_id}")
+        a_role, b_role = self._source_roles(result)
+        self.setWindowTitle(self._result_window_title(result))
+        a_summary = "A" if result.source_a_role is None else a_role
+        b_summary = "B" if result.source_b_role is None else b_role
         self.pair_summary.setText(
-            f"A: {result.source_a_label}  /  B: {result.source_b_label}  "
+            f"{a_summary}: {result.source_a_label}  /  "
+            f"{b_summary}: {result.source_b_label}  "
             f"• {result.image_width}×{result.image_height}"
         )
         self.pair_summary.setToolTip(
-            f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
+            f"{a_role}: {result.source_a_label}\n{b_role}: {result.source_b_label}"
+        )
+        self.spatial_panel.set_source_roles(
+            "A" if result.source_a_role is None else a_role,
+            "B" if result.source_b_role is None else b_role,
         )
         self.fit_action.setEnabled(True)
+        self.close_result_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self.export_menu_action.setEnabled(True)
         self.export_action.setEnabled(True)
@@ -1058,10 +1305,45 @@ class AnalysisWindow(QMainWindow):
         self._update_top_cards()
         self.gain_editor.setEnabled(True)
         self._render_result()
+        # Source bit depths/availability are known after image loading.
+        # Reserve once per presented Result, never on pointer movement.
+        self._reserve_hover_readouts(result)
         self.statusBar().showMessage(
             "Full-pair comparison and GRID-derived ROI estimates are distinct. "
             "Regional signed estimates never imply a verified quality winner."
         )
+
+    @staticmethod
+    def _source_roles(result: AnalysisResult) -> tuple[str, str]:
+        return result.source_a_role or "Image A", result.source_b_role or "Image B"
+
+    @staticmethod
+    def _hover_bit_depth(image: QImage | None) -> int | None:
+        """Return the loaded source's display channel depth, or unavailable."""
+
+        if image is None or image.isNull():
+            return None
+        high_depth_formats = {
+            QImage.Format.Format_RGBA64,
+            QImage.Format.Format_RGBA64_Premultiplied,
+            QImage.Format.Format_RGBX64,
+            QImage.Format.Format_Grayscale16,
+        }
+        return 16 if image.format() in high_depth_formats else 8
+
+    @staticmethod
+    def _result_window_title(result: AnalysisResult) -> str:
+        """Compose request 1's source labels with optional request 3 role names."""
+
+        label_a, label_b = result.source_a_label.strip(), result.source_b_label.strip()
+        if not label_a or not label_b:
+            # Request 1 permits missing source labels; scientific identity is
+            # still the unchanged result ID (never an inferred role).
+            return f"IQA Analysis — {result.result_id}"
+        if result.source_a_role is None and result.source_b_role is None:
+            return f"IQA Analysis — {label_a} vs {label_b}"
+        role_a, role_b = AnalysisWindow._source_roles(result)
+        return f"IQA Analysis — {role_a}: {label_a} vs {role_b}: {label_b}"
 
     def _update_top_cards(self) -> None:
         """Refresh a guarded OFFICIAL-only first insight for the current pair."""
@@ -1069,13 +1351,17 @@ class AnalysisWindow(QMainWindow):
         if self._active_id is None:
             return
         result = self._results[self._active_id]
-        ranked = rank_top_differences(result)
+        ranked = rank_top_differences(result, quality_policy=self._quality_policy_enabled)
         self._top3_attribute_ids = [item.attribute_id for item in ranked]
         unknown_gate = any(
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
-            "TOP 3   ·   VERIFIED FULL-PAIR dB"
+            "TOP 3   ·   QUALITY DISPLAY (FULL-PAIR dB)"
+            if self._quality_policy_enabled and ranked
+            else "TOP 3   ·   QUALITY DISPLAY EMPTY"
+            if self._quality_policy_enabled
+            else "TOP 3   ·   VERIFIED FULL-PAIR dB"
             if ranked
             else "TOP 3   ·   NO QUALIFYING dB"
             if not unknown_gate
@@ -1093,13 +1379,20 @@ class AnalysisWindow(QMainWindow):
                 card.setChecked(False)
                 continue
             item = ranked[index]
-            tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
+            if self._quality_policy_enabled:
+                attr = result.attribute(item.attribute_id)
+                verdict = verdict_for_value(
+                    attr, item.delta_db, threshold=self._visibility_threshold
+                )
+                tone, conclusion = verdict.tone, verdict.verdict
+            else:
+                tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
+                conclusion = (
+                    ("A better" if item.delta_db > 0 else "B better")
+                    if item.quality_oriented
+                    else "signed only · no winner"
+                )
             _style_insight_card(card, tone)
-            conclusion = (
-                ("A better" if item.delta_db > 0 else "B better")
-                if item.quality_oriented
-                else "signed only · no winner"
-            )
             rank_symbol = "★ 1" if index == 0 else str(index + 1)
             card.setText(
                 f"{rank_symbol}   {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
@@ -1108,6 +1401,12 @@ class AnalysisWindow(QMainWindow):
                 f"Rank {index + 1} of verified global |dB| differences: "
                 f"{item.label} {item.delta_db:+.4f} dB (full pair). "
                 "Card selection opens its spatial evidence, not an ROI quality score."
+                + (
+                    " Quality colors require |Δ| above the visibility threshold and a trusted "
+                    "original-relative signal gate; muted means no verdict."
+                    if self._quality_policy_enabled
+                    else ""
+                )
             )
             card.setEnabled(True)
         self._sync_top_cards()
@@ -1130,6 +1429,64 @@ class AnalysisWindow(QMainWindow):
         state.attribute_id = self._top3_attribute_ids[index]
         self._select_active_attribute()
         self._render_result()
+
+    def _close_current_result(self) -> None:
+        """Unload one displayed Result without touching disk or external jobs."""
+
+        result_id = self._active_id
+        if result_id is None:
+            return
+        index = self.result_combo.currentIndex()
+        for view in self._views:
+            view.cancel_roi_drag()
+
+        # A running spatial worker cannot always be physically cancelled.
+        # Detaching its Future/timer immediately revokes its UI authority.
+        self._spatial_timer.stop()
+        pending = self._spatial_future
+        if pending is not None and not pending.done():
+            pending.cancel()
+        self._spatial_future = None
+        self._spatial_pending = None
+        self._spatial_displayed = None
+        self._spatial_cache = {
+            key: candidates
+            for key, candidates in self._spatial_cache.items()
+            if key[0] != result_id
+        }
+
+        self._results.pop(result_id)
+        self._states.pop(result_id, None)
+        self._active_id = None
+        self._fit_pending_result_id = None
+        self._scene_result_id = None
+        self._source_result_id = None
+        self._source_pixmaps = (None, None)
+        self._source_images = (None, None)
+        self._map_item = None
+        self._map_reference_item = None
+        self._map_placeholder = None
+        self._hide_hover_pixel()
+
+        self.result_combo.blockSignals(True)
+        try:
+            self.result_combo.removeItem(index)
+            next_index = min(index, self.result_combo.count() - 1)
+            self.result_combo.setCurrentIndex(next_index)
+            next_id = self.result_combo.currentData()
+        finally:
+            self.result_combo.blockSignals(False)
+
+        if isinstance(next_id, str) and next_id in self._results:
+            self.present_result(self._results[next_id])
+            return
+
+        self.close_result_action.setEnabled(False)
+        self.save_action.setEnabled(False)
+        self.export_menu_action.setEnabled(False)
+        self.export_action.setEnabled(False)
+        self._render_empty()
+        self.statusBar().showMessage("No IQA result open.")
 
     def _on_result_selected(self, _index: int) -> None:
         result_id = self.result_combo.currentData()
@@ -1247,6 +1604,7 @@ class AnalysisWindow(QMainWindow):
                     item.setToolTip(
                         f"{attr.label} · {attr.group} · {unit}; "
                         f"full-pair value {attr.official_availability}; group scale ±{limit:g}"
+                        f".{_unknown_signal_level_note(attr)}"
                     )
                     table.setItem(row, col, item)
             table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
@@ -1369,6 +1727,8 @@ class AnalysisWindow(QMainWindow):
             if cell is None:
                 continue
             cell.setData(DISPLAY_RANGE_ROLE, limit)
+            cell.setData(QUALITY_POLICY_ROLE, self._quality_policy_enabled)
+            cell.setData(VISIBILITY_THRESHOLD_ROLE, self._visibility_threshold)
             attr = cell.data(ATTRIBUTE_ROLE)
             if not isinstance(attr, AttributeDisplay):
                 continue
@@ -1385,18 +1745,68 @@ class AnalysisWindow(QMainWindow):
                         stats.valid_coverage,
                     )
                 cell.setData(CHART_MEASUREMENT_ROLE, measurement)
+                policy_note = ""
+                if self._quality_policy_enabled:
+                    verdict = verdict_for_value(
+                        attr, measurement.value, threshold=self._visibility_threshold
+                    )
+                    policy_note = f" Optional color: {verdict.verdict}."
                 cell.setToolTip(
                     f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
                     f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
                     "signed local evidence, no regional quality winner."
+                    + policy_note
+                    + _unknown_signal_level_note(attr)
                 )
             else:
                 cell.setData(CHART_MEASUREMENT_ROLE, None)
+                policy_note = ""
+                if self._quality_policy_enabled:
+                    verdict = verdict_for_value(
+                        attr, attr.official_value, threshold=self._visibility_threshold
+                    )
+                    policy_note = f" Optional color: {verdict.verdict}."
                 cell.setToolTip(
                     f"{attr.label}: full-pair producer comparison "
                     f"({attr.official_availability}); display range ±{limit:g} {unit}."
+                    + policy_note
+                    + _unknown_signal_level_note(attr)
                 )
         table.viewport().update()
+
+    def set_quality_presentation(self, enabled: bool, *, threshold: float | None = None) -> None:
+        """Opt in to verdict colors; redraw presentation without recomputing data."""
+
+        if threshold is not None:
+            if not np.isfinite(threshold) or threshold < 0:
+                raise ValueError("visibility threshold must be finite and nonnegative")
+            self._visibility_threshold = float(threshold)
+        self._quality_policy_enabled = bool(enabled)
+        if self.quality_policy_action.isChecked() != self._quality_policy_enabled:
+            self.quality_policy_action.blockSignals(True)
+            self.quality_policy_action.setChecked(self._quality_policy_enabled)
+            self.quality_policy_action.blockSignals(False)
+        if self._active_id is None:
+            return
+        self._refresh_all_group_bars()
+        self._update_top_cards()
+        self._render_result()
+        key = self._spatial_key()
+        if key is not None and key == self._spatial_displayed and key in self._spatial_cache:
+            self._present_spatial_candidates(key, self._spatial_cache[key])
+
+    def _prompt_visibility_threshold(self) -> None:
+        value, accepted = QInputDialog.getDouble(
+            self,
+            "IQA Quality Visibility Threshold",
+            "Show verdict only when |signed difference| is greater than:",
+            self._visibility_threshold,
+            0.0,
+            1_000_000.0,
+            2,
+        )
+        if accepted:
+            self.set_quality_presentation(self._quality_policy_enabled, threshold=value)
 
     def _update_group_range(self, unit: str, value: float) -> None:
         state = self._state()
@@ -1428,12 +1838,49 @@ class AnalysisWindow(QMainWindow):
         self._render_result()
 
     def _render_empty(self) -> None:
+        self.setWindowTitle("IQA Analysis")
+        self._map_reference_item = None  # the old underlay belonged to the replaced scene
+        self.map_reference_action.setEnabled(False)
+        self._hover_readouts.reserve_for_result(("—",), ("—",))
+        self._guide_items = []
+        self._hovered_pixel = None
         self.image_export_action.setEnabled(False)
         self.report_export_action.setEnabled(False)
+        self._switching = True
+        while self._groups_layout.count():
+            layout_item = self._groups_layout.takeAt(0)
+            section = layout_item.widget() if layout_item is not None else None
+            if section is not None:
+                section.hide()
+                section.deleteLater()
+        self._group_sections = {}
+        self._group_tables = {}
+        self._range_editors = {}
+        self._group_units = []
+        self._top3_attribute_ids = []
+        self.attribute_table = self._empty_attribute_table
+        self.range_editor = self._empty_range_editor
+        self._switching = False
+        for caption, title in zip(
+            self._pane_labels, ("Image A", "Image B", "Relative Spatial Map"), strict=True
+        ):
+            caption.setText(title)
+        self.top3_title.setText("TOP 3   ·   NO RESULT")
+        for index, card in enumerate(self.top3_buttons):
+            card.setText(f"#{index + 1}  —")
+            card.setToolTip("")
+            card.setChecked(False)
+            card.setEnabled(False)
+        self.spatial_panel.set_unavailable("No result loaded.")
+        self._roi_items = []
+        self._candidate_overlay_items = []
         for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
+            old_scene = view.scene()
             scene = QGraphicsScene(view)
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
+            if old_scene is not None:
+                old_scene.deleteLater()
         self.official_label.setText("Full-pair comparison: —")
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
@@ -1444,6 +1891,7 @@ class AnalysisWindow(QMainWindow):
         self.clamp_label.setText("Map: unavailable")
         self.pair_summary.setText("No result loaded")
         self.fit_action.setEnabled(False)
+        self.close_result_action.setEnabled(False)
 
     def _render_result(self) -> None:
         if self._active_id is None:
@@ -1467,8 +1915,10 @@ class AnalysisWindow(QMainWindow):
         # Recreate only when the actual result identity changes.
         new_result = self._scene_result_id != result.result_id
         if new_result:
+            self._map_reference_item = None
             if self._source_result_id != result.result_id:
                 images: list[QPixmap | None] = []
+                originals: list[QImage | None] = []
                 for source in (result.source_a, result.source_b):
                     image = (
                         QImage(str(source)) if source is not None and source.is_file() else QImage()
@@ -1479,12 +1929,16 @@ class AnalysisWindow(QMainWindow):
                         or image.height() != result.image_height
                     ):
                         images.append(None)
+                        originals.append(None)
                     else:
                         images.append(QPixmap.fromImage(image))
+                        originals.append(image)
                 self._source_pixmaps = (images[0], images[1])
+                self._source_images = (originals[0], originals[1])
                 self._source_result_id = result.result_id
             self._rendering = True
             self._roi_items = []
+            self._guide_items = []
             self._candidate_overlay_items = []
             for i, view in enumerate(self._views):
                 view._muted = True
@@ -1520,6 +1974,14 @@ class AnalysisWindow(QMainWindow):
                     )
                     # Block grid: never interpolate cell values into fake 4K detail.
                     view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                guide_pen = QPen(QColor(170, 220, 255, 190), 1)
+                guide_pen.setCosmetic(True)
+                vertical = scene.addLine(0, 0, 0, result.image_height, guide_pen)
+                horizontal = scene.addLine(0, 0, result.image_width, 0, guide_pen)
+                for guide in (vertical, horizontal):
+                    guide.setZValue(120)
+                    guide.hide()
+                self._guide_items.append((vertical, horizontal))
                 roi_pen = QPen(QColor(255, 205, 0), 2)
                 roi_pen.setCosmetic(True)
                 overlay = scene.addRect(QRectF(), roi_pen)
@@ -1551,12 +2013,14 @@ class AnalysisWindow(QMainWindow):
                 view._muted = False
 
         self._refresh_map(attr, limit)
+        self.map_reference_action.setEnabled(self._source_pixmaps[0] is not None)
         self.image_export_action.setEnabled(
             attr.spatial is not None or any(image is not None for image in self._source_pixmaps)
         )
         self.report_export_action.setEnabled(self.image_export_action.isEnabled())
-        self._pane_labels[0].setText(f"IMAGE A  ·  {result.source_a_label}")
-        self._pane_labels[1].setText(f"IMAGE B  ·  {result.source_b_label}")
+        a_role, b_role = self._source_roles(result)
+        self._pane_labels[0].setText(f"{a_role.upper()}  ·  {result.source_a_label}")
+        self._pane_labels[1].setText(f"{b_role.upper()}  ·  {result.source_b_label}")
         if attr.spatial is None:
             self._pane_labels[2].setText(f"RELATIVE MAP  ·  {attr.label}  ·  unavailable")
         else:
@@ -1585,6 +2049,8 @@ class AnalysisWindow(QMainWindow):
             if len(self._roi_items) == 3:
                 self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
+        if self._hovered_pixel is not None:
+            self._show_hover_pixel(*self._hovered_pixel)
         self._sync_top_cards()
         self._request_spatial_candidates()
         self._sync_spatial_selection()
@@ -1594,11 +2060,29 @@ class AnalysisWindow(QMainWindow):
 
         if self._map_item is None or self._map_placeholder is None:
             return
+        source_a = self._source_pixmaps[0]
+        show_reference = self.map_reference_action.isChecked() and source_a is not None
+        if show_reference and self._map_reference_item is None and source_a is not None:
+            scene = self._views[2].scene()
+            if scene is not None:
+                grayscale = source_a.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+                reference_item = scene.addPixmap(QPixmap.fromImage(grayscale))
+                reference_item.setZValue(-1)
+                reference_item.setOpacity(0.6)  # dim the picture against the dark scene
+                self._map_reference_item = reference_item
+        if self._map_reference_item is not None:
+            self._map_reference_item.setVisible(show_reference)
         state = self._state()
         effective = spatial_display_half_range(
             limit, state.display_gain if state is not None else 1.0
         )
-        pixmap = _map_pixmap(attr, effective)
+        pixmap = _map_pixmap(
+            attr,
+            effective,
+            translucent=show_reference,
+            quality_policy=self._quality_policy_enabled,
+            visibility_threshold=self._visibility_threshold,
+        )
         grid = attr.spatial
         available = pixmap is not None and grid is not None
         if available and pixmap is not None and grid is not None:
@@ -1609,6 +2093,13 @@ class AnalysisWindow(QMainWindow):
             self._map_item.setPixmap(QPixmap())
         self._map_item.setVisible(available)
         self._map_placeholder.setVisible(not available)
+
+    def _map_reference_toggled(self, _enabled: bool) -> None:
+        """Change only Map presentation, without rebuilding scenes or analysis state."""
+
+        state, attr = self._state(), self._attribute()
+        if state is not None and attr is not None:
+            self._refresh_map(attr, self._display_range(attr, state))
 
     def _spatial_key(self) -> tuple[str, str, int] | None:
         state = self._state()
@@ -1718,7 +2209,13 @@ class AnalysisWindow(QMainWindow):
         self._spatial_pending = None
         self._spatial_timer.stop()
         self._spatial_displayed = key
-        self.spatial_panel.populate(candidates, self._source_pixmaps, attr.unit)
+        self.spatial_panel.populate(
+            candidates,
+            self._source_pixmaps,
+            attr.unit,
+            quality_attribute=attr if self._quality_policy_enabled else None,
+            visibility_threshold=self._visibility_threshold,
+        )
         self._sync_spatial_selection()
         self._draw_candidate_overlays()
 
@@ -1829,9 +2326,14 @@ class AnalysisWindow(QMainWindow):
     def _set_pane_order(self) -> None:
         """Reorder only visual containers, keeping the A/B science immutable."""
 
+        # QSplitter remembers sizes per child while insertWidget moves children.
+        # The user's sizes belong to visual slots, even when A and B exchange them.
+        slot_widths = self._image_split.sizes()
         indices = (1, 2, 0) if self._sources_swapped else (0, 2, 1)
         for visual_index, semantic_index in enumerate(indices):
             self._image_split.insertWidget(visual_index, self._pane_wrappers[semantic_index])
+        if len(slot_widths) == 3 and all(width > 0 for width in slot_widths):
+            self._image_split.setSizes(slot_widths)
 
     def _swap_sources(self) -> None:
         """Toggle A/Map/B placement without mutating A/B data or zoom state."""
@@ -1871,7 +2373,16 @@ class AnalysisWindow(QMainWindow):
             text = attr.official_availability.upper() + " (not zero)"
         else:
             text = f"{attr.official_value:+.4f} {attr.unit} ({attr.official_availability})"
-        orientation = "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
+        if self._quality_policy_enabled:
+            direction = attr.quality_direction.replace("_", " ")
+            verdict = verdict_for_value(
+                attr, attr.official_value, threshold=self._visibility_threshold
+            )
+            orientation = f"Quality direction: {direction} · {verdict.verdict} (display only)"
+        else:
+            orientation = (
+                "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
+            )
         self.official_label.setText(f"Full-pair comparison: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
@@ -1908,9 +2419,14 @@ class AnalysisWindow(QMainWindow):
             clipped, total = clipped_cells(grid, spatial_display_half_range(limit, gain))
             pct = 0.0 if total == 0 else (clipped / total)
             invalid = grid.values.size - total
+            polarity_legend = (
+                quality_map_legend(self._visibility_threshold)
+                if self._quality_policy_enabled
+                else map_polarity_legend(attr)
+            )
             self.clamp_label.setText(
                 f"Group ±{limit:g} {attr.unit} · Map gain ×{gain:g}\n"
-                f"{map_polarity_legend(attr)}\n"
+                f"{polarity_legend}\n"
                 f"Cells: {grid.rows}×{grid.columns} • "
                 f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
                 f"Invalid: {invalid} transparent cells (not zero)\n"
@@ -1999,6 +2515,123 @@ class AnalysisWindow(QMainWindow):
         if attr is not None:
             self._update_group_range(attr.unit, value)
 
+    def _reserve_hover_readouts(self, result: AnalysisResult) -> None:
+        """Reserve both columns once for all expected texts in this result.
+
+        Attribute switches do not resize the Status Bar: every map's label,
+        grid location and formatted value is considered at this boundary.
+        """
+
+        metrics = self._hover_readouts.values.fontMetrics()
+        widest_digit = max("0123456789", key=metrics.horizontalAdvance)
+        x_digits = widest_digit * len(str(max(0, result.image_width - 1)))
+        y_digits = widest_digit * len(str(max(0, result.image_height - 1)))
+        positions = (f"Pixel ({x_digits}, {y_digits})",)
+
+        roles = self._source_roles(result)
+        rgb_choices: list[str] = []
+        for role, image in zip(roles, self._source_images, strict=True):
+            depth = self._hover_bit_depth(image)
+            if depth is None:
+                rgb_choices.append(format_source_rgb_field(role, None, bit_depth=None))
+            else:
+                maximum = (1 << depth) - 1
+                rgb_choices.append(format_source_rgb_field(role, (maximum,) * 3, bit_depth=depth))
+        map_choices = ["Map: unavailable"]
+        for attr in result.attributes:
+            grid = attr.spatial
+            if grid is None:
+                continue
+            row_digits = widest_digit * len(str(max(0, grid.rows - 1)))
+            col_digits = widest_digit * len(str(max(0, grid.columns - 1)))
+            map_choices.extend(
+                (
+                    f"{attr.label} Map [{row_digits}, {col_digits}]: invalid",
+                    f"{attr.label} Map: outside grid",
+                )
+            )
+            # Read existing valid data for display bounds, never infer new scores.
+            valid = grid.values[grid.valid_mask]
+            finite = valid[np.isfinite(valid)]
+            if finite.size:
+                extrema = (float(np.min(finite)), float(np.max(finite)))
+                for magnitude in extrema:
+                    formatted = f"{magnitude:+.4f}"
+                    widest = "".join(widest_digit if ch.isdigit() else ch for ch in formatted)
+                    map_choices.append(
+                        f"{attr.label} Map [{row_digits}, {col_digits}]: " f"{widest} {attr.unit}"
+                    )
+        separator = "  ·  "
+        values = tuple(separator.join((*rgb_choices, map_value)) for map_value in map_choices)
+        self._hover_readouts.reserve_for_result(positions, values)
+
+    def _update_hover_readouts(
+        self, position: str, source_a: str, source_b: str, map_value: str
+    ) -> None:
+        """Keep source A/B fields independent for request 7's later formatter."""
+
+        self._hover_readouts.update(position, "  ·  ".join((source_a, source_b, map_value)))
+
+    def _show_hover_pixel(self, x: int, y: int) -> None:
+        """One source-pixel cursor and readout shared by A, B and the Map."""
+
+        if self._active_id is None:
+            return
+        result = self._results[self._active_id]
+        if not (0 <= x < result.image_width and 0 <= y < result.image_height):
+            self._hide_hover_pixel()
+            return
+        self._hovered_pixel = (x, y)
+        for vertical, horizontal in self._guide_items:
+            vertical.setLine(x + 0.5, 0, x + 0.5, result.image_height)
+            horizontal.setLine(0, y + 0.5, result.image_width, y + 0.5)
+            vertical.show()
+            horizontal.show()
+
+        roles = self._source_roles(result)
+        rgb_parts: list[str] = []
+        for role, image in zip(roles, self._source_images, strict=True):
+            depth = self._hover_bit_depth(image)
+            if depth is None or image is None:
+                rgb_parts.append(format_source_rgb_field(role, None, bit_depth=None))
+                continue
+            color = image.pixelColor(x, y)
+            max_value = (1 << depth) - 1
+            rgb = (
+                round(color.redF() * max_value),
+                round(color.greenF() * max_value),
+                round(color.blueF() * max_value),
+            )
+            rgb_parts.append(format_source_rgb_field(role, rgb, bit_depth=depth))
+
+        attr = self._attribute()
+        map_text = "Map: unavailable"
+        if attr is not None and attr.spatial is not None:
+            grid = attr.spatial
+            column = int(np.floor((x + 0.5 - grid.origin_x) / grid.block_width))
+            row = int(np.floor((y + 0.5 - grid.origin_y) / grid.block_height))
+            if 0 <= row < grid.rows and 0 <= column < grid.columns:
+                if bool(grid.valid_mask[row, column]):
+                    map_text = (
+                        f"{attr.label} Map [{row}, {column}]: "
+                        f"{grid.values[row, column]:+.4f} {attr.unit}"
+                    )
+                else:
+                    map_text = f"{attr.label} Map [{row}, {column}]: invalid"
+            else:
+                map_text = f"{attr.label} Map: outside grid"
+        position_text = f"Pixel ({x}, {y})"
+        self.hover_readout_changed.emit(position_text, rgb_parts[0], rgb_parts[1], map_text)
+
+    def _hide_hover_pixel(self) -> None:
+        if self._hovered_pixel is None:
+            return
+        self._hovered_pixel = None
+        for vertical, horizontal in self._guide_items:
+            vertical.hide()
+            horizontal.hide()
+        self.hover_readout_cleared.emit()
+
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
         if state is None or self._rendering or self._fit_pending_result_id == self._active_id:
@@ -2018,7 +2651,7 @@ class AnalysisWindow(QMainWindow):
         ):
             return
         view = self._views[0]
-        center = view.mapToScene(view.viewport().rect().center())
+        center = view._navigation_center or view._actual_center()
         state.scale, state.center_x, state.center_y = view.transform().m11(), center.x(), center.y()
 
     def showEvent(self, event: QShowEvent) -> None:
@@ -2089,9 +2722,8 @@ class AnalysisWindow(QMainWindow):
     def _open_from_dialog(self) -> None:
         if self._loader is None:
             return
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "Open saved IQA result", "", "Saved results (*)"
-        )
+        dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
+        filename, _ = QFileDialog.getOpenFileName(self, "Open saved IQA result", "", dialog_filter)
         if not filename:
             return
         try:
@@ -2099,8 +2731,10 @@ class AnalysisWindow(QMainWindow):
             if not isinstance(loaded, LoadedAnalysis):
                 raise ValueError("reader must return a verified LoadedAnalysis")
             self.present_result(loaded.result, analysis_state=loaded.analysis_state)
-        except (OSError, ValueError):
-            self.statusBar().showMessage("Result could not be opened or validated.")
+        except Exception as error:
+            self.statusBar().showMessage(
+                _result_file_error_message(error, "Result could not be opened or validated.")
+            )
 
     def _export_csv_from_dialog(self) -> None:
         """Export scientific measurements, not a portable result or pair score for an ROI."""
@@ -2249,17 +2883,22 @@ class AnalysisWindow(QMainWindow):
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
             return
+        suggested = self._file_type.suggested_name(self._active_id) if self._file_type else ""
+        dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save portable IQA result", "", "Saved results (*)"
+            self, "Save portable IQA result", suggested, dialog_filter
         )
         if not filename:
             return
+        destination = Path(filename)
+        if self._file_type is not None and not destination.suffix:
+            destination = destination.with_suffix(self._file_type.suffix)
         try:
-            self._saver(
-                self._results[self._active_id], self.current_analysis_state(), Path(filename)
+            self._saver(self._results[self._active_id], self.current_analysis_state(), destination)
+        except Exception as error:
+            self.statusBar().showMessage(
+                _result_file_error_message(error, "Result could not be saved.")
             )
-        except (OSError, ValueError):
-            self.statusBar().showMessage("Result could not be saved.")
             return
         self.statusBar().showMessage("Portable result saved by installed writer.")
 
@@ -2290,11 +2929,13 @@ class AnalysisWindowManager:
         settings_factory: IqaSettingsFactory | None = None,
         load: ResultLoader | None = None,
         save: ResultSaver | None = None,
+        file_type: ResultFileType | None = None,
     ) -> None:
         self._window: AnalysisWindow | None = None
         self._settings_factory = settings_factory or default_iqa_settings
         self._load = load
         self._save = save
+        self._file_type = file_type
         self._closed = False
 
     @property
@@ -2306,7 +2947,9 @@ class AnalysisWindowManager:
             raise RuntimeError("analysis manager is shut down")
         if self._window is None:
             self._window = AnalysisWindow(settings_factory=self._settings_factory)
-            self._window.install_file_handlers(load=self._load, save=self._save)
+            self._window.install_file_handlers(
+                load=self._load, save=self._save, file_type=self._file_type
+            )
             self._place_first_window(self._window, self._settings_factory)
         if result is not None:
             self._window.present_result(result)

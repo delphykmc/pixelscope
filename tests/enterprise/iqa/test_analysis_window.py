@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import NoReturn
 
 import numpy as np
 import pytest
@@ -11,12 +13,17 @@ from PySide6.QtGui import QColor, QImage, QWheelEvent
 from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QGraphicsRectItem
 
 from pixelscope_enterprise.iqa.analysis_model import (
+    NEUTRAL_PRESENTATION_RGB,
     AnalysisResult,
     AttributeDisplay,
     LoadedAnalysis,
     SpatialMap,
 )
-from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
+from pixelscope_enterprise.iqa.analysis_window import (
+    AnalysisWindow,
+    AnalysisWindowManager,
+    ResultFileType,
+)
 
 
 def _result(result_id: str) -> AnalysisResult:
@@ -98,6 +105,84 @@ def test_missing_sources_do_not_invalidate_spatial_analysis(qtbot: object) -> No
     assert "Clamped:" in win.clamp_label.text()
     assert win._views[0].scene().items()  # type: ignore[union-attr]
     assert win._views[1].scene().items()  # type: ignore[union-attr]
+    assert not win.map_reference_action.isEnabled()
+    win.close()
+
+
+def test_map_tint_option_reveals_grayscale_reference_without_changing_analysis(
+    qtbot: object, tmp_path: Path
+) -> None:
+    image = QImage(128, 128, QImage.Format.Format_RGB32)
+    image.fill(QColor(210, 110, 40))
+    source = tmp_path / "a.png"
+    assert image.save(str(source))
+    result = replace(_result("tint"), source_a=source)
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(result)
+    assert win.map_reference_action.isEnabled()
+    assert not win.map_reference_action.isChecked()  # unchanged default presentation
+    assert win._map_reference_item is None
+    assert win._map_item is not None
+    assert win._map_item.pixmap().toImage().pixelColor(0, 1).alpha() == 255
+
+    win._set_roi(0, 0, 64, 64)
+    old_scene = win._views[2].scene()
+    old_roi = win.current_roi
+    old_stats = win.roi_label.text()
+    old_state = win.current_analysis_state()
+    original_values = result.attributes[0].spatial.values.copy()  # type: ignore[union-attr]
+    original_mask = result.attributes[0].spatial.valid_mask.copy()  # type: ignore[union-attr]
+    win.map_reference_action.setChecked(True)
+    assert win._views[2].scene() is old_scene
+    assert win._map_reference_item is not None
+    assert win._map_reference_item.isVisible()
+    assert 0 < win._map_reference_item.opacity() < 1
+    reference_pixel = win._map_reference_item.pixmap().toImage().pixelColor(12, 12)
+    assert reference_pixel.red() == reference_pixel.green() == reference_pixel.blue()
+    tint_image = win._map_item.pixmap().toImage()
+    assert 0 < tint_image.pixelColor(0, 0).alpha() < 255
+    assert tint_image.pixelColor(0, 1).alpha() == 0  # valid signed zero
+    assert tint_image.pixelColor(1, 1).alpha() == 0  # invalid, not numeric zero
+    assert win.current_roi == old_roi
+    assert win.roi_label.text() == old_stats
+    assert win.current_analysis_state() == old_state
+    np.testing.assert_array_equal(result.attributes[0].spatial.values, original_values)  # type: ignore[union-attr]
+    np.testing.assert_array_equal(result.attributes[0].spatial.valid_mask, original_mask)  # type: ignore[union-attr]
+
+    win.map_reference_action.setChecked(False)
+    assert not win._map_reference_item.isVisible()
+    assert win._map_item.pixmap().toImage().pixelColor(0, 1).alpha() == 255
+    assert win._views[2].scene() is old_scene
+
+    # #199 Close Result can replace these scenes; the semantic source A
+    # underlay must not survive as a stale item when changing result identity.
+    win.map_reference_action.setChecked(True)
+    win.present_result(_result("other_without_images"))
+    assert not win.map_reference_action.isEnabled()
+    assert win._map_reference_item is None
+    win.result_combo.setCurrentIndex(win.result_combo.findData("tint"))
+    assert win.map_reference_action.isEnabled()
+    assert win._map_reference_item is not None
+    assert win._map_reference_item.isVisible()
+    win.close()
+
+
+def test_title_uses_source_labels_and_falls_back_to_result_id(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    assert win.windowTitle() == "IQA Analysis"
+    named = replace(_result("named"), source_a_label="a.png", source_b_label="b.png")
+    win.present_result(named)
+    assert win.windowTitle() == "IQA Analysis — a.png vs b.png"
+    unlabeled = replace(_result("unlabeled"), source_a_label="", source_b_label=" ")
+    win.present_result(unlabeled)
+    assert win.windowTitle() == "IQA Analysis — unlabeled"
+    partial = replace(_result("partial"), source_a_label="a.png", source_b_label="")
+    win.present_result(partial)
+    assert win.windowTitle() == "IQA Analysis — partial"
+    win.result_combo.setCurrentIndex(win.result_combo.findData("named"))
+    assert win.windowTitle() == "IQA Analysis — a.png vs b.png"
     win.close()
 
 
@@ -256,8 +341,8 @@ def test_qt_map_pixmap_respects_non_oriented_signed_polarity(qtbot: object) -> N
     images = [item for item in scene.items() if isinstance(item, QGraphicsPixmapItem)]
     assert len(images) == 1
     raster = images[0].pixmap().toImage()
-    assert raster.pixelColor(0, 0).getRgb() == (181, 72, 193, 255)
-    assert raster.pixelColor(1, 0).getRgb() == (35, 145, 148, 255)
+    assert raster.pixelColor(0, 0).getRgb() == (*NEUTRAL_PRESENTATION_RGB, 255)
+    assert raster.pixelColor(1, 0).getRgb() == (*NEUTRAL_PRESENTATION_RGB, 255)
     assert raster.pixelColor(2, 0).alpha() == 0
     win.close()
 
@@ -568,4 +653,129 @@ def test_clear_roi_keyboard_alias_and_per_result_independence(qtbot: object) -> 
     assert win.current_roi is None
     assert "ROI: none" in win.roi_label.text()
     assert win._states["roi-two"].roi is None
+    win.close()
+
+
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_result_file_callback_errors_are_safe_and_bounded(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    from PySide6.QtWidgets import QFileDialog
+
+    class UserFacingError(RuntimeError):
+        user_message = "  Portable result\nchecksum mismatch  "
+
+    class LongUserFacingError(RuntimeError):
+        user_message = "  Invalid\n" + "x" * 300
+
+    class BrokenUserFacingError(RuntimeError):
+        @property
+        def user_message(self) -> str:
+            raise RuntimeError("private property failure")
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("unchanged"))
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.open_action
+        generic = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", lambda *_args: (str(tmp_path / "stub"), "")
+        )
+        action = win.save_action
+        generic = "Result could not be saved."
+
+    failures: tuple[tuple[Exception, str | None], ...] = (
+        (OSError("private file path"), None),
+        (RuntimeError("unexpected implementation details"), None),
+        (
+            UserFacingError("private implementation details"),
+            "Portable result checksum mismatch",
+        ),
+        (LongUserFacingError("private details"), "Invalid " + "x" * 151 + "…"),
+        (BrokenUserFacingError("private details"), None),
+    )
+    for failure, expected_message in failures:
+
+        def fail(*_args: object, error: Exception = failure) -> NoReturn:
+            raise error
+
+        if operation == "open":
+            win.install_file_handlers(load=fail)
+        else:
+            win.install_file_handlers(save=fail)
+        assert action.isEnabled()
+        action.trigger()  # The actual QAction -> Qt slot path must report all exceptions.
+        message = win.statusBar().currentMessage()
+        assert message == (expected_message or generic)
+        assert len(message) <= 160
+        assert not any(char in message for char in "\r\n\t")
+        assert "private" not in message
+        assert win.active_result_id == "unchanged"
+    win.close()
+
+
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_contributed_result_file_type_keeps_callback_errors_safe(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    """Cross-PR contract: request 5 errors survive request 7 file-type injection."""
+    from PySide6.QtWidgets import QFileDialog
+
+    file_type = ResultFileType("PixelScope IQA result", ".pxiqa")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("combined"))
+    seen_paths: list[Path] = []
+
+    def select_file(*args: object) -> tuple[str, str]:
+        assert args[3] == "PixelScope IQA result (*.pxiqa)"
+        if operation == "save":
+            assert args[2] == "combined.pxiqa"
+            return str(tmp_path / "portable"), ""
+        assert args[2] == ""
+        return str(tmp_path / "portable.pxiqa"), ""
+
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", select_file
+        )
+        action = win.open_action
+        fallback = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", select_file
+        )
+        action = win.save_action
+        fallback = "Result could not be saved."
+
+    class UserFacingFailure(RuntimeError):
+        user_message = "  Invalid\n result checksum  "
+
+    for failure, expected in (
+        (UserFacingFailure("private absolute path"), "Invalid result checksum"),
+        (RuntimeError("private absolute path"), fallback),
+    ):
+
+        def failed_callback(*args: object, error: Exception = failure) -> NoReturn:
+            assert isinstance(args[-1], Path)
+            seen_paths.append(args[-1])
+            raise error
+
+        if operation == "open":
+            win.install_file_handlers(load=failed_callback, file_type=file_type)
+        else:
+            win.install_file_handlers(save=failed_callback, file_type=file_type)
+
+        assert action.isEnabled()
+        action.trigger()
+        assert seen_paths[-1] == tmp_path / "portable.pxiqa"
+        assert win.statusBar().currentMessage() == expected
+        assert "private" not in win.statusBar().currentMessage()
+        assert win.statusBar().currentMessage() != "Portable result saved by installed writer."
+        assert win.active_result_id == "combined"
     win.close()

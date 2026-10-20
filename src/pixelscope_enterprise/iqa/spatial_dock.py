@@ -23,7 +23,14 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay
+from pixelscope_enterprise.iqa.quality_presentation import (
+    DEFAULT_VISIBILITY_THRESHOLD,
+    verdict_for_value,
+)
 from pixelscope_enterprise.iqa.spatial_candidates import SpatialCandidate
+
+NO_CANDIDATE_TEXT = "No further qualifying patch"
 
 
 class StitchedRoiCanvas(QWidget):
@@ -36,8 +43,27 @@ class StitchedRoiCanvas(QWidget):
         self.setMinimumHeight(64)
         self._a: QPixmap | None = None
         self._b: QPixmap | None = None
+        self._source_roles = ("A", "B")
+        self._has_candidate = False
         self._roi_size: tuple[int, int] = (512, 512)
-        self.setToolTip("Original source-pixel ROI: A left | B right, common fit, no crop offset")
+        self.setToolTip(NO_CANDIDATE_TEXT)
+
+    def set_source_roles(self, a_role: str, b_role: str) -> None:
+        """Rename only the canvas presentation; A/B source identity is fixed."""
+
+        self._source_roles = (a_role, b_role)
+        self._update_candidate_tooltip()
+        self.update()
+
+    def _update_candidate_tooltip(self) -> None:
+        if not self._has_candidate:
+            self.setToolTip(NO_CANDIDATE_TEXT)
+            return
+        a_role, b_role = self._source_roles
+        self.setToolTip(
+            f"Original source-pixel ROI: {a_role} left | {b_role} right, "
+            "common fit, no crop offset"
+        )
 
     @property
     def has_a(self) -> bool:
@@ -57,7 +83,17 @@ class StitchedRoiCanvas(QWidget):
 
         self._a = a if a is not None and not a.isNull() else None
         self._b = b if b is not None and not b.isNull() else None
+        self._has_candidate = True
         self._roi_size = source_size
+        self._update_candidate_tooltip()
+        self.update()
+
+    def clear_candidate(self) -> None:
+        """No ranking candidate is different from a candidate with missing RGB."""
+
+        self._a = self._b = None
+        self._has_candidate = False
+        self._update_candidate_tooltip()
         self.update()
 
     def fitted_rect(self) -> QRectF:
@@ -86,6 +122,16 @@ class StitchedRoiCanvas(QWidget):
         if frame.isEmpty():
             painter.end()
             return
+        if not self._has_candidate:
+            painter.fillRect(frame, QColor(TOKENS.workspace_background))
+            painter.setPen(QColor(TOKENS.text_secondary))
+            painter.drawText(
+                frame.adjusted(5, 5, -5, -5),
+                int(Qt.AlignmentFlag.AlignCenter) | int(Qt.TextFlag.TextWordWrap),
+                NO_CANDIDATE_TEXT,
+            )
+            painter.end()
+            return
         half = frame.width() / 2.0
         source_width, source_height = self._roi_size
         for index, patch in enumerate((self._a, self._b)):
@@ -96,7 +142,7 @@ class StitchedRoiCanvas(QWidget):
                 painter.drawText(
                     region.adjusted(4, 4, -4, -4),
                     Qt.AlignmentFlag.AlignCenter,
-                    f"{'A' if index == 0 else 'B'} source unavailable",
+                    f"{self._source_roles[index]} source unavailable",
                 )
             else:
                 painter.drawPixmap(
@@ -105,14 +151,18 @@ class StitchedRoiCanvas(QWidget):
                     QRectF(0, 0, source_width, source_height),
                 )
             # Labels identify semantic sources, not left/right preference or quality.
-            tag = QRectF(region.left() + 5, region.top() + 5, 19, 18)
+            role = self._source_roles[index]
+            available_width = max(19.0, region.width() - 10.0)
+            tag_width = min(
+                available_width, max(19.0, painter.fontMetrics().horizontalAdvance(role) + 10)
+            )
+            tag = QRectF(region.left() + 5, region.top() + 5, tag_width, 18)
             painter.fillRect(tag, QColor(22, 25, 30, 215))
             painter.setPen(QColor("#f2f4f5"))
-            painter.drawText(
-                tag,
-                Qt.AlignmentFlag.AlignCenter,
-                "A" if index == 0 else "B",
+            clipped_role = painter.fontMetrics().elidedText(
+                role, Qt.TextElideMode.ElideRight, int(tag_width - 4)
             )
+            painter.drawText(tag, Qt.AlignmentFlag.AlignCenter, clipped_role)
         painter.setPen(QColor(TOKENS.accent))
         seam_x = frame.left() + half
         painter.drawLine(
@@ -124,7 +174,7 @@ class StitchedRoiCanvas(QWidget):
         painter.end()
 
 
-def _rank_badge(rank: int) -> QPixmap:
+def _rank_badge(rank: int, verdict_color: str | None = None) -> QPixmap:
     """Compact vector-painted rank token; top discovery is visually dominant."""
 
     badge = QPixmap(28, 28)
@@ -133,7 +183,7 @@ def _rank_badge(rank: int) -> QPixmap:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     # Match the muted-red A/B Attribute card semantic accent for first rank;
     # ranking itself is magnitude-only, not an A-wins verdict.
-    tone = "#e5857d" if rank == 1 else "#7595b4"
+    tone = verdict_color or ("#e5857d" if rank == 1 else "#7595b4")
     painter.setBrush(QColor(tone) if rank == 1 else QColor(TOKENS.raised_background))
     painter.setPen(QPen(QColor(tone), 2))
     painter.drawEllipse(2, 2, 24, 24)
@@ -190,6 +240,7 @@ class SpatialCandidatesPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._source_roles = ("A", "B")
         self.setObjectName("enterpriseIqaSpatialCandidatesPanel")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(7, 3, 7, 5)
@@ -256,6 +307,8 @@ class SpatialCandidatesPanel(QWidget):
         self.rank_badges: list[QLabel] = []
         self.details: list[QLabel] = []
         self.impact_bars: list[QProgressBar] = []
+        self._legacy_card_styles: list[str] = []
+        self._legacy_impact_styles: list[str] = []
         for index in range(3):
             card = QPushButton(self)
             card.setObjectName(f"enterpriseIqaSpatialCard{index + 1}")
@@ -332,7 +385,16 @@ class SpatialCandidatesPanel(QWidget):
             self.rank_badges.append(rank_badge)
             self.details.append(detail)
             self.impact_bars.append(impact)
+            self._legacy_card_styles.append(card.styleSheet())
+            self._legacy_impact_styles.append(impact.styleSheet())
         layout.addLayout(row, 1)
+
+    def set_source_roles(self, a_role: str, b_role: str) -> None:
+        self._source_roles = (a_role, b_role)
+        for preview in self.previews:
+            preview.set_source_roles(a_role, b_role)
+        if not self.progress.isVisible():
+            self.status_label.setText(f"Peak |Δ|  ↓   ·   {a_role}/{b_role} ROI")
 
     def _stride_selected(self, _index: int) -> None:
         value = self.stride_selector.currentData()
@@ -366,9 +428,13 @@ class SpatialCandidatesPanel(QWidget):
         for i, card in enumerate(self.buttons):
             card.setEnabled(False)
             card.setChecked(False)
+            card.setStyleSheet(self._legacy_card_styles[i])
+            card.setProperty("spatialVerdict", None)
+            self.rank_badges[i].setPixmap(_rank_badge(i + 1))
+            self.impact_bars[i].setStyleSheet(self._legacy_impact_styles[i])
             self.titles[i].setText("—")
             self.details[i].setText("—")
-            self.previews[i].set_patches(None, None, (512, 512))
+            self.previews[i].clear_candidate()
             self.impact_bars[i].setValue(0)
 
     def populate(
@@ -376,15 +442,60 @@ class SpatialCandidatesPanel(QWidget):
         candidates: Sequence[SpatialCandidate],
         pixmaps: tuple[QPixmap | None, QPixmap | None],
         unit: str,
+        *,
+        quality_attribute: AttributeDisplay | None = None,
+        visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
     ) -> None:
         self.clear_cards()
         self.progress.hide()
         if not candidates:
             self.status_label.setText("No qualifying local GRID hotspot for this Attribute.")
             return
-        self.status_label.setText("Peak |Δ|  ↓   ·   A/B ROI")
+        self.status_label.setText(
+            f"Peak |Δ|  ↓   ·   {self._source_roles[0]}/{self._source_roles[1]} ROI"
+        )
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
+            if quality_attribute is None:
+                self.buttons[i].setStyleSheet(self._legacy_card_styles[i])
+                self.buttons[i].setProperty("spatialVerdict", None)
+                self.rank_badges[i].setPixmap(_rank_badge(i + 1))
+                self.impact_bars[i].setStyleSheet(self._legacy_impact_styles[i])
+                verdict_suffix = ""
+            else:
+                verdict = verdict_for_value(
+                    quality_attribute,
+                    None if candidate.mode == "exploratory_abs" else candidate.mean,
+                    threshold=visibility_threshold,
+                )
+                accent = QColor(*verdict.rgb).name()
+                faint = 0.06 if not verdict.visible else 0.14
+                hover = 0.10 if not verdict.visible else 0.22
+                selected = 0.15 if not verdict.visible else 0.30
+                base = TOKENS.raised_background
+                quiet_bg = _blend_rank_tint(base, accent, faint)
+                hover_bg = _blend_rank_tint(base, accent, hover)
+                selected_bg = _blend_rank_tint(base, accent, selected)
+                self.buttons[i].setProperty("spatialVerdict", verdict.tone)
+                self.buttons[i].setStyleSheet(
+                    f"QPushButton {{ background-color: {quiet_bg}; "
+                    f"border: 1px solid {TOKENS.border}; border-left: 4px solid {accent}; "
+                    "border-radius: 9px; text-align: left; }"
+                    f"QPushButton:hover {{ background-color: {hover_bg}; "
+                    f"border-color: {accent}; }}"
+                    f"QPushButton:checked {{ background-color: {selected_bg}; "
+                    f"border: 2px solid {accent}; border-left: 5px solid {accent}; }}"
+                )
+                self.rank_badges[i].setPixmap(_rank_badge(i + 1, accent))
+                self.impact_bars[i].setStyleSheet(
+                    f"QProgressBar {{ background-color: {TOKENS.panel_background}; border: none; }}"
+                    f"QProgressBar::chunk {{ background-color: {accent}; }}"
+                )
+                verdict_suffix = (
+                    " · Exploratory · No verified verdict"
+                    if candidate.mode == "exploratory_abs"
+                    else f" · {verdict.verdict}"
+                )
             self.buttons[i].setEnabled(True)
             self.titles[i].setText(f"({candidate.x}, {candidate.y})")
             self.titles[i].setToolTip(
@@ -393,14 +504,25 @@ class SpatialCandidatesPanel(QWidget):
             )
             self.details[i].setText(
                 f"Δ {candidate.mean:+.2f} {unit}  ·  {candidate.valid_coverage:.0%}"
-                + (" · ?" if candidate.mode == "exploratory_abs" else "")
+                + (
+                    " · ?"
+                    if quality_attribute is None and candidate.mode == "exploratory_abs"
+                    else ""
+                )
+                + verdict_suffix
             )
             self.details[i].setToolTip(
                 f"ROI: ({candidate.x}, {candidate.y}) "
                 f"{candidate.width}×{candidate.height} px; "
                 f"mean {candidate.mean:+.4f} {unit}. GRID-derived only. "
                 + (
-                    "Exploratory (full-pair comparison sign unavailable)."
+                    " Presentation colors are provisional, not verified ROI quality."
+                    if quality_attribute is not None
+                    else ""
+                )
+                + (
+                    "Exploratory (full-pair comparison sign unavailable); "
+                    "no verified local quality direction or ROI winner."
                     if candidate.mode == "exploratory_abs"
                     else ""
                 )

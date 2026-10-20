@@ -24,14 +24,20 @@ class TopDifference:
     quality_oriented: bool
 
 
-def rank_top_differences(result: AnalysisResult, *, count: int = 3) -> tuple[TopDifference, ...]:
+def rank_top_differences(
+    result: AnalysisResult, *, count: int = 3, quality_policy: bool = False
+) -> tuple[TopDifference, ...]:
     """Select comparable verified dB differences, largest magnitude first.
 
     Signal gate True means a trusted upstream adapter verified that at least
     one of A/B's original-relative signals exceeds -50 dB. None = UNKNOWN,
     False = invalid; neither can enter a conclusive Top 3. No rank across
     different units, no map-derived global score, no quality-direction guess.
-    The 0.3 dB threshold is strict, and ties preserve supplied source order.
+    The legacy 0.3 dB threshold is strict, and ties preserve supplied source
+    order. Following request 3, Top-3 never includes a legacy un-oriented
+    attribute. In optional quality-presentation mode, direction metadata must
+    additionally be explicit (not ``none``); otherwise measurable but
+    untrusted/small differences can still appear as visibly muted cards.
     """
 
     if count < 0:
@@ -40,11 +46,13 @@ def rank_top_differences(result: AnalysisResult, *, count: int = 3) -> tuple[Top
         attr
         for attr in result.attributes
         if attr.unit == "dB"
-        and attr.summary_signal_gate is True
+        and attr.quality_oriented
+        and (not quality_policy or attr.quality_direction != "none")
+        and (quality_policy or attr.summary_signal_gate is True)
         and attr.official_availability == "available"
         and attr.official_value is not None
         and attr.chart_axis_range is not None
-        and abs(attr.official_value) > _MIN_MEANINGFUL_DB
+        and (quality_policy or abs(attr.official_value) > _MIN_MEANINGFUL_DB)
     ]
     candidates.sort(key=lambda attr: -abs(float(attr.official_value or 0.0)))
     return tuple(

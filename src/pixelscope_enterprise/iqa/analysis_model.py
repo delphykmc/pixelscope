@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 Availability = Literal["available", "partial", "missing", "failed"]
+QualityDirection = Literal["higher_is_better", "lower_is_better", "none"]
 Roi = tuple[float, float, float, float]
 
 _MAX_CELLS = 4_000_000
@@ -90,6 +91,10 @@ class AttributeDisplay:
     # not a pass. An adapter checks at least one A/B original-relative signal
     # level > -50 dB; do NOT infer this from the signed comparison/map.
     summary_signal_gate: bool | None = None
+    # Optional raw-sign verdict interpretation for presentation only.  Legacy
+    # adapters need not supply it, and the pre-existing quality_oriented flag
+    # retains its original meaning whenever the optional policy is disabled.
+    quality_direction: QualityDirection = "none"
 
     def __post_init__(self) -> None:
         if not self.attribute_id or not self.label or not self.unit:
@@ -104,6 +109,8 @@ class AttributeDisplay:
             raise ValueError("available official comparison requires a value")
         if self.summary_signal_gate is not None and not isinstance(self.summary_signal_gate, bool):
             raise ValueError("summary signal gate must be bool or unknown")
+        if self.quality_direction not in {"higher_is_better", "lower_is_better", "none"}:
+            raise ValueError("unsupported quality direction")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
         if self.chart_axis_range is not None and (
@@ -122,10 +129,23 @@ class AnalysisResult:
     attributes: tuple[AttributeDisplay, ...]
     source_a: Path | None = None
     source_b: Path | None = None
+    # Optional presentation names for the immutable A/B source identities.
+    # An adapter may call them Reference/Target without swapping source data.
+    source_a_role: str | None = None
+    source_b_role: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.result_id or not self.source_a_label or not self.source_b_label:
-            raise ValueError("result and source identities must be nonempty")
+        if not self.result_id:
+            raise ValueError("result identity must be nonempty")
+        if not isinstance(self.source_a_label, str) or not isinstance(self.source_b_label, str):
+            raise ValueError("source labels must be strings (empty when unavailable)")
+        for role in (self.source_a_role, self.source_b_role):
+            if role is not None and (
+                not isinstance(role, str)
+                or not role.strip()
+                or any(char in role for char in "\r\n\t")
+            ):
+                raise ValueError("source role names must be nonempty single-line strings")
         if self.image_width <= 0 or self.image_height <= 0:
             raise ValueError("image geometry must be positive")
         if not self.attributes:
@@ -155,13 +175,18 @@ class LoadedAnalysis:
     analysis_state: dict[str, object] | None = None
 
 
+# A neutral signed result must read as a distinct dark tint on a light track,
+# never as an A/B or quality-direction verdict. Shared with Qt presentation.
+NEUTRAL_PRESENTATION_RGB = (94, 94, 94)
+
+
 def colorize_spatial_rgba(
     attribute: AttributeDisplay, half_range: float
 ) -> NDArray[np.uint8] | None:
     """Vectorized signed grid -> RGBA; invalid cells are transparent.
 
     Oriented red/blue encodes A-better/B-better only with verified direction.
-    Unoriented purple/teal encodes signed polarity, never a quality winner.
+    Unoriented dark gray encodes magnitude only, never a quality winner.
     Color clipping is display-only; raw numbers and mask remain unchanged.
     """
 
@@ -178,12 +203,59 @@ def colorize_spatial_rgba(
     if attribute.quality_oriented:
         plus, minus = (245, 0, 0), (0, 0, 245)
     else:
-        plus, minus = (181, 72, 193), (35, 145, 148)
+        plus = minus = NEUTRAL_PRESENTATION_RGB
     rgba = np.empty((*grid.values.shape, 4), dtype=np.uint8)
     for channel in range(3):
         endpoint = np.where(positive, plus[channel], minus[channel])
         rgba[..., channel] = np.rint(239 + magnitude * (endpoint - 239)).astype(np.uint8)
     rgba[..., 3] = np.where(grid.valid_mask, 255, 0).astype(np.uint8)
+    return np.ascontiguousarray(rgba)
+
+
+def colorize_spatial_tint_rgba(
+    attribute: AttributeDisplay, half_range: float, *, max_alpha: int = 176
+) -> NDArray[np.uint8] | None:
+    """Convenience tint using the legacy palette; composable renderers use the helper below."""
+
+    if not 0 <= max_alpha <= 255:
+        raise ValueError("maximum tint opacity must be a byte")
+    rgba = colorize_spatial_rgba(attribute, half_range)
+    if rgba is None:
+        return None
+    return apply_spatial_reference_tint_rgba(attribute, half_range, rgba, max_alpha=max_alpha)
+
+
+def apply_spatial_reference_tint_rgba(
+    attribute: AttributeDisplay,
+    half_range: float,
+    base_rgba: NDArray[np.uint8],
+    *,
+    max_alpha: int = 176,
+) -> NDArray[np.uint8]:
+    """Composite-safe reference tint: preserve the selected renderer's RGB and alpha gate.
+
+    The caller chooses the legacy or quality-verdict color palette *first*;
+    this independent presentation effect only attenuates the resulting alpha.
+    Invalid and signed-zero cells reveal the reference, and a renderer's
+    reduced opacity for an untrusted signal remains reduced. Never modify
+    the input pixels, scientific values, validity mask, statistics or exports.
+    """
+
+    if not 0 <= max_alpha <= 255:
+        raise ValueError("maximum tint opacity must be a byte")
+    if not np.isfinite(half_range) or half_range <= 0.0:
+        raise ValueError("display half-range must be positive")
+    grid = attribute.spatial
+    if grid is None:
+        raise ValueError("reference tint requires a spatial grid")
+    if base_rgba.dtype != np.uint8 or base_rgba.shape != (*grid.values.shape, 4):
+        raise ValueError("reference tint requires matching uint8 RGBA pixels")
+    magnitude = np.clip(np.abs(np.where(grid.valid_mask, grid.values, 0.0)) / half_range, 0, 1)
+    rgba = np.array(base_rgba, copy=True)
+    rgba[..., 3] = np.rint(
+        magnitude * max_alpha * (base_rgba[..., 3].astype(np.float64) / 255.0)
+    ).astype(np.uint8)
+    rgba[..., 3] = np.where(grid.valid_mask, rgba[..., 3], 0).astype(np.uint8)
     return np.ascontiguousarray(rgba)
 
 
@@ -202,7 +274,7 @@ def map_polarity_legend(attribute: AttributeDisplay) -> str:
 
     if attribute.quality_oriented:
         return "Red: A better (+) | Blue: B better (−)"
-    return "Purple: positive signed value | Teal: negative (NO quality winner)"
+    return "Dark gray: signed magnitude (+/−), NO quality winner inferred"
 
 
 @dataclass(frozen=True)
