@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF
 from PySide6.QtGui import QColor, QImage
+from PySide6.QtTest import QSignalSpy, QTest
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -145,7 +146,14 @@ def test_hover_links_three_guides_and_reads_rgb_and_masked_map(
     for view in win._views:
         position = view.mapFromScene(QPointF(16.5, 16.5))
         assert view.viewport().rect().contains(position)
-        qtbot.mouseMove(view.viewport(), pos=position)  # type: ignore[attr-defined]
+        window_handle = win.windowHandle()
+        assert window_handle is not None
+        delivered = QSignalSpy(view.pixel_hovered)
+        # The QWidget overload only moves the OS cursor on native Windows.
+        # QWindow input exercises Qt's hit testing without desktop cursor access.
+        QTest.mouseMove(window_handle, view.viewport().mapTo(win, position))
+        assert delivered.count() > 0
+        assert delivered.at(delivered.count() - 1) == [16, 16]
         assert win._hovered_pixel == (16, 16)
         assert len(win._guide_items) == 3
         for vertical, horizontal in win._guide_items:

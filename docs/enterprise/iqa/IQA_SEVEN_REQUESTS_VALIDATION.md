@@ -1,6 +1,7 @@
 # Seven-request final local validation and Handoff preparation
 
-Status: BLOCKED for native acceptance; local automated full regression complete.
+Status: Native Hover test failure resolved by the focused follow-up below; other
+Handoff acceptance remains incomplete. The recorded full regression is historical.
 Owner: ChatGPT-assisted validation, 2026-10-21.
 
 ## Scope and baseline
@@ -146,7 +147,7 @@ The three full-suite failures were test-environment preconditions:
    rendering while the screenshot environment contract retains its actual
    meaning. All tests remain selected, assertions unchanged, automatic GC on.
 
-### Native gate still unresolved
+### Initial native gate (Hover resolution recorded below)
 
 The unchanged test
 `test_hover_links_three_guides_and_reads_rgb_and_masked_map` sees
@@ -251,3 +252,83 @@ PRIVATE SUB transfer.
 - `tests/enterprise/iqa/test_analysis_window.py`
 - `tests/enterprise/iqa/test_quality_presentation.py`
 - `tests/enterprise/iqa/test_quality_presentation_window.py`
+
+
+## Focused native Hover follow-up (2026-10-21)
+
+Owner scope clarification: diagnose and fix the native Hover test only; exclude
+actual `.pxiqa` reader/writer qualification and do not rerun the full repository
+suite. No production source or reader/writer callback changes are part of this
+follow-up. PUBLIC main and Handoff remain unchanged.
+
+### Observable diagnosis
+
+The same shown Windows Qt window was observed through an application event filter:
+
+- `QTest.mouseMove(QWidget)` produced no viewport `MouseMove` events and the OS
+  cursor did not move in this execution context. `_hovered_pixel` stayed `None`.
+- `QTest.mouseMove(QWindow)` with viewport-to-window coordinate mapping produced
+  a `MouseMove` at each of the three viewport receivers. All three yielded
+  source pixel `(16,16)` and the original RGB/map/guide assertions passed.
+- This distinction matches the [Qt 6.4.2 QTest implementation](https://github.com/qt/qtbase/blob/v6.4.2/src/testlib/qtestmouse.h):
+  the unpressed QWidget branch relies on `QCursor::setPos`; the QWindow overload
+  synthesizes QPA input, including normal Qt hit testing and view event handling.
+  QWindow test input bypasses the OS platform injection layer, so it is not alone
+  evidence of a physical mouse working.
+- A real 4K Windows fixture was separately exercised using the Computer Use
+  plugin. All three viewports received `buttons=0`, `spontaneous=true` native
+  pointer moves; the source coordinates, Reference/Target RGB, raw signed map and
+  all three visible guide positions updated together. Example source coordinates
+  were Map `(2148,902)`, Target `(1572,1214)` and Reference `(1961,1525)`.
+  Readout/guide snapshots were recorded after the actual handler signal.
+
+Conclusion: the reproduced assertion failure is the QWidget test input delivery
+path, not a demonstrated Hover feature defect. Fix only
+`tests/enterprise/iqa/test_analysis_usability_request3.py`: send QWindow test
+input in the proper window coordinate system and attach a `QSignalSpy` to each
+view's `pixel_hovered` signal. Require a delivery from that receiver and its exact
+`[16,16]` payload before the existing state, RGB, map and three-guide assertions.
+This also prevents a stale state from a previous view falsely satisfying the test.
+No direct call to the production hover handler replaces the failing mouse move.
+No timeout, assertion weakening, skip, GC or exception suppression was added.
+
+### Focused validation observed
+
+Windows CPython 3.10.11 x64 / PySide6 6.4.2, normal automatic GC, existing `.venv`:
+
+| Selection / platform | Passed | Failed | Skipped | Seconds |
+|---|---:|---:|---:|---:|
+| Corrected original Hover test / `windows` | 1 | 0 | 0 | 1.39 |
+| Same five-module native selection, run 1 | 22 | 0 | 0 | 8.67 |
+| Same selection / `windows`, run 2 | 22 | 0 | 0 | 9.67 |
+| Same selection / `windows`, run 3 | 22 | 0 | 0 | 9.64 |
+| Same selection / `offscreen` | 22 | 0 | 0 | 7.39 |
+
+Commands used `python -m pytest -q -ra` with the five modules listed in the
+native selection above. Native settings were `PYTHONPATH=<worktree>/src` and
+`QT_QPA_PLATFORM=windows`; only the final comparison used `offscreen`.
+Logs/XML are `native-ui-qwindow.*` and `hover-focused-{windows-2,windows-3,offscreen-1}.*`
+under `temp/iqa-seven-evidence`. Event-path diagnostics are `hover-events.log`;
+physical pointer observations are `physical-hover.jsonl`. These local synthetic
+probes are not shipped as production architecture.
+
+### COM diagnostic distinguished from the Hover assertion
+
+The `0x8001010d` message did not occur in native run 1, but occurred in runs 2/3
+while all 22 tests still passed with process exit 0. It was not suppressed.
+A read-only vectored exception observer, which always returned CONTINUE_SEARCH,
+recorded `qwindows.dll / Qt6Gui.dll -> UIAutomationCore.dll -> combase/RPCRT4`
+at the exception. A minimal `QMainWindow/QGraphicsView` test with **no PixelScope
+imports** reproduced the same diagnostic and passed (1 test, 0.45s).
+[Microsoft documents the code](https://learn.microsoft.com/en-us/windows/win32/com/com-error-codes-3)
+as `RPC_E_CANTCALLOUT_ININPUTSYNCCALL`, an outgoing COM call made while dispatching
+an input-synchronous call. The stack and baseline isolate this occurrence to the
+Windows Qt accessibility/COM path; they do not prove which external accessibility
+client caused it or qualify that diagnostic as fixed. No evidence justified a
+PixelScope ownership/lifecycle workaround, disabling accessibility, suppressing
+faulthandler, or changing the pinned Qt dependency.
+
+The Hover test gate is resolved. The COM diagnostic remains transparently recorded
+as a separate Qt/Windows accessibility limitation. Actual `.pxiqa` adapter work
+was explicitly excluded by the owner, and experimental callback-test edits were
+removed. No new full-suite PASS or completion of the remaining GUI matrix is claimed.
