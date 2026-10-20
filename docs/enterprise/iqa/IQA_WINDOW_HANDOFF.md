@@ -403,3 +403,7 @@ Linux offscreen CPython 3.10.22 / PySide6 6.4.2 focused regression run:
 `test_analysis_model.py`, `test_analysis_window.py`, `test_analysis_ux1.py`,
 `test_analysis_ux2c.py` — **63 passed**. Owner-local Windows native GUI/DPI
 inspection and full-suite acceptance remain separate gates.
+
+## Request 5/7: Open/Save injected callback errors
+
+Open Result and Save Result As catch ordinary `Exception` at the Qt slot boundary. Only an explicit string `error.user_message` is shown, normalized to one printable line and at most 160 characters; missing, invalid, or inaccessible messages use operation-specific generic text. Raw exception details and paths are never shown. Contributed `ResultFileType` dialog filters, suggested filenames, and suffix insertion remain unchanged. Hover readouts use permanent status-bar widgets independently of temporary error messages.
