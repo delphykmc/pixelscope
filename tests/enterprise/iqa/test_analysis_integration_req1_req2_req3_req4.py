@@ -234,7 +234,7 @@ def test_neutral_and_untrusted_palette_share_request4_constants_and_request1_tin
 ) -> None:
     result = _quality_result(tmp_path)
     neutral, untrusted = result.attributes[1:]
-    assert NEUTRAL_RGB == NEUTRAL_PRESENTATION_RGB == (94, 104, 115)
+    assert NEUTRAL_RGB == NEUTRAL_PRESENTATION_RGB == (94, 94, 94)
     normal_neutral = quality_spatial_rgba(neutral, 2.0)
     normal_untrusted = quality_spatial_rgba(untrusted, 2.0)
     assert normal_neutral is not None and normal_untrusted is not None

@@ -3,6 +3,15 @@
 Status: public-safe presentation option; downstream adapter must provide trusted
 per-attribute metadata. Does not change scientific values, algorithms or exports.
 
+## Final local acceptance correction (2026-10-21)
+
+The owner's final acceptance request explicitly fixes Dark Neutral to RGB
+`(94, 94, 94)` / `#5E5E5E`. This supersedes the original PR #198 blue-gray
+`(94, 104, 115)` palette. The shared map/chart/card constant and exact RGB
+regressions now follow that requirement. Scientific values, valid masks, ROI
+statistics and export schemas remain unchanged; neutral visual PNG pixels use
+the corrected shared palette. Quality toggling still does not change exports.
+
 ## Interpretation and controls
 
 - `View > Color by Quality Verdict` is **off by default**. Off retains the
@@ -23,7 +32,7 @@ per-attribute metadata. Does not change scientific values, algorithms or exports
   values; it is never a normalization or change to `fixed_range`.
 - Visible, higher-is-better positive / lower-is-better negative -> **Superior**
   (blue). The opposite signs -> **Inferior** (red). Direction `none` ->
-  **No quality direction** (dark gray `#5E6873`, matching request 4).
+  **No quality direction** (dark gray `#5E5E5E`, matching request 4).
   Untrusted or below-threshold values ->
   **Not visible**, drawn light gray at reduced opacity. Mask-invalid cells
   remain transparent regardless of policy.
@@ -54,7 +63,7 @@ per-attribute metadata. Does not change scientific values, algorithms or exports
   below-threshold/untrusted values have faint gray alpha; visible colors are
   capped at alpha 176. With no underlay, the quality-map alpha remains as before.
 - **Request 4 / #198:** Visible neutral pixels/cards/bars reuse
-  `NEUTRAL_PRESENTATION_RGB=(94,104,115)` / `#5E6873`; the quality-mode
+  `NEUTRAL_PRESENTATION_RGB=(94,94,94)` / `#5E5E5E`; the quality-mode
   neutral chart track is `#E1E5E9`. The lighter muted gray (`#D3D6DB`)
   stays distinct.
 - **Request 6 / #201:** The trusted-gate contract remains `True` only; `None`

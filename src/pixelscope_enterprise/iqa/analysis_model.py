@@ -177,7 +177,7 @@ class LoadedAnalysis:
 
 # A neutral signed result must read as a distinct dark tint on a light track,
 # never as an A/B or quality-direction verdict. Shared with Qt presentation.
-NEUTRAL_PRESENTATION_RGB = (94, 104, 115)
+NEUTRAL_PRESENTATION_RGB = (94, 94, 94)
 
 
 def colorize_spatial_rgba(

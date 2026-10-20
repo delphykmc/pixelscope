@@ -115,7 +115,7 @@ def test_lower_direction_flips_only_color_and_neutral_has_no_winner() -> None:
     assert tuple(low[0, 1, :3]) == SUPERIOR_RGB
     assert tuple(neutral[0, 0]) == (*NEUTRAL_RGB, 217)
     assert tuple(neutral[0, 1]) == (*NEUTRAL_RGB, 217)
-    assert NEUTRAL_RGB == (94, 104, 115)  # same visible neutral as request 4
+    assert NEUTRAL_RGB == (94, 94, 94)  # same visible neutral as request 4
     assert all(a < b for a, b in zip(NEUTRAL_RGB, MUTED_RGB, strict=True))
 
 

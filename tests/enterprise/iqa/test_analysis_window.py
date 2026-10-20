@@ -19,7 +19,11 @@ from pixelscope_enterprise.iqa.analysis_model import (
     LoadedAnalysis,
     SpatialMap,
 )
-from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager, ResultFileType
+from pixelscope_enterprise.iqa.analysis_window import (
+    AnalysisWindow,
+    AnalysisWindowManager,
+    ResultFileType,
+)
 
 
 def _result(result_id: str) -> AnalysisResult:
@@ -775,5 +779,3 @@ def test_contributed_result_file_type_keeps_callback_errors_safe(
         assert win.statusBar().currentMessage() != "Portable result saved by installed writer."
         assert win.active_result_id == "combined"
     win.close()
-
-

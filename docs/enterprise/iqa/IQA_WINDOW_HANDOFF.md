@@ -35,8 +35,10 @@ Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementa
   `tests/enterprise/iqa/test_analysis_integration_req1_req3.py` and the
   request-4 caption/hotspot/neutral regression tests. Subsequent merge:
   [PR #196](https://github.com/delphykmc/pixelscope/pull/196) (request 2/7)
-  after integrator review. The selected visible-neutral RGB is (94, 104, 115),
-  distinct from the future muted/untrusted light gray.
+  after integrator review. This checkpoint selected visible-neutral RGB
+  (94, 104, 115), distinct from muted/untrusted light gray. The final owner
+  acceptance request supersedes it with RGB (94, 94, 94); see the
+  [final palette correction](IQA_QUALITY_PRESENTATION.md#final-local-acceptance-correction-2026-10-21).
 
 ## Analysis Window second usability follow-up (2026-10-20)
 
