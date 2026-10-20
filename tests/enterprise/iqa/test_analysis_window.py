@@ -271,8 +271,8 @@ def test_result_file_callback_errors_are_safe_and_bounded(
         (BrokenUserFacingError("private details"), None),
     )
     for failure, expected_message in failures:
-        def fail(*_args: object) -> NoReturn:
-            raise failure
+        def fail(*_args: object, error: Exception = failure) -> NoReturn:
+            raise error
 
         if operation == "open":
             win.install_file_handlers(load=fail)
