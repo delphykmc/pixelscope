@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor, QImage
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
+from pixelscope_enterprise.iqa.hover_fields import format_source_rgb_field
 from pixelscope_enterprise.iqa.visual_export import write_visual_pngs
 
 
@@ -127,8 +128,8 @@ def test_roles_and_reference_tint_keep_hover_science_and_exports(
         qtbot.mouseMove(view.viewport(), pos=position)  # type: ignore[attr-defined]
         assert hover[-1] == (
             "Pixel (16, 16)",
-            "Reference RGB8: 17, 33, 65",
-            "Target RGB8: 111, 127, 201",
+            format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8),
+            format_source_rgb_field("Target", (111, 127, 201), bit_depth=8),
             "Detail Map [0, 0]: +3.0000 dB",
         )
         assert len(window._guide_items) == 3
@@ -178,8 +179,8 @@ def test_missing_source_label_uses_result_id_without_losing_role_or_rgb(
     assert window.map_reference_action.isEnabled()  # source A still exists
     window.map_reference_action.setChecked(True)
     window._show_hover_pixel(16, 16)
-    assert hover[-1][1] == "Reference RGB8: 17, 33, 65"
-    assert hover[-1][2] == "Target RGB: unavailable"
+    assert hover[-1][1] == format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8)
+    assert hover[-1][2] == format_source_rgb_field("Target", None, bit_depth=None)
 
     partial = replace(original, result_id="missing-reference-label", source_a_label=" ")
     window.present_result(partial)
@@ -188,7 +189,7 @@ def test_missing_source_label_uses_result_id_without_losing_role_or_rgb(
     assert window._map_reference_item is not None
     assert window._map_reference_item.isVisible()
     window._show_hover_pixel(16, 16)
-    assert hover[-1][2] == "Target RGB8: 111, 127, 201"
+    assert hover[-1][2] == format_source_rgb_field("Target", (111, 127, 201), bit_depth=8)
     window.close()
 
 

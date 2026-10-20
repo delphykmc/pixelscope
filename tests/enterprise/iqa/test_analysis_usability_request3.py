@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor, QImage
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
+from pixelscope_enterprise.iqa.hover_fields import format_source_rgb_field
 
 
 def _result(source_a: Path | None = None, source_b: Path | None = None) -> AnalysisResult:
@@ -152,12 +153,12 @@ def test_hover_links_three_guides_and_reads_rgb_and_masked_map(
             assert vertical.line().x1() == 16.5
             assert horizontal.line().y1() == 16.5
         readout = win._hover_readouts.values.toolTip()
-        assert "Reference RGB8: 17, 33, 65" in readout
-        assert "Target RGB8: 111, 127, 201" in readout
+        assert format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8) in readout
+        assert format_source_rgb_field("Target", (111, 127, 201), bit_depth=8) in readout
         assert "Detail Map [0, 0]: +3.0000 dB" in readout
         assert emitted[-1][0] == "Pixel (16, 16)"
-        assert emitted[-1][1] == "Reference RGB8: 17, 33, 65"
-        assert emitted[-1][2] == "Target RGB8: 111, 127, 201"
+        assert emitted[-1][1] == format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8)
+        assert emitted[-1][2] == format_source_rgb_field("Target", (111, 127, 201), bit_depth=8)
         assert emitted[-1][3] == "Detail Map [0, 0]: +3.0000 dB"
 
     win._views[2]._report_hover(win._views[2].mapFromScene(QPointF(100.5, 100.5)))
@@ -184,11 +185,11 @@ def test_hover_fields_cover_missing_source_and_attribute_transition(
     win.present_result(result)
     win._show_hover_pixel(16, 16)
     assert fields[-1][0] == "Pixel (16, 16)"
-    assert fields[-1][1] == "Image A RGB8: 8, 16, 32"
-    assert fields[-1][2] == "Image B RGB: unavailable"
+    assert fields[-1][1] == format_source_rgb_field("Image A", (8, 16, 32), bit_depth=8)
+    assert fields[-1][2] == format_source_rgb_field("Image B", None, bit_depth=None)
     assert fields[-1][3] == "Detail Map [0, 0]: +3.0000 dB"
 
     win._group_tables["dB"].setCurrentCell(1, 0)
     assert fields[-1][3] == "Other metric Map [0, 0]: +3.0000 dB"
-    assert fields[-1][2] == "Image B RGB: unavailable"
+    assert fields[-1][2] == format_source_rgb_field("Image B", None, bit_depth=None)
     win.close()

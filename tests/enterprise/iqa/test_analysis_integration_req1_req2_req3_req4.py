@@ -20,6 +20,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     spatial_display_half_range,
 )
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, _map_pixmap
+from pixelscope_enterprise.iqa.hover_fields import format_source_rgb_field
 from pixelscope_enterprise.iqa.quality_presentation import (
     MUTED_RGB,
     NEUTRAL_RGB,
@@ -181,8 +182,8 @@ def test_quality_and_reference_tint_are_applied_once_with_role_ui_and_exports(
     hover: list[tuple[str, str, str, str]] = []
     window.hover_readout_changed.connect(lambda *fields: hover.append(fields))
     window._show_hover_pixel(16, 16)
-    assert hover[-1][1] == "Reference RGB8: 17, 33, 65"
-    assert hover[-1][2] == "Target RGB8: 111, 127, 201"
+    assert hover[-1][1] == format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8)
+    assert hover[-1][2] == format_source_rgb_field("Target", (111, 127, 201), bit_depth=8)
     assert hover[-1][3] == "Detail Map [0, 0]: +2.0000 dB"
 
     window._image_split.setSizes([250, 390, 280])

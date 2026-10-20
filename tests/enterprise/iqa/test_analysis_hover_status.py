@@ -17,6 +17,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     roi_statistics,
 )
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
+from pixelscope_enterprise.iqa.hover_fields import format_source_rgb_field
 from pixelscope_enterprise.iqa.hover_status import ReservedHoverPair, ReservedHoverReadout
 from pixelscope_enterprise.iqa.quality_presentation import verdict_for_value
 
@@ -235,7 +236,9 @@ def test_integrated_hover_layout_and_unknown_quality_tooltips(
         QApplication.processEvents()
         assert geometry() == first_result_geometry
         assert hover.position.toolTip() == f"Pixel ({x}, {y})"
-        assert "Reference RGB8: 17, 33, 65" in hover.values.toolTip()
+        assert format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8) in (
+            hover.values.toolTip()
+        )
         assert "Target RGB: unavailable" in hover.values.toolTip()
         assert window.statusBar().currentMessage() == "Open failed: sanitized user message"
         assert len(window._guide_items) == 3
