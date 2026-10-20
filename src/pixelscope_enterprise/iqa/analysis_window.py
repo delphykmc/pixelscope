@@ -2220,9 +2220,7 @@ class AnalysisWindow(QMainWindow):
         if self._loader is None:
             return
         dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "Open saved IQA result", "", dialog_filter
-        )
+        filename, _ = QFileDialog.getOpenFileName(self, "Open saved IQA result", "", dialog_filter)
         if not filename:
             return
         try:
@@ -2380,9 +2378,7 @@ class AnalysisWindow(QMainWindow):
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
             return
-        suggested = (
-            self._file_type.suggested_name(self._active_id) if self._file_type else ""
-        )
+        suggested = self._file_type.suggested_name(self._active_id) if self._file_type else ""
         dialog_filter = self._file_type.dialog_filter if self._file_type else "Saved results (*)"
         filename, _ = QFileDialog.getSaveFileName(
             self, "Save portable IQA result", suggested, dialog_filter
@@ -2393,9 +2389,7 @@ class AnalysisWindow(QMainWindow):
         if self._file_type is not None and not destination.suffix:
             destination = destination.with_suffix(self._file_type.suffix)
         try:
-            self._saver(
-                self._results[self._active_id], self.current_analysis_state(), destination
-            )
+            self._saver(self._results[self._active_id], self.current_analysis_state(), destination)
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be saved.")
             return
