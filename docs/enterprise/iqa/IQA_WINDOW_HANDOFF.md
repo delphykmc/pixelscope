@@ -4,6 +4,36 @@
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
+## Sequential integration checkpoint — requests 1/7 + 3/7 (2026-10-20)
+
+- Integration branch: `integration/iqa-seven-requests-20261020`, based on
+  `handoff/enterprise-iqa-window@8420be5`. Only the complete changes from
+  [PR #200](https://github.com/delphykmc/pixelscope/pull/200) (reference-image
+  tint and source-label title) and [PR #195](https://github.com/delphykmc/pixelscope/pull/195)
+  (role naming, linked resize and three-pane hover) are integrated here.
+  Both original PRs, Handoff and PUBLIC main remain independently unchanged.
+- **Title/role contract:** nonempty Reference/Target roles decorate each
+  nonempty source label in the window title; if either source label is blank,
+  the window title falls back to the Result ID. Role names also drive pane
+  captions, pair summary, hotspot canvas and hover RGB fields. A/B remains
+  the immutable producer source order; visual pane swap does not redefine it.
+- **Display-only tint:** reference-underlay mode preserves the original signed
+  map values and valid mask; zero/masked grid cells reveal the dimmed source
+  A underlay. The source-based map render, ROI, statistics and exported PNG/
+  JSON data do not depend on the underlay toggle.
+- **Hover handshake for later PRs:** `AnalysisWindow.hover_readout_changed`
+  supplies four strings `(position, source_a_rgb, source_b_rgb, map_cell)`;
+  `hover_readout_cleared` resets the readouts. The first two RGB fields are
+  producer source order with explicit roles, even when panes are swapped.
+  [PR #201](https://github.com/delphykmc/pixelscope/pull/201) reserves stable
+  status-label widths; [PR #199](https://github.com/delphykmc/pixelscope/pull/199)
+  provides fixed-pitch/padded formatting. Their widgets/helpers are **not**
+  included in this checkpoint and must consume these signals in later steps.
+- Integration regressions are in
+  `tests/enterprise/iqa/test_analysis_integration_req1_req3.py`. Subsequent
+  merge: [PR #198](https://github.com/delphykmc/pixelscope/pull/198)
+  (request 4/7), after integrator review.
+
 ## Latest authoritative state (2026-10-09)
 
 - **Merged H0/H1:** PR #144 was **squash-merged only** into
@@ -297,3 +327,50 @@ Since history was intentionally squashed, do **not** run the obsolete
 Fresh local clones/worktrees should fetch the rewritten Enterprise ref
 and, if needed, branch anew from the updated remote feature. Preserve the
 archive ref until the PRIVATE SUB transfer is verified.
+
+## Analysis Window usability request 3 (2026-10-20)
+
+This change is confined to the Handoff-owned Enterprise implementation and
+tests, not the public MAIN Base/Reference package.
+
+- `AnalysisResult` optionally accepts `source_a_role` and `source_b_role`
+  (for example, `Reference` and `Target`). These decorate the pane captions,
+  pair summary, window title and stitched Hotspot ROI canvas. Missing roles
+  retain legacy A/B presentation and source identities, signed values,
+  provenance and export semantics are unchanged. The title composes with
+  request 1 (#200): it uses `source A label vs source B label` by default,
+  optionally decorates both labels with role names, and falls back to the
+  unchanged Result ID if either source label is blank. No role is inferred
+  from the displayed slot order.
+- `_LinkedView` keeps a canonical floating-point scene center across viewport
+  resizing. A resize is silent to linked-view navigation signals and cannot
+  accumulate center changes from integer scroll-bar rounding. Qt still rasterizes
+  scroll positions to device pixels, so subpixel display quantization is distinct
+  from the exact saved scene center.
+- Hovering A, B or Map sends one integer source coordinate to all three guide
+  overlays and a status-bar readout with both decoded-source RGB values (8-bit or
+  16-bit according to Qt's decoded image format), the selected attribute's raw
+  signed grid cell and explicit invalid/outside/unavailable states. Hover only
+  reads data; it does not modify mask, ROI, statistics, result or exports.
+  Separate `hover_readout_changed(position, source_a_rgb, source_b_rgb,
+  map_cell)` and `hover_readout_cleared` signals expose each logical field
+  without parsing the standalone `statusBar().showMessage` fallback.
+  Requests #201 and #199
+  own the final reserved-width, fixed-pitch, source-padded status widgets and
+  their interaction with request #197's transient Open/Save messages.
+- First-insight ranking now excludes attributes without a verified quality
+  orientation, even when an eligible absolute dB difference is large. It does
+  not change the full attribute chart or signed spatial map.
+
+Combined-branch integration gates: #196 adds explicit `quality_direction`,
+so its opt-in Top-3 must additionally exclude `none` regardless of magnitude;
+#198 supplies middle-elided pane captions and stable visual slot widths,
+which must remain intact with role names and synchronized guides here.
+These cross-PR behaviors are not verified by the standalone #195 checks;
+seven-way Qt and native Windows tests precede Handoff merge.
+
+Linux offscreen CPython 3.10.22 / PySide6 6.4.2 focused regression run:
+`test_analysis_insights.py`, `test_analysis_usability_request3.py`,
+`test_analysis_model.py`, `test_analysis_window.py`, `test_analysis_ux1.py`,
+`test_analysis_ux2c.py` — **63 passed**. Owner-local Windows native GUI/DPI
+inspection and full-suite acceptance remain separate gates.

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from PySide6.QtCore import (
@@ -18,6 +19,7 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPoint,
+    QPointF,
     QRect,
     QRectF,
     QSettings,
@@ -38,6 +40,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QResizeEvent,
     QShowEvent,
     QStandardItemModel,
     QTransform,
@@ -51,6 +54,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGraphicsItem,
+    QGraphicsLineItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
@@ -139,6 +143,8 @@ class _LinkedView(QGraphicsView):
 
     navigation_changed = Signal(float, float, float)
     roi_requested = Signal(float, float, float, float)
+    pixel_hovered = Signal(int, int)
+    pixel_exited = Signal()
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -148,7 +154,12 @@ class _LinkedView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setMinimumSize(180, 160)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self._muted = False
+        # QGraphicsView scrollbars use integer device pixels. Never re-read
+        # their rounded center after a resize as a new navigation request.
+        self._navigation_center: QPointF | None = None
         self._roi_start: QPoint | None = None
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
         self._rubber_band.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -168,16 +179,55 @@ class _LinkedView(QGraphicsView):
     def _navigation_changed(self, _value: int = 0) -> None:
         if self._muted or self.scene() is None:
             return
-        center = self.mapToScene(self.viewport().rect().center())
+        center = self._actual_center()
+        self._navigation_center = center
         self.navigation_changed.emit(self.transform().m11(), center.x(), center.y())
+
+    def _actual_center(self) -> QPointF:
+        inverse, _ = self.viewportTransform().inverted()
+        center = QPointF(self.viewport().width() / 2.0, self.viewport().height() / 2.0)
+        return cast(QPointF, inverse.map(center))
+
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        # Preserve the canonical floating-point center across geometry changes.
+        # Resizing is not user pan/zoom, and must not synchronize sibling views.
+        center = self._navigation_center
+        previous_muted = self._muted
+        self._muted = True
+        try:
+            super().resizeEvent(event)
+            if center is not None:
+                self.centerOn(center)
+        finally:
+            self._muted = previous_muted
 
     def apply_navigation(self, scale: float, center_x: float, center_y: float) -> None:
         if scale <= 0 or not np.isfinite([scale, center_x, center_y]).all():
             return
+        previous_muted = self._muted
         self._muted = True
-        self.setTransform(QTransform().scale(scale, scale))
-        self.centerOn(center_x, center_y)
-        self._muted = False
+        try:
+            self._navigation_center = QPointF(center_x, center_y)
+            self.setTransform(QTransform().scale(scale, scale))
+            self.centerOn(self._navigation_center)
+        finally:
+            self._muted = previous_muted
+
+    def viewportEvent(self, event: QEvent) -> bool:  # noqa: N802
+        if event.type() == QEvent.Type.Leave:
+            self.pixel_exited.emit()
+        return super().viewportEvent(event)
+
+    def _report_hover(self, position: QPoint) -> None:
+        scene = self.scene()
+        if scene is None:
+            self.pixel_exited.emit()
+            return
+        point = self.mapToScene(position)
+        if not scene.sceneRect().contains(point):
+            self.pixel_exited.emit()
+            return
+        self.pixel_hovered.emit(int(np.floor(point.x())), int(np.floor(point.y())))
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         # Minimum zoom is relative to a *post-layout* fit. A 4K fit can be <0.04.
@@ -244,6 +294,7 @@ class _LinkedView(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        self._report_hover(event.position().toPoint())
         if self._roi_start is not None:
             self._rubber_band.setGeometry(
                 QRect(self._roi_start, event.position().toPoint()).normalized()
@@ -393,6 +444,12 @@ class _EnterpriseSpatialDockTitle(PlotsDockTitleBar):
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
+    # Request 3 owns hover *data*; requests 6/7 can compose two reserved-width,
+    # fixed-pitch readouts and pad missing A/B fields without parsing text.
+    # Fields: position, source A RGB, source B RGB, selected map cell.
+    hover_readout_changed = Signal(str, str, str, str)
+    hover_readout_cleared = Signal()
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -414,6 +471,8 @@ class AnalysisWindow(QMainWindow):
         self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[QGraphicsRectItem] = []
+        self._guide_items: list[tuple[QGraphicsLineItem, QGraphicsLineItem]] = []
+        self._hovered_pixel: tuple[int, int] | None = None
         self._scene_result_id: str | None = None
         self._map_item: QGraphicsPixmapItem | None = None
         self._map_reference_item: QGraphicsPixmapItem | None = None
@@ -428,6 +487,7 @@ class AnalysisWindow(QMainWindow):
         self._top3_attribute_ids: list[str] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
+        self._source_images: tuple[QImage | None, QImage | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
@@ -599,6 +659,8 @@ class AnalysisWindow(QMainWindow):
                 lambda scale, x, y, source=view: self._sync_views(source, scale, x, y)
             )
             view.roi_requested.connect(self._set_roi)
+            view.pixel_hovered.connect(self._show_hover_pixel)
+            view.pixel_exited.connect(self._hide_hover_pixel)
             column.addWidget(view, 1)
             image_split.addWidget(wrapper)
             self._views.append(view)
@@ -1057,18 +1119,25 @@ class AnalysisWindow(QMainWindow):
             )
             self._states[result.result_id] = _ResultViewState(first_view.attribute_id)
         self._active_id = result.result_id
+        self._hide_hover_pixel()
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
-        label_a, label_b = result.source_a_label.strip(), result.source_b_label.strip()
-        pair_title = f"{label_a} vs {label_b}" if label_a and label_b else result.result_id
-        self.setWindowTitle(f"IQA Analysis — {pair_title}")
+        a_role, b_role = self._source_roles(result)
+        self.setWindowTitle(self._result_window_title(result))
+        a_summary = "A" if result.source_a_role is None else a_role
+        b_summary = "B" if result.source_b_role is None else b_role
         self.pair_summary.setText(
-            f"A: {result.source_a_label}  /  B: {result.source_b_label}  "
+            f"{a_summary}: {result.source_a_label}  /  "
+            f"{b_summary}: {result.source_b_label}  "
             f"• {result.image_width}×{result.image_height}"
         )
         self.pair_summary.setToolTip(
-            f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
+            f"{a_role}: {result.source_a_label}\n{b_role}: {result.source_b_label}"
+        )
+        self.spatial_panel.set_source_roles(
+            "A" if result.source_a_role is None else a_role,
+            "B" if result.source_b_role is None else b_role,
         )
         self.fit_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
@@ -1084,6 +1153,24 @@ class AnalysisWindow(QMainWindow):
             "Full-pair comparison and GRID-derived ROI estimates are distinct. "
             "Regional signed estimates never imply a verified quality winner."
         )
+
+    @staticmethod
+    def _source_roles(result: AnalysisResult) -> tuple[str, str]:
+        return result.source_a_role or "Image A", result.source_b_role or "Image B"
+
+    @staticmethod
+    def _result_window_title(result: AnalysisResult) -> str:
+        """Compose request 1's source labels with optional request 3 role names."""
+
+        label_a, label_b = result.source_a_label.strip(), result.source_b_label.strip()
+        if not label_a or not label_b:
+            # Request 1 permits missing source labels; scientific identity is
+            # still the unchanged result ID (never an inferred role).
+            return f"IQA Analysis — {result.result_id}"
+        if result.source_a_role is None and result.source_b_role is None:
+            return f"IQA Analysis — {label_a} vs {label_b}"
+        role_a, role_b = AnalysisWindow._source_roles(result)
+        return f"IQA Analysis — {role_a}: {label_a} vs {role_b}: {label_b}"
 
     def _update_top_cards(self) -> None:
         """Refresh a guarded OFFICIAL-only first insight for the current pair."""
@@ -1453,6 +1540,11 @@ class AnalysisWindow(QMainWindow):
         self.setWindowTitle("IQA Analysis")
         self._map_reference_item = None  # the old underlay belonged to the replaced scene
         self.map_reference_action.setEnabled(False)
+        # A future Close Result (#199) must not leave stale RGB/map fields in
+        # the two persistent readouts when the final result is unloaded.
+        self.hover_readout_cleared.emit()
+        self._guide_items = []
+        self._hovered_pixel = None
         self.image_export_action.setEnabled(False)
         self.report_export_action.setEnabled(False)
         for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
@@ -1495,6 +1587,7 @@ class AnalysisWindow(QMainWindow):
             self._map_reference_item = None
             if self._source_result_id != result.result_id:
                 images: list[QPixmap | None] = []
+                originals: list[QImage | None] = []
                 for source in (result.source_a, result.source_b):
                     image = (
                         QImage(str(source)) if source is not None and source.is_file() else QImage()
@@ -1505,12 +1598,16 @@ class AnalysisWindow(QMainWindow):
                         or image.height() != result.image_height
                     ):
                         images.append(None)
+                        originals.append(None)
                     else:
                         images.append(QPixmap.fromImage(image))
+                        originals.append(image)
                 self._source_pixmaps = (images[0], images[1])
+                self._source_images = (originals[0], originals[1])
                 self._source_result_id = result.result_id
             self._rendering = True
             self._roi_items = []
+            self._guide_items = []
             self._candidate_overlay_items = []
             for i, view in enumerate(self._views):
                 view._muted = True
@@ -1546,6 +1643,14 @@ class AnalysisWindow(QMainWindow):
                     )
                     # Block grid: never interpolate cell values into fake 4K detail.
                     view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                guide_pen = QPen(QColor(170, 220, 255, 190), 1)
+                guide_pen.setCosmetic(True)
+                vertical = scene.addLine(0, 0, 0, result.image_height, guide_pen)
+                horizontal = scene.addLine(0, 0, result.image_width, 0, guide_pen)
+                for guide in (vertical, horizontal):
+                    guide.setZValue(120)
+                    guide.hide()
+                self._guide_items.append((vertical, horizontal))
                 roi_pen = QPen(QColor(255, 205, 0), 2)
                 roi_pen.setCosmetic(True)
                 overlay = scene.addRect(QRectF(), roi_pen)
@@ -1582,8 +1687,9 @@ class AnalysisWindow(QMainWindow):
             attr.spatial is not None or any(image is not None for image in self._source_pixmaps)
         )
         self.report_export_action.setEnabled(self.image_export_action.isEnabled())
-        self._pane_labels[0].setText(f"IMAGE A  ·  {result.source_a_label}")
-        self._pane_labels[1].setText(f"IMAGE B  ·  {result.source_b_label}")
+        a_role, b_role = self._source_roles(result)
+        self._pane_labels[0].setText(f"{a_role.upper()}  ·  {result.source_a_label}")
+        self._pane_labels[1].setText(f"{b_role.upper()}  ·  {result.source_b_label}")
         if attr.spatial is None:
             self._pane_labels[2].setText(f"RELATIVE MAP  ·  {attr.label}  ·  unavailable")
         else:
@@ -1612,6 +1718,8 @@ class AnalysisWindow(QMainWindow):
             if len(self._roi_items) == 3:
                 self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
+        if self._hovered_pixel is not None:
+            self._show_hover_pixel(*self._hovered_pixel)
         self._sync_top_cards()
         self._request_spatial_candidates()
         self._sync_spatial_selection()
@@ -2045,6 +2153,76 @@ class AnalysisWindow(QMainWindow):
         if attr is not None:
             self._update_group_range(attr.unit, value)
 
+    def _show_hover_pixel(self, x: int, y: int) -> None:
+        """One source-pixel cursor and readout shared by A, B and the Map."""
+
+        if self._active_id is None:
+            return
+        result = self._results[self._active_id]
+        if not (0 <= x < result.image_width and 0 <= y < result.image_height):
+            self._hide_hover_pixel()
+            return
+        self._hovered_pixel = (x, y)
+        for vertical, horizontal in self._guide_items:
+            vertical.setLine(x + 0.5, 0, x + 0.5, result.image_height)
+            horizontal.setLine(0, y + 0.5, result.image_width, y + 0.5)
+            vertical.show()
+            horizontal.show()
+
+        roles = self._source_roles(result)
+        rgb_parts: list[str] = []
+        high_depth_formats = {
+            QImage.Format.Format_RGBA64,
+            QImage.Format.Format_RGBA64_Premultiplied,
+            QImage.Format.Format_RGBX64,
+            QImage.Format.Format_Grayscale16,
+        }
+        for role, image in zip(roles, self._source_images, strict=True):
+            if image is None or image.isNull():
+                rgb_parts.append(f"{role} RGB: unavailable")
+                continue
+            color = image.pixelColor(x, y)
+            depth = 16 if image.format() in high_depth_formats else 8
+            max_value = (1 << depth) - 1
+            rgb = tuple(
+                round(channel * max_value)
+                for channel in (color.redF(), color.greenF(), color.blueF())
+            )
+            rgb_parts.append(f"{role} RGB{depth}: {rgb[0]}, {rgb[1]}, {rgb[2]}")
+
+        attr = self._attribute()
+        map_text = "Map: unavailable"
+        if attr is not None and attr.spatial is not None:
+            grid = attr.spatial
+            column = int(np.floor((x + 0.5 - grid.origin_x) / grid.block_width))
+            row = int(np.floor((y + 0.5 - grid.origin_y) / grid.block_height))
+            if 0 <= row < grid.rows and 0 <= column < grid.columns:
+                if bool(grid.valid_mask[row, column]):
+                    map_text = (
+                        f"{attr.label} Map [{row}, {column}]: "
+                        f"{grid.values[row, column]:+.4f} {attr.unit}"
+                    )
+                else:
+                    map_text = f"{attr.label} Map [{row}, {column}]: invalid"
+            else:
+                map_text = f"{attr.label} Map: outside grid"
+        position_text = f"Pixel ({x}, {y})"
+        values_text = "  ·  ".join((*rgb_parts, map_text))
+        self.hover_readout_changed.emit(position_text, rgb_parts[0], rgb_parts[1], map_text)
+        # Standalone fallback. Integration #201/#199 owns the persistent widget
+        # layout and can consume the two fields without changing hover science.
+        self.statusBar().showMessage(f"{position_text}  ·  {values_text}")
+
+    def _hide_hover_pixel(self) -> None:
+        if self._hovered_pixel is None:
+            return
+        self._hovered_pixel = None
+        for vertical, horizontal in self._guide_items:
+            vertical.hide()
+            horizontal.hide()
+        self.hover_readout_cleared.emit()
+        self.statusBar().showMessage("Hover A, B or Map to inspect source RGB and spatial values.")
+
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
         if state is None or self._rendering or self._fit_pending_result_id == self._active_id:
@@ -2064,7 +2242,7 @@ class AnalysisWindow(QMainWindow):
         ):
             return
         view = self._views[0]
-        center = view.mapToScene(view.viewport().rect().center())
+        center = view._navigation_center or view._actual_center()
         state.scale, state.center_x, state.center_y = view.transform().m11(), center.x(), center.y()
 
     def showEvent(self, event: QShowEvent) -> None:
