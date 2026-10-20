@@ -123,9 +123,7 @@ def _result_file_error_message(error: Exception, fallback: str) -> str:
         return fallback
     if not isinstance(message, str):
         return fallback
-    single_line = " ".join(
-        "".join(char if char.isprintable() else " " for char in message).split()
-    )
+    single_line = " ".join("".join(char if char.isprintable() else " " for char in message).split())
     if not single_line:
         return fallback
     if len(single_line) > 160:

@@ -271,6 +271,7 @@ def test_result_file_callback_errors_are_safe_and_bounded(
         (BrokenUserFacingError("private details"), None),
     )
     for failure, expected_message in failures:
+
         def fail(*_args: object, error: Exception = failure) -> NoReturn:
             raise error
 
