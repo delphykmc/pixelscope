@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog
-
-import numpy as np
 
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
@@ -113,11 +112,15 @@ def test_reader_writer_contributed_type_drives_dialogs(
     paths: list[Path] = []
     dialogs: list[tuple[str, str, str]] = []
 
-    def open_dialog(_owner: object, title: str, suggested: str, filter_text: str) -> tuple[str, str]:
+    def open_dialog(
+        _owner: object, title: str, suggested: str, filter_text: str
+    ) -> tuple[str, str]:
         dialogs.append((title, suggested, filter_text))
         return str(tmp_path / "loaded.pxiqa"), filter_text
 
-    def save_dialog(_owner: object, title: str, suggested: str, filter_text: str) -> tuple[str, str]:
+    def save_dialog(
+        _owner: object, title: str, suggested: str, filter_text: str
+    ) -> tuple[str, str]:
         dialogs.append((title, suggested, filter_text))
         return str(tmp_path / "custom_name"), filter_text
 
