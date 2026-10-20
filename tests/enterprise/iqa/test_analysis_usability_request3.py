@@ -65,7 +65,8 @@ def test_source_role_names_are_opt_in_and_do_not_change_scientific_identity(qtbo
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(baseline)
-    assert win.windowTitle().endswith("role-fixture")
+    # Request 1's title precedence: source labels first, role labels optional.
+    assert win.windowTitle() == "IQA Analysis — ref.png vs target.png"
     assert win.pair_summary.text().startswith("A: ref.png  /  B: target.png")
 
     win2 = AnalysisWindow()
@@ -81,6 +82,11 @@ def test_source_role_names_are_opt_in_and_do_not_change_scientific_identity(qtbo
     assert "Reference/Target ROI" in win2.spatial_panel.status_label.text()
     assert named.attributes is baseline.attributes
     assert named.source_a_label == baseline.source_a_label
+    # Request 1 permits an empty source label in its model branch; until that
+    # branch is integrated, exercise only the pure title policy on such input.
+    missing_label = replace(named, source_a_label="ref.png")
+    object.__setattr__(missing_label, "source_a_label", "  ")
+    assert win2._result_window_title(missing_label) == "IQA Analysis — role-fixture"
     win.close()
     win2.close()
 
@@ -100,8 +106,11 @@ def test_view_resize_retains_logical_center_and_does_not_broadcast(qtbot: object
         view.navigation_changed.connect(lambda scale, x, y: emitted.append((scale, x, y)))
 
     for _ in range(8):
+        win._image_split.setSizes([220, 360, 280])
         win.resize(1540, 850)
         qtbot.wait(5)  # type: ignore[attr-defined]
+        assert len({view.viewport().width() for view in win._views}) > 1
+        win._image_split.setSizes([330, 215, 290])
         win.resize(1380, 780)
         qtbot.wait(5)  # type: ignore[attr-defined]
 
@@ -124,6 +133,10 @@ def test_hover_links_three_guides_and_reads_rgb_and_masked_map(
     result = replace(_result(source_a, source_b), source_a_role="Reference", source_b_role="Target")
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
+    emitted: list[tuple[str, str, str, str]] = []
+    clears: list[bool] = []
+    win.hover_readout_changed.connect(lambda *fields: emitted.append(fields))
+    win.hover_readout_cleared.connect(lambda: clears.append(True))
     win.present_result(result)
     win.show()
     qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
@@ -142,10 +155,40 @@ def test_hover_links_three_guides_and_reads_rgb_and_masked_map(
         assert "Reference RGB8: 17, 33, 65" in status
         assert "Target RGB8: 111, 127, 201" in status
         assert "Detail Map [0, 0]: +3.0000 dB" in status
+        assert emitted[-1][0] == "Pixel (16, 16)"
+        assert emitted[-1][1] == "Reference RGB8: 17, 33, 65"
+        assert emitted[-1][2] == "Target RGB8: 111, 127, 201"
+        assert emitted[-1][3] == "Detail Map [0, 0]: +3.0000 dB"
 
     win._views[2]._report_hover(win._views[2].mapFromScene(QPointF(100.5, 100.5)))
     assert "Detail Map [1, 1]: invalid" in win.statusBar().currentMessage()
     win._views[2]._report_hover(QPoint(-10000, -10000))
     assert win._hovered_pixel is None
+    assert clears
     assert not any(v.isVisible() or h.isVisible() for v, h in win._guide_items)
+    win.close()
+
+
+def test_hover_fields_cover_missing_source_and_attribute_transition(
+    qtbot: object, tmp_path: Path
+) -> None:
+    source_a = tmp_path / "ref.png"
+    _write_rgb(source_a, (8, 16, 32))
+    original = _result(source_a=source_a)
+    alternate = replace(original.attributes[0], attribute_id="alternate", label="Other metric")
+    result = replace(original, attributes=(*original.attributes, alternate))
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    fields: list[tuple[str, str, str, str]] = []
+    win.hover_readout_changed.connect(lambda *values: fields.append(values))
+    win.present_result(result)
+    win._show_hover_pixel(16, 16)
+    assert fields[-1][0] == "Pixel (16, 16)"
+    assert fields[-1][1] == "Image A RGB8: 8, 16, 32"
+    assert fields[-1][2] == "Image B RGB: unavailable"
+    assert fields[-1][3] == "Detail Map [0, 0]: +3.0000 dB"
+
+    win._group_tables["dB"].setCurrentCell(1, 0)
+    assert fields[-1][3] == "Other metric Map [0, 0]: +3.0000 dB"
+    assert fields[-1][2] == "Image B RGB: unavailable"
     win.close()

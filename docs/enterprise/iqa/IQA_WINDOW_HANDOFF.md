@@ -307,9 +307,11 @@ tests, not the public MAIN Base/Reference package.
   (for example, `Reference` and `Target`). These decorate the pane captions,
   pair summary, window title and stitched Hotspot ROI canvas. Missing roles
   retain legacy A/B presentation and source identities, signed values,
-  provenance and export semantics are unchanged. When roles are present, the
-  window title includes roles and filenames; the unconfigured title continues
-  to use the Result ID pending the separately scoped title request.
+  provenance and export semantics are unchanged. The title composes with
+  request 1 (#200): it uses `source A label vs source B label` by default,
+  optionally decorates both labels with role names, and falls back to the
+  unchanged Result ID if either source label is blank. No role is inferred
+  from the displayed slot order.
 - `_LinkedView` keeps a canonical floating-point scene center across viewport
   resizing. A resize is silent to linked-view navigation signals and cannot
   accumulate center changes from integer scroll-bar rounding. Qt still rasterizes
@@ -320,9 +322,22 @@ tests, not the public MAIN Base/Reference package.
   16-bit according to Qt's decoded image format), the selected attribute's raw
   signed grid cell and explicit invalid/outside/unavailable states. Hover only
   reads data; it does not modify mask, ROI, statistics, result or exports.
+  Separate `hover_readout_changed(position, source_a_rgb, source_b_rgb,
+  map_cell)` and `hover_readout_cleared` signals expose each logical field
+  without parsing the standalone `statusBar().showMessage` fallback.
+  Requests #201 and #199
+  own the final reserved-width, fixed-pitch, source-padded status widgets and
+  their interaction with request #197's transient Open/Save messages.
 - First-insight ranking now excludes attributes without a verified quality
   orientation, even when an eligible absolute dB difference is large. It does
   not change the full attribute chart or signed spatial map.
+
+Combined-branch integration gates: #196 adds explicit `quality_direction`,
+so its opt-in Top-3 must additionally exclude `none` regardless of magnitude;
+#198 supplies middle-elided pane captions and stable visual slot widths,
+which must remain intact with role names and synchronized guides here.
+These cross-PR behaviors are not verified by the standalone #195 checks;
+seven-way Qt and native Windows tests precede Handoff merge.
 
 Linux offscreen CPython 3.10.22 / PySide6 6.4.2 focused regression run:
 `test_analysis_insights.py`, `test_analysis_usability_request3.py`,

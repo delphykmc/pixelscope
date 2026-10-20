@@ -439,6 +439,12 @@ class _EnterpriseSpatialDockTitle(PlotsDockTitleBar):
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
+    # Request 3 owns hover *data*; requests 6/7 can compose two reserved-width,
+    # fixed-pitch readouts and pad missing A/B fields without parsing text.
+    # Fields: position, source A RGB, source B RGB, selected map cell.
+    hover_readout_changed = Signal(str, str, str, str)
+    hover_readout_cleared = Signal()
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -1098,13 +1104,7 @@ class AnalysisWindow(QMainWindow):
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
         a_role, b_role = self._source_roles(result)
-        if result.source_a_role is not None or result.source_b_role is not None:
-            self.setWindowTitle(
-                f"IQA Analysis — {a_role}: {result.source_a_label} "
-                f"vs {b_role}: {result.source_b_label}"
-            )
-        else:
-            self.setWindowTitle(f"IQA Analysis — {result.result_id}")
+        self.setWindowTitle(self._result_window_title(result))
         a_summary = "A" if result.source_a_role is None else a_role
         b_summary = "B" if result.source_b_role is None else b_role
         self.pair_summary.setText(
@@ -1137,6 +1137,20 @@ class AnalysisWindow(QMainWindow):
     @staticmethod
     def _source_roles(result: AnalysisResult) -> tuple[str, str]:
         return result.source_a_role or "Image A", result.source_b_role or "Image B"
+
+    @staticmethod
+    def _result_window_title(result: AnalysisResult) -> str:
+        """Compose request 1's source labels with optional request 3 role names."""
+
+        label_a, label_b = result.source_a_label.strip(), result.source_b_label.strip()
+        if not label_a or not label_b:
+            # Request 1 permits missing source labels; scientific identity is
+            # still the unchanged result ID (never an inferred role).
+            return f"IQA Analysis — {result.result_id}"
+        if result.source_a_role is None and result.source_b_role is None:
+            return f"IQA Analysis — {label_a} vs {label_b}"
+        role_a, role_b = AnalysisWindow._source_roles(result)
+        return f"IQA Analysis — {role_a}: {label_a} vs {role_b}: {label_b}"
 
     def _update_top_cards(self) -> None:
         """Refresh a guarded OFFICIAL-only first insight for the current pair."""
@@ -1503,6 +1517,9 @@ class AnalysisWindow(QMainWindow):
         self._render_result()
 
     def _render_empty(self) -> None:
+        # A future Close Result (#199) must not leave stale RGB/map fields in
+        # the two persistent readouts when the final result is unloaded.
+        self.hover_readout_cleared.emit()
         self._guide_items = []
         self._hovered_pixel = None
         self.image_export_action.setEnabled(False)
@@ -2145,9 +2162,12 @@ class AnalysisWindow(QMainWindow):
                     map_text = f"{attr.label} Map [{row}, {column}]: invalid"
             else:
                 map_text = f"{attr.label} Map: outside grid"
-        self.statusBar().showMessage(
-            f"Pixel ({x}, {y})  ·  " + "  ·  ".join((*rgb_parts, map_text))
-        )
+        position_text = f"Pixel ({x}, {y})"
+        values_text = "  ·  ".join((*rgb_parts, map_text))
+        self.hover_readout_changed.emit(position_text, rgb_parts[0], rgb_parts[1], map_text)
+        # Standalone fallback. Integration #201/#199 owns the persistent widget
+        # layout and can consume the two fields without changing hover science.
+        self.statusBar().showMessage(f"{position_text}  ·  {values_text}")
 
     def _hide_hover_pixel(self) -> None:
         if self._hovered_pixel is None:
@@ -2156,6 +2176,7 @@ class AnalysisWindow(QMainWindow):
         for vertical, horizontal in self._guide_items:
             vertical.hide()
             horizontal.hide()
+        self.hover_readout_cleared.emit()
         self.statusBar().showMessage("Hover A, B or Map to inspect source RGB and spatial values.")
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:

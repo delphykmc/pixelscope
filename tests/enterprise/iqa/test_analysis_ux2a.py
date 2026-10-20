@@ -70,22 +70,21 @@ def test_ux2a_unknown_signal_gate_does_not_claim_top_three(qtbot: object) -> Non
     win.close()
 
 
-def test_ux2a_neutral_signed_and_selected_card_visuals(qtbot: object) -> None:
+def test_ux2a_neutral_signed_metric_is_navigable_but_excluded_from_insight(qtbot: object) -> None:
     original = make_synthetic_result("ux2a-neutral-visual")
     attributes = list(original.attributes)
     attributes[0] = replace(attributes[0], official_value=-12.0, quality_oriented=False)
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(replace(original, attributes=tuple(attributes)))
-    assert win._top3_attribute_ids[0] == "synthetic_00"
-    neutral = win.top3_buttons[0]
-    assert neutral.property("insightTone") == "signed"
-    assert "no winner" in neutral.text()
-    assert not neutral.icon().isNull()
-    neutral.click()
-    assert neutral.isChecked()
-    assert "QPushButton:checked" in neutral.styleSheet()
+    # Request 3: directionless attributes never enter Top-3, regardless of
+    # magnitude. They remain accessible as unchanged signed chart/map data.
+    assert "synthetic_00" not in win._top3_attribute_ids
+    assert all(card.property("insightTone") != "signed" for card in win.top3_buttons)
+    table = win._group_tables["dB"]
+    table.setCurrentCell(0, 0)
     assert win.current_analysis_state()["attribute_id"] == "synthetic_00"
+    assert win._attribute().official_value == -12.0  # type: ignore[union-attr]
     win.close()
 
 
