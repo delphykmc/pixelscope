@@ -290,6 +290,74 @@ def test_result_file_callback_errors_are_safe_and_bounded(
     win.close()
 
 
+@pytest.mark.parametrize("operation", ("open", "save"))
+def test_contributed_result_file_type_keeps_callback_errors_safe(
+    qtbot: object, monkeypatch: object, tmp_path: Path, operation: str
+) -> None:
+    """Cross-PR contract: request 5 errors survive request 7 file-type injection."""
+    from PySide6.QtWidgets import QFileDialog
+
+    from pixelscope_enterprise.iqa import analysis_window as window_module
+
+    file_type_class = getattr(window_module, "ResultFileType", None)
+    if file_type_class is None:
+        pytest.skip("Requires request 7 / PR #199; must execute after branch integration")
+
+    file_type = file_type_class("PixelScope IQA result", ".pxiqa")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("combined"))
+    seen_paths: list[Path] = []
+
+    def select_file(*args: object) -> tuple[str, str]:
+        assert args[3] == "PixelScope IQA result (*.pxiqa)"
+        if operation == "save":
+            assert args[2] == "combined.pxiqa"
+            return str(tmp_path / "portable"), ""
+        assert args[2] == ""
+        return str(tmp_path / "portable.pxiqa"), ""
+
+    if operation == "open":
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getOpenFileName", select_file
+        )
+        action = win.open_action
+        fallback = "Result could not be opened or validated."
+    else:
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            QFileDialog, "getSaveFileName", select_file
+        )
+        action = win.save_action
+        fallback = "Result could not be saved."
+
+    class UserFacingFailure(RuntimeError):
+        user_message = "  Invalid\n result checksum  "
+
+    for failure, expected in (
+        (UserFacingFailure("private absolute path"), "Invalid result checksum"),
+        (RuntimeError("private absolute path"), fallback),
+    ):
+
+        def failed_callback(*args: object, error: Exception = failure) -> NoReturn:
+            assert isinstance(args[-1], Path)
+            seen_paths.append(args[-1])
+            raise error
+
+        if operation == "open":
+            win.install_file_handlers(load=failed_callback, file_type=file_type)
+        else:
+            win.install_file_handlers(save=failed_callback, file_type=file_type)
+
+        assert action.isEnabled()
+        action.trigger()
+        assert seen_paths[-1] == tmp_path / "portable.pxiqa"
+        assert win.statusBar().currentMessage() == expected
+        assert "private" not in win.statusBar().currentMessage()
+        assert win.statusBar().currentMessage() != "Portable result saved by installed writer."
+        assert win.active_result_id == "combined"
+    win.close()
+
+
 def test_qt_map_pixmap_respects_non_oriented_signed_polarity(qtbot: object) -> None:
     grid = SpatialMap(
         values=np.array([[4.0, -4.0, np.nan]]),
