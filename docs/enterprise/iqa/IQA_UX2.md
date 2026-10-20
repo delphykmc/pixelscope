@@ -49,6 +49,10 @@ controls must always be explicitly distinguished.
   `AnalysisResult` measurements, `roi_statistics`, group range or Map gain.
   Missing eligibility produces an explicit verification-pending state, rather
   than an invented Top 3.
+- When an Attribute's dB signal gate is unknown, both cells in its Inspector
+  row explain in their tooltip that usable source-relative signal levels are
+  unavailable to the view. This is presentation-only metadata: a missing gate
+  is never promoted to a verified quality verdict or a changed measurement.
 
 ### UX-2B — spatial proposal engine (#148; next PR)
 

@@ -120,6 +120,17 @@ def default_iqa_settings() -> QSettings:
     return QSettings("PixelScope", "EnterpriseIqa")
 
 
+def _unknown_signal_level_note(attr: AttributeDisplay) -> str:
+    """Explain an untrusted dB signal gate without inferring image quality."""
+
+    if attr.unit != "dB" or attr.summary_signal_gate is not None:
+        return ""
+    return (
+        " Signal level unknown: no usable original-relative level information "
+        "for A/B is available to this view; visibility cannot be verified."
+    )
+
+
 @dataclass
 class _ResultViewState:
     attribute_id: str
@@ -1247,6 +1258,7 @@ class AnalysisWindow(QMainWindow):
                     item.setToolTip(
                         f"{attr.label} · {attr.group} · {unit}; "
                         f"full-pair value {attr.official_availability}; group scale ±{limit:g}"
+                        f".{_unknown_signal_level_note(attr)}"
                     )
                     table.setItem(row, col, item)
             table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
@@ -1389,12 +1401,14 @@ class AnalysisWindow(QMainWindow):
                     f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
                     f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
                     "signed local evidence, no regional quality winner."
+                    f"{_unknown_signal_level_note(attr)}"
                 )
             else:
                 cell.setData(CHART_MEASUREMENT_ROLE, None)
                 cell.setToolTip(
                     f"{attr.label}: full-pair producer comparison "
                     f"({attr.official_availability}); display range ±{limit:g} {unit}."
+                    f"{_unknown_signal_level_note(attr)}"
                 )
         table.viewport().update()
 
