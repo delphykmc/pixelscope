@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,10 @@ from pixelscope_enterprise.iqa.analysis_window import (
     AnalysisWindow,
     AnalysisWindowManager,
     ResultFileType,
+)
+from pixelscope_enterprise.iqa.hover_fields import (
+    format_source_rgb_field,
+    hover_fixed_pitch_font,
 )
 
 
@@ -94,6 +99,71 @@ def test_close_iqa_result_chooses_next_and_preserves_jobs_and_files(
     assert win.active_result_id == "new"
     assert win.close_result_action.isEnabled()
     win.close()
+
+
+def test_close_during_running_spatial_scan_discards_late_completion(
+    qtbot: object,
+) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("closing"))
+    key = ("closing", "metric_db", 128)
+    win._spatial_cache[key] = ()
+    running: Future[tuple[object, ...]] = Future()
+    assert running.set_running_or_notify_cancel()
+    win._spatial_future = running  # Simulate a worker already executing.
+    win._spatial_pending = key
+    win._spatial_displayed = key
+    win._spatial_timer.start()
+
+    win.close_result_action.trigger()
+    assert win.active_result_id is None
+    assert win._spatial_future is None
+    assert win._spatial_pending is None
+    assert win._spatial_displayed is None
+    assert not win._spatial_timer.isActive()
+    assert key not in win._spatial_cache
+    assert "closing" not in win._results
+    assert not running.cancelled()  # Already-running work cannot be cancelled.
+
+    win.present_result(_result("replacement"))
+    running.set_result(())
+    win._finish_spatial_if_ready()
+    assert win.active_result_id == "replacement"
+    assert "closing" not in win._results
+    assert key not in win._spatial_cache
+    assert "closing" not in win._states
+
+    # A freshly loaded artifact may legally reuse the closed result ID.
+    win.close_result_action.trigger()
+    win.present_result(_result("closing"))
+    win._finish_spatial_if_ready()
+    assert win.active_result_id == "closing"
+    assert win._results["closing"].result_id == "closing"
+    assert key not in win._spatial_cache
+    win.close()
+
+
+def test_hover_source_fields_reserve_stable_rgb_columns() -> None:
+    font = hover_fixed_pitch_font()
+    assert font.fixedPitch()
+
+    ref_small = format_source_rgb_field("Reference", (0, 9, 255), bit_depth=8)
+    ref_large = format_source_rgb_field("Reference", (255, 255, 255), bit_depth=8)
+    assert len(ref_small) == len(ref_large)
+    assert ref_small.startswith("Reference RGB8:")
+    assert ref_large.startswith("Reference RGB8:")
+
+    missing = format_source_rgb_field("Target", None, bit_depth=None)
+    present_16 = format_source_rgb_field("Target", (0, 1, 65535), bit_depth=16)
+    assert missing.startswith("Target RGB: unavailable")
+    assert len(missing) == len(present_16)
+    assert present_16.endswith("65535")
+    # The following map column remains at the same position over unavailable
+    # and available pixels when the source slot is declared 16-bit.
+    assert len(missing + " | Map: value") == len(present_16 + " | Map: value")
+    with pytest.raises(ValueError):
+        format_source_rgb_field("Reference", (256, 1, 2), bit_depth=8)
 
 
 def test_exit_closes_only_analysis_window(qtbot: object) -> None:
