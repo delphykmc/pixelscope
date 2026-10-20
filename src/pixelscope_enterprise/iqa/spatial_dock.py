@@ -23,6 +23,11 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay
+from pixelscope_enterprise.iqa.quality_presentation import (
+    DEFAULT_VISIBILITY_THRESHOLD,
+    verdict_for_value,
+)
 from pixelscope_enterprise.iqa.spatial_candidates import SpatialCandidate
 
 
@@ -124,7 +129,7 @@ class StitchedRoiCanvas(QWidget):
         painter.end()
 
 
-def _rank_badge(rank: int) -> QPixmap:
+def _rank_badge(rank: int, verdict_color: str | None = None) -> QPixmap:
     """Compact vector-painted rank token; top discovery is visually dominant."""
 
     badge = QPixmap(28, 28)
@@ -133,7 +138,7 @@ def _rank_badge(rank: int) -> QPixmap:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     # Match the muted-red A/B Attribute card semantic accent for first rank;
     # ranking itself is magnitude-only, not an A-wins verdict.
-    tone = "#e5857d" if rank == 1 else "#7595b4"
+    tone = verdict_color or ("#e5857d" if rank == 1 else "#7595b4")
     painter.setBrush(QColor(tone) if rank == 1 else QColor(TOKENS.raised_background))
     painter.setPen(QPen(QColor(tone), 2))
     painter.drawEllipse(2, 2, 24, 24)
@@ -256,6 +261,8 @@ class SpatialCandidatesPanel(QWidget):
         self.rank_badges: list[QLabel] = []
         self.details: list[QLabel] = []
         self.impact_bars: list[QProgressBar] = []
+        self._legacy_card_styles: list[str] = []
+        self._legacy_impact_styles: list[str] = []
         for index in range(3):
             card = QPushButton(self)
             card.setObjectName(f"enterpriseIqaSpatialCard{index + 1}")
@@ -332,6 +339,8 @@ class SpatialCandidatesPanel(QWidget):
             self.rank_badges.append(rank_badge)
             self.details.append(detail)
             self.impact_bars.append(impact)
+            self._legacy_card_styles.append(card.styleSheet())
+            self._legacy_impact_styles.append(impact.styleSheet())
         layout.addLayout(row, 1)
 
     def _stride_selected(self, _index: int) -> None:
@@ -366,6 +375,10 @@ class SpatialCandidatesPanel(QWidget):
         for i, card in enumerate(self.buttons):
             card.setEnabled(False)
             card.setChecked(False)
+            card.setStyleSheet(self._legacy_card_styles[i])
+            card.setProperty("spatialVerdict", None)
+            self.rank_badges[i].setPixmap(_rank_badge(i + 1))
+            self.impact_bars[i].setStyleSheet(self._legacy_impact_styles[i])
             self.titles[i].setText("—")
             self.details[i].setText("—")
             self.previews[i].set_patches(None, None, (512, 512))
@@ -376,6 +389,9 @@ class SpatialCandidatesPanel(QWidget):
         candidates: Sequence[SpatialCandidate],
         pixmaps: tuple[QPixmap | None, QPixmap | None],
         unit: str,
+        *,
+        quality_attribute: AttributeDisplay | None = None,
+        visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
     ) -> None:
         self.clear_cards()
         self.progress.hide()
@@ -385,6 +401,40 @@ class SpatialCandidatesPanel(QWidget):
         self.status_label.setText("Peak |Δ|  ↓   ·   A/B ROI")
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
+            if quality_attribute is None:
+                self.buttons[i].setStyleSheet(self._legacy_card_styles[i])
+                self.buttons[i].setProperty("spatialVerdict", None)
+                self.rank_badges[i].setPixmap(_rank_badge(i + 1))
+                self.impact_bars[i].setStyleSheet(self._legacy_impact_styles[i])
+                verdict_suffix = ""
+            else:
+                verdict = verdict_for_value(
+                    quality_attribute, candidate.mean, threshold=visibility_threshold
+                )
+                accent = QColor(*verdict.rgb).name()
+                faint = 0.06 if not verdict.visible else 0.14
+                hover = 0.10 if not verdict.visible else 0.22
+                selected = 0.15 if not verdict.visible else 0.30
+                base = TOKENS.raised_background
+                quiet_bg = _blend_rank_tint(base, accent, faint)
+                hover_bg = _blend_rank_tint(base, accent, hover)
+                selected_bg = _blend_rank_tint(base, accent, selected)
+                self.buttons[i].setProperty("spatialVerdict", verdict.tone)
+                self.buttons[i].setStyleSheet(
+                    f"QPushButton {{ background-color: {quiet_bg}; "
+                    f"border: 1px solid {TOKENS.border}; border-left: 4px solid {accent}; "
+                    "border-radius: 9px; text-align: left; }"
+                    f"QPushButton:hover {{ background-color: {hover_bg}; "
+                    f"border-color: {accent}; }}"
+                    f"QPushButton:checked {{ background-color: {selected_bg}; "
+                    f"border: 2px solid {accent}; border-left: 5px solid {accent}; }}"
+                )
+                self.rank_badges[i].setPixmap(_rank_badge(i + 1, accent))
+                self.impact_bars[i].setStyleSheet(
+                    f"QProgressBar {{ background-color: {TOKENS.panel_background}; border: none; }}"
+                    f"QProgressBar::chunk {{ background-color: {accent}; }}"
+                )
+                verdict_suffix = f" · {verdict.verdict}"
             self.buttons[i].setEnabled(True)
             self.titles[i].setText(f"({candidate.x}, {candidate.y})")
             self.titles[i].setToolTip(
@@ -394,11 +444,17 @@ class SpatialCandidatesPanel(QWidget):
             self.details[i].setText(
                 f"Δ {candidate.mean:+.2f} {unit}  ·  {candidate.valid_coverage:.0%}"
                 + (" · ?" if candidate.mode == "exploratory_abs" else "")
+                + verdict_suffix
             )
             self.details[i].setToolTip(
                 f"ROI: ({candidate.x}, {candidate.y}) "
                 f"{candidate.width}×{candidate.height} px; "
                 f"mean {candidate.mean:+.4f} {unit}. GRID-derived only. "
+                + (
+                    " Presentation colors are provisional, not verified ROI quality."
+                    if quality_attribute is not None
+                    else ""
+                )
                 + (
                     "Exploratory (full-pair comparison sign unavailable)."
                     if candidate.mode == "exploratory_abs"

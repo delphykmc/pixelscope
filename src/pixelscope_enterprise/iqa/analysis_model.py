@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 Availability = Literal["available", "partial", "missing", "failed"]
+QualityDirection = Literal["higher_is_better", "lower_is_better", "none"]
 Roi = tuple[float, float, float, float]
 
 _MAX_CELLS = 4_000_000
@@ -90,6 +91,10 @@ class AttributeDisplay:
     # not a pass. An adapter checks at least one A/B original-relative signal
     # level > -50 dB; do NOT infer this from the signed comparison/map.
     summary_signal_gate: bool | None = None
+    # Optional raw-sign verdict interpretation for presentation only.  Legacy
+    # adapters need not supply it, and the pre-existing quality_oriented flag
+    # retains its original meaning whenever the optional policy is disabled.
+    quality_direction: QualityDirection = "none"
 
     def __post_init__(self) -> None:
         if not self.attribute_id or not self.label or not self.unit:
@@ -104,6 +109,8 @@ class AttributeDisplay:
             raise ValueError("available official comparison requires a value")
         if self.summary_signal_gate is not None and not isinstance(self.summary_signal_gate, bool):
             raise ValueError("summary signal gate must be bool or unknown")
+        if self.quality_direction not in {"higher_is_better", "lower_is_better", "none"}:
+            raise ValueError("unsupported quality direction")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
         if self.chart_axis_range is not None and (

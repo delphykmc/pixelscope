@@ -4,6 +4,11 @@
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
+2026-10-20 additive handoff display option: [quality-verdict policy](IQA_QUALITY_PRESENTATION.md)
+describes the separate opt-in higher/lower/none colors, trusted-gate and
+inclusive visibility threshold. This does not supersede the legacy default
+A/B colors or the scientific source and export contracts below.
+
 ## Latest authoritative state (2026-10-09)
 
 - **Merged H0/H1:** PR #144 was **squash-merged only** into
