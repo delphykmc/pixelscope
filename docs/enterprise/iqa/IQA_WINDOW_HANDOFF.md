@@ -1,5 +1,9 @@
 # Enterprise IQA Window — temporary public-safe handoff
 
+> Final seven-request integration validation (2026-10-21): see the
+> [local evidence and remaining native acceptance](IQA_SEVEN_REQUESTS_VALIDATION.md).
+> Historical checkpoint sections below are retained as integration history.
+
 > **Issue #156 H1 (U3/U11):** IQA handoff ownership is scoped to `src/pixelscope_enterprise/iqa/**`, `tests/enterprise/iqa/**`, `docs/enterprise/iqa/**`, and `enterprise/iqa/**` (plus a minimal shared `src/pixelscope_enterprise/__init__.py`). A merged handoff development commit is **not** an approved SUB transfer; see `enterprise/iqa/README.md`. Whole-root `git restore` can delete SUB siblings and is prohibited. Future transfers require a reviewed, externally published manifest with an immutable approved SHA and explicit per-path add/update/delete operations.
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
