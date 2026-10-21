@@ -116,6 +116,8 @@ from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.quality_presentation import (
     DEFAULT_VISIBILITY_THRESHOLD,
+    INFERIOR_RGB,
+    SUPERIOR_RGB,
     quality_map_legend,
     quality_spatial_rgba,
     verdict_for_value,
@@ -487,8 +489,8 @@ _INSIGHT_COLORS = {
     "a": ("#e5857d", "A"),
     "b": ("#79afe6", "B"),
     "signed": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "±"),
-    "superior": ("#408fda", "S"),
-    "inferior": ("#e0555a", "I"),
+    "superior": (QColor(*SUPERIOR_RGB).name(), "S"),
+    "inferior": (QColor(*INFERIOR_RGB).name(), "I"),
     "neutral": (QColor(*NEUTRAL_PRESENTATION_RGB).name(), "—"),
     "muted": ("#d3d6db", "·"),
     "empty": (TOKENS.border, "—"),
@@ -1318,6 +1320,18 @@ class AnalysisWindow(QMainWindow):
         return result.source_a_role or "Image A", result.source_b_role or "Image B"
 
     @staticmethod
+    def _reference_source_index(result: AnalysisResult) -> int | None:
+        """Resolve semantic Reference independently of visual source swapping."""
+
+        if result.source_a_role is not None and result.source_a_role.strip().casefold() == "reference":
+            return 0
+        if result.source_b_role is not None and result.source_b_role.strip().casefold() == "reference":
+            return 1
+        if result.source_a_role is None and result.source_b_role is None:
+            return 0  # Legacy result contract: A is the implicit reference.
+        return None  # Explicit but non-reference roles must not guess a source.
+
+    @staticmethod
     def _hover_bit_depth(image: QImage | None) -> int | None:
         """Return the loaded source's display channel depth, or unavailable."""
 
@@ -1351,7 +1365,11 @@ class AnalysisWindow(QMainWindow):
         if self._active_id is None:
             return
         result = self._results[self._active_id]
-        ranked = rank_top_differences(result, quality_policy=self._quality_policy_enabled)
+        ranked = rank_top_differences(
+            result,
+            quality_policy=self._quality_policy_enabled,
+            visibility_threshold=self._visibility_threshold,
+        )
         self._top3_attribute_ids = [item.attribute_id for item in ranked]
         unknown_gate = any(
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
@@ -1402,8 +1420,8 @@ class AnalysisWindow(QMainWindow):
                 f"{item.label} {item.delta_db:+.4f} dB (full pair). "
                 "Card selection opens its spatial evidence, not an ROI quality score."
                 + (
-                    " Quality colors require |Δ| above the visibility threshold and a trusted "
-                    "original-relative signal gate; muted means no verdict."
+                    " Quality Top 3 requires |Δ| at least the visibility threshold and a "
+                    "trusted original-relative dB signal gate; muted candidates are excluded."
                     if self._quality_policy_enabled
                     else ""
                 )
@@ -1841,6 +1859,7 @@ class AnalysisWindow(QMainWindow):
         self.setWindowTitle("IQA Analysis")
         self._map_reference_item = None  # the old underlay belonged to the replaced scene
         self.map_reference_action.setEnabled(False)
+        self.map_reference_action.setText("Tint Map over Reference")
         self._hover_readouts.reserve_for_result(("—",), ("—",))
         self._guide_items = []
         self._hovered_pixel = None
@@ -1892,6 +1911,8 @@ class AnalysisWindow(QMainWindow):
         self.pair_summary.setText("No result loaded")
         self.fit_action.setEnabled(False)
         self.close_result_action.setEnabled(False)
+        self.clear_roi_action.setEnabled(False)
+        self.clear_roi_button.setEnabled(False)
 
     def _render_result(self) -> None:
         if self._active_id is None:
@@ -2013,7 +2034,20 @@ class AnalysisWindow(QMainWindow):
                 view._muted = False
 
         self._refresh_map(attr, limit)
-        self.map_reference_action.setEnabled(self._source_pixmaps[0] is not None)
+        reference_index = self._reference_source_index(result)
+        if reference_index is None:
+            self.map_reference_action.setEnabled(False)
+            self.map_reference_action.setText("Tint Map over Reference")
+        else:
+            source_name = "A" if reference_index == 0 else "B"
+            self.map_reference_action.setText(f"Tint Map over Reference {source_name}")
+            self.map_reference_action.setEnabled(
+                self._source_pixmaps[reference_index] is not None
+            )
+        self.map_reference_action.setToolTip(
+            "Overlay signed Map on the role-designated Reference image. "
+            "Zero and invalid cells reveal the original; numbers and exports are unchanged."
+        )
         self.image_export_action.setEnabled(
             attr.spatial is not None or any(image is not None for image in self._source_pixmaps)
         )
@@ -2060,12 +2094,14 @@ class AnalysisWindow(QMainWindow):
 
         if self._map_item is None or self._map_placeholder is None:
             return
-        source_a = self._source_pixmaps[0]
-        show_reference = self.map_reference_action.isChecked() and source_a is not None
-        if show_reference and self._map_reference_item is None and source_a is not None:
+        result = self._results.get(self._active_id) if self._active_id is not None else None
+        reference_index = self._reference_source_index(result) if result is not None else None
+        reference = self._source_pixmaps[reference_index] if reference_index is not None else None
+        show_reference = self.map_reference_action.isChecked() and reference is not None
+        if show_reference and self._map_reference_item is None and reference is not None:
             scene = self._views[2].scene()
             if scene is not None:
-                grayscale = source_a.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+                grayscale = reference.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
                 reference_item = scene.addPixmap(QPixmap.fromImage(grayscale))
                 reference_item.setZValue(-1)
                 reference_item.setOpacity(0.6)  # dim the picture against the dark scene
@@ -2440,6 +2476,12 @@ class AnalysisWindow(QMainWindow):
         Synchronously repaint only on ROI changes (not every pan/zoom/frame).
         """
 
+        if len(self._roi_items) != len(self._views):
+            # The empty window has no overlay objects; never zip(strict=True)
+            # across result-teardown state, even on a stale Clear ROI signal.
+            self.clear_roi_action.setEnabled(False)
+            self.clear_roi_button.setEnabled(False)
+            return
         rect = QRectF(*roi) if roi is not None else QRectF()
         attr = self._attribute()
         for i, (view, overlay) in enumerate(zip(self._views, self._roi_items, strict=True)):
@@ -2893,6 +2935,14 @@ class AnalysisWindow(QMainWindow):
         destination = Path(filename)
         if self._file_type is not None and not destination.suffix:
             destination = destination.with_suffix(self._file_type.suffix)
+        # The native dialog confirmed the typed name, NOT the suffixed path.
+        # Refuse existing targets here; the injected writer must also enforce
+        # collision-safe publication to handle filesystem races.
+        if destination.exists() or destination.is_symlink():
+            self.statusBar().showMessage(
+                "Save cancelled: destination already exists. Choose a different filename."
+            )
+            return
         try:
             self._saver(self._results[self._active_id], self.current_analysis_state(), destination)
         except Exception as error:
