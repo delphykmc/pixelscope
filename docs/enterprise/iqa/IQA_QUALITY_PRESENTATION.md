@@ -22,24 +22,29 @@ the corrected shared palette. Quality toggling still does not change exports.
   (default). The UI must never guess this field from a metric label or from
   `quality_oriented`. The private adapter may attach verified directions for its
   own 14 attributes; the public demo attaches only synthetic directions.
-- A trusted `summary_signal_gate is True` is required for any visible verdict.
-  `None` (unknown) and `False` are both **not visible**. The existing signal gate
-  is about original-relative signal evidence; it must not be inferred from a
-  signed delta or local map.
-- An absolute signed difference `<= 0.5` is **not visible** (inclusive); the
+- A trusted `summary_signal_gate is True` is required for a visible **dB** verdict.
+  For dB, `None` (unknown) and `False` both mean **not visible**; signal validity
+  cannot be inferred from a signed delta or map. Non-dB whole-image metrics
+  (e.g. `color`) have no original-signal gate by design, so `None` must not
+  suppress their eligible direction-aware verdict.
+- An absolute signed difference **`>= 0.5` is visible, including exactly 0.5**.
+  Differences strictly below the configured threshold are muted, and zero
+  remains a non-difference even when the threshold is set to zero. The
   setting can be changed through `View > Set Visibility Threshold...`.
   This threshold is in the supplied attribute's units, applied to its own
   values; it is never a normalization or change to `fixed_range`.
 - Visible, higher-is-better positive / lower-is-better negative -> **Superior**
-  (blue). The opposite signs -> **Inferior** (red). Direction `none` ->
+  (blue `#3A6FD8`). The opposite signs -> **Inferior** (red `#C0392B`). Direction `none` ->
   **No quality direction** (dark gray `#5E5E5E`, matching request 4).
   Untrusted or below-threshold values ->
   **Not visible**, drawn light gray at reduced opacity. Mask-invalid cells
   remain transparent regardless of policy.
 - In conjunction with request 3 (#195), the Top-3 first-insight ranker skips
   un-oriented metrics; quality mode also skips explicit `quality_direction=none`.
-  Direction-known metrics with an untrusted signal gate may still appear muted,
-  with no claim of a quality verdict. The complete chart/map retain all metrics.
+  In Quality mode, only visible, trusted, above-or-equal-threshold dB
+  differences enter the ranked cards. Unknown-gate or faint candidates are
+  **omitted**, not shown as muted Top-3 entries. The complete chart/map still
+  present all available attributes with truthful individual display policy.
 - The verdict is about the supplied **difference in its declared direction**,
   not an A/B positional preference and not an independent scientific score.
   GRID-derived ROI/hotspot colors are explicitly provisional local evidence,
@@ -52,8 +57,10 @@ the corrected shared palette. Quality toggling still does not change exports.
 
 ## Integrated handoff contracts (requests 1, 2, 3 and 4)
 
-- **Request 1 / #200:** The optional grayscale reference-A underlay owns the
-  window toggle, image cache, and map-compositing path. The integrated
+- **Request 1 / #200:** The optional grayscale role-designated **Reference**
+  underlay owns the window toggle, image cache, and map-compositing path.
+  If B is explicitly Reference, B is used; where no roles are supplied,
+  legacy A is the Reference. A/B visual pane swapping never changes this. The integrated
   `_map_pixmap` selects `quality_spatial_rgba` **or** legacy
   `colorize_spatial_rgba` once, then calls the common
   `apply_spatial_reference_tint_rgba` helper **exactly once** when the
@@ -66,8 +73,8 @@ the corrected shared palette. Quality toggling still does not change exports.
   `NEUTRAL_PRESENTATION_RGB=(94,94,94)` / `#5E5E5E`; the quality-mode
   neutral chart track is `#E1E5E9`. The lighter muted gray (`#D3D6DB`)
   stays distinct.
-- **Request 6 / #201:** The trusted-gate contract remains `True` only; `None`
-  stays unknown without guessing source-original levels. Attribute-row tooltip
+- **Request 6 / #201:** The dB trusted-gate contract remains `True` only;
+  `None` stays unknown without guessing source-original levels. Attribute-row tooltip
   explanations remain owned by #201.
 
 The four integrated requests have focused combined Qt coverage. The remaining
