@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -21,7 +22,7 @@ from pixelscope_enterprise.iqa.analysis_window import (
 from pixelscope_enterprise.iqa.composition import IqaWindowContribution
 
 
-def _result(tmp_path: object, *, with_images: bool = True) -> AnalysisResult:
+def _result(tmp_path: Path, *, with_images: bool = True) -> AnalysisResult:
     attribute = AttributeDisplay(
         attribute_id="detail",
         label="Detail",
@@ -57,7 +58,7 @@ def _result(tmp_path: object, *, with_images: bool = True) -> AnalysisResult:
         return result
     paths = []
     for filename, gray in (("target.png", 24), ("reference.png", 210)):
-        path = tmp_path / filename  # type: ignore[operator]
+        path = tmp_path / filename
         image = QImage(64, 64, QImage.Format.Format_RGB32)
         image.fill(QColor(gray, gray, gray))
         assert image.save(str(path))
@@ -65,7 +66,9 @@ def _result(tmp_path: object, *, with_images: bool = True) -> AnalysisResult:
     return replace(result, source_a=paths[0], source_b=paths[1])
 
 
-def test_default_legacy_presentation_is_signed_not_a_b_winner(qtbot: object, tmp_path: object) -> None:
+def test_default_legacy_presentation_is_signed_not_a_b_winner(
+    qtbot: object, tmp_path: Path
+) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     assert not win.quality_policy_action.isChecked()
@@ -81,7 +84,7 @@ def test_default_legacy_presentation_is_signed_not_a_b_winner(qtbot: object, tmp
 
 
 def test_private_contribution_supplies_initial_quality_and_reference_tint(
-    qtbot: object, tmp_path: object
+    qtbot: object, tmp_path: Path
 ) -> None:
     defaults = IqaPresentationDefaults(
         quality_enabled=True,
