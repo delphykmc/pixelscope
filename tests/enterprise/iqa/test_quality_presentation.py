@@ -69,12 +69,37 @@ def test_verdict_direction_does_not_reorient_supplied_difference(
     assert attr.official_value == -2.0
 
 
-@pytest.mark.parametrize("value", [0.5, -0.5, 0.0])
-def test_threshold_is_inclusive(value: float) -> None:
+@pytest.mark.parametrize("value", [0.49999, -0.49999, 0.0])
+def test_below_threshold_or_exact_zero_is_muted(value: float) -> None:
     verdict = verdict_for_value(_attribute(), value)
     assert verdict.verdict == "Not visible"
     assert verdict.tone == "muted"
     assert verdict.opacity < 0.5
+
+
+@pytest.mark.parametrize("value", [0.5, -0.5])
+def test_exact_visibility_threshold_is_included(value: float) -> None:
+    verdict = verdict_for_value(_attribute(), value)
+    assert verdict.visible
+    assert verdict.tone in ("superior", "inferior")
+    rgba = quality_spatial_rgba(_attribute(), 2.0)
+    assert rgba is not None
+    assert rgba[0, 2, 3] == rgba[0, 3, 3] == 255
+
+
+def test_non_db_whole_image_color_does_not_need_original_signal_gate() -> None:
+    attr = replace(_attribute(), unit="color", summary_signal_gate=None)
+    assert verdict_for_value(attr, -2.0).verdict == "Inferior"
+    rgba = quality_spatial_rgba(attr, 2.0)
+    assert rgba is not None
+    assert tuple(rgba[0, 0]) == (*SUPERIOR_RGB, 255)
+    assert tuple(rgba[0, 1]) == (*INFERIOR_RGB, 255)
+    assert tuple(rgba[0, 4]) == (*MUTED_RGB, 82)
+
+
+def test_enterprise_quality_verdict_palette_is_shared() -> None:
+    assert SUPERIOR_RGB == (58, 111, 216)  # #3a6fd8
+    assert INFERIOR_RGB == (192, 57, 43)  # #c0392b
 
 
 @pytest.mark.parametrize("gate", [None, False])
@@ -97,8 +122,9 @@ def test_rgba_preserves_raw_sign_mask_statistics_and_inclusive_visibility() -> N
     assert rgba is not None
     assert tuple(rgba[0, 0]) == (*SUPERIOR_RGB, 255)
     assert tuple(rgba[0, 1]) == (*INFERIOR_RGB, 255)
-    assert tuple(rgba[0, 2]) == (*MUTED_RGB, 82)
-    assert tuple(rgba[0, 3]) == (*MUTED_RGB, 82)
+    assert rgba[0, 2, 3] == rgba[0, 3, 3] == 255  # inclusive at ±0.5
+    assert tuple(rgba[0, 2, :3]) != MUTED_RGB
+    assert tuple(rgba[0, 3, :3]) != MUTED_RGB
     assert tuple(rgba[0, 4]) == (*MUTED_RGB, 82)
     assert rgba[0, 5, 3] == 0  # invalid mask remains transparent
     assert np.array_equal(attr.spatial.values, before, equal_nan=True)
@@ -135,7 +161,6 @@ def test_top3_combines_request3_direction_exclusion_with_muted_gate() -> None:
         "trusted",
     ]
     assert [item.attribute_id for item in rank_top_differences(result, quality_policy=True)] == [
-        "untrusted",
         "trusted",
     ]
 
@@ -154,13 +179,13 @@ def test_quality_map_reference_underlay_composition_alpha_and_raw_invariants() -
     assert tint[0, 1, 3] == REFERENCE_TINT_MAX_ALPHA  # -2: red, visible
     assert tuple(tint[0, 0, :3]) == SUPERIOR_RGB
     assert tuple(tint[0, 1, :3]) == INFERIOR_RGB
-    assert 0 < tint[0, 2, 3] < 82  # inclusive +0.5: faint only
-    assert 0 < tint[0, 3, 3] < 82  # inclusive -0.5: faint only
-    assert tuple(tint[0, 2, :3]) == MUTED_RGB
-    assert tuple(tint[0, 3, :3]) == MUTED_RGB
+    assert tint[0, 2, 3] == tint[0, 3, 3] == 44  # inclusive ±0.5
+    assert tuple(tint[0, 2, :3]) != MUTED_RGB
+    assert tuple(tint[0, 3, :3]) != MUTED_RGB
     assert tint[0, 4, 3] == 0  # signed zero reveals the photograph
     assert tint[0, 5, 3] == 0  # invalid mask also reveals the photograph
-    assert quality_only[0, 4, 3] == 82  # default quality display remains unchanged
+    assert quality_only[0, 2, 3] == 255  # visibility starts at +0.5
+    assert quality_only[0, 4, 3] == 82  # exact zero stays a non-difference
 
     # Source A's dimmed-gray pixel is unaffected by transparent tint. The
     # requested RGBA variant composes without replacing request 1's renderer.

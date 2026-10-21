@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult
+from pixelscope_enterprise.iqa.quality_presentation import (
+    DEFAULT_VISIBILITY_THRESHOLD,
+    verdict_for_value,
+)
 
 _MIN_MEANINGFUL_DB = 0.3
 
@@ -25,7 +29,11 @@ class TopDifference:
 
 
 def rank_top_differences(
-    result: AnalysisResult, *, count: int = 3, quality_policy: bool = False
+    result: AnalysisResult,
+    *,
+    count: int = 3,
+    quality_policy: bool = False,
+    visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
 ) -> tuple[TopDifference, ...]:
     """Select comparable verified dB differences, largest magnitude first.
 
@@ -36,8 +44,8 @@ def rank_top_differences(
     The legacy 0.3 dB threshold is strict, and ties preserve supplied source
     order. Following request 3, Top-3 never includes a legacy un-oriented
     attribute. In optional quality-presentation mode, direction metadata must
-    additionally be explicit (not ``none``); otherwise measurable but
-    untrusted/small differences can still appear as visibly muted cards.
+    additionally be explicit (not ``none``), and only visible verdicts may
+    enter the Top 3. A low/unknown-gate candidate is never a muted Top-3 card.
     """
 
     if count < 0:
@@ -48,11 +56,15 @@ def rank_top_differences(
         if attr.unit == "dB"
         and attr.quality_oriented
         and (not quality_policy or attr.quality_direction != "none")
-        and (quality_policy or attr.summary_signal_gate is True)
+        and attr.summary_signal_gate is True
         and attr.official_availability == "available"
         and attr.official_value is not None
         and attr.chart_axis_range is not None
-        and (quality_policy or abs(attr.official_value) > _MIN_MEANINGFUL_DB)
+        and (
+            verdict_for_value(attr, attr.official_value, threshold=visibility_threshold).visible
+            if quality_policy
+            else abs(attr.official_value) > _MIN_MEANINGFUL_DB
+        )
     ]
     candidates.sort(key=lambda attr: -abs(float(attr.official_value or 0.0)))
     return tuple(

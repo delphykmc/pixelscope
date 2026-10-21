@@ -41,8 +41,9 @@ def test_opt_in_quality_policy_preserves_values_roi_state_and_legacy_default(
     assert [attr.official_value for attr in result.attributes] == raw_values
 
     win.set_quality_presentation(True, threshold=7.0)
-    assert "Not visible" in win.top3_buttons[0].text()
-    assert win.top3_buttons[0].property("insightTone") == "muted"
+    assert win.top3_buttons[0].isEnabled()  # exactly 7.0 is now visible
+    win.set_quality_presentation(True, threshold=7.5)
+    assert not any(card.isEnabled() for card in win.top3_buttons)
     assert "Faint gray" in win.clamp_label.text()
     win.quality_policy_action.setChecked(False)
     assert "A better" in win.top3_buttons[0].text()
@@ -52,7 +53,7 @@ def test_opt_in_quality_policy_preserves_values_roi_state_and_legacy_default(
     win.close()
 
 
-def test_quality_policy_shows_untrusted_first_insights_only_as_muted(
+def test_quality_policy_excludes_untrusted_first_insights(
     qtbot: object,
 ) -> None:
     original = make_synthetic_result("quality-untrusted")
@@ -65,9 +66,8 @@ def test_quality_policy_shows_untrusted_first_insights_only_as_muted(
     win.present_result(untrusted)
     assert not any(card.isEnabled() for card in win.top3_buttons)
     win.set_quality_presentation(True)
-    assert all(card.isEnabled() for card in win.top3_buttons)
-    assert all(card.property("insightTone") == "muted" for card in win.top3_buttons)
-    assert all("Not visible" in card.text() for card in win.top3_buttons)
+    assert not any(card.isEnabled() for card in win.top3_buttons)
+    assert not win._top3_attribute_ids
     win.close()
 
 
@@ -93,7 +93,7 @@ def test_local_hotspot_cards_show_directional_verdict_without_recomputing_scores
         (None, None),
         "dB",
         quality_attribute=source_attr,
-        visibility_threshold=2.0,
+        visibility_threshold=2.1,
     )
     assert "Not visible" in panel.details[0].text()
     assert panel.buttons[0].property("spatialVerdict") == "muted"
