@@ -14,8 +14,13 @@ the corrected shared palette. Quality toggling still does not change exports.
 
 ## Interpretation and controls
 
-- `View > Color by Quality Verdict` is **off by default**. Off retains the
-  existing red A-better / blue B-better, neutral signed palette and Top 3 gate.
+- Without host configuration, `View > Color by Quality Verdict` and
+  `Tint Map over Reference` remain **off by default**. The PRIVATE Enterprise
+  contribution can declare initial display defaults without mutating raw model
+  results. The legacy red/blue palette is signed polarity only (positive/
+  negative), **not** an A/B winner or per-attribute quality interpretation.
+  Both chart endpoints use `− / +`; Top-3 labels say positive/negative signed.
+  Opt-in Quality mode remains the only source of Superior/Inferior verdicts.
 - When enabled, the sign of the **supplied** official or spatial difference
   remains unchanged. `AttributeDisplay.quality_direction` is an independent
   optional metadata field: `higher_is_better`, `lower_is_better`, or `none`
@@ -101,3 +106,39 @@ individual branches independently.
 
 **Handoff boundary:** these files remain on the temporary public handoff
 branch; do not merge any `pixelscope_enterprise` path into public `main`.
+
+
+## Official PRIVATE contribution startup defaults (2026-10-21)
+
+The host may pass public-safe `IqaPresentationDefaults` through the documented
+`IqaWindowContribution` constructor to `AnalysisWindowManager` and
+`AnalysisWindow`:
+
+```python
+from pixelscope_enterprise.iqa.analysis_window import IqaPresentationDefaults
+from pixelscope_enterprise.iqa.composition import IqaWindowContribution
+
+contribution = IqaWindowContribution(
+    # Existing PRIVATE load/save/job/settings callbacks remain unchanged.
+    presentation_defaults=IqaPresentationDefaults(
+        quality_enabled=True,
+        tint_reference_enabled=True,
+        visibility_threshold=0.5,
+    ),
+)
+```
+
+These are **initial window UI defaults**, not producer/model/server settings or
+a change to PRIVATE Reader/Writer. Users may still toggle either View action or
+change the threshold. The defaults are applied at actual window creation, before
+a result is first rendered; manager window reopen behavior is unchanged.
+When the role-designated Reference image is absent, Tint remains checked as a
+preference but its action is disabled and the Map does **not** infer another
+source. With no injected defaults the historical off-state is retained, but
+its **labels no longer assert an A/B winner**. Do not infer a quality verdict
+from `quality_oriented`, native producer sign or source role alone.
+
+The PRIVATE owner reports its native signed difference follows a
+Target-minus-Reference contract. Quality direction remains **per attribute**
+and must be explicitly supplied by the trusted PRIVATE adapter; this public
+Handoff does not globally reverse signs or rewrite exports.
