@@ -110,7 +110,7 @@ def test_quality_and_reference_tint_are_applied_once_with_role_ui_and_exports(
     assert "Target: target.png" in window.windowTitle()
     assert "…" in window._pane_labels[0].text()
     assert window._pane_labels[0].toolTip().startswith("REFERENCE  ·  reference_")
-    assert "A better" in " ".join(card.text() for card in window.top3_buttons)
+    assert "positive signed" in " ".join(card.text() for card in window.top3_buttons)
     assert "neutral" not in window._top3_attribute_ids  # request 3 legacy orientation
 
     window._set_roi(0, 0, 64, 64)
