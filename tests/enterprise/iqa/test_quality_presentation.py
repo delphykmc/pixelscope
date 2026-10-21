@@ -77,7 +77,6 @@ def test_below_threshold_or_exact_zero_is_muted(value: float) -> None:
     assert verdict.opacity < 0.5
 
 
-@pytest.mark.parametrize("gate", [None, False])
 @pytest.mark.parametrize("value", [0.5, -0.5])
 def test_exact_visibility_threshold_is_included(value: float) -> None:
     verdict = verdict_for_value(_attribute(), value)
