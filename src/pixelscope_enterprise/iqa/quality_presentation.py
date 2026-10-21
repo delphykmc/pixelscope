@@ -18,8 +18,8 @@ from pixelscope_enterprise.iqa.analysis_model import (
     apply_spatial_reference_tint_rgba,
 )
 
-SUPERIOR_RGB = (64, 143, 218)
-INFERIOR_RGB = (224, 85, 90)
+SUPERIOR_RGB = (58, 111, 216)  # Enterprise Quality palette: #3a6fd8
+INFERIOR_RGB = (192, 57, 43)  # Enterprise Quality palette: #c0392b
 # One shared visible-neutral palette with request 4, distinct from muted gray.
 NEUTRAL_RGB = NEUTRAL_PRESENTATION_RGB
 MUTED_RGB = (211, 214, 219)
@@ -42,15 +42,16 @@ def verdict_for_value(
     *,
     threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
 ) -> QualityPresentation:
-    """Classify an unchanged signed difference, with an inclusive dead zone."""
+    """Classify unchanged signed data; the visibility boundary is inclusive."""
 
     if not np.isfinite(threshold) or threshold < 0:
         raise ValueError("visibility threshold must be finite and nonnegative")
     if (
         value is None
         or not np.isfinite(value)
-        or abs(value) <= threshold
-        or attribute.summary_signal_gate is not True
+        or value == 0.0
+        or abs(value) < threshold
+        or (attribute.unit == "dB" and attribute.summary_signal_gate is not True)
     ):
         return QualityPresentation("Not visible", "muted", MUTED_RGB, 0.32, False)
     if attribute.quality_direction == "none":
@@ -87,7 +88,8 @@ def quality_spatial_rgba(
 
     values = np.where(grid.valid_mask, grid.values, 0.0)
     magnitude = np.clip(np.abs(values) / half_range, 0.0, 1.0)
-    eligible = (np.abs(values) > threshold) & (attribute.summary_signal_gate is True)
+    gate_passes = attribute.unit != "dB" or attribute.summary_signal_gate is True
+    eligible = (values != 0.0) & (np.abs(values) >= threshold) & gate_passes
     rgba = np.empty((*values.shape, 4), dtype=np.uint8)
     # One channel at a time prevents wide float64 RGB temporaries at the
     # maximum supported 4-million-cell grid size.
@@ -120,5 +122,5 @@ def quality_spatial_rgba(
 def quality_map_legend(threshold: float = DEFAULT_VISIBILITY_THRESHOLD) -> str:
     return (
         "Blue: Superior | Red: Inferior | Gray: No quality direction | "
-        f"Faint gray: |Δ| ≤ {threshold:g} or signal gate not trusted"
+        f"Faint gray: Δ=0, |Δ| < {threshold:g} or dB signal gate not trusted"
     )
