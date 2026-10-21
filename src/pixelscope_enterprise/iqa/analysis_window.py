@@ -152,7 +152,9 @@ class IqaPresentationDefaults:
     visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD
 
     def __post_init__(self) -> None:
-        if type(self.quality_enabled) is not bool or type(self.tint_reference_enabled) is not bool:
+        if not isinstance(self.quality_enabled, bool) or not isinstance(
+            self.tint_reference_enabled, bool
+        ):
             raise ValueError("presentation default toggles must be bool")
         if not np.isfinite(self.visibility_threshold) or self.visibility_threshold < 0:
             raise ValueError("presentation visibility threshold must be finite and nonnegative")
