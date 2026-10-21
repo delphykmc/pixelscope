@@ -1323,9 +1323,15 @@ class AnalysisWindow(QMainWindow):
     def _reference_source_index(result: AnalysisResult) -> int | None:
         """Resolve semantic Reference independently of visual source swapping."""
 
-        if result.source_a_role is not None and result.source_a_role.strip().casefold() == "reference":
+        if (
+            result.source_a_role is not None
+            and result.source_a_role.strip().casefold() == "reference"
+        ):
             return 0
-        if result.source_b_role is not None and result.source_b_role.strip().casefold() == "reference":
+        if (
+            result.source_b_role is not None
+            and result.source_b_role.strip().casefold() == "reference"
+        ):
             return 1
         if result.source_a_role is None and result.source_b_role is None:
             return 0  # Legacy result contract: A is the implicit reference.
