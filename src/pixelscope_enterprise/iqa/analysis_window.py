@@ -1396,8 +1396,15 @@ class AnalysisWindow(QMainWindow):
                 card.setText(f"#{index + 1}  —")
                 _style_insight_card(card, "empty")
                 card.setToolTip(
-                    "Requires eligible full-pair dB, |difference| > 0.3 dB, "
-                    "and at least one original-relative signal above -50 dB."
+                    (
+                        f"Requires a trusted full-pair dB difference with "
+                        f"|Δ| ≥ {self._visibility_threshold:g} and known quality direction."
+                    )
+                    if self._quality_policy_enabled
+                    else (
+                        "Requires eligible full-pair dB, |difference| > 0.3 dB, "
+                        "and at least one original-relative signal above -50 dB."
+                    )
                 )
                 card.setEnabled(False)
                 card.setChecked(False)
@@ -1823,7 +1830,7 @@ class AnalysisWindow(QMainWindow):
         value, accepted = QInputDialog.getDouble(
             self,
             "IQA Quality Visibility Threshold",
-            "Show verdict only when |signed difference| is greater than:",
+            "Show verdict when |signed difference| is at least:",
             self._visibility_threshold,
             0.0,
             1_000_000.0,
