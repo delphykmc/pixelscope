@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage
+from PySide6.QtTest import QSignalSpy, QTest
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -122,10 +123,18 @@ def test_roles_and_reference_tint_keep_hover_science_and_exports(
     assert tinted.pixelColor(1, 0).alpha() == 0  # signed zero reveals source A
     assert tinted.pixelColor(1, 1).alpha() == 0  # invalid mask reveals source A
 
+    window_handle = window.windowHandle()
+    assert window_handle is not None
     for view in window._views:
         position = view.mapFromScene(QPointF(16.5, 16.5))
         assert view.viewport().rect().contains(position)
-        qtbot.mouseMove(view.viewport(), pos=position)  # type: ignore[attr-defined]
+        delivered = QSignalSpy(view.pixel_hovered)
+        # qtbot.mouseMove(QWidget) can require a real OS cursor move on Windows.
+        # QWindow input sends a deterministic Qt mouse event through the native
+        # top-level window and viewport hit-testing, as in request-3 hover tests.
+        QTest.mouseMove(window_handle, view.viewport().mapTo(window, position))
+        assert delivered.count() > 0
+        assert delivered.at(delivered.count() - 1) == [16, 16]
         assert hover[-1] == (
             "Pixel (16, 16)",
             format_source_rgb_field("Reference", (17, 33, 65), bit_depth=8),
