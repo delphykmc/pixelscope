@@ -140,8 +140,9 @@ def test_quality_and_reference_tint_are_applied_once_with_role_ui_and_exports(
     assert window._map_item is not None
     assert "Superior" in " ".join(card.text() for card in window.top3_buttons)
     assert "neutral" not in window._top3_attribute_ids  # request 2 explicit direction
-    assert window._top3_attribute_ids[0] == "unknown"
-    assert window.top3_buttons[0].property("insightTone") == "muted"
+    assert window._top3_attribute_ids == ["detail"]
+    assert window.top3_buttons[0].property("insightTone") == "superior"
+    assert not window.top3_buttons[1].isEnabled()
 
     half_range = spatial_display_half_range(
         window._display_range(attribute, state), state.display_gain
@@ -171,7 +172,7 @@ def test_quality_and_reference_tint_are_applied_once_with_role_ui_and_exports(
     assert expected[0, 1, 3] > 0
     assert 0 < expected[0, 2, 3] < expected[0, 0, 3]
     assert 0 < expected[1, 0, 3] < expected[0, 0, 3]
-    assert tuple(expected[0, 2, :3]) == MUTED_RGB  # threshold inclusive
+    assert tuple(expected[0, 2, :3]) != MUTED_RGB  # ±0.5 is visible
     assert expected[1, 1, 3] == 0  # signed zero reveals source A
     assert expected[1, 2, 3] == 0  # invalid cell reveals source A
     # A second alpha multiplication would make this strictly smaller.
