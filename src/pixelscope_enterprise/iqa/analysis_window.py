@@ -2047,9 +2047,7 @@ class AnalysisWindow(QMainWindow):
         else:
             source_name = "A" if reference_index == 0 else "B"
             self.map_reference_action.setText(f"Tint Map over Reference {source_name}")
-            self.map_reference_action.setEnabled(
-                self._source_pixmaps[reference_index] is not None
-            )
+            self.map_reference_action.setEnabled(self._source_pixmaps[reference_index] is not None)
         self.map_reference_action.setToolTip(
             "Overlay signed Map on the role-designated Reference image. "
             "Zero and invalid cells reveal the original; numbers and exports are unchanged."
