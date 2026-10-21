@@ -33,6 +33,7 @@ from pixelscope_enterprise.iqa.analysis_window import (
     AnalysisWindow,
     AnalysisWindowManager,
     IqaSettingsFactory,
+    IqaPresentationDefaults,
     ResultFileType,
     ResultLoader,
     ResultSaver,
@@ -107,11 +108,16 @@ class IqaWindowContribution:
         load: ResultLoader | None = None,
         save: ResultSaver | None = None,
         file_type: ResultFileType | None = None,
+        presentation_defaults: IqaPresentationDefaults | None = None,
         start_job: IqaJobStarter | None = None,
         cancel_job: IqaJobCanceller | None = None,
     ) -> None:
         self.manager = AnalysisWindowManager(
-            settings_factory=settings_factory, load=load, save=save, file_type=file_type
+            settings_factory=settings_factory,
+            load=load,
+            save=save,
+            file_type=file_type,
+            presentation_defaults=presentation_defaults,
         )
         self._start_job = start_job
         self._cancel_job = cancel_job
