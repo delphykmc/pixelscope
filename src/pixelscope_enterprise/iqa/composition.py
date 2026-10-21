@@ -32,8 +32,8 @@ from pixelscope_enterprise.iqa.analysis_model import AnalysisResult
 from pixelscope_enterprise.iqa.analysis_window import (
     AnalysisWindow,
     AnalysisWindowManager,
-    IqaSettingsFactory,
     IqaPresentationDefaults,
+    IqaSettingsFactory,
     ResultFileType,
     ResultLoader,
     ResultSaver,
