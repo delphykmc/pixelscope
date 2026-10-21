@@ -10,6 +10,8 @@ touch saved packages, cancel provider jobs or change host viewer selection.
    result, its in-memory analysis state and derived spatial cache. The next
    combo entry becomes visible, or the previous entry if the closed result was
    last. Closing the final result returns to a fully empty analysis presentation.
+   Both Clear ROI controls are disabled in the empty state, and stale ROI
+   callbacks safely return without accessing removed scene overlays.
    The window stays open. No loader, writer, filesystem or job callback runs.
 2. **Exit** closes the Analysis Window, retaining its normal manager-owned
    reopen lifecycle. It does not unload/delete a portable artifact or cancel
@@ -20,8 +22,13 @@ touch saved packages, cancel provider jobs or change host viewer selection.
    reader/writer can provide, for example, `ResultFileType("PixelScope IQA
    result", ".pxiqa")`. Open/Save filters derive from the type; Save As
    suggests a sanitized result-ID filename with the declared suffix and adds
-   the suffix if the chosen filename has none. No metadata leaves the
-   window, changes result identity, or implements portable serialization.
+   the suffix if the chosen filename has none. **After suffix normalization**,
+   the window refuses any already-existing final destination (including an
+   existing `name.pxiqa` when the dialog returned `name`). The saver is not
+   called; the status message asks for a different filename. The actual
+   injected writer must also enforce safe, race-resistant file publication.
+   No metadata leaves the window, changes result identity, or implements
+   portable serialization.
    Omitting the file type keeps the existing generic filter.
 4. **Hover formatting integration:** `hover_fields.py` provides the system
    fixed-pitch font and `format_source_rgb_field(role, rgb, bit_depth=...)`
