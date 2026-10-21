@@ -24,7 +24,7 @@ def test_opt_in_quality_policy_preserves_values_roi_state_and_legacy_default(
     win._set_roi(0, 0, 256, 256)
     state_before = win.current_analysis_state()
     assert not win.quality_policy_action.isChecked()
-    assert "A better" in win.top3_buttons[0].text()
+    assert "positive signed" in win.top3_buttons[0].text()
     raw_values = [attr.official_value for attr in result.attributes]
 
     win.quality_policy_action.setChecked(True)
@@ -46,7 +46,7 @@ def test_opt_in_quality_policy_preserves_values_roi_state_and_legacy_default(
     assert not any(card.isEnabled() for card in win.top3_buttons)
     assert "Faint gray" in win.clamp_label.text()
     win.quality_policy_action.setChecked(False)
-    assert "A better" in win.top3_buttons[0].text()
+    assert "positive signed" in win.top3_buttons[0].text()
     assert win._group_tables["dB"].item(0, 1).data(QUALITY_POLICY_ROLE) is False
     assert win.current_roi == (0, 0, 256, 256)
     assert win.current_analysis_state()["ranges"] == state_before["ranges"]
