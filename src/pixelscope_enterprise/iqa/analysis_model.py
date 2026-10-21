@@ -185,7 +185,7 @@ def colorize_spatial_rgba(
 ) -> NDArray[np.uint8] | None:
     """Vectorized signed grid -> RGBA; invalid cells are transparent.
 
-    Oriented red/blue encodes A-better/B-better only with verified direction.
+    Legacy red/blue encodes signed polarity only; quality requires explicit direction.
     Unoriented dark gray encodes magnitude only, never a quality winner.
     Color clipping is display-only; raw numbers and mask remain unchanged.
     """
@@ -273,7 +273,7 @@ def map_polarity_legend(attribute: AttributeDisplay) -> str:
     """Legend is semantic, not merely a description of the color palette."""
 
     if attribute.quality_oriented:
-        return "Red: A better (+) | Blue: B better (−)"
+        return "Red: positive (+) | Blue: negative (−); no quality verdict"
     return "Dark gray: signed magnitude (+/−), NO quality winner inferred"
 
 

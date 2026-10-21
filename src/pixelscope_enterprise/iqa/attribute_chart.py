@@ -118,10 +118,9 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             value_text + ("  ↗ clipped" if clipped else ""),
         )
-        # Endpoint labels belong to the individual bar, not a separate
-        # two-line Inspector legend: quality-oriented Full shows B / A;
-        # provisional ROI and unoriented Full show signed − / + only.
-        left_end, right_end = ("B", "A") if attr.quality_oriented and not is_roi else ("−", "+")
+        # Native signed values cannot identify a quality winner by A/B position.
+        # Both legacy and optional quality policy keep raw signed endpoints.
+        left_end, right_end = "−", "+"
         quality_policy = index.data(QUALITY_POLICY_ROLE) is True
         threshold_data = index.data(VISIBILITY_THRESHOLD_ROLE)
         threshold = (

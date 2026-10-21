@@ -139,6 +139,28 @@ IqaSettingsFactory = Callable[[], QSettings]
 
 
 @dataclass(frozen=True)
+class IqaPresentationDefaults:
+    """Host-contributed initial display preferences; no producer data mutation.
+
+    The public-safe shell remains opt-in by default. PRIVATE Enterprise can
+    request a different initial state through IqaWindowContribution.
+    These values apply on window creation; user View-menu toggles still work.
+    """
+
+    quality_enabled: bool = False
+    tint_reference_enabled: bool = False
+    visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.quality_enabled, bool) or not isinstance(
+            self.tint_reference_enabled, bool
+        ):
+            raise ValueError("presentation default toggles must be bool")
+        if not np.isfinite(self.visibility_threshold) or self.visibility_threshold < 0:
+            raise ValueError("presentation visibility threshold must be finite and nonnegative")
+
+
+@dataclass(frozen=True)
 class ResultFileType:
     """Reader/writer-contributed portable result type; presentation metadata only."""
 
@@ -572,8 +594,10 @@ class AnalysisWindow(QMainWindow):
         parent: QWidget | None = None,
         *,
         settings_factory: IqaSettingsFactory | None = None,
+        presentation_defaults: IqaPresentationDefaults | None = None,
     ) -> None:
         super().__init__(parent)
+        defaults = presentation_defaults or IqaPresentationDefaults()
         self._settings_factory = settings_factory or default_iqa_settings
         self.setObjectName("enterpriseIqaAnalysisWindow")
         self.setWindowTitle("IQA Analysis")
@@ -598,8 +622,8 @@ class AnalysisWindow(QMainWindow):
         self._pane_labels: list[_PaneCaption] = []
         self._pane_wrappers: list[QWidget] = []
         self._sources_swapped = False
-        self._quality_policy_enabled = False
-        self._visibility_threshold = DEFAULT_VISIBILITY_THRESHOLD
+        self._quality_policy_enabled = defaults.quality_enabled
+        self._visibility_threshold = defaults.visibility_threshold
         self._group_tables: dict[str, QTableWidget] = {}
         self._range_editors: dict[str, QDoubleSpinBox] = {}
         self._group_sections: dict[str, QWidget] = {}
@@ -689,7 +713,7 @@ class AnalysisWindow(QMainWindow):
         self.quality_policy_action = view_menu.addAction("Color by Quality Verdict")
         self.quality_policy_action.setObjectName("enterpriseIqaQualityVerdictColors")
         self.quality_policy_action.setCheckable(True)
-        self.quality_policy_action.setChecked(False)
+        self.quality_policy_action.setChecked(defaults.quality_enabled)
         self.quality_policy_action.setToolTip(
             "Optional: use per-attribute higher/lower/none direction; preserve signed values."
         )
@@ -747,13 +771,13 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
             self._hotspot_overlay_toggled
         )
-        self.map_reference_action = view_menu.addAction("Tint Map over Reference A")
+        self.map_reference_action = view_menu.addAction("Tint Map over Reference")
         self.map_reference_action.setObjectName("enterpriseIqaMapReferenceTint")
         self.map_reference_action.setCheckable(True)
-        self.map_reference_action.setChecked(False)
+        self.map_reference_action.setChecked(defaults.tint_reference_enabled)
         self.map_reference_action.setEnabled(False)
         self.map_reference_action.setToolTip(
-            "Show a translucent signed Map over a dimmed grayscale source A. "
+            "Show a translucent signed Map over the role-designated grayscale Reference. "
             "Zero and invalid cells reveal the plain image; "
             "numbers, masks, and exports are unchanged."
         )
@@ -1418,11 +1442,7 @@ class AnalysisWindow(QMainWindow):
                 tone, conclusion = verdict.tone, verdict.verdict
             else:
                 tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
-                conclusion = (
-                    ("A better" if item.delta_db > 0 else "B better")
-                    if item.quality_oriented
-                    else "signed only · no winner"
-                )
+                conclusion = "positive signed" if item.delta_db > 0 else "negative signed"
             _style_insight_card(card, tone)
             rank_symbol = "★ 1" if index == 0 else str(index + 1)
             card.setText(
@@ -2428,7 +2448,9 @@ class AnalysisWindow(QMainWindow):
             orientation = f"Quality direction: {direction} · {verdict.verdict} (display only)"
         else:
             orientation = (
-                "+A / −B quality" if attr.quality_oriented else "neutral / no winner inferred"
+                "Signed positive (+) / negative (−); use Quality mode for verdict"
+                if attr.quality_oriented
+                else "neutral / no winner inferred"
             )
         self.official_label.setText(f"Full-pair comparison: {text}\n{orientation}")
         roi = self.current_roi
@@ -2991,12 +3013,14 @@ class AnalysisWindowManager:
         load: ResultLoader | None = None,
         save: ResultSaver | None = None,
         file_type: ResultFileType | None = None,
+        presentation_defaults: IqaPresentationDefaults | None = None,
     ) -> None:
         self._window: AnalysisWindow | None = None
         self._settings_factory = settings_factory or default_iqa_settings
         self._load = load
         self._save = save
         self._file_type = file_type
+        self._presentation_defaults = presentation_defaults or IqaPresentationDefaults()
         self._closed = False
 
     @property
@@ -3007,7 +3031,10 @@ class AnalysisWindowManager:
         if self._closed:
             raise RuntimeError("analysis manager is shut down")
         if self._window is None:
-            self._window = AnalysisWindow(settings_factory=self._settings_factory)
+            self._window = AnalysisWindow(
+                settings_factory=self._settings_factory,
+                presentation_defaults=self._presentation_defaults,
+            )
             self._window.install_file_handlers(
                 load=self._load, save=self._save, file_type=self._file_type
             )
