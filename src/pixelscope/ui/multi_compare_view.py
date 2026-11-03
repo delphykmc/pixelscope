@@ -282,30 +282,34 @@ class MultiCompareView(QWidget):
             viewer.set_line_selection(selection)
 
     def fit_images(self) -> None:
-        anchor = next(
-            (viewer for viewer in self.visible_viewers if viewer.document is not None),
-            None,
-        )
-        if anchor is None:
+        occupied = [viewer for viewer in self.visible_viewers if viewer.document is not None]
+        if not occupied:
             return
         self._syncing_range = True
         try:
-            anchor.fit_image()
-            self._apply_range(anchor.view_box.viewRange())
+            if not self.sync_enabled:
+                for viewer in occupied:
+                    viewer.fit_image()
+            else:
+                anchor = occupied[0]
+                anchor.fit_image()
+                self._apply_range(anchor.view_box.viewRange(), source=anchor)
         finally:
             self._syncing_range = False
 
     def zoom_100_percent(self) -> None:
-        anchor = next(
-            (viewer for viewer in self.visible_viewers if viewer.document is not None),
-            None,
-        )
-        if anchor is None:
+        occupied = [viewer for viewer in self.visible_viewers if viewer.document is not None]
+        if not occupied:
             return
         self._syncing_range = True
         try:
-            anchor.zoom_100_percent()
-            self._apply_range(anchor.view_box.viewRange())
+            if not self.sync_enabled:
+                for viewer in occupied:
+                    viewer.zoom_100_percent()
+            else:
+                anchor = occupied[0]
+                anchor.zoom_100_percent()
+                self._apply_range(anchor.view_box.viewRange(), source=anchor)
         finally:
             self._syncing_range = False
 
@@ -437,20 +441,18 @@ class MultiCompareView(QWidget):
         )
         if anchor is None:
             return
-        pixel_width, pixel_height = anchor.view_box.viewPixelSize()
+        # Each tile owns a different effective ViewBox/viewport size. Sharing
+        # numeric ranges or logical viewPixelSize does not share physical zoom.
+        # Propagate the canonical reference center and *measured* physical scale.
+        measurement = anchor.measure_physical_zoom()
+        percent = measurement.percent
+        if percent is None:
+            return
         center_x = (float(ranges[0][0]) + float(ranges[0][1])) / 2.0
         center_y = (float(ranges[1][0]) + float(ranges[1][1])) / 2.0
         for viewer in self.visible_viewers:
-            if viewer is not source and viewer.document is not None:
-                view_width = max(float(viewer.view_box.width()), 1.0)
-                view_height = max(float(viewer.view_box.height()), 1.0)
-                half_width = pixel_width * view_width / 2.0
-                half_height = pixel_height * view_height / 2.0
-                viewer.view_box.setRange(
-                    xRange=(center_x - half_width, center_x + half_width),
-                    yRange=(center_y - half_height, center_y + half_height),
-                    padding=0,
-                )
+            if viewer is not anchor and viewer.document is not None:
+                viewer.set_physical_zoom(percent, (center_x, center_y))
 
     def _activate_viewer(self, viewer: object) -> None:
         if not isinstance(viewer, ImageViewer) or viewer.document is None:
