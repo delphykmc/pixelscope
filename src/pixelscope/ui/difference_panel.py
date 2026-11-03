@@ -904,6 +904,7 @@ class DifferencePanel(QWidget):
             signal.emit(self._title(), selected, self._preview_value)
             if presentation_pair is not None:
                 self.presentation_settled.emit(presentation_pair)
+            self._publish_difference_token()
             return
 
         mode = self.mode.currentText()
@@ -987,6 +988,7 @@ class DifferencePanel(QWidget):
         worker = self._preview_worker
         if worker is not None and worker.task_id == task_id:
             self._preview_worker = None
+            self._publish_difference_token()
         pair = self._presentation_preview_pairs.pop(task_id, None)
         if pair is not None:
             self.presentation_settled.emit(pair)
@@ -1259,11 +1261,17 @@ class DifferencePanel(QWidget):
             self._preview_key = None
             self._preview_value = None
 
+    def _publish_difference_token(self) -> None:
+        token = self._difference_live_token()
+        if token is not None:
+            self._presented_difference_token = token
+
     def _render_metrics(self, metrics: DifferenceMetrics) -> None:
         self._analysis_request_epoch += 1
         self._difference_request_id = str(uuid4())
         self._presented_metric_key = self._metric_key()
         self._presented_metric_result = metrics
+        self._presented_difference_token = None
         # Numerical values are published now; a frozen snapshot is only
         # capturable after the matching Difference preview has settled.
         values = (
@@ -1319,6 +1327,7 @@ class DifferencePanel(QWidget):
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
             self._worker_key = None
+            self._publish_difference_token()
         pair = self._presentation_map_pairs.pop(task_id, None)
         if pair is not None:
             self.presentation_settled.emit(pair)
