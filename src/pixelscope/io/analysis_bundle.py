@@ -83,7 +83,8 @@ def _payloads(snapshots: tuple[AnalysisSnapshotV1, ...]) -> dict[str, bytes]:
         "schema_version": 1,
         "snapshots": [
             {"snapshot_id": c["snapshot_id"], "feature": c["feature"],
-             "measurements": c["measurements"]}
+             "measurements": c["measurements"],
+             "series": c.get("series", [])}
             for c in contexts
         ],
     }
