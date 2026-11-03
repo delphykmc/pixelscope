@@ -267,6 +267,20 @@ class LineProfilePanel(QWidget):
             return None
         return self._line_token()
 
+    # W00 M1 generic producer protocol; feature-specific names remain available.
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_presented_line_token()
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_current_line_token()
+
+    def read_presented_analysis(self) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        return self.read_presented_line()
+
     def read_presented_line(self) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
