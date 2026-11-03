@@ -10,7 +10,7 @@ import pytest
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF
 from PySide6.QtGui import QColor, QImage, QPaintEvent, QRegion
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import QGraphicsView
+from PySide6.QtWidgets import QApplication, QGraphicsView
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -162,11 +162,18 @@ def test_linked_pan_repaints_full_viewports_while_hover_guides_are_visible(qtbot
         assert view.horizontalScrollBar().maximum() > 0
         assert view.verticalScrollBar().maximum() > 0
 
-    # Let the initial zoom and guide paints finish before recording the pan.
-    qtbot.wait(30)  # type: ignore[attr-defined]
+    # Force the setup's zoom/guide draw, then drain its queued paint requests.
+    # A pre-pan full repaint must not satisfy the post-scroll regression assertion.
+    for view in linked:
+        view.viewport().repaint()
+    QApplication.processEvents()
+    QApplication.processEvents()
     recorders = [_PaintRegionRecorder() for _ in linked]
     for view, recorder in zip(linked, recorders, strict=True):
         view.viewport().installEventFilter(recorder)
+    QApplication.processEvents()
+    for recorder in recorders:
+        recorder.regions.clear()
     before = [
         (view.horizontalScrollBar().value(), view.verticalScrollBar().value()) for view in linked
     ]
