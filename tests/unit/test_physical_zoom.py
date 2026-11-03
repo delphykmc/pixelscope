@@ -9,9 +9,7 @@ from pixelscope.ui.physical_zoom import measure_basis
 
 @pytest.mark.parametrize("dpr", [1.0, 1.25, 1.5, 1.75, 2.0, 4.0])
 @pytest.mark.parametrize("physical_scale", [1.0, 2.0, 4.0])
-def test_basis_reports_physical_scale_at_fractional_dpr(
-    dpr: float, physical_scale: float
-) -> None:
+def test_basis_reports_physical_scale_at_fractional_dpr(dpr: float, physical_scale: float) -> None:
     logical_step = physical_scale / dpr
     measurement = measure_basis(
         (14.25, -10.5),
