@@ -187,9 +187,7 @@ def test_multi_tiles_have_same_actual_physical_zoom_with_uneven_layout(
     multi.resize(1203, 699)
     multi.set_capacity(2 if count == 1 else count)
     documents = [
-        ImageDocument.from_array(
-            np.full((64, 96, 3), index, dtype=np.uint8), f"{index}.png"
-        )
+        ImageDocument.from_array(np.full((64, 96, 3), index, dtype=np.uint8), f"{index}.png")
         for index in range(count)
     ]
     multi.set_documents(documents, 0, count, None, None)
