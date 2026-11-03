@@ -5,8 +5,8 @@ from contextlib import suppress
 from functools import partial
 from hashlib import sha256
 from json import dumps
-from uuid import uuid4
 from pathlib import Path
+from uuid import uuid4
 from typing import Any, cast
 
 import numpy as np
