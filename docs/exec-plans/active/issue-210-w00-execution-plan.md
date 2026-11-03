@@ -88,3 +88,33 @@ For W00 docs-only gate run `python scripts/check_docs.py`, `git diff --check`, a
 User workflow: Open 2/4 images → uniquely identify baseline/algorithm targets → Fit↔exact 100% preserving center → choose explicit pair/Calculate → record three distinct named ROI findings → persist `.pxreview` → restart → relink moved sources only after confirmation → restore sources/roles/ROI/view or clearly report unavailable → export offline ZIP with corresponding labeled crops and immutable values. Confirm 6/page, T, legacy `.pixelscope`, native YUV/Bayer math, Display Gain, source reading-only and no private path leakage. W11/W12 independently classified as implemented/approved-deferred with evidence. Capture user task measurements (identification error/re-navigation/re-entry/report edits); any competitive comparison is separately run and not fabricated.
 
 **W00 gate:** technical contract, decision table, risk list and cards exist in this docs PR; independent read-only review of *exact* final SHA and resolution is required before W00 Complete, any implementation authorization or merge. This document does not certify unrun checks.
+
+
+## Independent review #1 corrective integration gate (supersedes earlier broad sequencing)
+
+Reviewer: https://github.com/delphykmc/pixelscope/pull/211#pullrequestreview-5755504410, reviewed HEAD `54935415e7358798c994eb820786dafe24942038`. All six B1/B2/H1/H2/H3/M1 contracts are specified in [technical contract §11](issue-210-w00-technical-contract.md). **This is a design response, not independent reapproval.**
+
+### Mandatory implementation-ready dependency and shared-file handoff DAG
+
+- `W00 reviewer acceptance → W01, W02, W03, W08, W11/W12 research`.
+- `W01 viewer/zoom merge + physical oracle → W04 viewer DTO/restore merge → W05 comparison-preset merge`.
+- `W03 alias adapter merge → W06 disjoint dock/layout work allowed`; but **W06 edits to `presentation_controls.py` must wait for W05 merge**. W06 integration-complete requires both W03 and W05, not merely W03.
+- `W02 presented-analysis token + export adapter merge → W06 optional `comparison_analysis_panel.py` layout patch → W07 pivot/table patch`. W07 requires W02, W03 and W06. No concurrent shared `comparison_analysis_panel.py` edit by W02/W06/W07.
+- `W02 + W03 + W04 + W00 reviewer approval → W09a pure schema/verification + W09b restore/UI`; W09b additionally requires W09a review/merge.
+- `W02 + W03 + W09a + W09b → W10`; W10 must use W02 bundle writer/DTO, W09 source verification, and the *portable report projection* rather than serialize local Review.
+- `W01…W10 reviewed integrated SHA → W13`; W11/W12 remain requirement research only until separate approved contracts; W08/W11 YUV files locked if format implementation later chosen.
+
+**Integration owner and handoff:** orchestrator alone merges cross-controller wiring in `app/main_window.py`, `app/bootstrap.py`, session/settings and cumulative durable docs. Before handing a shared file to next W, the previous owner publishes exact SHA, signature examples, stable tests, and an explicit “file edit ownership released” comment on PR; next worker bases on merged source. W05 first controls `presentation_controls.py`, W06 second (even if W06's non-overlapping layout portion exists sooner). W01 → W04 → W05 similarly serializes viewer changes. W02 → W06 → W07 serializes analysis panel changes. Never interpret branch isolation as permission to edit a shared file concurrently.
+
+### Review acceptance negative-test additions (required even when no runtime tests can run in W00)
+
+| Reviewer item | Required contract-focused test ownership |
+|---|---|
+| B1 / W09 | parametrized verified/candidate-unverified/changed/missing/unsupported × register/present/restore/attach/history; missing Reference blocks finding, mixed verified+missing blocks only affected finding, relink confirmation doesn't promote unverified |
+| B2 / W10 | report JSON allowlist, adversarial extensions/profile path, default excluded notes/tags/title, opt-in disclosure audit; unzip every entry and scan path/email/URL sentinels including PNG metadata; legacy local Review unchanged |
+| H1 / W01 | independent ImageItem→scene→viewport→device physical transform oracle, transformed/mirrored image item, fractional DPR, 2/4 unequal tiles, Bayer phase/YUV chroma, cross-monitor, zoom label oracle |
+| H2 / W02/W10 | mutate source between preflight/read/decode/crop/publish, replaced same-size and mtime, pending SHA, asset/finding/snapshot mismatched IDs; emitted crop must be independently verified or omitted |
+| H3 / W09 | cancel before commit = no mutation; cancel/new input/shutdown after commit = canonical partial state + epoch revocation, no late ROI/view/Difference/finding or deleted widget access |
+| M1 / W02/W05/W06/W07 | `PresentedAnalysisTokenV1` DTO serialization and single producer/published token provenance, stale equality, W07 read-only consumer; exported signatures + handoff SHAs/lock releases |
+
+**Completion stop:** all six findings are *addressed in proposed text* but remain **OPEN pending independent exact-HEAD review**. Do not mark W00 Complete, merge this draft PR, launch W01–W10 implementation, or report manual/native tests PASS on the basis of this documentation alone. This gate also requires review of proposed strict JSON limits/privacy opt-in and geometry numerical tolerance.
