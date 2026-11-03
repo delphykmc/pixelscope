@@ -182,7 +182,7 @@ class FolderDisplayTagController:
             viewer.header.edit_tag_requested.connect(self._prompt_for_tag)
 
     def _refresh_presentation(self) -> None:
-        """Repaint labels from the same documents without changing identity."""
+        """Refresh labels only; never re-enter selection/load/Calculate paths."""
         window = self.window
         difference = window._difference_document
         if difference is not None and window._difference_source_ids is not None:
@@ -191,7 +191,34 @@ class FolderDisplayTagController:
                 window._difference_source_ids
             ):
                 difference.display_name = window.difference_panel._title()
-        window._render_selection(preserve_view=True)
+
+        # Channel split documents are transient derived presentations, not
+        # registered sources. Update their origin annotation in place without
+        # regenerating arrays or changing derived document identities.
+        def refresh_derived(document: Any) -> None:
+            source_id, marker, channel = document.document_id.partition(":split:")
+            if not marker:
+                return
+            origin = window.documents.get(source_id)
+            if origin is not None:
+                document.display_name = f"{origin.display_name} · {channel}"
+
+        for derived in window._channel_view_cache.values():
+            for document in derived:
+                refresh_derived(document)
+        viewers = (window.viewer, *window.multi_compare_view.viewers)
+        for viewer in viewers:
+            document = viewer.presented_document
+            if document is None:
+                continue
+            refresh_derived(document)
+            viewer.set_header(viewer.header.text())
+
+        if window.viewer.presented_document is not None:
+            displayed_id = window.viewer.presented_document.document_id
+            window._set_single_navigation(
+                "difference" if window.viewer.presented_document is difference else displayed_id
+            )
 
         analysis = window.comparison_analysis_panel
         if analysis.last_results and analysis._histogram_specs:
@@ -199,13 +226,18 @@ class FolderDisplayTagController:
         line = window.line_profile_panel
         if line.last_results:
             line._render(line.last_results)
-        # Difference selectors are display-only; updating their text must not
-        # call set_documents(), invalidate the cache, or trigger Calculate.
+
+        # Never call DifferencePanel.set_documents(): it owns a generation-keyed
+        # cache, worker state and the explicit Calculate contract.
         for selector in (window.difference_panel.a_selector, window.difference_panel.b_selector):
-            for index in range(selector.count()):
-                document = window.documents.get(selector.itemData(index))
-                if document is not None:
-                    selector.setItemText(index, document.display_name)
+            previously_blocked = selector.blockSignals(True)
+            try:
+                for index in range(selector.count()):
+                    document = window.documents.get(selector.itemData(index))
+                    if document is not None:
+                        selector.setItemText(index, document.display_name)
+            finally:
+                selector.blockSignals(previously_blocked)
 
     @contextmanager
     def bulk_registration(self) -> Iterator[None]:
