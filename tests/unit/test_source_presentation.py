@@ -87,3 +87,14 @@ def test_distinct_regular_names_are_unqualified() -> None:
 def test_duplicate_key_is_rejected() -> None:
     with pytest.raises(ValueError, match="duplicate source_key"):
         resolve_display_aliases([_source("same", "/a/test.png"), _source("same", "/b/test.png")])
+
+
+def test_nfc_composed_and_decomposed_basename_collide() -> None:
+    inputs = [
+        _source("a", "/a/caf\u00e9.png"),
+        _source("b", "/b/cafe\u0301.png"),
+    ]
+    labels = resolve_display_aliases(inputs)
+    assert len({normalized_label_key(label.text) for label in labels.values()}) == 2
+    assert labels["a"].text.startswith("a /")
+    assert labels["b"].text.startswith("b /")
