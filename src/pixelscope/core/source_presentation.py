@@ -74,13 +74,12 @@ def resolve_display_aliases(sources: Iterable[SourceLabelInput]) -> dict[str, Di
     for value in path_values.values():
         if value:
             path_counts[value] += 1
+
     def digest_material(key: str) -> str:
         path = path_values[key]
         return path if path and path_counts[path] == 1 else key
 
-    digests = {
-        key: sha256(digest_material(key).encode("utf-8")).hexdigest() for key in entries
-    }
+    digests = {key: sha256(digest_material(key).encode("utf-8")).hexdigest() for key in entries}
     suffix_lengths = {key: 0 for key in entries}
 
     def candidate(key: str) -> str:
@@ -115,17 +114,17 @@ def resolve_display_aliases(sources: Iterable[SourceLabelInput]) -> dict[str, Di
                 if depths[key] < parent_count:
                     depths[key] += 1
                 elif suffix_lengths[key] < len(digests[key]):
-                    suffix_lengths[key] = 8 if not suffix_lengths[key] else min(
-                        len(digests[key]), suffix_lengths[key] + 4
+                    suffix_lengths[key] = (
+                        8
+                        if not suffix_lengths[key]
+                        else min(len(digests[key]), suffix_lengths[key] + 4)
                     )
                 else:
                     raise ValueError("source keys do not yield distinguishable labels")
     raise ValueError("unable to resolve unique source aliases")
 
 
-def resolve_display_alias(
-    sources: Iterable[SourceLabelInput], source_key: str
-) -> DisplayLabel:
+def resolve_display_alias(sources: Iterable[SourceLabelInput], source_key: str) -> DisplayLabel:
     """Convenience lookup for downstream W06/W07/W09 presentation adapters."""
 
     return resolve_display_aliases(sources)[source_key]
