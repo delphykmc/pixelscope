@@ -194,9 +194,7 @@ class TileHeader(QWidget):
         # display_name is already resolved globally; prepending the immediate
         # parent would obscure the shortest unique suffix (and duplicate it).
         self._full_name = document.display_name
-        self._tag_folder = (
-            document.source_path.parent if document.source_path is not None else None
-        )
+        self._tag_folder = document.source_path.parent if document.source_path is not None else None
         self.edit_tag.setVisible(self._tag_folder is not None)
         source_description = str(document.source_path or document.display_name)
         self.name.setToolTip(
