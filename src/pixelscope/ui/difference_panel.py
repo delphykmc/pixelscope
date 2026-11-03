@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
+from uuid import uuid4
 from math import isinf
 
 import numpy as np
@@ -42,6 +44,13 @@ from pixelscope.core.display_transform import (
     render_threshold_mask,
 )
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.review_analysis import (
+    AnalysisMeasurementV1,
+    AnalysisSourceV1,
+    PresentedAnalysisTokenV1,
+    measurement,
+)
+from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
 from pixelscope.core.spatial_sampling import SpatialSampling
@@ -170,6 +179,11 @@ class DifferencePanel(QWidget):
         self._normalized_threshold_percent = 1.0
         self._threshold_domain: DifferenceDomain = "native"
         self.last_result: DifferenceMetrics | None = None
+        self._analysis_source_keys: dict[str, str] = {}
+        self._analysis_request_epoch = 0
+        self._presented_difference_token: PresentedAnalysisTokenV1 | None = None
+        self._presented_metric_key: tuple[object, ...] | None = None
+        self._presented_metric_result: DifferenceMetrics | None = None
 
         self.a_selector = QComboBox()
         self.b_selector = QComboBox()
@@ -289,6 +303,113 @@ class DifferencePanel(QWidget):
         return self._map_cache
 
     @staticmethod
+    def set_analysis_source_keys(self, shared: dict[str, str]) -> None:
+        """Use the canonical Review UUID mapping shared by core analysis panels."""
+        self._analysis_source_keys = shared
+        self._presented_difference_token = None
+
+    def _difference_source_key(self, document_id: str) -> str:
+        return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
+
+    def _difference_live_token(
+        self, *, during_render: bool = False
+    ) -> PresentedAnalysisTokenV1 | None:
+        if (
+            self._closing or self.last_result is None
+            or self._presented_metric_result is not self.last_result
+            or (self._worker is not None and not during_render)
+            or self._preview_worker is not None
+            or self._display_timer.isActive()
+            or self._preview_value is None
+        ):
+            return None
+        pair = self.selected_documents()
+        compatibility = self._compatibility()
+        key = self._cache_key()
+        metric_key = self._metric_key()
+        if (
+            pair is None or compatibility is None
+            or not compatibility.compatible or compatibility.domain is None
+            or key is None or metric_key is None or metric_key != self._presented_metric_key
+            or self.cached_result_for_current() is None
+        ):
+            return None
+        expected_preview = (
+            key, compatibility.domain, self.channel.currentText(),
+            self.mode.currentText(), self.gain.value(),
+            self._threshold_value(compatibility.domain),
+        )
+        if self._preview_key != expected_preview:
+            return None
+        roi = self._active_roi if self.region.currentText() == "Active ROI" else None
+        if self.region.currentText() == "Active ROI" and roi is None:
+            return None
+        raw_key = repr((metric_key, tuple(d.document_id for d in pair))).encode("utf-8")
+        return PresentedAnalysisTokenV1(
+            feature="difference",
+            request_id=self._difference_request_id,
+            request_epoch=self._analysis_request_epoch,
+            source_documents=tuple((d.document_id, d.generation) for d in pair),
+            source_keys=tuple(self._difference_source_key(d.document_id) for d in pair),
+            roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+            channel=self.channel.currentText(), domain=compatibility.domain,
+            profile_signatures=tuple(native_profile_signature(d) for d in pair),
+            difference_cache_key=sha256(raw_key).hexdigest(),
+        )
+
+    def get_presented_difference_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._presented_difference_token
+
+    def get_current_difference_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._difference_live_token()
+
+    def read_presented_difference(self) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        token = self.get_presented_difference_token()
+        if token is None or self.get_current_difference_token() != token:
+            raise ValueError("difference result is stale or unpresented")
+        pair = self.selected_documents()
+        cached = self.cached_result_for_current()
+        assert pair is not None and cached is not None and self.last_result is not None
+        selected = self._selected_absolute(cached, self.channel.currentText())
+        bounds = self._metric_bounds(
+            pair[0], self._active_roi if token.roi_ref is not None else None
+        )
+        if bounds is None:
+            sample_count = int(selected.size)
+        else:
+            sample_count = bounds[2] * bounds[3] * (
+                selected.shape[2] if selected.ndim == 3 else 1
+            )
+        metrics = self.last_result
+        fields = (
+            ("MAE", metrics.mae), ("MSE", metrics.mse),
+            ("RMSE", metrics.rmse), ("PSNR", metrics.psnr),
+            ("P95", metrics.p95), ("P99", metrics.p99),
+            ("Max difference", metrics.maximum_absolute),
+            ("Non-zero ratio", metrics.nonzero_ratio),
+        )
+        values = tuple(
+            measurement(
+                token.source_keys[0], token.channel, name, value, sample_count,
+                "difference-metrics-v1",
+            ) for name, value in fields
+        )
+        presentation = (
+            ("mode", self.mode.currentText()),
+            ("gain", str(self.gain.value())),
+            ("threshold", f"{self.threshold.value():g}"),
+            ("pair_a", token.source_keys[0]),
+            ("pair_b", token.source_keys[1]),
+        )
+        return tuple(
+            snapshot_source(doc, source_key)
+            for doc, source_key in zip(pair, token.source_keys, strict=True)
+        ), values, presentation
+
     def _integer_control(minimum: int, maximum: int, value: int) -> QSpinBox:
         control = QSpinBox()
         control.setRange(minimum, maximum)
@@ -403,6 +524,7 @@ class DifferencePanel(QWidget):
         self._cancel_worker()
         self._cancel_preview_worker()
         self.last_result = None
+        self._presented_difference_token = None
         self._clear_metrics()
         self._update_channels()
         self._validate()
@@ -447,6 +569,9 @@ class DifferencePanel(QWidget):
         self._request_preview_render(difference_map, selected, publish_result=False)
 
     def _clear_metrics(self) -> None:
+        self._presented_difference_token = None
+        self._presented_metric_key = None
+        self._presented_metric_result = None
         for row in range(self.metrics.rowCount()):
             item = QTableWidgetItem("—")
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -1135,6 +1260,12 @@ class DifferencePanel(QWidget):
             self._preview_value = None
 
     def _render_metrics(self, metrics: DifferenceMetrics) -> None:
+        self._analysis_request_epoch += 1
+        self._difference_request_id = str(uuid4())
+        self._presented_metric_key = self._metric_key()
+        self._presented_metric_result = metrics
+        # Numerical values are published now; a frozen snapshot is only
+        # capturable after the matching Difference preview has settled.
         values = (
             metrics.mae,
             metrics.mse,
