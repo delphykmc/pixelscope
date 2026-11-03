@@ -479,7 +479,6 @@ class ComparisonAnalysisPanel(QWidget):
             tuple(histogram_specs),
         )
 
-
     def bind_review_source_keys(self, mapping: dict[str, str]) -> None:
         """W09 handoff: map runtime IDs to durable keys without changing numerics.
 
@@ -516,16 +515,20 @@ class ComparisonAnalysisPanel(QWidget):
         return sha256(dumps(fields, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
     def _analysis_live_token(self) -> PresentedAnalysisTokenV1 | None:
-        if (not self.last_results or self._completed_signature != self._request_signature
-                or self._refresh_timer.isActive() or self._worker is not None
-                or len(self.last_results) != len(self._documents)):
+        if (
+            not self.last_results
+            or self._completed_signature != self._request_signature
+            or self._refresh_timer.isActive()
+            or self._worker is not None
+            or len(self.last_results) != len(self._documents)
+        ):
             return None
         if self._request_signature != self._analysis_request_signature(
             self._documents, self._bounds, self._histogram_specs
         ):
             return None
         roi = self._bounds
-        if ((roi is None) != (self.region_scope.currentText() != "Active ROI")):
+        if (roi is None) != (self.region_scope.currentText() != "Active ROI"):
             return None
         if any(
             r.bounds != (roi or RoiBounds(0, 0, d.reference_shape[1], d.reference_shape[0]))
@@ -541,9 +544,7 @@ class ComparisonAnalysisPanel(QWidget):
             roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
             channel="All",
             domain="native",
-            profile_signatures=tuple(
-                self._review_profile_signature(d) for d in self._documents
-            ),
+            profile_signatures=tuple(self._review_profile_signature(d) for d in self._documents),
             difference_cache_key=None,
         )
 
@@ -584,33 +585,38 @@ class ComparisonAnalysisPanel(QWidget):
         ):
             if document.source is None:
                 raise ValueError("unloaded analysis source")
-            sources.append(AnalysisSourceV1(
-                source_key=key,
-                document_id=document.document_id,
-                generation=document.generation,
-                native_shape=tuple(int(v) for v in document.shape),
-                reference_shape=(
-                    int(document.reference_shape[0]),
-                    int(document.reference_shape[1]),
-                ),
-                native_dtype=str(document.original_dtype),
-                channel_layout=document.channel_layout,
-                effective_bits=document.bit_depth,
-                profile_signature=self._review_profile_signature(document),
-                sha256=(
-                    document.encoded_source_sha256
-                    if isinstance(document.encoded_source_sha256, str)
-                    and len(document.encoded_source_sha256) == 64
-                    else None
-                ),
-                # A decode-time digest is not a currently verified file revision.
-                verification="unverified",
-            ))
-            for index, (channel, stats) in enumerate(zip(
-                result.channel_names, result.channel_statistics, strict=True
-            )):
-                count = (result.channel_sample_counts[index]
-                         if result.channel_sample_counts else result.pixel_count)
+            sources.append(
+                AnalysisSourceV1(
+                    source_key=key,
+                    document_id=document.document_id,
+                    generation=document.generation,
+                    native_shape=tuple(int(v) for v in document.shape),
+                    reference_shape=(
+                        int(document.reference_shape[0]),
+                        int(document.reference_shape[1]),
+                    ),
+                    native_dtype=str(document.original_dtype),
+                    channel_layout=document.channel_layout,
+                    effective_bits=document.bit_depth,
+                    profile_signature=self._review_profile_signature(document),
+                    sha256=(
+                        document.encoded_source_sha256
+                        if isinstance(document.encoded_source_sha256, str)
+                        and len(document.encoded_source_sha256) == 64
+                        else None
+                    ),
+                    # A decode-time digest is not a currently verified file revision.
+                    verification="unverified",
+                )
+            )
+            for index, (channel, stats) in enumerate(
+                zip(result.channel_names, result.channel_statistics, strict=True)
+            ):
+                count = (
+                    result.channel_sample_counts[index]
+                    if result.channel_sample_counts
+                    else result.pixel_count
+                )
                 fields = (
                     ("Min", stats.minimum),
                     ("Max", stats.maximum),
@@ -620,8 +626,9 @@ class ComparisonAnalysisPanel(QWidget):
                     ("P50", stats.percentiles[50.0]),
                     ("P99", stats.percentiles[99.0]),
                 )
-                values.extend(measurement(key, channel, name, value, count)
-                              for name, value in fields)
+                values.extend(
+                    measurement(key, channel, name, value, count) for name, value in fields
+                )
         return tuple(sources), tuple(values), (("scope", "roi" if token.roi_ref else "full"),)
 
     def set_semantics_delegate(self, delegate: Any | None) -> None:

@@ -422,8 +422,11 @@ def test_export_dialog_reuses_configured_export_directory(
     assert observed == [str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")]
     assert _workspace_state(window) == before
 
+
 def test_bundle_export_rechecks_suffix_collision_and_uses_frozen_result(
-    qtbot: object, tmp_path: Path, monkeypatch: object,
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
 ) -> None:
     from PySide6.QtWidgets import QMessageBox
 
@@ -434,9 +437,7 @@ def test_bundle_export_rechecks_suffix_collision_and_uses_frozen_result(
     controller = window.analysis_export_controller
     _seed_histogram(window, tmp_path, ("Gray",))
     panel = window.comparison_analysis_panel
-    panel._histogram_specs = [
-        automatic_histogram_spec(document) for document in panel._documents
-    ]
+    panel._histogram_specs = [automatic_histogram_spec(document) for document in panel._documents]
     signature = panel._analysis_request_signature(
         panel._documents, panel._bounds, panel._histogram_specs
     )
@@ -471,7 +472,8 @@ def test_bundle_export_rechecks_suffix_collision_and_uses_frozen_result(
 
 
 def test_bundle_capture_disallows_stale_generation(
-    qtbot: object, tmp_path: Path,
+    qtbot: object,
+    tmp_path: Path,
 ) -> None:
     from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 
@@ -479,9 +481,7 @@ def test_bundle_capture_disallows_stale_generation(
     controller = window.analysis_export_controller
     _seed_histogram(window, tmp_path, ("Gray",))
     panel = window.comparison_analysis_panel
-    panel._histogram_specs = [
-        automatic_histogram_spec(document) for document in panel._documents
-    ]
+    panel._histogram_specs = [automatic_histogram_spec(document) for document in panel._documents]
     signature = panel._analysis_request_signature(
         panel._documents, panel._bounds, panel._histogram_specs
     )

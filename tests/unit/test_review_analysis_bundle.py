@@ -42,12 +42,19 @@ def _snapshot(roi: tuple[int, int, int, int] | None = None) -> AnalysisSnapshotV
         snapshot_id=str(uuid4()),
         captured_utc="2026-11-04T00:00:00+00:00",
         token=token,
-        sources=(AnalysisSourceV1(
-            source_key=source_key, document_id=document_id, generation=7,
-            native_shape=(12, 16, 3), reference_shape=(12, 16),
-            native_dtype="uint16", channel_layout="RGB",
-            effective_bits=10, profile_signature=digest,
-        ),),
+        sources=(
+            AnalysisSourceV1(
+                source_key=source_key,
+                document_id=document_id,
+                generation=7,
+                native_shape=(12, 16, 3),
+                reference_shape=(12, 16),
+                native_dtype="uint16",
+                channel_layout="RGB",
+                effective_bits=10,
+                profile_signature=digest,
+            ),
+        ),
         measurements=(measurement(source_key, "R", "Mean", 23.0, 20),),
         presentation=(("scope", "roi" if roi else "full"),),
     )
@@ -83,9 +90,9 @@ def test_capture_blocks_pending_stale_source_and_changed_during_read() -> None:
     adapter.presented = None
     assert capture_presented_analysis(adapter, snapshot.token).reason == "pending_or_uncomputed"
     adapter.presented = snapshot.token
-    adapter.current = replace(snapshot.token, source_documents=(
-        (snapshot.token.source_documents[0][0], 8),
-    ))
+    adapter.current = replace(
+        snapshot.token, source_documents=((snapshot.token.source_documents[0][0], 8),)
+    )
     assert capture_presented_analysis(adapter, snapshot.token).reason == "stale_or_mismatched"
     adapter.current = snapshot.token
     adapter.mutate_during_read = True
@@ -97,6 +104,37 @@ def test_identical_roi_area_different_origin_are_distinct() -> None:
     second = replace(first, token=replace(first.token, roi_ref=(3, 4, 4, 5)))
     assert serialize_analysis_context(first) != serialize_analysis_context(second)
     assert parse_analysis_context(serialize_analysis_context(second))["roi_ref"] == [3, 4, 4, 5]
+
+
+@pytest.mark.parametrize("dtype", ["uint8", "uint16", "int32", "float32", ">u2", ">f4", "<u2"])
+def test_native_dtype_roundtrip_preserves_endianness(dtype: str) -> None:
+    snapshot = _snapshot()
+    source = replace(snapshot.sources[0], native_dtype=dtype)
+    parsed = parse_analysis_context(
+        serialize_analysis_context(replace(snapshot, sources=(source,)))
+    )
+    assert parsed["sources"][0]["native_dtype"] == dtype
+
+
+@pytest.mark.parametrize("dtype", ["object", "float8", "../uint16", r"C:\private\uint16"])
+def test_native_dtype_rejects_non_numeric_or_path_values(dtype: str) -> None:
+    snapshot = _snapshot()
+    with pytest.raises(ValueError, match="native format"):
+        replace(snapshot.sources[0], native_dtype=dtype)
+    data = parse_analysis_context(serialize_analysis_context(snapshot))
+    data["sources"][0]["native_dtype"] = dtype
+    with pytest.raises(ValueError, match="native signature"):
+        parse_analysis_context(json.dumps(data).encode())
+
+
+def test_analysis_labels_accept_producer_values_and_reject_path_separators() -> None:
+    snapshot = _snapshot()
+    assert snapshot.token.channel == "All"
+    assert snapshot.token.domain == "native"
+    assert snapshot.measurements[0].metric == "Mean"
+    for channel in (r"w\w", "folder/R"):
+        with pytest.raises(ValueError, match="channel/domain"):
+            replace(snapshot.token, channel=channel)
 
 
 def test_snapshot_rejects_generation_and_profile_mismatch() -> None:
@@ -132,16 +170,19 @@ def test_context_roundtrip_excludes_private_source_data() -> None:
     assert b"alias" not in raw
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda d: d.update(schema_version=2),
-    lambda d: d.update(kind="pixelscope-session"),
-    lambda d: d.update(roi_ref=[-1, 0, 4, 5], scope="roi"),
-    lambda d: d.update(roi_ref=[0, 0, 4, 5], scope="full"),
-    lambda d: d["sources"][0].update(source_path="/home/user/private.raw"),
-    lambda d: d["measurements"][0].update(value=float("nan")),
-    lambda d: d["sources"][0].update(verification="verified"),
-    lambda d: d.update(schema_version=True),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda d: d.update(schema_version=2),
+        lambda d: d.update(kind="pixelscope-session"),
+        lambda d: d.update(roi_ref=[-1, 0, 4, 5], scope="roi"),
+        lambda d: d.update(roi_ref=[0, 0, 4, 5], scope="full"),
+        lambda d: d["sources"][0].update(source_path="/home/user/private.raw"),
+        lambda d: d["measurements"][0].update(value=float("nan")),
+        lambda d: d["sources"][0].update(verification="verified"),
+        lambda d: d.update(schema_version=True),
+    ],
+)
 def test_invalid_context_schema_is_rejected(mutation: object) -> None:
     data = parse_analysis_context(serialize_analysis_context(_snapshot()))
     data = copy.deepcopy(data)
@@ -166,8 +207,12 @@ def test_zip_roundtrip_and_private_path_sentinel(tmp_path: Path) -> None:
     with ZipFile(target) as archive:
         names = archive.namelist()
         assert names == sorted(names)
-        assert {"manifest.json", "data/context.json", "data/measurements.csv",
-                "data/measurements.json"} == set(names)
+        assert {
+            "manifest.json",
+            "data/context.json",
+            "data/measurements.csv",
+            "data/measurements.json",
+        } == set(names)
         for name in names:
             payload = archive.read(name)
             assert b"C:\\\\Users\\\\secret" not in payload
@@ -176,7 +221,8 @@ def test_zip_roundtrip_and_private_path_sentinel(tmp_path: Path) -> None:
 
 
 def test_cancel_and_write_failure_never_publish_partial_bundle(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     snap = _snapshot()
     target = tmp_path / "bundle.zip"
@@ -204,7 +250,8 @@ def test_target_collision_requires_overwrite_token(tmp_path: Path) -> None:
     assert target.read_bytes() == b"existing"
     previous = target.stat()
     write_analysis_bundle(
-        target, (snap,),
+        target,
+        (snap,),
         expected_existing=(previous.st_dev, previous.st_ino, previous.st_mtime_ns),
     )
     assert verify_analysis_bundle(target)["kind"] == "pixelscope-analysis-bundle"

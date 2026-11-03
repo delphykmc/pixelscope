@@ -637,11 +637,10 @@ class AnalysisExportController(QObject):
         # The native dialog may have confirmed a different path BEFORE the
         # missing suffix was appended. Recheck the final destination.
         for document in panel._documents:
-            if (document.source_path is not None
-                    and target.resolve(strict=False) == document.source_path.resolve(strict=False)):
-                self.window.statusBar().showMessage(
-                    "Refusing to overwrite a source image", 5000
-                )
+            if document.source_path is not None and target.resolve(
+                strict=False
+            ) == document.source_path.resolve(strict=False):
+                self.window.statusBar().showMessage("Refusing to overwrite a source image", 5000)
                 return
         expected_existing: tuple[int, int, int] | None = None
         if target.exists():
@@ -655,13 +654,13 @@ class AnalysisExportController(QObject):
             if confirm != QMessageBox.StandardButton.Yes:
                 return
             existing = target.stat()
-            expected_existing = (
-                existing.st_dev, existing.st_ino, existing.st_mtime_ns
-            )
+            expected_existing = (existing.st_dev, existing.st_ino, existing.st_mtime_ns)
         # Only frozen scalars cross the worker boundary. No Qt objects, source
         # arrays, private paths or callbacks are passed to the ZIP writer.
         worker = TaskWorker(
-            write_analysis_bundle, target, (capture.snapshot,),
+            write_analysis_bundle,
+            target,
+            (capture.snapshot,),
             expected_existing=expected_existing,
         )
         worker.signals.succeeded.connect(self._bundle_succeeded)
@@ -673,19 +672,23 @@ class AnalysisExportController(QObject):
         self._pool.start(worker)
 
     def _bundle_succeeded(
-        self, _task_id: str, _document_id: str | None,
-        _generation: int, result: object,
+        self,
+        _task_id: str,
+        _document_id: str | None,
+        _generation: int,
+        result: object,
     ) -> None:
         if self._shutting_down or not isinstance(result, Path):
             return
         self._remember_success(result)
-        self.window.statusBar().showMessage(
-            f"Exported Analysis Bundle · {result.name}", 4000
-        )
+        self.window.statusBar().showMessage(f"Exported Analysis Bundle · {result.name}", 4000)
 
     def _bundle_failed(
-        self, _task_id: str, _document_id: str | None,
-        _generation: int, error: TaskError,
+        self,
+        _task_id: str,
+        _document_id: str | None,
+        _generation: int,
+        error: TaskError,
     ) -> None:
         if not self._shutting_down:
             self.window.statusBar().showMessage(

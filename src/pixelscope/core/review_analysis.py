@@ -18,7 +18,10 @@ from uuid import UUID, uuid4
 
 FEATURES = frozenset({"statistics", "histogram", "line", "difference"})
 _STATE = frozenset({"finite", "pos_inf", "neg_inf", "nan", "unavailable"})
-_SAFE_NAME = re.compile(r"^[\\w .:+-]{1,96}$", flags=re.UNICODE)
+_SAFE_NAME = re.compile(r"^[\w .:+-]{1,96}$", flags=re.UNICODE)
+_SAFE_DTYPE = re.compile(
+    r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$"
+)
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
 MAX_CONTEXT_BYTES = 8 * 1024 * 1024
 MAX_MEASUREMENTS = 200_000
@@ -94,7 +97,7 @@ class AnalysisSourceV1:
             raise ValueError("invalid reference shape")
         if not 1 <= self.effective_bits <= 64:
             raise ValueError("invalid source bit depth")
-        if not _SAFE_NAME.fullmatch(self.native_dtype) or not _SAFE_NAME.fullmatch(self.channel_layout):
+        if not _SAFE_DTYPE.fullmatch(self.native_dtype) or not _SAFE_NAME.fullmatch(self.channel_layout):
             raise ValueError("unsafe native format")
         if not _DIGEST.fullmatch(self.profile_signature):
             raise ValueError("profile signature must be a non-path SHA-256 digest")
@@ -351,8 +354,8 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
                 raise ValueError("invalid source shape")
         if type(source["effective_bits"]) is not int or not 1 <= source["effective_bits"] <= 64:
             raise ValueError("invalid bits")
-        if any(type(source[k]) is not str or not _SAFE_NAME.fullmatch(source[k])
-               for k in ("native_dtype", "channel_layout")):
+        if (type(source["native_dtype"]) is not str or not _SAFE_DTYPE.fullmatch(source["native_dtype"])
+                or type(source["channel_layout"]) is not str or not _SAFE_NAME.fullmatch(source["channel_layout"])):
             raise ValueError("invalid native signature")
         if type(source["profile_signature"]) is not str or not _DIGEST.fullmatch(source["profile_signature"]):
             raise ValueError("invalid profile signature")
