@@ -521,8 +521,8 @@ class LineProfilePanel(QWidget):
         self._set_status("Calculating line profile...")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_result(
-                signature, cache_keys, result
+            lambda task_id, _document_id, _generation, result: self._on_result(
+                signature, cache_keys, result, task_id=task_id
             )
         )
         worker.signals.failed.connect(self._on_error)
@@ -535,7 +535,14 @@ class LineProfilePanel(QWidget):
         signature: tuple[object, ...],
         cache_keys: list[tuple[object, ...]],
         result: object,
+        *,
+        task_id: str | None = None,
     ) -> None:
+        if task_id is not None and (
+            self._worker is None or self._worker.task_id != task_id
+            or self._worker.is_cancelled
+        ):
+            return
         if (
             self._plot_resources_disposed
             or signature != self._request_signature
