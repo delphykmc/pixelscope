@@ -450,7 +450,10 @@ class ImageViewer(QWidget):
         self._fit_mode = False
         if track_target:
             self._physical_zoom_target = percent
-        elif self._physical_zoom_target is not None and abs(self._physical_zoom_target - percent) > 1e-6:
+        elif (
+            self._physical_zoom_target is not None
+            and abs(self._physical_zoom_target - percent) > 1e-6
+        ):
             self._physical_zoom_target = None
         self._screen_recalibration_target = None
         measurement = self.measure_physical_zoom()
@@ -1126,9 +1129,12 @@ class ImageViewer(QWidget):
                 if event_kind is not None:
                     geometry_events.add(event_kind)
             if event.type() in geometry_events and not self._graphics_resources_disposed:
-                if event.type() not in (QEvent.Type.Resize, QEvent.Type.Show):
-                    if not self._fit_mode and self._physical_zoom_target is None:
-                        self._screen_recalibration_target = self._last_valid_physical_zoom
+                if (
+                    event.type() not in (QEvent.Type.Resize, QEvent.Type.Show)
+                    and not self._fit_mode
+                    and self._physical_zoom_target is None
+                ):
+                    self._screen_recalibration_target = self._last_valid_physical_zoom
                 self._geometry_timer.start(0)
             if event.type() == QEvent.Type.MouseButtonPress:
                 self.activated.emit(self)
