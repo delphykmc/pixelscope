@@ -74,11 +74,12 @@ def resolve_display_aliases(sources: Iterable[SourceLabelInput]) -> dict[str, Di
     for value in path_values.values():
         if value:
             path_counts[value] += 1
+    def digest_material(key: str) -> str:
+        path = path_values[key]
+        return path if path and path_counts[path] == 1 else key
+
     digests = {
-        key: sha256(
-            (path_values[key] if path_values[key] and path_counts[path_values[key]] == 1 else key).encode("utf-8")
-        ).hexdigest()
-        for key in entries
+        key: sha256(digest_material(key).encode("utf-8")).hexdigest() for key in entries
     }
     suffix_lengths = {key: 0 for key in entries}
 
