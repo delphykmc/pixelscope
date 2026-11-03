@@ -1218,7 +1218,10 @@ class DifferencePanel(QWidget):
         payload: object,
         publish_result: bool,
     ) -> None:
-        if self._closing:
+        if (
+            self._closing or self._worker is None
+            or self._worker.task_id != task_id or self._worker.is_cancelled
+        ):
             return
         if (
             not isinstance(payload, tuple)
