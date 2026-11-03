@@ -134,7 +134,7 @@ class AnalysisMeasurementV1:
 
 
 def measurement(
-    source_key: str, channel: str, metric: str, value: object,
+    source_key: str, channel: str, metric: str, value: float | int | None,
     sample_count: int | None, definition_revision: str = "native-v1",
 ) -> AnalysisMeasurementV1:
     if value is None:
