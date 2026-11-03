@@ -182,6 +182,9 @@ class DifferencePanel(QWidget):
         self._analysis_source_keys: dict[str, str] = {}
         self._analysis_request_epoch = 0
         self._presented_difference_token: PresentedAnalysisTokenV1 | None = None
+        # Only an actual result_ready presentation authorizes a Difference
+        # snapshot. A background map or preview_updated event never does.
+        self._explicit_display_key: tuple[object, ...] | None = None
         self._presented_metric_key: tuple[object, ...] | None = None
         self._presented_metric_result: DifferenceMetrics | None = None
 
@@ -336,6 +339,7 @@ class DifferencePanel(QWidget):
             or metric_key is None
             or metric_key != self._presented_metric_key
             or self.cached_result_for_current() is None
+            or self._explicit_display_key != (key, self.channel.currentText())
         ):
             return None
         expected_preview = (
@@ -938,6 +942,8 @@ class DifferencePanel(QWidget):
             self.status.setText("Ready")
             self._publish_sampling_snapshot(key, selected, self._preview_value, snapshot)
             signal = self.result_ready if publish_result else self.preview_updated
+            if publish_result:
+                self._explicit_display_key = (self._cache_key(), self.channel.currentText())
             signal.emit(self._title(), selected, self._preview_value)
             if presentation_pair is not None:
                 self.presentation_settled.emit(presentation_pair)
@@ -1006,6 +1012,8 @@ class DifferencePanel(QWidget):
         self._publish_sampling_snapshot(expected_key, selected, result, snapshot)
         self.status.setText("Ready")
         signal = self.result_ready if publish_result else self.preview_updated
+        if publish_result:
+            self._explicit_display_key = (self._cache_key(), self.channel.currentText())
         signal.emit(title, selected, result)
 
     def _preview_failed(
