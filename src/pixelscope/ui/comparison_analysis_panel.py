@@ -480,6 +480,19 @@ class ComparisonAnalysisPanel(QWidget):
         )
 
 
+    def bind_review_source_keys(self, mapping: dict[str, str]) -> None:
+        """W09 handoff: map runtime IDs to durable keys without changing numerics.
+
+        The owner supplies only verified document_id -> Review UUID mappings.
+        No source registration, alias resolver or new QObject hook is created.
+        """
+        if any(not key or not value for key, value in mapping.items()):
+            raise ValueError("invalid Review source mapping")
+        self._analysis_source_keys.update(mapping)
+        # Rebind the current rendered data to the explicit identity without
+        # inventing new numerical results or changing the request generation.
+        self._presented_analysis_token = self._analysis_render_token()
+
     def source_key_for_document(self, document_id: str) -> str:
         return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
 
