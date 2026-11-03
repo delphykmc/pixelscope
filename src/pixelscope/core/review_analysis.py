@@ -209,9 +209,12 @@ def freeze_series_values(values: object) -> tuple[
     tuple[int | float | None, ...], tuple[str, ...]
 ]:
     """Bounded copy of a 1-D numeric iterable; reject large inputs before copying."""
-    if (not isinstance(values, (Sized, Iterable))
-            or len(values) > MAX_SERIES_SAMPLES):
+    if not isinstance(values, Sized):
+        raise ValueError("series must have bounded length")
+    if len(values) > MAX_SERIES_SAMPLES:
         raise ValueError("series exceeds budget")
+    if not isinstance(values, Iterable):
+        raise ValueError("series is not iterable")
     result: list[int | float | None] = []
     states: list[str] = []
     for value in values:
