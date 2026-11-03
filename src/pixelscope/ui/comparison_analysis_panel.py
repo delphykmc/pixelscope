@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from contextlib import suppress
+from dataclasses import replace
 from functools import partial
 from hashlib import sha256
 from json import dumps
@@ -53,10 +54,13 @@ from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
+    AnalysisSeriesV1,
     AnalysisSourceV1,
     PresentedAnalysisTokenV1,
+    freeze_series_values,
     measurement,
 )
+from pixelscope.core.review_analysis_sources import snapshot_source
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
@@ -188,6 +192,9 @@ class ComparisonAnalysisPanel(QWidget):
         self._analysis_request_id = str(uuid4())
         self._analysis_request_epoch = 0
         self._presented_analysis_token: PresentedAnalysisTokenV1 | None = None
+        self._presented_histogram_token: PresentedAnalysisTokenV1 | None = None
+        self._histogram_presentation_epoch = 0
+        self._histogram_presentation_signature: tuple[object, ...] = ()
         self._token_request_signature: tuple[object, ...] = ()
         # W09 may inject durable Review keys. Until then these are provisional
         # Review-local UUIDs, never runtime document IDs or display aliases.
@@ -488,9 +495,9 @@ class ComparisonAnalysisPanel(QWidget):
         if any(not key or not value for key, value in mapping.items()):
             raise ValueError("invalid Review source mapping")
         self._analysis_source_keys.update(mapping)
-        # Rebind the current rendered data to the explicit identity without
-        # inventing new numerical results or changing the request generation.
+        # Explicit rebind affects identity only, not native data or requests.
         self._presented_analysis_token = self._analysis_render_token()
+        self._presented_histogram_token = self._histogram_live_token()
 
     def source_key_for_document(self, document_id: str) -> str:
         return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
@@ -651,6 +658,85 @@ class ComparisonAnalysisPanel(QWidget):
                 )
         return tuple(sources), tuple(values), (("scope", "roi" if token.roi_ref else "full"),)
 
+    def _histogram_ui_signature(self) -> tuple[object, ...]:
+        return (
+            self.histogram_range.currentText(),
+            self.histogram_units.currentText(),
+            self.region_scope.currentText(),
+            tuple(sorted(
+                (name, button.isChecked())
+                for name, button in self.channel_buttons.items()
+            )),
+        )
+
+    def _histogram_live_token(self) -> PresentedAnalysisTokenV1 | None:
+        stats = self._analysis_live_token()
+        if (stats is None or not any(self._histogram_series)
+                or self._histogram_presentation_signature != self._histogram_ui_signature()):
+            return None
+        return replace(
+            stats, feature="histogram",
+            request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
+        )
+
+    def get_presented_histogram_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._presented_histogram_token
+
+    def get_current_histogram_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._histogram_live_token()
+
+    def read_presented_histogram(self) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        if (self.get_current_histogram_token() is None
+                or self.get_current_histogram_token() != self.get_presented_histogram_token()):
+            raise ValueError("histogram presentation is stale")
+        sources = tuple(
+            snapshot_source(document, self.source_key_for_document(document.document_id))
+            for document in self._documents
+        )
+        presentation = (
+            ("histogram_x", "normalized" if self.histogram_range.currentText() ==
+             "Normalized 0–1" else "native"),
+            ("histogram_y", (
+                "normalized" if self.histogram_units.currentText() == "Normalized"
+                else "log-count" if self.histogram_units.currentText() == "Log count"
+                else "count")),
+        )
+        return sources, (), presentation
+
+    def read_presented_histogram_series(self) -> tuple[AnalysisSeriesV1, ...]:
+        if self.get_current_histogram_token() != self.get_presented_histogram_token():
+            raise ValueError("histogram request changed")
+        presented: set[tuple[int, str]] = {
+            (image_index, channel)
+            for group in self._histogram_series
+            for image_index, channel, _x, _y in group
+        }
+        series: list[AnalysisSeriesV1] = []
+        for image_index, (document, result) in enumerate(
+            zip(self._documents, self.last_results, strict=True)
+        ):
+            source_key = self.source_key_for_document(document.document_id)
+            for channel_index, channel in enumerate(result.histogram.channel_names):
+                if (image_index, channel) not in presented:
+                    continue
+                counts = result.histogram.counts[channel_index]
+                values, states = freeze_series_values(counts)
+                count = (result.channel_sample_counts[channel_index]
+                         if result.channel_sample_counts else result.pixel_count)
+                series.append(AnalysisSeriesV1(
+                    source_key=source_key, channel=channel, kind="histogram",
+                    coordinates=tuple(float(v) for v in result.histogram.edges),
+                    values=values, value_states=states, sample_count=count,
+                    definition_revision="native-bin-counts-v1",
+                ))
+        if not series:
+            raise ValueError("no presented histogram series")
+        return tuple(series)
+
     def set_semantics_delegate(self, delegate: Any | None) -> None:
         """Select an optional analysis strategy without replacing instance methods."""
 
@@ -724,6 +810,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._analysis_request_id = str(uuid4())
         self._token_request_signature = signature
         self._presented_analysis_token = None
+        self._presented_histogram_token = None
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
         self._invalidate_histogram_presentation()
@@ -742,6 +829,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = ()
         self._completed_signature = ()
         self._presented_analysis_token = None
+        self._presented_histogram_token = None
         self._token_request_signature = ()
         self._analysis_request_epoch += 1
         self._histogram_specs = []
@@ -790,6 +878,7 @@ class ComparisonAnalysisPanel(QWidget):
             self._analysis_request_id = str(uuid4())
             self._token_request_signature = signature
             self._presented_analysis_token = None
+            self._presented_histogram_token = None
             self._completed_signature = ()
             self._invalidate_histogram_presentation()
 
@@ -1279,6 +1368,16 @@ class ComparisonAnalysisPanel(QWidget):
         # immutable identity from the completed signature, then export capture
         # checks completion/worker state again before and after extraction.
         self._presented_analysis_token = self._analysis_render_token()
+        self._histogram_presentation_epoch += 1
+        self._histogram_presentation_signature = self._histogram_ui_signature()
+        stats = self._presented_analysis_token
+        self._presented_histogram_token = (
+            replace(
+                stats, feature="histogram",
+                request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
+            )
+            if stats is not None and any(self._histogram_series) else None
+        )
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
