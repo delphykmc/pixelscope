@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from uuid import uuid4
 from math import isinf
+from uuid import uuid4
 
 import numpy as np
 from numpy.typing import NDArray
@@ -302,7 +302,6 @@ class DifferencePanel(QWidget):
 
         return self._map_cache
 
-    @staticmethod
     def set_analysis_source_keys(self, shared: dict[str, str]) -> None:
         """Use the canonical Review UUID mapping shared by core analysis panels."""
         self._analysis_source_keys = shared
@@ -410,6 +409,7 @@ class DifferencePanel(QWidget):
             for doc, source_key in zip(pair, token.source_keys, strict=True)
         ), values, presentation
 
+    @staticmethod
     def _integer_control(minimum: int, maximum: int, value: int) -> QSpinBox:
         control = QSpinBox()
         control.setRange(minimum, maximum)
