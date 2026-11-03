@@ -25,7 +25,10 @@ def test_four_identical_names_use_shortest_parent_suffix() -> None:
     ]
     labels = resolve_display_aliases(inputs)
     assert [labels[key].text for key in "abcd"] == [
-        "base / chart.png", "noise / chart.png", "tone / chart.png", "sharp / chart.png"
+        "base / chart.png",
+        "noise / chart.png",
+        "tone / chart.png",
+        "sharp / chart.png",
     ]
     assert labels == resolve_display_aliases(reversed(inputs))
 
