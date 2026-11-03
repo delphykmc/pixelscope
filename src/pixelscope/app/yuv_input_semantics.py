@@ -379,11 +379,12 @@ class NativeYuvSemanticsController:
         panel._set_activity("Calculating native YUV...", busy=True)
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_yuv_analysis_result(
+            lambda task_id, _document_id, _generation, result: self._on_yuv_analysis_result(
                 signature,
                 cache_keys,
                 histogram_specs,
                 result,
+                task_id=task_id,
             )
         )
         worker.signals.failed.connect(panel._on_error)
@@ -397,8 +398,15 @@ class NativeYuvSemanticsController:
         cache_keys: Sequence[tuple[object, ...]],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
         result: object,
+        *,
+        task_id: str | None = None,
     ) -> None:
         panel = self.window.comparison_analysis_panel
+        if task_id is not None and (
+            panel._worker is None or panel._worker.task_id != task_id
+            or panel._worker.is_cancelled
+        ):
+            return
         if signature != panel._request_signature or not isinstance(result, tuple):
             return
         if len(result) != len(panel._documents) or not all(
@@ -539,10 +547,11 @@ class NativeYuvSemanticsController:
         panel._set_status("Calculating native YUV line profile...")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: panel._on_result(
+            lambda task_id, _document_id, _generation, result: panel._on_result(
                 signature,
                 cache_keys,
                 result,
+                task_id=task_id,
             )
         )
         worker.signals.failed.connect(panel._on_error)
