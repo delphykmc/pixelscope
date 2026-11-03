@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import weakref
 from contextlib import suppress
-from uuid import uuid4
 from typing import Any, cast
+from uuid import uuid4
 
 import numpy as np
 import pyqtgraph as pg
