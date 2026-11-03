@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import cv2
 import numpy as np
+import pytest
 from PySide6.QtCore import QSettings
 
 from pixelscope.app.bootstrap import (
@@ -492,3 +493,43 @@ def test_bundle_capture_disallows_stale_generation(
     panel._documents[0].generation += 1
     controller.refresh_actions()
     assert not controller.bundle_action.isEnabled()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("endianness", "big"),
+        ("bit_alignment", "msb"),
+        ("stride_bytes", 12),
+        ("offset_bytes", 8),
+        ("black_level", 4),
+        ("white_level", 1000),
+    ],
+)
+def test_bundle_profile_signature_distinguishes_raw_interpretation(
+    field: str, value: object
+) -> None:
+    from pixelscope.io.raw_profile import RawProfile
+    from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
+
+    profile = RawProfile(
+        name="private-sidecar-name",
+        width=4,
+        height=2,
+        stride_bytes=8,
+        bit_depth=10,
+        white_level=1023,
+    )
+    changed = RawProfile(**{**profile.dict(), field: value})
+    array = np.zeros((2, 4), dtype=np.uint16)
+    first = ImageDocument.from_array(array, "first", raw_profile=profile, bit_depth=10)
+    second = ImageDocument.from_array(array, "second", raw_profile=changed, bit_depth=10)
+    assert ComparisonAnalysisPanel._review_profile_signature(first) != (
+        ComparisonAnalysisPanel._review_profile_signature(second)
+    )
+
+    renamed = profile.copy(update={"name": "another-private-sidecar"})
+    third = ImageDocument.from_array(array, "third", raw_profile=renamed, bit_depth=10)
+    assert ComparisonAnalysisPanel._review_profile_signature(first) == (
+        ComparisonAnalysisPanel._review_profile_signature(third)
+    )

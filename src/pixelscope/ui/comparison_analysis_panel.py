@@ -506,9 +506,29 @@ class ComparisonAnalysisPanel(QWidget):
             "bit_depth": document.bit_depth,
             "native_shape": list(document.shape),
             "reference_shape": list(document.reference_shape),
-            "bayer_pattern": getattr(profile, "bayer_pattern", None),
-            "alignment": getattr(profile, "alignment", None),
-            "byte_order": getattr(profile, "byte_order", None),
+            "raw_interpretation": (
+                {
+                    name: getattr(profile, name)
+                    for name in (
+                        "width",
+                        "height",
+                        "stride_bytes",
+                        "offset_bytes",
+                        "storage_format",
+                        "container_dtype",
+                        "endianness",
+                        "bit_depth",
+                        "bit_alignment",
+                        "packed_bit_order",
+                        "channel_layout",
+                        "bayer_pattern",
+                        "black_level",
+                        "white_level",
+                    )
+                }
+                if profile is not None
+                else None
+            ),
             "yuv_layout": getattr(yuv_frame, "layout", None),
             "subsampling": getattr(yuv_frame, "subsampling", None),
         }
