@@ -45,7 +45,11 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
         document.display_name for document in documents
     }
     assert all(viewer.header.edit_tag.isVisible() for viewer in presented)
-    assert all(\n        viewer.header._display_name in viewer.header.name.toolTip()\n        and str(viewer.document.source_path) in viewer.header.name.toolTip()\n        for viewer in presented\n    )
+    assert all(
+        viewer.header._display_name in viewer.header.name.toolTip()
+        and str(viewer.document.source_path) in viewer.header.name.toolTip()
+        for viewer in presented
+    )
 
     # This is the existing typed/statistics + plots + line + Difference label
     # path, not another registered source or a new identity authority.
