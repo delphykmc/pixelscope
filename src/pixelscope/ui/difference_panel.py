@@ -362,6 +362,20 @@ class DifferencePanel(QWidget):
     def get_current_difference_token(self) -> PresentedAnalysisTokenV1 | None:
         return self._difference_live_token()
 
+    # W00 M1 generic producer protocol.
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_presented_difference_token()
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_current_difference_token()
+
+    def read_presented_analysis(self) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        return self.read_presented_difference()
+
     def read_presented_difference(self) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
