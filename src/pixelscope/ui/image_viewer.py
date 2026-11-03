@@ -471,13 +471,24 @@ class ImageViewer(QWidget):
             raise ValueError("physical zoom center must be finite")
         passes = 0
         for _ in range(2):
-            if (
+            ranges = self.view_box.viewRange()
+            actual_center = (
+                (ranges[0][0] + ranges[0][1]) / 2.0,
+                (ranges[1][0] + ranges[1][1]) / 2.0,
+            )
+            scale_ok = (
                 measurement.valid
                 and abs(measurement.scale_x - target) <= target * 0.005
                 and abs(measurement.scale_y - target) <= target * 0.005
-            ):
+            )
+            # Sync must update the center even if the other tile already has
+            # the requested scale (e.g. an ordinary pan at exact 100%).
+            center_ok = (
+                abs(actual_center[0] - center_x) <= 1e-6
+                and abs(actual_center[1] - center_y) <= 1e-6
+            )
+            if scale_ok and center_ok:
                 break
-            ranges = self.view_box.viewRange()
             width = (ranges[0][1] - ranges[0][0]) * measurement.scale_x / target
             height = (ranges[1][1] - ranges[1][0]) * measurement.scale_y / target
             if not all(isfinite(v) and v > 0 for v in (width, height)):
