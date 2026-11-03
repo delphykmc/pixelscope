@@ -309,6 +309,9 @@ class LineProfilePanel(QWidget):
         )
         return sources, (), presentation
 
+    def read_presented_series(self) -> tuple[AnalysisSeriesV1, ...]:
+        return self.read_presented_line_series()
+
     def read_presented_line_series(self) -> tuple[AnalysisSeriesV1, ...]:
         if self.get_current_line_token() != self.get_presented_line_token():
             raise ValueError("line request changed")
