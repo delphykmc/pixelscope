@@ -228,9 +228,9 @@ class FolderDisplayTagController:
         if active is not None:
             shape = active.shape
             resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
-            file_format = (
-                active.source_path or Path(active.display_name)
-            ).suffix.upper().lstrip(".") or active.channel_layout
+            file_format = (active.source_path or Path(active.display_name)).suffix.upper().lstrip(
+                "."
+            ) or active.channel_layout
             window.structured_status.set_active_document(
                 active.display_name,
                 f"{resolution} · {file_format} · {active.bit_depth}-bit",
