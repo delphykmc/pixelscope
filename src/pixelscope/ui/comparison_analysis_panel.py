@@ -4,8 +4,6 @@ import csv
 from contextlib import suppress
 from dataclasses import replace
 from functools import partial
-from hashlib import sha256
-from json import dumps
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -60,7 +58,7 @@ from pixelscope.core.review_analysis import (
     freeze_series_values,
     measurement,
 )
-from pixelscope.core.review_analysis_sources import snapshot_source
+from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
@@ -504,42 +502,8 @@ class ComparisonAnalysisPanel(QWidget):
 
     @staticmethod
     def _review_profile_signature(document: ImageDocument) -> str:
-        """Hash only path-free native interpretation fields, not raw profiles."""
-        profile = document.raw_profile
-        yuv_frame = document.yuv_frame
-        fields = {
-            "layout": document.channel_layout,
-            "dtype": str(document.original_dtype),
-            "bit_depth": document.bit_depth,
-            "native_shape": list(document.shape),
-            "reference_shape": list(document.reference_shape),
-            "raw_interpretation": (
-                {
-                    name: getattr(profile, name)
-                    for name in (
-                        "width",
-                        "height",
-                        "stride_bytes",
-                        "offset_bytes",
-                        "storage_format",
-                        "container_dtype",
-                        "endianness",
-                        "bit_depth",
-                        "bit_alignment",
-                        "packed_bit_order",
-                        "channel_layout",
-                        "bayer_pattern",
-                        "black_level",
-                        "white_level",
-                    )
-                }
-                if profile is not None
-                else None
-            ),
-            "yuv_layout": getattr(yuv_frame, "layout", None),
-            "subsampling": getattr(yuv_frame, "subsampling", None),
-        }
-        return sha256(dumps(fields, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+        """Use the same path-free interpretation identity in all W02 producers."""
+        return native_profile_signature(document)
 
     def _analysis_live_token(self) -> PresentedAnalysisTokenV1 | None:
         if (
