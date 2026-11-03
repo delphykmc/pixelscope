@@ -23,10 +23,18 @@ A cached Difference entry by itself does not establish a new exportable current 
 ## Analysis Bundle (versioned ZIP)
 
 Use **File > Export Analysis Bundle...** after Statistics has finished displaying.
-The new bundle captures a frozen numerical Statistics result with the active
-**reference-space ROI coordinates** (or Full Image), source generations, native
-channel and sample counts, a non-path profile signature, request identity, and
-metric definition revision. It does not trigger another analysis.
+The bundle captures independently frozen **Statistics, Histogram, Line Profile,
+and Difference** results when each is fully presented and current. Each feature
+has its own request/generation token: an unavailable, pending or stale feature
+is excluded rather than importing its old values. At least one current feature
+is required to export. It does not trigger another analysis.
+
+The context stores exact **reference-space ROI coordinates** (or Full Image),
+source generations, native channel sample counts, non-path profile signatures,
+request identity, and numeric definition revisions. Histogram series freeze
+native bin edges and integer counts, and Line Profile series freeze native sample
+coordinates/values separately from presentation modes. Difference metrics freeze
+the exact ordered pair, channel, domain, ROI and Difference Cache identity.
 
 A ZIP contains `manifest.json`, `data/context.json`,
 `data/measurements.json`, and `data/measurements.csv`. This **portable-default**
