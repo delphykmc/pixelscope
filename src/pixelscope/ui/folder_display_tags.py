@@ -249,7 +249,9 @@ class FolderDisplayTagController:
                 if document is not None:
                     path = getattr(document, "source_path", None)
                     folder = path.parent if isinstance(path, Path) else None
-                    folder_key = self._registration_folder_key(path) if isinstance(path, Path) else None
+                    folder_key = (
+                        self._registration_folder_key(path) if isinstance(path, Path) else None
+                    )
                     update_document_item(document, folder_key=folder_key)
                     if folder is not None:
                         self._queue_folder_row_refresh(folder, folder_key)
