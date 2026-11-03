@@ -136,3 +136,26 @@ def test_aliases_remain_stable_across_six_image_pagination_and_removal(
     assert documents[-1].document_id not in window.documents
     assert all(doc.display_name == first_labels[doc.document_id] for doc in documents[:-1])
     window.close()
+
+
+def test_source_replacement_reapplies_alias_without_changing_document_id(
+    qtbot: object, tmp_path: Path
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_folder_display_tags(window)
+    first = _document(tmp_path / "before" / "same.png")
+    second = _document(tmp_path / "after" / "same.png")
+    window.add_document(first, select=False)
+    window.add_document(second, select=False)
+    old_id = first.document_id
+    assert first.display_name == "before / same.png"
+    replacement = _document(first.source_path)
+    replacement.document_id = old_id
+    replacement.generation = first.generation + 1
+    window.documents[old_id] = replacement
+    window._update_document_item(replacement)
+    assert replacement.display_name == "before / same.png"
+    assert replacement.document_id == old_id
+    assert second.display_name == "after / same.png"
+    window.close()
