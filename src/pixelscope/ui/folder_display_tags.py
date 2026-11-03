@@ -264,6 +264,18 @@ class FolderDisplayTagController:
         if analysis.last_results and analysis._histogram_specs:
             analysis._render(analysis.last_results, analysis._histogram_specs)
         line = window.line_profile_panel
+        # Refresh text in place: rebuilding the selector can change its
+        # reference lock/priority, while emitting index changes can re-render.
+        selector = line.reference_selector
+        previously_blocked = selector.blockSignals(True)
+        try:
+            documents_by_id = {document.document_id: document for document in line._documents}
+            for index in range(selector.count()):
+                document = documents_by_id.get(selector.itemData(index))
+                if document is not None:
+                    selector.setItemText(index, f"{index + 1} · {line._document_label(document)}")
+        finally:
+            selector.blockSignals(previously_blocked)
         if line.last_results:
             line._render(line.last_results)
 

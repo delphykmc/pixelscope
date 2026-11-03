@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QInputDialog
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.folder_display_tags import install_folder_display_tags
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -179,4 +180,39 @@ def test_source_replacement_reapplies_alias_without_changing_document_id(
     assert replacement.display_name == "before / same.png"
     assert replacement.document_id == old_id
     assert second.display_name == "after / same.png"
+    window.close()
+
+
+def test_tag_updates_line_reference_labels_without_changing_analysis_or_reference(
+    qtbot: object, tmp_path: Path
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    tags = install_folder_display_tags(window)
+    documents = [_document(tmp_path / folder / "same.png") for folder in ("a", "b")]
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    window._shared_line_changed(LineSelection(0, 0, 6))
+    line = window.line_profile_panel
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(line.last_results) == 2 and line._worker is None, timeout=5000
+    )
+    line.y_mode.setCurrentText("Difference from reference")
+    line.reference_selector.setCurrentIndex(1)
+    reference = (line._reference_document_id, line._reference_locked)
+    results = line.last_results
+    signature = line._request_signature
+    changes: list[int] = []
+    line.reference_selector.currentIndexChanged.connect(changes.append)
+
+    for tag in ("Reference", ""):
+        tags.set_tag(documents[1].source_path.parent, tag)
+        assert line.reference_selector.currentData() == documents[1].document_id
+        assert line.reference_selector.itemText(1) == (f"2 · {line._document_label(documents[1])}")
+        assert (line._reference_document_id, line._reference_locked) == reference
+        assert line.last_results is results
+        assert line._request_signature == signature
+        assert line._worker is None
+        assert changes == []
     window.close()
