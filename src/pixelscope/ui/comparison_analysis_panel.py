@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 from contextlib import suppress
 from functools import partial
+from hashlib import sha256
+from json import dumps
+from uuid import uuid4
 from pathlib import Path
 from typing import Any, cast
 
@@ -49,6 +52,12 @@ from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTi
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
+from pixelscope.core.review_analysis import (
+    AnalysisMeasurementV1,
+    AnalysisSourceV1,
+    PresentedAnalysisTokenV1,
+    measurement,
+)
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
@@ -176,6 +185,12 @@ class ComparisonAnalysisPanel(QWidget):
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
         self._completed_signature: tuple[object, ...] = ()
+        self._analysis_request_id = str(uuid4())
+        self._analysis_request_epoch = 0
+        self._presented_analysis_token: PresentedAnalysisTokenV1 | None = None
+        # W09 may inject durable Review keys. Until then these are provisional
+        # Review-local UUIDs, never runtime document IDs or display aliases.
+        self._analysis_source_keys: dict[str, str] = {}
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
         self._pool = analysis_thread_pool()
@@ -463,6 +478,135 @@ class ComparisonAnalysisPanel(QWidget):
             tuple(histogram_specs),
         )
 
+
+    def source_key_for_document(self, document_id: str) -> str:
+        return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
+
+    @staticmethod
+    def _review_profile_signature(document: ImageDocument) -> str:
+        """Hash only path-free native interpretation fields, not raw profiles."""
+        profile = document.raw_profile
+        yuv_frame = document.yuv_frame
+        fields = {
+            "layout": document.channel_layout,
+            "dtype": str(document.original_dtype),
+            "bit_depth": document.bit_depth,
+            "native_shape": list(document.shape),
+            "reference_shape": list(document.reference_shape),
+            "bayer_pattern": getattr(profile, "bayer_pattern", None),
+            "alignment": getattr(profile, "alignment", None),
+            "byte_order": getattr(profile, "byte_order", None),
+            "yuv_layout": getattr(yuv_frame, "layout", None),
+            "subsampling": getattr(yuv_frame, "subsampling", None),
+        }
+        return sha256(dumps(fields, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    def _analysis_live_token(self) -> PresentedAnalysisTokenV1 | None:
+        if (not self.last_results or self._completed_signature != self._request_signature
+                or self._refresh_timer.isActive() or self._worker is not None
+                or len(self.last_results) != len(self._documents)):
+            return None
+        if self._request_signature != self._analysis_request_signature(
+            self._documents, self._bounds, self._histogram_specs
+        ):
+            return None
+        roi = self._bounds
+        if ((roi is None) != (self.region_scope.currentText() != "Active ROI")):
+            return None
+        if any(
+            r.bounds != (roi or RoiBounds(0, 0, d.reference_shape[1], d.reference_shape[0]))
+            for d, r in zip(self._documents, self.last_results, strict=True)
+        ):
+            return None
+        return PresentedAnalysisTokenV1(
+            feature="statistics",
+            request_id=self._analysis_request_id,
+            request_epoch=self._analysis_request_epoch,
+            source_documents=tuple((d.document_id, d.generation) for d in self._documents),
+            source_keys=tuple(self.source_key_for_document(d.document_id) for d in self._documents),
+            roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+            channel="All",
+            domain="native",
+            profile_signatures=tuple(
+                self._review_profile_signature(d) for d in self._documents
+            ),
+            difference_cache_key=None,
+        )
+
+    def _analysis_render_token(self) -> PresentedAnalysisTokenV1 | None:
+        # During the succeeded signal the TaskWorker has not yet emitted
+        # finished; tolerate it ONLY for token publication, never for capture.
+        worker = self._worker
+        self._worker = None
+        try:
+            return self._analysis_live_token()
+        finally:
+            self._worker = worker
+
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        """Result token published only by a completed render (W00 M1)."""
+        return self._presented_analysis_token
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        """Revalidate live request and producer data against the published token."""
+        return self._analysis_live_token()
+
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        if self.get_current_analysis_token() != self.get_presented_analysis_token():
+            raise ValueError("analysis is no longer current")
+        token = self.get_presented_analysis_token()
+        if token is None:
+            raise ValueError("no presented analysis")
+        sources: list[AnalysisSourceV1] = []
+        values: list[AnalysisMeasurementV1] = []
+        for document, result, key in zip(
+            self._documents, self.last_results, token.source_keys, strict=True
+        ):
+            if document.source is None:
+                raise ValueError("unloaded analysis source")
+            sources.append(AnalysisSourceV1(
+                source_key=key,
+                document_id=document.document_id,
+                generation=document.generation,
+                native_shape=tuple(int(v) for v in document.shape),
+                reference_shape=tuple(int(v) for v in document.reference_shape),
+                native_dtype=str(document.original_dtype),
+                channel_layout=document.channel_layout,
+                effective_bits=document.bit_depth,
+                profile_signature=self._review_profile_signature(document),
+                sha256=(
+                    document.encoded_source_sha256
+                    if isinstance(document.encoded_source_sha256, str)
+                    and len(document.encoded_source_sha256) == 64
+                    else None
+                ),
+                # A decode-time digest is not a currently verified file revision.
+                verification="unverified",
+            ))
+            for index, (channel, stats) in enumerate(zip(
+                result.channel_names, result.channel_statistics, strict=True
+            )):
+                count = (result.channel_sample_counts[index]
+                         if result.channel_sample_counts else result.pixel_count)
+                fields = (
+                    ("Min", stats.minimum),
+                    ("Max", stats.maximum),
+                    ("Mean", stats.mean),
+                    ("Std", stats.standard_deviation),
+                    ("P1", stats.percentiles[1.0]),
+                    ("P50", stats.percentiles[50.0]),
+                    ("P99", stats.percentiles[99.0]),
+                )
+                values.extend(measurement(key, channel, name, value, count)
+                              for name, value in fields)
+        return tuple(sources), tuple(values), (("scope", "roi" if token.roi_ref else "full"),)
+
     def set_semantics_delegate(self, delegate: Any | None) -> None:
         """Select an optional analysis strategy without replacing instance methods."""
 
@@ -532,6 +676,9 @@ class ComparisonAnalysisPanel(QWidget):
         if self._worker is not None:
             self._worker.cancel()
         self._request_signature = signature
+        self._analysis_request_epoch += 1
+        self._analysis_request_id = str(uuid4())
+        self._presented_analysis_token = None
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
         self._invalidate_histogram_presentation()
@@ -549,6 +696,8 @@ class ComparisonAnalysisPanel(QWidget):
         self._active_roi_bounds = None
         self._request_signature = ()
         self._completed_signature = ()
+        self._presented_analysis_token = None
+        self._analysis_request_epoch += 1
         self._histogram_specs = []
         self.last_results = ()
         self.image_summary.setRowCount(0)
@@ -591,6 +740,9 @@ class ComparisonAnalysisPanel(QWidget):
             if self._worker is not None:
                 self._worker.cancel()
             self._request_signature = signature
+            self._analysis_request_epoch += 1
+            self._analysis_request_id = str(uuid4())
+            self._presented_analysis_token = None
             self._completed_signature = ()
             self._invalidate_histogram_presentation()
 
@@ -1070,6 +1222,10 @@ class ComparisonAnalysisPanel(QWidget):
         self.table.viewport().update()
         self._set_activity("", busy=False)
         timer.finish()
+        # On worker completion this may still see an active worker; publish the
+        # immutable identity from the completed signature, then export capture
+        # checks completion/worker state again before and after extraction.
+        self._presented_analysis_token = self._analysis_render_token()
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
