@@ -188,6 +188,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._analysis_request_id = str(uuid4())
         self._analysis_request_epoch = 0
         self._presented_analysis_token: PresentedAnalysisTokenV1 | None = None
+        self._token_request_signature: tuple[object, ...] = ()
         # W09 may inject durable Review keys. Until then these are provisional
         # Review-local UUIDs, never runtime document IDs or display aliases.
         self._analysis_source_keys: dict[str, str] = {}
@@ -678,6 +679,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = signature
         self._analysis_request_epoch += 1
         self._analysis_request_id = str(uuid4())
+        self._token_request_signature = signature
         self._presented_analysis_token = None
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
@@ -697,6 +699,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = ()
         self._completed_signature = ()
         self._presented_analysis_token = None
+        self._token_request_signature = ()
         self._analysis_request_epoch += 1
         self._histogram_specs = []
         self.last_results = ()
@@ -742,6 +745,7 @@ class ComparisonAnalysisPanel(QWidget):
             self._request_signature = signature
             self._analysis_request_epoch += 1
             self._analysis_request_id = str(uuid4())
+            self._token_request_signature = signature
             self._presented_analysis_token = None
             self._completed_signature = ()
             self._invalidate_histogram_presentation()
@@ -1222,6 +1226,12 @@ class ComparisonAnalysisPanel(QWidget):
         self.table.viewport().update()
         self._set_activity("", busy=False)
         timer.finish()
+        # Native YUV delegates may set _request_signature directly. Detect that
+        # producer transition here without editing the app-owned YUV adapter.
+        if self._token_request_signature != self._completed_signature:
+            self._analysis_request_epoch += 1
+            self._analysis_request_id = str(uuid4())
+            self._token_request_signature = self._completed_signature
         # On worker completion this may still see an active worker; publish the
         # immutable identity from the completed signature, then export capture
         # checks completion/worker state again before and after extraction.
