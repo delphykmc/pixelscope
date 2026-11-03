@@ -1,3 +1,5 @@
+# fmt: off
+# ruff: noqa: E721, E501  # Strict JSON primitives: bool must not pass as int
 """Qt-free immutable analysis capture and portable context contract (Issue #210 W02).
 
 Runtime document IDs are only an ephemeral liveness guard. Portable context never
