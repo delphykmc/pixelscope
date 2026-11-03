@@ -7,9 +7,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QPoint, QPointF
-from PySide6.QtGui import QColor, QImage
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF
+from PySide6.QtGui import QColor, QImage, QPaintEvent, QRegion
 from PySide6.QtTest import QSignalSpy, QTest
+from PySide6.QtWidgets import QApplication, QGraphicsView
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -54,6 +55,19 @@ def _write_rgb(path: Path, color: tuple[int, int, int]) -> None:
     image = QImage(128, 128, QImage.Format.Format_RGB32)
     image.fill(QColor(*color))
     assert image.save(str(path))
+
+
+class _PaintRegionRecorder(QObject):
+    """Capture actual Qt paint regions instead of inferring them from update calls."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.regions: list[QRegion] = []
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if isinstance(event, QPaintEvent):
+            self.regions.append(event.region())
+        return False
 
 
 def test_source_role_names_are_opt_in_and_do_not_change_scientific_identity(qtbot: object) -> None:
@@ -122,6 +136,71 @@ def test_view_resize_retains_logical_center_and_does_not_broadcast(qtbot: object
     state = win._state()
     assert state is not None
     assert (state.center_x, state.center_y) == (63.25, 70.75)
+    win.close()
+
+
+def test_linked_pan_repaints_full_viewports_while_hover_guides_are_visible(qtbot: object) -> None:
+    """A synchronized scroll must not reuse stale hover-guide pixels in either sibling."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result())
+    win.resize(1450, 800)
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+
+    source, *linked = win._views
+    source.apply_navigation(8.0, 64.0, 64.0)
+    win._sync_views(source, 8.0, 64.0, 64.0)
+    win._show_hover_pixel(64, 64)
+    assert len(linked) == 2
+    assert all(
+        vertical.isVisible() and horizontal.isVisible() for vertical, horizontal in win._guide_items
+    )
+    for view in linked:
+        assert view.viewportUpdateMode() == QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
+        assert view.horizontalScrollBar().maximum() > 0
+        assert view.verticalScrollBar().maximum() > 0
+
+    # Force the setup's zoom/guide draw, then drain its queued paint requests.
+    # A pre-pan full repaint must not satisfy the post-scroll regression assertion.
+    for view in linked:
+        view.viewport().repaint()
+    QApplication.processEvents()
+    QApplication.processEvents()
+    recorders = [_PaintRegionRecorder() for _ in linked]
+    for view, recorder in zip(linked, recorders, strict=True):
+        view.viewport().installEventFilter(recorder)
+    QApplication.processEvents()
+    for recorder in recorders:
+        recorder.regions.clear()
+    before = [
+        (view.horizontalScrollBar().value(), view.verticalScrollBar().value()) for view in linked
+    ]
+
+    # centerOn triggers source scrollbar navigation -> _sync_views -> linked centerOn.
+    source.centerOn(QPointF(78.0, 79.0))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            (view.horizontalScrollBar().value(), view.verticalScrollBar().value()) != previous
+            for view, previous in zip(linked, before, strict=True)
+        ),
+        timeout=3000,
+    )
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            any(region.contains(view.viewport().rect()) for region in recorder.regions)
+            for view, recorder in zip(linked, recorders, strict=True)
+        ),
+        timeout=3000,
+    )
+    assert all(vertical.line().x1() == 64.5 for vertical, _ in win._guide_items)
+    assert all(horizontal.line().y1() == 64.5 for _, horizontal in win._guide_items)
+    assert all(
+        vertical.isVisible() and horizontal.isVisible() for vertical, horizontal in win._guide_items
+    )
+    for view, recorder in zip(linked, recorders, strict=True):
+        view.viewport().removeEventFilter(recorder)
     win.close()
 
 

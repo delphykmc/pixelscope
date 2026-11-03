@@ -298,6 +298,12 @@ class _LinkedView(QGraphicsView):
             self._navigation_changed
         )
 
+    def scrollContentsBy(self, dx: int, dy: int) -> None:  # noqa: N802
+        # Scroll blitting can leave stale hover-guide pixels in synchronized views.
+        # Refresh after the scroll; hover-only item movement still uses minimal updates.
+        super().scrollContentsBy(dx, dy)
+        self.viewport().update()
+
     def _navigation_changed(self, _value: int = 0) -> None:
         if self._muted or self.scene() is None:
             return
