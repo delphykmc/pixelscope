@@ -967,8 +967,8 @@ class ComparisonAnalysisPanel(QWidget):
         self._set_activity("Calculating...", busy=True)
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_result(
-                signature, cache_keys, histogram_specs, result
+            lambda task_id, _document_id, _generation, result: self._on_result(
+                signature, cache_keys, histogram_specs, result, task_id=task_id
             )
         )
         worker.signals.failed.connect(self._on_error)
@@ -982,8 +982,15 @@ class ComparisonAnalysisPanel(QWidget):
         cache_keys: list[tuple[object, ...]],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
         result: object,
+        *,
+        task_id: str | None = None,
     ) -> None:
         if self._histogram_resources_disposed:
+            return
+        if task_id is not None and (
+            self._worker is None or self._worker.task_id != task_id
+            or self._worker.is_cancelled
+        ):
             return
         if signature != self._request_signature or not isinstance(result, tuple):
             return
