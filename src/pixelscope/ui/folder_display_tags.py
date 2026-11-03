@@ -34,6 +34,7 @@ class FolderDisplayTagController:
         self._original_remove_documents = OwnerCallback(window._remove_document_ids)
         self._source_groups: dict[str, set[str]] = {}
         self._group_by_source: dict[str, str] = {}
+        self._folder_by_source: dict[str, tuple[Path, str]] = {}
         self._pending_alias_groups: set[str] = set()
         self._bulk_registration_depth = 0
         self._pending_folder_rows: dict[str, Path] = {}
@@ -112,14 +113,27 @@ class FolderDisplayTagController:
         path = getattr(document, "source_path", None)
         if not isinstance(path, Path):
             return
-        key = folder_key or self._registration_folder_key(path)
+        key = self._source_folder_key(document, folder_key=folder_key)
         tag = self.tag_for_folder(path.parent, folder_key=key)
         document.display_name = f"[{tag}] {path.name}" if tag else path.name
+
+    def _source_folder_key(self, document: Any, *, folder_key: str | None = None) -> str:
+        """Retain worker-canonicalized identity for later presentation refreshes."""
+        path = document.source_path
+        key = folder_key or self._registration_folder_key(path)
+        cached = self._folder_by_source.get(document.document_id)
+        if key is None:
+            key = cached[1] if cached is not None and cached[0] == path.parent else None
+        if key is None:
+            key = self._folder_key(path.parent)
+        self._folder_by_source[document.document_id] = (path.parent, key)
+        return key
 
     def _remember_source(self, document: Any) -> str | None:
         path = getattr(document, "source_path", None)
         if not isinstance(path, Path):
             return None
+        self._source_folder_key(document)
         source_id = document.document_id
         group = normalized_label_key(path.name)
         previous = self._group_by_source.get(source_id)
@@ -146,7 +160,10 @@ class FolderDisplayTagController:
                     source_key=document.document_id,
                     source_path=document.source_path,
                     fallback_name=document.display_name,
-                    display_tag=self.tag_for_folder(document.source_path.parent),
+                    display_tag=self.tag_for_folder(
+                        document.source_path.parent,
+                        folder_key=self._source_folder_key(document),
+                    ),
                 )
                 for document in documents
                 if isinstance(document.source_path, Path)
@@ -164,6 +181,7 @@ class FolderDisplayTagController:
         removed = set(self._group_by_source).difference(self.window.documents)
         changed_groups: set[str] = set()
         for source_id in removed:
+            self._folder_by_source.pop(source_id, None)
             group = self._group_by_source.pop(source_id)
             self._source_groups[group].discard(source_id)
             if not self._source_groups[group]:
@@ -385,7 +403,7 @@ class FolderDisplayTagController:
         groups: set[str] = set()
         for document in self.window.documents.values():
             path = getattr(document, "source_path", None)
-            if isinstance(path, Path) and self._folder_key(path.parent) == key:
+            if isinstance(path, Path) and self._source_folder_key(document) == key:
                 group = self._remember_source(document)
                 if group is not None:
                     groups.add(group)

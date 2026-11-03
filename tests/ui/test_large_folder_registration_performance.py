@@ -78,13 +78,21 @@ def test_async_controller_does_not_linearly_scan_folder_membership_for_fresh_ite
     window.close()
 
 
+@pytest.mark.parametrize("duplicate_names", [False, True])
 def test_composed_async_registration_does_not_resolve_paths_on_gui_thread(
     qtbot: object,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    duplicate_names: bool,
 ) -> None:
-    folder = _make_folder(tmp_path, 20)
-    discovery = discover_registration_inputs((folder,))
+    if duplicate_names:
+        folders = tuple(tmp_path / f"run-{index}" for index in range(20))
+        for folder in folders:
+            folder.mkdir()
+            (folder / "same.png").write_bytes(b"x")
+    else:
+        folders = (_make_folder(tmp_path, 20),)
+    discovery = discover_registration_inputs(folders)
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
