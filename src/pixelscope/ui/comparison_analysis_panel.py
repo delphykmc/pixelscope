@@ -51,13 +51,13 @@ from PySide6.QtWidgets import (
 from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSourceV1,
     PresentedAnalysisTokenV1,
     measurement,
 )
+from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
