@@ -198,7 +198,7 @@ class AnalysisSeriesV1:
             if state not in _STATE:
                 raise ValueError("invalid series value state")
             if state == "finite":
-                if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                if (not isinstance(value, int | float) or isinstance(value, bool)
                         or not math.isfinite(value)):
                     raise ValueError("finite series value required")
             elif value is not None:
