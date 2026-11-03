@@ -11,8 +11,11 @@ import pytest
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QTransform
 
+from pixelscope.core.bayer import render_bayer_preview
+from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.spatial_sampling import SpatialSampling
+from pixelscope.core.yuv import NativeYuvFrame
+from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
 
@@ -117,14 +120,16 @@ def test_item_transform_changes_actual_zoom_and_invalidates_distorted_label(
     viewer.image_item.setTransform(original)
 
 
-def test_subsampled_plane_uses_reference_pixels_not_native_sample_cells(
-    qtbot: object,
+@pytest.mark.parametrize("channel", ["U", "V"])
+def test_yuv420_planes_use_reference_pixels_not_native_sample_cells(
+    qtbot: object, channel: str
 ) -> None:
-    sampling = SpatialSampling.cell_footprint((8, 8), (4, 4), row_step=2, column_step=2)
-    document = ImageDocument.from_array(
-        np.arange(16, dtype=np.uint8).reshape(4, 4),
-        "YUV420-U-reference-grid",
-        spatial_sampling=sampling,
+    y = np.zeros((8, 8), dtype=np.uint8)
+    u = np.arange(16, dtype=np.uint8).reshape(4, 4)
+    v = (u + 40).astype(np.uint8)
+    source = ImageDocument.from_yuv(NativeYuvFrame(y, u, v, "YUV420"), "native.yuv")
+    document = next(
+        view for view in split_document_channels(source) if view.sample_channel == channel
     )
     viewer = ImageViewer()
     qtbot.addWidget(viewer)  # type: ignore[attr-defined]
@@ -137,9 +142,45 @@ def test_subsampled_plane_uses_reference_pixels_not_native_sample_cells(
     assert viewer.image_item.mapRectToParent(viewer.image_item.boundingRect()).width() == 8
 
 
+def test_bayer_phase_view_uses_reference_pixel_scale(qtbot: object) -> None:
+    source = np.arange(5 * 7, dtype=np.uint16).reshape(5, 7)
+    profile = RawProfile(
+        name="raw",
+        width=7,
+        height=5,
+        stride_bytes=14,
+        storage_format="unpacked",
+        container_dtype="uint16",
+        endianness="little",
+        bit_depth=10,
+        bit_alignment="lsb",
+        channel_layout="BAYER",
+        bayer_pattern="RGGB",
+        black_level=0,
+        white_level=1023,
+    )
+    document = ImageDocument.from_array(
+        source,
+        "bayer",
+        channel_layout="BAYER",
+        raw_profile=profile,
+        prepared_preview=render_bayer_preview(source, "RGGB", 0, 10),
+    )
+    red = next(view for view in split_document_channels(document) if view.sample_channel == "R")
+    viewer = ImageViewer()
+    qtbot.addWidget(viewer)  # type: ignore[attr-defined]
+    viewer.resize(760, 540)
+    viewer.set_document(red)
+    viewer.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert viewer.set_physical_zoom(100).achieved
+    assert viewer.measure_physical_zoom().percent == pytest.approx(100.0, rel=0.005)
+
+
 @pytest.mark.parametrize("count", [1, 2, 4, 6])
+@pytest.mark.parametrize("percent", [100.0, 200.0, 400.0])
 def test_multi_tiles_have_same_actual_physical_zoom_with_uneven_layout(
-    qtbot: object, count: int
+    qtbot: object, count: int, percent: float
 ) -> None:
     multi = MultiCompareView()
     qtbot.addWidget(multi)  # type: ignore[attr-defined]
@@ -155,11 +196,13 @@ def test_multi_tiles_have_same_actual_physical_zoom_with_uneven_layout(
     multi.show()
     qtbot.wait(30)  # type: ignore[attr-defined]
     multi.zoom_100_percent()
+    if percent != 100.0:
+        assert multi.visible_viewers[0].set_physical_zoom(percent).achieved
 
     for viewer in multi.visible_viewers[:count]:
         measurement = viewer.measure_physical_zoom()
         assert measurement.valid
-        assert measurement.percent == pytest.approx(100, rel=0.005)
+        assert measurement.percent == pytest.approx(percent, rel=0.005)
 
 
 def test_unsynchronized_zoom_does_not_change_other_tile_on_pan(
