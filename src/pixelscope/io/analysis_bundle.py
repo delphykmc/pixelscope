@@ -1,3 +1,5 @@
+# fmt: off
+# ruff: noqa: E721, E501  # Strict JSON primitives: bool must not pass as int
 """Bounded, path-safe, atomic analysis ZIP writer reused by W10.
 
 Only typed immutable snapshots enter this API. Raw source images, paths and user
