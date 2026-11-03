@@ -139,3 +139,69 @@ def test_difference_source_generation_invalidates_frozen_token(
     b.generation += 1
     assert capture_presented_analysis(adapter, token).snapshot is None
     panel.shutdown()
+
+
+def test_late_statistics_worker_cannot_republish_after_completion(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.set_documents_default([_document("a.png", 7)], None)
+    qtbot.waitUntil(
+        lambda: panel.get_current_analysis_token() is not None,
+        timeout=10000,
+    )  # type: ignore[attr-defined]
+    saved = panel.get_presented_analysis_token()
+    panel._on_result(
+        panel._request_signature, [], panel._histogram_specs,
+        panel.last_results, task_id="superseded-worker",
+    )
+    assert panel.get_presented_analysis_token() == saved
+    panel.shutdown()
+
+
+def test_late_line_worker_cannot_republish_after_completion(
+    qtbot: object,
+) -> None:
+    panel = LineProfilePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.set_documents_default(
+        [_document("a.png", 7)], LineSelection(1, 1, 7, 1),
+    )
+    qtbot.waitUntil(
+        lambda: panel.get_current_line_token() is not None,
+        timeout=10000,
+    )  # type: ignore[attr-defined]
+    saved = panel.get_presented_line_token()
+    panel._on_result(
+        panel._request_signature, [], panel.last_results,
+        task_id="superseded-worker",
+    )
+    assert panel.get_presented_line_token() == saved
+    panel.shutdown()
+
+
+def test_late_difference_worker_cannot_republish_after_completion(
+    qtbot: object,
+) -> None:
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    a, b = _document("a.png", 3), _document("b.png", 6)
+    panel.set_documents([a, b], (a.document_id, b.document_id))
+    panel.calculate_difference()
+    qtbot.waitUntil(
+        lambda: panel.get_current_difference_token() is not None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    saved = panel.get_presented_difference_token()
+    cache = panel.cached_result_for_current()
+    metrics = panel.last_result
+    key = panel._cache_key()
+    metric_key = panel._metric_key()
+    assert cache is not None and metrics is not None
+    assert key is not None and metric_key is not None
+    panel._on_result(
+        "superseded-worker", key, metric_key, (cache, metrics, False), False,
+    )
+    assert panel.get_presented_difference_token() == saved
+    panel.shutdown()
