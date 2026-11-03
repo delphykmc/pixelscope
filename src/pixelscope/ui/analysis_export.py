@@ -107,12 +107,45 @@ def _csv_export_button(parent: QWidget, tooltip: str) -> QToolButton:
     return button
 
 
+class _FrozenFeatureAdapter:
+    """Read-only M1 adapter: one producer owns one presented feature token."""
+
+    def __init__(self, panel: Any, feature: str) -> None:
+        self._panel = panel
+        self._feature = feature
+
+    def get_presented_analysis_token(self) -> Any:
+        if self._feature == "statistics":
+            return self._panel.get_presented_analysis_token()
+        return getattr(self._panel, f"get_presented_{self._feature}_token")()
+
+    def get_current_analysis_token(self) -> Any:
+        if self._feature == "statistics":
+            return self._panel.get_current_analysis_token()
+        return getattr(self._panel, f"get_current_{self._feature}_token")()
+
+    def read_presented_analysis(self) -> Any:
+        if self._feature == "statistics":
+            return self._panel.read_presented_analysis()
+        return getattr(self._panel, f"read_presented_{self._feature}")()
+
+    def read_presented_series(self) -> Any:
+        if self._feature in ("histogram", "line"):
+            return getattr(self._panel, f"read_presented_{self._feature}_series")()
+        return ()
+
+
 class AnalysisExportController(QObject):
     """Focused export and clipboard adapter for already-computed analysis results."""
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
         self.window = window
+        # Shared mutable UUID mapping (not QObject callbacks or an alternate
+        # source catalog). W09 may bind durable verified keys through Statistics.
+        keys = window.comparison_analysis_panel._analysis_source_keys
+        window.line_profile_panel.set_analysis_source_keys(keys)
+        window.difference_panel.set_analysis_source_keys(keys)
         self._difference_worker: TaskWorker | None = None
         self._bundle_worker: TaskWorker | None = None
         self._pool = analysis_thread_pool()
@@ -302,12 +335,14 @@ class AnalysisExportController(QObject):
         self.statistics_toolbar_action.setEnabled(statistics_ready)
         self.histogram_action.setEnabled(self._histogram_ready())
         self.line_profile_action.setEnabled(self._line_profile_ready())
-        panel = self.window.comparison_analysis_panel
-        token = panel.get_presented_analysis_token()
         self.bundle_action.setEnabled(
             self._bundle_worker is None
-            and token is not None
-            and panel.get_current_analysis_token() == token
+            and any(
+                adapter.get_presented_analysis_token() is not None
+                and adapter.get_current_analysis_token() ==
+                adapter.get_presented_analysis_token()
+                for adapter in self._bundle_adapters()
+            )
         )
         self.difference_action.setEnabled(
             self._difference_worker is None and self._difference_preview() is not None
@@ -606,23 +641,38 @@ class AnalysisExportController(QObject):
         set_clipboard_text(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
 
-    def export_analysis_bundle(self) -> None:
-        """Publish a checked, immutable native Statistics snapshot in a ZIP.
+    def _bundle_adapters(self) -> tuple[_FrozenFeatureAdapter, ...]:
+        return (
+            _FrozenFeatureAdapter(self.window.comparison_analysis_panel, "statistics"),
+            _FrozenFeatureAdapter(self.window.comparison_analysis_panel, "histogram"),
+            _FrozenFeatureAdapter(self.window.line_profile_panel, "line"),
+            _FrozenFeatureAdapter(self.window.difference_panel, "difference"),
+        )
 
-        Other standalone CSV commands retain their prior semantics. W09/W10
-        consume the immutable DTO and can add further typed feature adapters.
+    def export_analysis_bundle(self) -> None:
+        """Freeze all *currently presented* feature-specific numerical results.
+
+        Independent tokens prevent a completed Statistics result from blessing a
+        pending Line or stale Difference. No Calculate or implicit retry occurs.
         """
         if self._bundle_worker is not None or self._shutting_down:
             return
-        panel = self.window.comparison_analysis_panel
-        expected = panel.get_presented_analysis_token()
-        if expected is None:
-            self.window.statusBar().showMessage("No presented analysis to capture", 4000)
-            return
-        capture = capture_presented_analysis(panel, expected)
-        if not capture.available or capture.snapshot is None:
+        snapshots = []
+        for adapter in self._bundle_adapters():
+            expected = adapter.get_presented_analysis_token()
+            if expected is None or adapter.get_current_analysis_token() != expected:
+                continue
+            capture = capture_presented_analysis(adapter, expected)
+            if not capture.available or capture.snapshot is None:
+                self.window.statusBar().showMessage(
+                    f"Analysis capture unavailable: {capture.reason}", 5000
+                )
+                self.refresh_actions()
+                return
+            snapshots.append(capture.snapshot)
+        if not snapshots:
             self.window.statusBar().showMessage(
-                f"Analysis capture unavailable: {capture.reason}", 5000
+                "No current presented analysis to capture", 4000
             )
             self.refresh_actions()
             return
@@ -636,12 +686,19 @@ class AnalysisExportController(QObject):
             return
         # The native dialog may have confirmed a different path BEFORE the
         # missing suffix was appended. Recheck the final destination.
-        for document in panel._documents:
-            if document.source_path is not None and target.resolve(
-                strict=False
-            ) == document.source_path.resolve(strict=False):
-                self.window.statusBar().showMessage("Refusing to overwrite a source image", 5000)
-                return
+        for source_panel in (
+            self.window.comparison_analysis_panel,
+            self.window.line_profile_panel,
+            self.window.difference_panel,
+        ):
+            for document in source_panel._documents:
+                if document.source_path is not None and target.resolve(
+                    strict=False
+                ) == document.source_path.resolve(strict=False):
+                    self.window.statusBar().showMessage(
+                        "Refusing to overwrite a source image", 5000
+                    )
+                    return
         expected_existing: tuple[int, int, int] | None = None
         if target.exists():
             confirm = QMessageBox.question(
@@ -660,7 +717,7 @@ class AnalysisExportController(QObject):
         worker = TaskWorker(
             write_analysis_bundle,
             target,
-            (capture.snapshot,),
+            tuple(snapshots),
             expected_existing=expected_existing,
         )
         worker.signals.succeeded.connect(self._bundle_succeeded)
