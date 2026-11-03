@@ -6,8 +6,8 @@ from functools import partial
 from hashlib import sha256
 from json import dumps
 from pathlib import Path
-from uuid import uuid4
 from typing import Any, cast
+from uuid import uuid4
 
 import numpy as np
 import pyqtgraph as pg
@@ -576,7 +576,10 @@ class ComparisonAnalysisPanel(QWidget):
                 document_id=document.document_id,
                 generation=document.generation,
                 native_shape=tuple(int(v) for v in document.shape),
-                reference_shape=(int(document.reference_shape[0]), int(document.reference_shape[1])),
+                reference_shape=(
+                    int(document.reference_shape[0]),
+                    int(document.reference_shape[1]),
+                ),
                 native_dtype=str(document.original_dtype),
                 channel_layout=document.channel_layout,
                 effective_bits=document.bit_depth,
