@@ -20,6 +20,31 @@ Use **Export Difference Image...** to save the current Difference presentation a
 
 A cached Difference entry by itself does not establish a new exportable current result, and export does not call Calculate for you.
 
+## Analysis Bundle (versioned ZIP)
+
+Use **File > Export Analysis Bundle...** after Statistics has finished displaying.
+The new bundle captures a frozen numerical Statistics result with the active
+**reference-space ROI coordinates** (or Full Image), source generations, native
+channel and sample counts, a non-path profile signature, request identity, and
+metric definition revision. It does not trigger another analysis.
+
+A ZIP contains `manifest.json`, `data/context.json`,
+`data/measurements.json`, and `data/measurements.csv`. This **portable-default**
+export does not include source names, original source bytes, filesystem paths,
+arbitrary profile data, or annotations. Source content verification is explicitly
+`unverified` unless a matching SHA-256 verification has been established; file
+size or modification time alone is not proof of unchanged content. The manifest
+records SHA-256 for each ZIP entry.
+
+When analysis is pending, replaced, stale, or has changed ROI/source generation,
+the export is unavailable. The destination extension is resolved before any
+overwrite confirmation. The ZIP is written to a temporary sibling and published
+atomically; cancellation or an I/O error does not publish an incomplete bundle.
+
+This bundle is **not** a full HTML/PNG Review Report. Named findings and report
+composition belong to the separate Review workflow. Existing individual CSV/PNG
+commands remain available, with their original file layouts and numerical rules.
+
 ## Export folder and failures
 
 Export dialogs use the configured Default Export Folder and last-used-folder fallback. Cancelling does not change the workspace. A write failure reports an error and leaves the current analysis intact.
