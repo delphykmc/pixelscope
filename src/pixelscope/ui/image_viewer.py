@@ -505,10 +505,15 @@ class ImageViewer(QWidget):
             measurement = self.measure_physical_zoom()
             if not measurement.valid:
                 break
+        final_ranges = self.view_box.viewRange()
+        center_error_x = abs((final_ranges[0][0] + final_ranges[0][1]) / 2.0 - center_x)
+        center_error_y = abs((final_ranges[1][0] + final_ranges[1][1]) / 2.0 - center_y)
         achieved = (
             measurement.valid
             and abs(measurement.scale_x - target) <= target * 0.005
             and abs(measurement.scale_y - target) <= target * 0.005
+            and center_error_x * target <= 0.5
+            and center_error_y * target <= 0.5
         )
         self._update_zoom()
         return ZoomApplyResult(percent, measurement, achieved, passes)
