@@ -44,6 +44,7 @@ from pixelscope.core.display_transform import (
     render_threshold_mask,
 )
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSourceV1,
@@ -51,7 +52,6 @@ from pixelscope.core.review_analysis import (
     measurement,
 )
 from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
-from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
 from pixelscope.core.spatial_sampling import SpatialSampling
 from pixelscope.core.yuv_difference import (
