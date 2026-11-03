@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import PurePath
-from typing import Iterable
 from unicodedata import normalize
 
 
