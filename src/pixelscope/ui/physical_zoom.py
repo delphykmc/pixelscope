@@ -58,10 +58,7 @@ def measure_basis(
     if sx <= 0 or sy <= 0:
         return PhysicalZoomMeasurement(scale_x=sx, scale_y=sy, dpr=dpr)
     aligned = (
-        dx[0] > 0
-        and dy[1] > 0
-        and abs(dx[1]) <= tolerance * sx
-        and abs(dy[0]) <= tolerance * sy
+        dx[0] > 0 and dy[1] > 0 and abs(dx[1]) <= tolerance * sx and abs(dy[0]) <= tolerance * sy
     )
     uniform = abs(sx - sy) <= tolerance * max(sx, sy)
     return PhysicalZoomMeasurement(
