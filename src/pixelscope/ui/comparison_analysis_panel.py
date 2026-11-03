@@ -575,7 +575,7 @@ class ComparisonAnalysisPanel(QWidget):
                 document_id=document.document_id,
                 generation=document.generation,
                 native_shape=tuple(int(v) for v in document.shape),
-                reference_shape=tuple(int(v) for v in document.reference_shape),
+                reference_shape=(int(document.reference_shape[0]), int(document.reference_shape[1])),
                 native_dtype=str(document.original_dtype),
                 channel_layout=document.channel_layout,
                 effective_bits=document.bit_depth,
