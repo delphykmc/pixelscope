@@ -12,15 +12,23 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 FEATURES = frozenset({"statistics", "histogram", "line", "difference"})
 _STATE = frozenset({"finite", "pos_inf", "neg_inf", "nan", "unavailable"})
 _SAFE_NAME = re.compile(r"^[\\w .:+-]{1,96}$", flags=re.UNICODE)
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
-_SOURCE_KEYS = re.compile(r"^[a-f0-9-]{36}$")
 MAX_CONTEXT_BYTES = 8 * 1024 * 1024
 MAX_MEASUREMENTS = 200_000
+
+
+def _is_uuid(value: object) -> bool:
+    if type(value) is not str:
+        return False
+    try:
+        return str(UUID(value)) == value
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)
@@ -37,12 +45,16 @@ class PresentedAnalysisTokenV1:
     difference_cache_key: str | None
 
     def __post_init__(self) -> None:
-        if self.feature not in FEATURES or not self.request_id or self.request_epoch < 0:
+        if (self.feature not in FEATURES or type(self.request_id) is not str
+                or not self.request_id or type(self.request_epoch) is not int
+                or self.request_epoch < 0):
             raise ValueError("invalid presented analysis feature/request")
         if not self.source_documents or len(self.source_documents) != len(self.source_keys):
             raise ValueError("source identities must be nonempty and aligned")
         if len(set(self.source_keys)) != len(self.source_keys):
             raise ValueError("duplicate source keys")
+        if any(not _is_uuid(key) for key in self.source_keys):
+            raise ValueError("source key must be a Review UUID")
         if len(self.profile_signatures) != len(self.source_keys):
             raise ValueError("profile signatures must align with sources")
         if any(not ident or not isinstance(gen, int) or gen < 0
@@ -72,7 +84,7 @@ class AnalysisSourceV1:
     verification: Literal["verified", "unverified"] = "unverified"
 
     def __post_init__(self) -> None:
-        if not self.source_key or not self.document_id or self.generation < 0:
+        if not _is_uuid(self.source_key) or not self.document_id or type(self.generation) is not int or self.generation < 0:
             raise ValueError("invalid source identity")
         if len(self.native_shape) not in (2, 3) or any(v <= 0 for v in self.native_shape):
             raise ValueError("invalid native shape")
@@ -290,7 +302,8 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
     }
     if set(data) != root or data["kind"] != "pixelscope-analysis-context" or type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ValueError("unsupported context kind or schema")
-    if data["feature"] not in FEATURES or data["scope"] not in ("full", "roi"):
+    if (type(data["feature"]) is not str or data["feature"] not in FEATURES
+            or type(data["scope"]) is not str or data["scope"] not in ("full", "roi")):
         raise ValueError("unsupported analysis feature/scope")
     if (type(data["request_epoch"]) is not int or data["request_epoch"] < 0
             or any(type(data[k]) is not str or not data[k]
@@ -325,7 +338,7 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         }:
             raise ValueError("unknown source fields")
         key = source["source_key"]
-        if type(key) is not str or not key or key in keys:
+        if not _is_uuid(key) or key in keys:
             raise ValueError("duplicate/invalid source key")
         keys.add(key)
         for shape_key, sizes in (("native_shape", (2, 3)), ("reference_shape", (2,))):
@@ -344,7 +357,7 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         sha = source["sha256"]
         if sha is not None and (type(sha) is not str or not _DIGEST.fullmatch(sha)):
             raise ValueError("invalid digest")
-        if source["verification"] not in ("verified", "unverified") or (
+        if type(source["verification"]) is not str or source["verification"] not in ("verified", "unverified") or (
             source["verification"] == "verified" and sha is None
         ):
             raise ValueError("invalid verification")
@@ -360,7 +373,7 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         if any(type(item[k]) is not str or not _SAFE_NAME.fullmatch(item[k])
                for k in ("channel", "metric", "definition_revision")):
             raise ValueError("invalid measurement label")
-        if item["state"] not in _STATE:
+        if type(item["state"]) is not str or item["state"] not in _STATE:
             raise ValueError("invalid numeric state")
         if item["state"] == "finite":
             if type(item["value"]) not in (int, float) or not math.isfinite(item["value"]):
