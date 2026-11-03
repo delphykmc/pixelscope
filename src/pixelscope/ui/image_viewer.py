@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from math import ceil, cos, floor, isfinite, radians, sin
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pyqtgraph as pg
@@ -255,7 +255,7 @@ class ImageViewer(QWidget):
         self._watched_window: Any = None
         self._geometry_timer = QTimer(self)
         self._geometry_timer.setSingleShot(True)
-        self._geometry_timer.timeout.connect(self._settle_physical_zoom)
+        self._geometry_timer.timeout.connect(self._settle_physical_zoom)  # type: ignore[attr-defined]
         self._graphics.viewport().installEventFilter(self)
         self.view_box = RoiViewBox(lockAspect=True, enableMenu=False)
         self._graphics.addItem(self.view_box)
@@ -401,7 +401,7 @@ class ImageViewer(QWidget):
             item_rect.top()
             + (y - reference_rect.top()) * item_rect.height() / reference_rect.height(),
         )
-        return self._graphics.viewportTransform().map(self.image_item.mapToScene(local))
+        return cast(QPointF, self._graphics.viewportTransform().map(self.image_item.mapToScene(local)))
 
     def measure_physical_zoom(self) -> PhysicalZoomMeasurement:
         """Actual screen physical-pixel scale of one reference-space pixel."""
@@ -512,7 +512,7 @@ class ImageViewer(QWidget):
                 self._watched_window.screenChanged.disconnect(self._on_screen_changed)
         self._watched_window = window
         if window is not None:
-            window.screenChanged.connect(self._on_screen_changed)
+            window.screenChanged.connect(self._on_screen_changed)  # type: ignore[attr-defined]
 
     def _on_screen_changed(self, _screen: object) -> None:
         if not self._fit_mode and self._physical_zoom_target is None:
@@ -847,7 +847,7 @@ class ImageViewer(QWidget):
             (self.view_box.sigRangeChanged, self._update_zoom),
             (self.view_box.sigRangeChanged, self._position_loading_item),
             (self.view_box.wheel_zoom_started, self._clear_physical_target),
-            (self._geometry_timer.timeout, self._settle_physical_zoom),
+            (self._geometry_timer.timeout, self._settle_physical_zoom),  # type: ignore[attr-defined]
         )
         for signal, callback in signal_callbacks:
             with suppress(RuntimeError, TypeError):
