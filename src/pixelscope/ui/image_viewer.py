@@ -401,7 +401,10 @@ class ImageViewer(QWidget):
             item_rect.top()
             + (y - reference_rect.top()) * item_rect.height() / reference_rect.height(),
         )
-        return cast(QPointF, self._graphics.viewportTransform().map(self.image_item.mapToScene(local)))
+        return cast(
+            QPointF,
+            self._graphics.viewportTransform().map(self.image_item.mapToScene(local)),
+        )
 
     def measure_physical_zoom(self) -> PhysicalZoomMeasurement:
         """Actual screen physical-pixel scale of one reference-space pixel."""
