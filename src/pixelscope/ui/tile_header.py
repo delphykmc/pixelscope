@@ -198,7 +198,12 @@ class TileHeader(QWidget):
             document.source_path.parent if document.source_path is not None else None
         )
         self.edit_tag.setVisible(self._tag_folder is not None)
-        self.name.setToolTip(str(document.source_path or document.display_name))
+        source_description = str(document.source_path or document.display_name)
+        self.name.setToolTip(
+            f"{document.display_name}\n{source_description}"
+            if document.source_path is not None and document.display_name != document.source_path.name
+            else source_description
+        )
         shape = document.shape
         resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
         file_format = (document.source_path or Path(document.display_name)).suffix.upper().lstrip(
