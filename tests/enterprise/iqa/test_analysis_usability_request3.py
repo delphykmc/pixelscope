@@ -154,7 +154,10 @@ def test_linked_pan_repaints_full_viewports_while_hover_guides_are_visible(qtbot
     win._sync_views(source, 8.0, 64.0, 64.0)
     win._show_hover_pixel(64, 64)
     assert len(linked) == 2
-    assert all(vertical.isVisible() and horizontal.isVisible() for vertical, horizontal in win._guide_items)
+    assert all(
+        vertical.isVisible() and horizontal.isVisible()
+        for vertical, horizontal in win._guide_items
+    )
     for view in linked:
         assert view.viewportUpdateMode() == QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
         assert view.horizontalScrollBar().maximum() > 0
@@ -187,7 +190,10 @@ def test_linked_pan_repaints_full_viewports_while_hover_guides_are_visible(qtbot
     )
     assert all(vertical.line().x1() == 64.5 for vertical, _ in win._guide_items)
     assert all(horizontal.line().y1() == 64.5 for _, horizontal in win._guide_items)
-    assert all(vertical.isVisible() and horizontal.isVisible() for vertical, horizontal in win._guide_items)
+    assert all(
+        vertical.isVisible() and horizontal.isVisible()
+        for vertical, horizontal in win._guide_items
+    )
     for view, recorder in zip(linked, recorders, strict=True):
         view.viewport().removeEventFilter(recorder)
     win.close()
