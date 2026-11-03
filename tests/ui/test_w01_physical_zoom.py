@@ -120,6 +120,24 @@ def test_item_transform_changes_actual_zoom_and_invalidates_distorted_label(
     viewer.image_item.setTransform(original)
 
 
+def test_range_changes_are_measured_before_the_next_paint(qtbot: object) -> None:
+    viewer = ImageViewer()
+    qtbot.addWidget(viewer)  # type: ignore[attr-defined]
+    viewer.resize(780, 540)
+    viewer.set_document(_checkerboard(8, 8))
+    viewer.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert viewer.set_physical_zoom(100).achieved
+
+    viewer.view_box.scaleBy((2.0, 2.0))
+    assert viewer.zoom_percent == pytest.approx(50.0, rel=0.005)
+    assert _qt_oracle_scale(viewer) == pytest.approx((0.5, 0.5), rel=0.005)
+    assert viewer.set_physical_zoom(200).achieved
+    assert _qt_oracle_scale(viewer) == pytest.approx((2.0, 2.0), rel=0.005)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert viewer.zoom_percent == pytest.approx(200.0, rel=0.005)
+
+
 @pytest.mark.parametrize("channel", ["U", "V"])
 def test_yuv420_planes_use_reference_pixels_not_native_sample_cells(
     qtbot: object, channel: str

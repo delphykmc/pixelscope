@@ -417,6 +417,10 @@ class ImageViewer(QWidget):
             or self.view_box.height() <= 0
         ):
             return PhysicalZoomMeasurement(dpr=dpr)
+        # ViewBox defers its child transform until paint or a mapping helper.
+        # Direct ImageItem.mapToScene() must see the current range even inside
+        # sigRangeChanged and between synchronous zoom correction passes.
+        self.view_box.updateMatrix()
         rows, columns = self._reference_shape(self._document)
         center_x, center_y = columns / 2.0, rows / 2.0
         p = self._reference_to_viewport(center_x, center_y)
