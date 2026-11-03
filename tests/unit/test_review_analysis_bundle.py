@@ -12,8 +12,8 @@ import pytest
 
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
-    AnalysisSnapshotV1,
     AnalysisSeriesV1,
+    AnalysisSnapshotV1,
     AnalysisSourceV1,
     PresentedAnalysisTokenV1,
     capture_presented_analysis,
