@@ -750,6 +750,15 @@ class LineProfilePanel(QWidget):
             self._set_status(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
+        # Publish from the native result owning panel, never an exporter-
+        # reconstructed mix of a previous line and current selection.
+        if self._token_request_signature != self._request_signature:
+            self._analysis_request_id = str(uuid4())
+            self._analysis_request_epoch += 1
+            self._token_request_signature = self._request_signature
+        self._presentation_epoch += 1
+        self._presented_line_ui = self._line_ui_signature()
+        self._presented_line_token = self._line_token(during_render=True)
 
     @staticmethod
     def _marker_indices(sample_count: int, target_count: int = 18) -> NDArray[np.intp]:
