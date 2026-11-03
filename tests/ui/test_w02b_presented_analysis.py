@@ -152,8 +152,11 @@ def test_late_statistics_worker_cannot_republish_after_completion(
     )  # type: ignore[attr-defined]
     saved = panel.get_presented_analysis_token()
     panel._on_result(
-        panel._request_signature, [], panel._histogram_specs,
-        panel.last_results, task_id="superseded-worker",
+        panel._request_signature,
+        [],
+        panel._histogram_specs,
+        panel.last_results,
+        task_id="superseded-worker",
     )
     assert panel.get_presented_analysis_token() == saved
     panel.shutdown()
@@ -165,7 +168,8 @@ def test_late_line_worker_cannot_republish_after_completion(
     panel = LineProfilePanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
     panel.set_documents_default(
-        [_document("a.png", 7)], LineSelection(1, 1, 7, 1),
+        [_document("a.png", 7)],
+        LineSelection(1, 1, 7, 1),
     )
     qtbot.waitUntil(
         lambda: panel.get_current_line_token() is not None,
@@ -173,7 +177,9 @@ def test_late_line_worker_cannot_republish_after_completion(
     )  # type: ignore[attr-defined]
     saved = panel.get_presented_line_token()
     panel._on_result(
-        panel._request_signature, [], panel.last_results,
+        panel._request_signature,
+        [],
+        panel.last_results,
         task_id="superseded-worker",
     )
     assert panel.get_presented_line_token() == saved
@@ -200,7 +206,11 @@ def test_late_difference_worker_cannot_republish_after_completion(
     assert cache is not None and metrics is not None
     assert key is not None and metric_key is not None
     panel._on_result(
-        "superseded-worker", key, metric_key, (cache, metrics, False), False,
+        "superseded-worker",
+        key,
+        metric_key,
+        (cache, metrics, False),
+        False,
     )
     assert panel.get_presented_difference_token() == saved
     panel.shutdown()
