@@ -68,6 +68,21 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
         for index, document in enumerate(documents)
     )
 
+    panel = window.difference_panel
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None and panel.difference_cache.entry_count >= 1,
+        timeout=3000,
+    )
+    cached_key = panel._cache_key()
+    assert cached_key is not None
+    cached_value = panel.difference_cache.peek(cached_key)
+    cached_entries = panel.difference_cache.entry_count
+    previous_difference = window._difference_document
+    before_focus = window._focus_document_id
+    before_active = window._active_document_id
+    before_pick = [viewer.header.pick.isChecked() for viewer in presented]
+
     before_ids = tuple(window.documents)
     before_generations = tuple(doc.generation for doc in documents)
     before_arrays = tuple(id(doc.source) for doc in documents)
@@ -81,6 +96,12 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
     assert tuple(id(doc.source) for doc in documents) == before_arrays
     assert tuple(window._selection_order) == before_selected
     assert window.difference_panel._cache_key() == before_cache_key
+    assert panel.difference_cache.entry_count == cached_entries
+    assert panel.difference_cache.peek(cached_key) is cached_value
+    assert window._difference_document is previous_difference
+    assert window._focus_document_id == before_focus
+    assert window._active_document_id == before_active
+    assert [viewer.header.pick.isChecked() for viewer in presented] == before_pick
 
     tags.set_tag(paths[0].parent, "")
     assert documents[0].display_name == "base / chart.png"
