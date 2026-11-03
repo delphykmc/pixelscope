@@ -273,20 +273,23 @@ def test_histogram_series_freezes_large_integer_counts_without_precision_loss(
     tmp_path: Path,
 ) -> None:
     base = _snapshot((1, 2, 4, 5))
-    values, states = freeze_series_values(
-        np.asarray([2**53 + 1, 4], dtype=np.int64)
-    )
+    values, states = freeze_series_values(np.asarray([2**53 + 1, 4], dtype=np.int64))
     assert values[0] == 2**53 + 1
     frozen = AnalysisSeriesV1(
         source_key=base.sources[0].source_key,
-        channel="R", kind="histogram",
+        channel="R",
+        kind="histogram",
         coordinates=(0.0, 1.0, 2.0),
-        values=values, value_states=states,
-        sample_count=2**53 + 5, definition_revision="native-bin-counts-v1",
+        values=values,
+        value_states=states,
+        sample_count=2**53 + 5,
+        definition_revision="native-bin-counts-v1",
     )
     snap = replace(
-        base, token=replace(base.token, feature="histogram"),
-        measurements=(), series=(frozen,),
+        base,
+        token=replace(base.token, feature="histogram"),
+        measurements=(),
+        series=(frozen,),
     )
     parsed = parse_analysis_context(serialize_analysis_context(snap))
     assert parsed["series"][0]["values"] == [2**53 + 1, 4]
@@ -300,20 +303,23 @@ def test_histogram_series_freezes_large_integer_counts_without_precision_loss(
 
 def test_line_series_preserves_explicit_nan_inf_states() -> None:
     base = _snapshot()
-    values, states = freeze_series_values(
-        np.asarray([0.0, np.nan, np.inf, -np.inf, -3.25])
-    )
+    values, states = freeze_series_values(np.asarray([0.0, np.nan, np.inf, -np.inf, -3.25]))
     assert states == ("finite", "nan", "pos_inf", "neg_inf", "finite")
     series = AnalysisSeriesV1(
         source_key=base.sources[0].source_key,
-        channel="Gray", kind="line",
+        channel="Gray",
+        kind="line",
         coordinates=(0.0, 1.0, 2.0, 3.0, 4.0),
-        values=values, value_states=states,
-        sample_count=5, definition_revision="native-line-profile-v1",
+        values=values,
+        value_states=states,
+        sample_count=5,
+        definition_revision="native-line-profile-v1",
     )
     snapshot = replace(
-        base, token=replace(base.token, feature="line"),
-        measurements=(), series=(series,),
+        base,
+        token=replace(base.token, feature="line"),
+        measurements=(),
+        series=(series,),
     )
     raw = serialize_analysis_context(snapshot)
     assert b"NaN" not in raw and b"Infinity" not in raw
@@ -323,10 +329,14 @@ def test_line_series_preserves_explicit_nan_inf_states() -> None:
 def test_series_rejects_wrong_feature_count_and_pathlike_labels() -> None:
     base = _snapshot()
     kwargs = dict(
-        source_key=base.sources[0].source_key, channel="Gray",
-        kind="line", coordinates=(0.0, 1.0),
-        values=(1.0, 2.0), value_states=("finite", "finite"),
-        sample_count=2, definition_revision="native-line-profile-v1",
+        source_key=base.sources[0].source_key,
+        channel="Gray",
+        kind="line",
+        coordinates=(0.0, 1.0),
+        values=(1.0, 2.0),
+        value_states=("finite", "finite"),
+        sample_count=2,
+        definition_revision="native-line-profile-v1",
     )
     series = AnalysisSeriesV1(**kwargs)
     with pytest.raises(ValueError, match="feature mismatch"):
@@ -340,13 +350,19 @@ def test_series_rejects_wrong_feature_count_and_pathlike_labels() -> None:
 def test_series_parse_fails_closed_on_wrong_status_and_future_fields() -> None:
     base = _snapshot()
     series = AnalysisSeriesV1(
-        source_key=base.sources[0].source_key, channel="Gray",
-        kind="line", coordinates=(0.0, 1.0),
-        values=(1.0, 2.0), value_states=("finite", "finite"),
-        sample_count=2, definition_revision="native-line-profile-v1",
+        source_key=base.sources[0].source_key,
+        channel="Gray",
+        kind="line",
+        coordinates=(0.0, 1.0),
+        values=(1.0, 2.0),
+        value_states=("finite", "finite"),
+        sample_count=2,
+        definition_revision="native-line-profile-v1",
     )
     snap = replace(
-        base, token=replace(base.token, feature="line"), series=(series,),
+        base,
+        token=replace(base.token, feature="line"),
+        series=(series,),
     )
     data = parse_analysis_context(serialize_analysis_context(snap))
     data["series"][0]["value_states"][0] = "verified"
@@ -362,9 +378,13 @@ def test_capture_freezes_series_only_when_both_tokens_stay_current() -> None:
     snap = _snapshot()
     target = replace(snap, token=replace(snap.token, feature="line"))
     series = AnalysisSeriesV1(
-        source_key=target.sources[0].source_key, channel="R", kind="line",
-        coordinates=(0.0, 1.0), values=(2.0, 4.0),
-        value_states=("finite", "finite"), sample_count=2,
+        source_key=target.sources[0].source_key,
+        channel="R",
+        kind="line",
+        coordinates=(0.0, 1.0),
+        values=(2.0, 4.0),
+        value_states=("finite", "finite"),
+        sample_count=2,
         definition_revision="native-line-profile-v1",
     )
 

@@ -403,8 +403,7 @@ class NativeYuvSemanticsController:
     ) -> None:
         panel = self.window.comparison_analysis_panel
         if task_id is not None and (
-            panel._worker is None or panel._worker.task_id != task_id
-            or panel._worker.is_cancelled
+            panel._worker is None or panel._worker.task_id != task_id or panel._worker.is_cancelled
         ):
             return
         if signature != panel._request_signature or not isinstance(result, tuple):

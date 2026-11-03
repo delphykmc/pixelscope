@@ -663,19 +663,22 @@ class ComparisonAnalysisPanel(QWidget):
             self.histogram_range.currentText(),
             self.histogram_units.currentText(),
             self.region_scope.currentText(),
-            tuple(sorted(
-                (name, button.isChecked())
-                for name, button in self.channel_buttons.items()
-            )),
+            tuple(
+                sorted((name, button.isChecked()) for name, button in self.channel_buttons.items())
+            ),
         )
 
     def _histogram_live_token(self) -> PresentedAnalysisTokenV1 | None:
         stats = self._analysis_live_token()
-        if (stats is None or not any(self._histogram_series)
-                or self._histogram_presentation_signature != self._histogram_ui_signature()):
+        if (
+            stats is None
+            or not any(self._histogram_series)
+            or self._histogram_presentation_signature != self._histogram_ui_signature()
+        ):
             return None
         return replace(
-            stats, feature="histogram",
+            stats,
+            feature="histogram",
             request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
         )
 
@@ -685,25 +688,39 @@ class ComparisonAnalysisPanel(QWidget):
     def get_current_histogram_token(self) -> PresentedAnalysisTokenV1 | None:
         return self._histogram_live_token()
 
-    def read_presented_histogram(self) -> tuple[
+    def read_presented_histogram(
+        self,
+    ) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
         tuple[tuple[str, str], ...],
     ]:
-        if (self.get_current_histogram_token() is None
-                or self.get_current_histogram_token() != self.get_presented_histogram_token()):
+        if (
+            self.get_current_histogram_token() is None
+            or self.get_current_histogram_token() != self.get_presented_histogram_token()
+        ):
             raise ValueError("histogram presentation is stale")
         sources = tuple(
             snapshot_source(document, self.source_key_for_document(document.document_id))
             for document in self._documents
         )
         presentation = (
-            ("histogram_x", "normalized" if self.histogram_range.currentText() ==
-             "Normalized 0–1" else "native"),
-            ("histogram_y", (
-                "normalized" if self.histogram_units.currentText() == "Normalized"
-                else "log-count" if self.histogram_units.currentText() == "Log count"
-                else "count")),
+            (
+                "histogram_x",
+                "normalized"
+                if self.histogram_range.currentText() == "Normalized 0–1"
+                else "native",
+            ),
+            (
+                "histogram_y",
+                (
+                    "normalized"
+                    if self.histogram_units.currentText() == "Normalized"
+                    else "log-count"
+                    if self.histogram_units.currentText() == "Log count"
+                    else "count"
+                ),
+            ),
         )
         return sources, (), presentation
 
@@ -725,14 +742,23 @@ class ComparisonAnalysisPanel(QWidget):
                     continue
                 counts = result.histogram.counts[channel_index]
                 values, states = freeze_series_values(counts)
-                count = (result.channel_sample_counts[channel_index]
-                         if result.channel_sample_counts else result.pixel_count)
-                series.append(AnalysisSeriesV1(
-                    source_key=source_key, channel=channel, kind="histogram",
-                    coordinates=tuple(float(v) for v in result.histogram.edges),
-                    values=values, value_states=states, sample_count=count,
-                    definition_revision="native-bin-counts-v1",
-                ))
+                count = (
+                    result.channel_sample_counts[channel_index]
+                    if result.channel_sample_counts
+                    else result.pixel_count
+                )
+                series.append(
+                    AnalysisSeriesV1(
+                        source_key=source_key,
+                        channel=channel,
+                        kind="histogram",
+                        coordinates=tuple(float(v) for v in result.histogram.edges),
+                        values=values,
+                        value_states=states,
+                        sample_count=count,
+                        definition_revision="native-bin-counts-v1",
+                    )
+                )
         if not series:
             raise ValueError("no presented histogram series")
         return tuple(series)
@@ -988,8 +1014,7 @@ class ComparisonAnalysisPanel(QWidget):
         if self._histogram_resources_disposed:
             return
         if task_id is not None and (
-            self._worker is None or self._worker.task_id != task_id
-            or self._worker.is_cancelled
+            self._worker is None or self._worker.task_id != task_id or self._worker.is_cancelled
         ):
             return
         if signature != self._request_signature or not isinstance(result, tuple):
@@ -1380,10 +1405,12 @@ class ComparisonAnalysisPanel(QWidget):
         stats = self._presented_analysis_token
         self._presented_histogram_token = (
             replace(
-                stats, feature="histogram",
+                stats,
+                feature="histogram",
                 request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
             )
-            if stats is not None and any(self._histogram_series) else None
+            if stats is not None and any(self._histogram_series)
+            else None
         )
 
     def _create_histogram_hover(self, plot_index: int) -> None:

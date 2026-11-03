@@ -96,9 +96,7 @@ def test_difference_snapshot_follows_explicit_pair_and_roi(
         _document("diff-b.png", 15),
         _document("diff-c.png", 20),
     )
-    panel.set_documents(
-        [a, b, c], (a.document_id, b.document_id), RoiBounds(2, 3, 4, 5)
-    )
+    panel.set_documents([a, b, c], (a.document_id, b.document_id), RoiBounds(2, 3, 4, 5))
     panel.calculate_difference()
     qtbot.waitUntil(
         lambda: panel.get_current_difference_token() is not None
@@ -110,7 +108,8 @@ def test_difference_snapshot_follows_explicit_pair_and_roi(
     capture = capture_presented_analysis(adapter, token)
     assert capture.snapshot is not None
     assert capture.snapshot.token.source_documents == (
-        (a.document_id, a.generation), (b.document_id, b.generation)
+        (a.document_id, a.generation),
+        (b.document_id, b.generation),
     )
     assert capture.snapshot.token.roi_ref == (2, 3, 4, 5)
     assert capture.snapshot.token.difference_cache_key is not None

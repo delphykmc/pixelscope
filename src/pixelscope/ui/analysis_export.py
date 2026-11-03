@@ -339,8 +339,7 @@ class AnalysisExportController(QObject):
             self._bundle_worker is None
             and any(
                 adapter.get_presented_analysis_token() is not None
-                and adapter.get_current_analysis_token() ==
-                adapter.get_presented_analysis_token()
+                and adapter.get_current_analysis_token() == adapter.get_presented_analysis_token()
                 for adapter in self._bundle_adapters()
             )
         )
@@ -671,9 +670,7 @@ class AnalysisExportController(QObject):
                 return
             snapshots.append(capture.snapshot)
         if not snapshots:
-            self.window.statusBar().showMessage(
-                "No current presented analysis to capture", 4000
-            )
+            self.window.statusBar().showMessage("No current presented analysis to capture", 4000)
             self.refresh_actions()
             return
         target = self._choose_path(

@@ -215,8 +215,11 @@ class LineProfilePanel(QWidget):
         return (
             tuple(
                 (
-                    doc.document_id, doc.generation, doc.channel_layout,
-                    id(doc.yuv_frame) if doc.yuv_frame is not None
+                    doc.document_id,
+                    doc.generation,
+                    doc.channel_layout,
+                    id(doc.yuv_frame)
+                    if doc.yuv_frame is not None
                     else getattr(doc.raw_profile, "bayer_pattern", None),
                 )
                 for doc in self._documents
@@ -226,18 +229,21 @@ class LineProfilePanel(QWidget):
 
     def _line_ui_signature(self) -> tuple[object, ...]:
         return (
-            self.x_mode.currentText(), self.y_mode.currentText(),
-            self.view_mode.currentText(), self._reference_document_id,
-            tuple(sorted(
-                (name, button.isChecked())
-                for name, button in self.channel_buttons.items()
-            )),
+            self.x_mode.currentText(),
+            self.y_mode.currentText(),
+            self.view_mode.currentText(),
+            self._reference_document_id,
+            tuple(
+                sorted((name, button.isChecked()) for name, button in self.channel_buttons.items())
+            ),
         )
 
     def _line_token(self, *, during_render: bool = False) -> PresentedAnalysisTokenV1 | None:
         if (
-            self._plot_resources_disposed or not self.last_results
-            or self._selection is None or not self._documents
+            self._plot_resources_disposed
+            or not self.last_results
+            or self._selection is None
+            or not self._documents
             or len(self.last_results) != len(self._documents)
             or self._request_signature != self._line_request_signature()
             or (self._worker is not None and not during_render)
@@ -254,7 +260,9 @@ class LineProfilePanel(QWidget):
             request_epoch=self._analysis_request_epoch + self._presentation_epoch,
             source_documents=tuple((d.document_id, d.generation) for d in self._documents),
             source_keys=tuple(self._line_source_key(d.document_id) for d in self._documents),
-            roi_ref=None, channel="All", domain=domain,
+            roi_ref=None,
+            channel="All",
+            domain=domain,
             profile_signatures=tuple(native_profile_signature(d) for d in self._documents),
             difference_cache_key=None,
         )
@@ -274,36 +282,48 @@ class LineProfilePanel(QWidget):
     def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
         return self.get_current_line_token()
 
-    def read_presented_analysis(self) -> tuple[
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
         tuple[tuple[str, str], ...],
     ]:
         return self.read_presented_line()
 
-    def read_presented_line(self) -> tuple[
+    def read_presented_line(
+        self,
+    ) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
         tuple[tuple[str, str], ...],
     ]:
-        if (self.get_current_line_token() is None
-                or self.get_current_line_token() != self.get_presented_line_token()):
+        if (
+            self.get_current_line_token() is None
+            or self.get_current_line_token() != self.get_presented_line_token()
+        ):
             raise ValueError("line result is stale")
         selection = self._selection
         assert selection is not None and selection.y2 is not None
         sources = tuple(
-            snapshot_source(doc, self._line_source_key(doc.document_id))
-            for doc in self._documents
+            snapshot_source(doc, self._line_source_key(doc.document_id)) for doc in self._documents
         )
-        reference = next((
-            self._line_source_key(doc.document_id)
-            for doc in self._documents
-            if doc.document_id == self._reference_document_id
-        ), "none")
+        reference = next(
+            (
+                self._line_source_key(doc.document_id)
+                for doc in self._documents
+                if doc.document_id == self._reference_document_id
+            ),
+            "none",
+        )
         presentation = (
             ("line_ref", f"{selection.x1}:{selection.y1}:{selection.x2}:{selection.y2}"),
-            ("x_mode", "normalized" if self.x_mode.currentText() == "Normalized distance"
-             else "distance-px"),
+            (
+                "x_mode",
+                "normalized"
+                if self.x_mode.currentText() == "Normalized distance"
+                else "distance-px",
+            ),
             ("y_mode", self.get_presented_line_token().domain),  # type: ignore[union-attr]
             ("reference_key", reference),
         )
@@ -321,23 +341,25 @@ class LineProfilePanel(QWidget):
             for image_index, channel, _xs, _ys in group
         }
         frozen: list[AnalysisSeriesV1] = []
-        for index, (doc, result) in enumerate(
-            zip(self._documents, self.last_results, strict=True)
-        ):
+        for index, (doc, result) in enumerate(zip(self._documents, self.last_results, strict=True)):
             for positions, values, channel in zip(
                 result.positions, result.values, result.channel_names, strict=True
             ):
                 if (index, channel) not in visible:
                     continue
                 values_copy, states = freeze_series_values(values)
-                frozen.append(AnalysisSeriesV1(
-                    source_key=self._line_source_key(doc.document_id),
-                    channel=channel, kind="line",
-                    coordinates=tuple(float(x) for x in positions),
-                    values=values_copy, value_states=states,
-                    sample_count=len(values_copy),
-                    definition_revision="native-line-profile-v1",
-                ))
+                frozen.append(
+                    AnalysisSeriesV1(
+                        source_key=self._line_source_key(doc.document_id),
+                        channel=channel,
+                        kind="line",
+                        coordinates=tuple(float(x) for x in positions),
+                        values=values_copy,
+                        value_states=states,
+                        sample_count=len(values_copy),
+                        definition_revision="native-line-profile-v1",
+                    )
+                )
         if not frozen:
             raise ValueError("no presented line series")
         return tuple(frozen)
@@ -539,8 +561,7 @@ class LineProfilePanel(QWidget):
         task_id: str | None = None,
     ) -> None:
         if task_id is not None and (
-            self._worker is None or self._worker.task_id != task_id
-            or self._worker.is_cancelled
+            self._worker is None or self._worker.task_id != task_id or self._worker.is_cancelled
         ):
             return
         if (

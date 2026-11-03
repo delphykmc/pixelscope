@@ -25,13 +25,24 @@ def native_profile_signature(document: ImageDocument) -> str:
             {
                 name: getattr(profile, name)
                 for name in (
-                    "width", "height", "stride_bytes", "offset_bytes",
-                    "storage_format", "container_dtype", "endianness",
-                    "bit_depth", "bit_alignment", "packed_bit_order",
-                    "channel_layout", "bayer_pattern", "black_level", "white_level",
+                    "width",
+                    "height",
+                    "stride_bytes",
+                    "offset_bytes",
+                    "storage_format",
+                    "container_dtype",
+                    "endianness",
+                    "bit_depth",
+                    "bit_alignment",
+                    "packed_bit_order",
+                    "channel_layout",
+                    "bayer_pattern",
+                    "black_level",
+                    "white_level",
                 )
             }
-            if profile is not None else None
+            if profile is not None
+            else None
         ),
         "yuv_layout": getattr(frame, "layout", None),
         "subsampling": getattr(frame, "subsampling", None),
@@ -55,8 +66,11 @@ def snapshot_source(document: ImageDocument, source_key: str) -> AnalysisSourceV
         channel_layout=document.channel_layout,
         effective_bits=document.bit_depth,
         profile_signature=native_profile_signature(document),
-        sha256=(encoded_sha256 if isinstance(encoded_sha256, str)
-                and len(encoded_sha256) == 64 else None),
+        sha256=(
+            encoded_sha256
+            if isinstance(encoded_sha256, str) and len(encoded_sha256) == 64
+            else None
+        ),
         # Decode-time digest alone does not attest to current on-disk content.
         verification="unverified",
     )

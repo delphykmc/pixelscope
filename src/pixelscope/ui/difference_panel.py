@@ -314,7 +314,8 @@ class DifferencePanel(QWidget):
         self, *, during_render: bool = False
     ) -> PresentedAnalysisTokenV1 | None:
         if (
-            self._closing or self.last_result is None
+            self._closing
+            or self.last_result is None
             or self._presented_metric_result is not self.last_result
             or (self._worker is not None and not during_render)
             or self._preview_worker is not None
@@ -327,15 +328,22 @@ class DifferencePanel(QWidget):
         key = self._cache_key()
         metric_key = self._metric_key()
         if (
-            pair is None or compatibility is None
-            or not compatibility.compatible or compatibility.domain is None
-            or key is None or metric_key is None or metric_key != self._presented_metric_key
+            pair is None
+            or compatibility is None
+            or not compatibility.compatible
+            or compatibility.domain is None
+            or key is None
+            or metric_key is None
+            or metric_key != self._presented_metric_key
             or self.cached_result_for_current() is None
         ):
             return None
         expected_preview = (
-            key, compatibility.domain, self.channel.currentText(),
-            self.mode.currentText(), self.gain.value(),
+            key,
+            compatibility.domain,
+            self.channel.currentText(),
+            self.mode.currentText(),
+            self.gain.value(),
             self._threshold_value(compatibility.domain),
         )
         if self._preview_key != expected_preview:
@@ -351,7 +359,8 @@ class DifferencePanel(QWidget):
             source_documents=tuple((d.document_id, d.generation) for d in pair),
             source_keys=tuple(self._difference_source_key(d.document_id) for d in pair),
             roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
-            channel=self.channel.currentText(), domain=compatibility.domain,
+            channel=self.channel.currentText(),
+            domain=compatibility.domain,
             profile_signatures=tuple(native_profile_signature(d) for d in pair),
             difference_cache_key=sha256(raw_key).hexdigest(),
         )
@@ -369,14 +378,18 @@ class DifferencePanel(QWidget):
     def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
         return self.get_current_difference_token()
 
-    def read_presented_analysis(self) -> tuple[
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
         tuple[tuple[str, str], ...],
     ]:
         return self.read_presented_difference()
 
-    def read_presented_difference(self) -> tuple[
+    def read_presented_difference(
+        self,
+    ) -> tuple[
         tuple[AnalysisSourceV1, ...],
         tuple[AnalysisMeasurementV1, ...],
         tuple[tuple[str, str], ...],
@@ -394,22 +407,28 @@ class DifferencePanel(QWidget):
         if bounds is None:
             sample_count = int(selected.size)
         else:
-            sample_count = bounds[2] * bounds[3] * (
-                selected.shape[2] if selected.ndim == 3 else 1
-            )
+            sample_count = bounds[2] * bounds[3] * (selected.shape[2] if selected.ndim == 3 else 1)
         metrics = self.last_result
         fields = (
-            ("MAE", metrics.mae), ("MSE", metrics.mse),
-            ("RMSE", metrics.rmse), ("PSNR", metrics.psnr),
-            ("P95", metrics.p95), ("P99", metrics.p99),
+            ("MAE", metrics.mae),
+            ("MSE", metrics.mse),
+            ("RMSE", metrics.rmse),
+            ("PSNR", metrics.psnr),
+            ("P95", metrics.p95),
+            ("P99", metrics.p99),
             ("Max difference", metrics.maximum_absolute),
             ("Non-zero ratio", metrics.nonzero_ratio),
         )
         values = tuple(
             measurement(
-                token.source_keys[0], token.channel, name, value, sample_count,
+                token.source_keys[0],
+                token.channel,
+                name,
+                value,
+                sample_count,
                 "difference-metrics-v1",
-            ) for name, value in fields
+            )
+            for name, value in fields
         )
         presentation = (
             ("mode", self.mode.currentText()),
@@ -418,10 +437,14 @@ class DifferencePanel(QWidget):
             ("pair_a", token.source_keys[0]),
             ("pair_b", token.source_keys[1]),
         )
-        return tuple(
-            snapshot_source(doc, source_key)
-            for doc, source_key in zip(pair, token.source_keys, strict=True)
-        ), values, presentation
+        return (
+            tuple(
+                snapshot_source(doc, source_key)
+                for doc, source_key in zip(pair, token.source_keys, strict=True)
+            ),
+            values,
+            presentation,
+        )
 
     @staticmethod
     def _integer_control(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -1219,8 +1242,10 @@ class DifferencePanel(QWidget):
         publish_result: bool,
     ) -> None:
         if (
-            self._closing or self._worker is None
-            or self._worker.task_id != task_id or self._worker.is_cancelled
+            self._closing
+            or self._worker is None
+            or self._worker.task_id != task_id
+            or self._worker.is_cancelled
         ):
             return
         if (
