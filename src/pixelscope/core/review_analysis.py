@@ -25,6 +25,7 @@ _SAFE_DTYPE = re.compile(
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
 MAX_CONTEXT_BYTES = 8 * 1024 * 1024
 MAX_MEASUREMENTS = 200_000
+MAX_SERIES_SAMPLES = 200_000
 
 
 def _is_uuid(value: object) -> bool:
@@ -155,6 +156,74 @@ def measurement(
     )
 
 
+
+@dataclass(frozen=True)
+class AnalysisSeriesV1:
+    """Frozen native histogram bins or line points, independent of plot mode.
+
+    Histogram coordinates are N+1 native bin edges; line coordinates are N
+    native reference-distance positions. Nonfinite values use explicit states.
+    """
+
+    source_key: str
+    channel: str
+    kind: Literal["histogram", "line"]
+    coordinates: tuple[float, ...]
+    values: tuple[int | float | None, ...]
+    value_states: tuple[str, ...]
+    sample_count: int | None
+    definition_revision: str
+
+    def __post_init__(self) -> None:
+        if not _is_uuid(self.source_key):
+            raise ValueError("invalid series source")
+        if (self.kind not in ("histogram", "line")
+                or not _SAFE_NAME.fullmatch(self.channel)
+                or not _SAFE_NAME.fullmatch(self.definition_revision)):
+            raise ValueError("invalid series classification")
+        count = len(self.values)
+        if not 1 <= count <= MAX_SERIES_SAMPLES:
+            raise ValueError("series count outside capture bounds")
+        expected = count + 1 if self.kind == "histogram" else count
+        if len(self.coordinates) != expected or len(self.value_states) != count:
+            raise ValueError("series coordinate/state cardinality mismatch")
+        if any(not math.isfinite(v) for v in self.coordinates):
+            raise ValueError("nonfinite series coordinates")
+        if self.sample_count is not None and (
+            type(self.sample_count) is not int or self.sample_count < 0
+        ):
+            raise ValueError("invalid series sample count")
+        for value, state in zip(self.values, self.value_states, strict=True):
+            if state not in _STATE:
+                raise ValueError("invalid series value state")
+            if state == "finite":
+                if type(value) not in (int, float) or not math.isfinite(value):
+                    raise ValueError("finite series value required")
+            elif value is not None:
+                raise ValueError("nonfinite series value must be null")
+
+
+def freeze_series_values(values: object) -> tuple[
+    tuple[int | float | None, ...], tuple[str, ...]
+]:
+    """Bounded copy of a 1-D numeric iterable; reject large inputs before copying."""
+    if not hasattr(values, "__len__") or len(values) > MAX_SERIES_SAMPLES:
+        raise ValueError("series exceeds budget")
+    result: list[int | float | None] = []
+    states: list[str] = []
+    for value in values:
+        # Preserve integer histogram counts losslessly.
+        native = int(value) if hasattr(value, "dtype") and value.dtype.kind in "iu" else float(value)
+        if isinstance(native, int) or math.isfinite(native):
+            result.append(native)
+            states.append("finite")
+        else:
+            result.append(None)
+            states.append("nan" if math.isnan(native) else
+                          "pos_inf" if native > 0 else "neg_inf")
+    return tuple(result), tuple(states)
+
+
 @dataclass(frozen=True)
 class AnalysisSnapshotV1:
     snapshot_id: str
@@ -163,6 +232,7 @@ class AnalysisSnapshotV1:
     sources: tuple[AnalysisSourceV1, ...]
     measurements: tuple[AnalysisMeasurementV1, ...]
     presentation: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    series: tuple[AnalysisSeriesV1, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not self.snapshot_id or len(self.sources) != len(self.token.source_keys):
@@ -177,6 +247,12 @@ class AnalysisSnapshotV1:
             raise ValueError("too many measurements")
         if any(m.source_key not in self.token.source_keys for m in self.measurements):
             raise ValueError("measurement source not presented")
+        if sum(len(item.values) for item in self.series) > MAX_SERIES_SAMPLES:
+            raise ValueError("series budget exceeded")
+        if any(item.source_key not in self.token.source_keys for item in self.series):
+            raise ValueError("series source not presented")
+        if any(item.kind != self.token.feature for item in self.series):
+            raise ValueError("series feature mismatch")
         if any(not _SAFE_NAME.fullmatch(k) or not _SAFE_NAME.fullmatch(v)
                for k, v in self.presentation):
             raise ValueError("unsafe presentation fields")
@@ -218,6 +294,8 @@ def capture_presented_analysis(
         if before != expected or current != expected:
             return CaptureResult(None, "stale_or_mismatched")
         sources, values, presentation = panel.read_presented_analysis()
+        series_reader = getattr(panel, "read_presented_series", None)
+        series = tuple(series_reader()) if callable(series_reader) else ()
         if (panel.get_presented_analysis_token() != expected
                 or panel.get_current_analysis_token() != expected):
             return CaptureResult(None, "changed_during_capture")
@@ -228,6 +306,7 @@ def capture_presented_analysis(
             sources=tuple(sources),
             measurements=tuple(values),
             presentation=tuple(presentation),
+            series=series,
         ))
     except (RuntimeError, TypeError, ValueError, AttributeError, IndexError) as exc:
         return CaptureResult(None, f"capture_unavailable:{type(exc).__name__}")
@@ -274,6 +353,19 @@ def serialize_analysis_context(snapshot: AnalysisSnapshotV1) -> bytes:
             } for m in snapshot.measurements
         ],
         "presentation": dict(snapshot.presentation),
+        "series": [
+            {
+                "source_key": entry.source_key,
+                "channel": entry.channel,
+                "kind": entry.kind,
+                "coordinates": list(entry.coordinates),
+                "values": list(entry.values),
+                "value_states": list(entry.value_states),
+                "sample_count": entry.sample_count,
+                "definition_revision": entry.definition_revision,
+            }
+            for entry in snapshot.series
+        ],
     }
     raw = json.dumps(
         public, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")
@@ -305,7 +397,7 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         "request_id", "request_epoch", "scope", "roi_ref", "channel", "domain",
         "difference_cache_key", "sources", "measurements", "presentation",
     }
-    if set(data) != root or data["kind"] != "pixelscope-analysis-context" or type(data["schema_version"]) is not int or data["schema_version"] != 1:
+    if set(data) not in (root, root | {"series"}) or data["kind"] != "pixelscope-analysis-context" or type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ValueError("unsupported context kind or schema")
     if (type(data["feature"]) is not str or data["feature"] not in FEATURES
             or type(data["scope"]) is not str or data["scope"] not in ("full", "roi")):
@@ -388,6 +480,48 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         count = item["sample_count"]
         if count is not None and (type(count) is not int or count < 0):
             raise ValueError("invalid sample count")
+    series_data = data.get("series", [])
+    if type(series_data) is not list:
+        raise ValueError("invalid series array")
+    series_size = 0
+    for item in series_data:
+        if type(item) is not dict or set(item) != {
+            "source_key", "channel", "kind", "coordinates", "values",
+            "value_states", "sample_count", "definition_revision",
+        }:
+            raise ValueError("invalid series shape")
+        if item["source_key"] not in keys or item["kind"] != data["feature"]:
+            raise ValueError("series source or feature mismatch")
+        if any(type(item[k]) is not str or not _SAFE_NAME.fullmatch(item[k])
+               for k in ("channel", "definition_revision")):
+            raise ValueError("invalid series label")
+        coords, values, states = (
+            item["coordinates"], item["values"], item["value_states"]
+        )
+        if any(type(a) is not list for a in (coords, values, states)):
+            raise ValueError("invalid series arrays")
+        count = len(values)
+        series_size += count
+        if not 1 <= count <= MAX_SERIES_SAMPLES or series_size > MAX_SERIES_SAMPLES:
+            raise ValueError("series size budget exceeded")
+        if len(states) != count or len(coords) != (
+            count + 1 if item["kind"] == "histogram" else count
+        ):
+            raise ValueError("series coordinate cardinality")
+        if any(type(x) not in (float, int) or not math.isfinite(x) for x in coords):
+            raise ValueError("nonfinite series coordinate")
+        for number, state in zip(values, states, strict=True):
+            if state not in _STATE:
+                raise ValueError("invalid series state")
+            if state == "finite":
+                if type(number) not in (float, int) or not math.isfinite(number):
+                    raise ValueError("invalid finite series value")
+            elif number is not None:
+                raise ValueError("invalid unavailable series value")
+        if item["sample_count"] is not None and (
+            type(item["sample_count"]) is not int or item["sample_count"] < 0
+        ):
+            raise ValueError("invalid series sample count")
     presentation = data["presentation"]
     if type(presentation) is not dict or any(
         type(k) is not str or type(v) is not str
