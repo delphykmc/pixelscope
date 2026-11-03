@@ -64,7 +64,22 @@ def resolve_display_aliases(sources: Iterable[SourceLabelInput]) -> dict[str, Di
         raise ValueError("duplicate source_key")
     details = {key: _parts(source) for key, source in entries.items()}
     depths = {key: 0 for key in entries}
-    digests = {key: sha256(key.encode("utf-8")).hexdigest() for key in entries}
+    # Path spelling provides a restart-stable tie-break for casefold collisions.
+    # Truly identical locators (e.g. derived views) use their opaque source key.
+    path_values = {
+        key: str(source.source_path) if source.source_path is not None else ""
+        for key, source in entries.items()
+    }
+    path_counts: dict[str, int] = defaultdict(int)
+    for value in path_values.values():
+        if value:
+            path_counts[value] += 1
+    digests = {
+        key: sha256(
+            (path_values[key] if path_values[key] and path_counts[path_values[key]] == 1 else key).encode("utf-8")
+        ).hexdigest()
+        for key in entries
+    }
     suffix_lengths = {key: 0 for key in entries}
 
     def candidate(key: str) -> str:
