@@ -214,3 +214,35 @@ def test_late_difference_worker_cannot_republish_after_completion(
     )
     assert panel.get_presented_difference_token() == saved
     panel.shutdown()
+
+
+def test_background_difference_map_does_not_authorize_implicit_capture(
+    qtbot: object,
+) -> None:
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    first, second = _document("a.png", 4), _document("b.png", 8)
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+    panel.calculate_difference(publish_result=False)
+    qtbot.waitUntil(
+        lambda: panel.last_result is not None and panel._worker is None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    difference_map = panel.cached_result_for_current()
+    assert difference_map is not None
+    selected = panel._selected_absolute(difference_map, panel.channel.currentText())
+    panel._request_preview_render(difference_map, selected, publish_result=False)
+    qtbot.waitUntil(
+        lambda: panel._preview_worker is None and panel._preview_value is not None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    assert panel.get_current_difference_token() is None
+    assert panel.get_presented_difference_token() is None
+
+    # Only the existing explicit Calculate signal authorizes the presentation.
+    panel.calculate_difference()
+    qtbot.waitUntil(
+        lambda: panel.get_current_difference_token() is not None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    panel.shutdown()
