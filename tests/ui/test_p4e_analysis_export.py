@@ -138,6 +138,7 @@ def test_file_menu_export_actions_install_once_and_follow_current_data(
         "Export Histogram CSV...",
         "Export Line Profile CSV...",
         "Export Difference Image...",
+        "Export Analysis Bundle...",
     ]
     assert not controller.histogram_action.isEnabled()
     assert not controller.line_profile_action.isEnabled()
@@ -162,6 +163,7 @@ def test_export_actions_do_not_leak_across_main_window_recreation(qtbot: object)
         "Export Histogram CSV...",
         "Export Line Profile CSV...",
         "Export Difference Image...",
+        "Export Analysis Bundle...",
     ]
 
 
@@ -419,3 +421,74 @@ def test_export_dialog_reuses_configured_export_directory(
 
     assert observed == [str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")]
     assert _workspace_state(window) == before
+
+def test_bundle_export_rechecks_suffix_collision_and_uses_frozen_result(
+    qtbot: object, tmp_path: Path, monkeypatch: object,
+) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    from pixelscope.io.analysis_bundle import verify_analysis_bundle
+    from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
+
+    window = _window(qtbot)
+    controller = window.analysis_export_controller
+    _seed_histogram(window, tmp_path, ("Gray",))
+    panel = window.comparison_analysis_panel
+    panel._histogram_specs = [
+        automatic_histogram_spec(document) for document in panel._documents
+    ]
+    signature = panel._analysis_request_signature(
+        panel._documents, panel._bounds, panel._histogram_specs
+    )
+    panel._request_signature = signature
+    panel._completed_signature = signature
+    panel._presented_analysis_token = panel._analysis_live_token()
+    assert panel.get_presented_analysis_token() is not None
+    controller.refresh_actions()
+    assert controller.bundle_action.isEnabled()
+
+    target = tmp_path / "capture.zip"
+    target.write_bytes(b"existing bundle")
+    monkeypatch.setattr(
+        "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
+        lambda *_args: (str(tmp_path / "capture"), "ZIP archive (*.zip)"),
+    )
+    monkeypatch.setattr(
+        "pixelscope.ui.analysis_export.QMessageBox.question",
+        lambda *_args: QMessageBox.StandardButton.No,
+    )
+    controller.export_analysis_bundle()
+    assert target.read_bytes() == b"existing bundle"
+    assert controller._bundle_worker is None
+
+    monkeypatch.setattr(
+        "pixelscope.ui.analysis_export.QMessageBox.question",
+        lambda *_args: QMessageBox.StandardButton.Yes,
+    )
+    controller.export_analysis_bundle()
+    qtbot.waitUntil(lambda: controller._bundle_worker is None, timeout=10000)  # type: ignore[attr-defined]
+    assert verify_analysis_bundle(target)["snapshot_count"] == 1
+
+
+def test_bundle_capture_disallows_stale_generation(
+    qtbot: object, tmp_path: Path,
+) -> None:
+    from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
+
+    window = _window(qtbot)
+    controller = window.analysis_export_controller
+    _seed_histogram(window, tmp_path, ("Gray",))
+    panel = window.comparison_analysis_panel
+    panel._histogram_specs = [
+        automatic_histogram_spec(document) for document in panel._documents
+    ]
+    signature = panel._analysis_request_signature(
+        panel._documents, panel._bounds, panel._histogram_specs
+    )
+    panel._request_signature = signature
+    panel._completed_signature = signature
+    panel._presented_analysis_token = panel._analysis_live_token()
+    assert panel.get_presented_analysis_token() is not None
+    panel._documents[0].generation += 1
+    controller.refresh_actions()
+    assert not controller.bundle_action.isEnabled()
