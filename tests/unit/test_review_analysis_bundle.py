@@ -343,7 +343,7 @@ def test_series_rejects_wrong_feature_count_and_pathlike_labels() -> None:
         replace(base, series=(series,))
     with pytest.raises(ValueError, match="cardinality"):
         AnalysisSeriesV1(**(kwargs | {"coordinates": (0.0,)}))
-    with pytest.raises(ValueError, match="label"):
+    with pytest.raises(ValueError, match="classification"):
         AnalysisSeriesV1(**(kwargs | {"channel": "C:/private/file"}))
 
 
