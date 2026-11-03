@@ -557,6 +557,7 @@
   ],
   "shared_source_globs": [
     "src/pixelscope/core/review_analysis.py",
+    "src/pixelscope/core/review_analysis_sources.py",
     "src/pixelscope/io/analysis_bundle.py",
     "src/pixelscope/ui/analysis_export.py",
     "pyproject.toml",
