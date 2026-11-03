@@ -148,3 +148,94 @@ Streaming ZIP on bounded worker to temporary sibling file; validate entry count,
 ## 10. Completion / evidence gates
 
 W00 design completion only after exact-SHA independent read-only review of this PR, actionable findings resolved with new HEAD re-review, no drift from D01–D04/T01–T08, and executor cards/tests/ownership accepted. `W00 Complete` remains unchecked until that gate. No product-code tests were executed in this documentation task. Required doc checks (`scripts/check_docs.py`, `git diff --check`) are planned for owner/local unless GitHub CI actually reports success. Detailed dependencies/cards/matrix: [W00 execution plan](issue-210-w00-execution-plan.md).
+
+
+## 11. Independent review corrective contract (PR #211, B1/B2/H1/H2/H3/M1)
+
+This section **supersedes any less restrictive or ambiguous wording above**. Status: revised proposal for *new exact-HEAD independent review*, not accepted or tested. Original review: https://github.com/delphykmc/pixelscope/pull/211#pullrequestreview-5755504410 (reviewed `54935415e7358798c994eb820786dafe24942038`).
+
+### B1 — Explicit source resolution/restore permission matrix
+
+The single source-key resolution outcome is a discriminated `SourceResolutionV1` with `status: verified | candidate_unverified | changed | missing | unsupported_profile`, `candidate_path` optional, `confirmed_by_user: bool`, `verification: digest_match | digest_mismatch | unavailable`, and `reason`. A path confirmation records **only approval to inspect/open a candidate**, never content identity. Review source-key binding is a distinct operation and is permitted **only for verified sources**.
+
+| Outcome | Register in canonical catalog | Present as historical source | Restore saved ROI/view/roles | Attach prior finding to current content | Historical numeric evidence |
+|---|---|---|---|---|---|
+| Verified (matching stored SHA-256 AND compatible native decode signature; user-confirmed if relocated) | yes | yes | yes, after actual bounds/load validation | yes, marked captured/historical, never current calculation | visible as **captured** with verified-source badge |
+| Candidate unverified (digest absent/pending; includes user-approved filename/size/mtime candidate) | no as historical source; optional explicit **separate new source import** | no | no | no | available in read-only finding history, **unbound**, warning `source identity unverified` |
+| Changed (digest differs or native signature incompatible) | no as historical source; optional new identity by explicit import | no | no | no | read-only historic values **unbound**; never compare as current without new explicit analysis |
+| Missing | no | no | no | no | read-only historic values **unbound** and missing-source warning |
+| Unsupported profile / undecodable | no | no | no | no | read-only historic values **unbound** and profile error |
+
+A candidate with a matching digest but an incompatible native interpretation is **not verified**; treat as `unsupported_profile` or `changed`, with a reason. Existing *runtime* same-path documents also require fingerprint validation when restoring historical findings; runtime registration identity is insufficient proof.
+
+**Mixed finding rule:** only the subset of confirmed verified sources may be registered for workspace reconstruction; never rewrite finding source-key lists, pair order or original snapshot. Finding restore is **all-or-nothing** for its exact referenced source set: if any required source is unverified/missing/changed/unsupported, do not activate that finding's saved ROI/view/pair/roles. Render it as read-only history with per-source failure reasons. Additional unaffected findings requiring only verified sources may restore normally. **Reference/Primary missing** blocks that finding's entire activation even when targets remain verified; no silent reassignment to first available target. If no verified selected source exists, abort before workspace commit with zero mutation. If a separate approved new-source import occurs, allocate a new source key/generation, do not attach old measurements or coordinates; require newly captured finding. A Review can still open as an offline **read-only library** without altering Selected, Active or current page.
+
+Test: 1 verified + 1 missing, 1 verified + 1 changed, missing reference, all missing, renamed with digest match and explicit confirmation, digest match but altered decoder/profile, declined relink, confirmed but unverified, two ambiguous candidates, casefold basename collision; assert unchanged historical values/keys, blocked finding activation, no silent new source selected. SHA-256 calculation and native layout interpretation must use the same stable file revision or return unverified.
+
+### B2 — Explicit portable-report projection and leakage policy
+
+Define separate **local** `ReviewDocumentV1` and **portable** `PortableReviewProjectionV1`. The latter is *not* a serialized copy with fields removed afterward. Construct each output from a fixed positive allowlist of typed values. Reject/omit unknown fields, local locator paths, local `extensions`, raw profile sidecar filenames, free-form backend dictionaries, runtime IDs, timestamps from private filesystem path metadata, and unvetted nested data; never pass through original JSON blobs. No local absolute path, drive/UNC prefix, home directory, source relative directory hint, raw profile path, URL, embedded image bytes or source filename path components. The basename is potentially sensitive too: replace it by non-reversible report-local pseudonym `Source 1` ... by default, unless explicit source-name disclosure is separately opted into at report generation.
+
+`data/review.json` allowlist: `kind=pixelscope-portable-review`, `schema_version=1`, report-local pseudonymous `source_id`, ordered roles, finding UUID (not original machine path), user-approved title/note/tags according to text policy, reference ROI and line geometry, numeric/domain/profile **normalized non-path** attributes, snapshot references and `availability` state. `data/context.json` allowlist: only public-safe source IDs, native shapes, channel/subsample/CFA/effective bits, ROI/scope, metric definitions/versions, captured values and verification states. `data/measurements.json` and CSV use the **same DTO projection**; HTML is rendered from it, never from raw local Review or raw dict. Hash manifest lists only safe ZIP entry names and sizes/digests; `manifest.json` cannot contain local paths.
+
+**User-authored title/note/tag privacy:** default export **excludes free-text notes and arbitrary tags**; optional explicit UI review step presents exact text to include, highlights detected path/email/URL-like tokens, and requires user opt-in for inclusion. No automated redaction can guarantee privacy, so unreviewed arbitrary text is never silently exported. HTML escaping applies after this disclosure gate; opt-in does not override prohibition on machine-local path fields. Any pasted paths in opt-in notes are user-disclosed text and must be labeled as such in manifest `user_text_included=true`. To keep a strict `portable-default` guarantee, the default export path strips them. Finding title defaults to a generated `Finding n`, with explicit title inclusion at the same review step.
+
+Implement `project_report(review, snapshots, disclosure: DisclosurePolicy) -> PortableReportV1` as an allowlist builder with no access to native document serialization shortcuts. A ZIP-wide deterministic leak sentinel test scans **all uncompressed entries**, including PNG metadata and EXIF/text chunks, for fixture-specific absolute Windows/POSIX paths, UNC roots, source basename, email, URL, relative folder hints and profile-sidecar path strings; also assert every JSON object key belongs to its allowlist and HTML contains no external fetch. PNG encoder strips metadata. Test with adversarial `extensions` and user text; opt-in test separately verifies disclosure markers and intended text. ZIP-wide scanning does not replace schema allowlist tests.
+
+### H1 — Full transformed-image pixel geometry authority
+
+The composed mapping is explicitly:
+
+`r (reference coordinate) → M_reference_to_native/preview → M_ImageItem_local → M_ImageItem_itemTransform → M_ViewBox_scene → M_QGraphicsView_viewport → M_device(DPR)`.
+
+For reference pixels whose native sample maps to a cell (YUV chroma) or a CFA phase point (Bayer), `M_reference_to_native/preview` is a **spatial-sampling-aware geometry transform**, not an assumption that one chroma sample equals one reference pixel. Define `F(r)` as the composed mapping in physical monitor pixel coordinates. Let `J_F(r)` be its two-column local Jacobian; exact 100% requires each reference basis vector maps to one physical pixel, with orthogonality and orientation preserved (nonuniform rotation/shear fails accuracy). In axis-aligned cases `s_x=||F(r+e_x)-F(r)||`, `s_y=||F(r+e_y)-F(r)||`; report scale only if agreement within approved tolerance. Inspect `ImageItem` transforms, axis inversion, ViewBox content rect, graphics viewport margins, dynamic plot presence, QGraphicsView transform, screen DPR and Qt rounding at **both** item/viewport/device boundaries. Separately confirm screen-level physical pixels with per-monitor capture; model DPR and OS scaling may differ from a screenshot API's sampling.
+
+`measure_physical_zoom()` must use the **displayed image item's composed mapping**, while an independent oracle calculates expected mapped pixel-center distances using a separate scene/device-coordinate route or high-DPI screenshot and a 1px checker/impulse pattern; never verify a function using its own output. Include transformed ImageItem (translation + non-unit scaling, mirrored orientation rejection), asymmetric tile sizes, sync on/off, RGB/Gray, Bayer split/phase, YUV420 native U/V footprint, small image, fractional 1.25/1.5/1.75 DPR, 100/150/200% and physical cross-monitor move/screenChanged. Labels must derive from measured transform and agree with oracle; measure after layout settles, not only toolbar command return. Previous ≤0.5% scale and ≤0.5 physical px center tolerances remain **unratified** and cannot be reported as empirically achieved.
+
+### H2 — Crop content revision and snapshot/asset binding (TOCTOU)
+
+`EvidenceAssetV1` has `asset_id`, `finding_id`, `analysis_snapshot_id`, `source_key`, `source_fingerprint_sha256`, `native_signature_digest`, `request_id`, `roi_ref`, `channel/domain`, `asset_sha256`, `capture_state: verified_same_content | unavailable | changed | unverified`, `reason`, and bounded native/reference dimensions. Asset creation captures a **stable revision** of each source: record stat/file identity before open, compute full SHA-256 on the actual bytes read (stream/decode, bounded worker), record stat/file identity after read; reject if changing during read. A preflight path hash alone is NOT sufficient proof. Before publication, confirm asset payload hash and correspondence to frozen snapshot's stored fingerprint/native profile; if earlier snapshot SHA is pending/missing, do not create a `verified_same_content` association. Recheck source identity/revision just before committing ZIP; if any check fails, omit asset with explicit HTML/JSON `unavailable` reason by default; strict report option fails entire export. Do not silently produce a current crop next to prior metrics. A newly captured crop after an explicit user re-capture may link to a **new** snapshot ID only.
+
+When source is verified by exact SHA but a race permits mutation and replacement back to same metadata, the crop must be computed from the **same verified byte stream/revision** or a securely staged immutable private scratch copy (bounded, explicit disk policy, cleaned on failure); stat comparisons alone are advisory. No full-resolution copy in ZIP. If the platform cannot guarantee bytes used by native decode match those hashed, classify `unverified` and omit the PNG. At report compose, ensure every emitted PNG has one manifest-linked `EvidenceAssetV1` and source/finding/snapshot identities match the metric row; any missing/stale asset is a displayed omission, not a substitute. Mutation-between-preflight-and-open, during-read, after-decode-before-crop, before-publish, and replaced-same-size/mtime tests must reject or omit contradictory crops. Worker cancellation aborts publication.
+
+### H3 — After-commit cancellation, replacement and shutdown
+
+Use explicit restore phases `PREPARING`, `READY_TO_COMMIT`, `COMMITTED_LOADING`, `SETTLING`, `COMPLETED`, `ABORTED_PRECOMMIT`, `INTERRUPTED_POSTCOMMIT`, `CLOSED`. Before canonical registration commit, cancel/new input/failure leaves **all** workspace state untouched. After commit has started there is **no rollback promise**, even when loading is pending. On user cancel after commit (if UI supports it), new user input, or shutdown: atomically revoke restore epoch, cancel its queued/pending worker publications, stop restore-specific forward steps, dismiss owned overlay and leave already committed canonical Registered/Selected/page/Active/Primary as the **current state** (partially loaded sources may remain unloaded/failed). Do not attach saved ROI/Line/view or mark finding activated unless all required sources reach verified terminal status and view-state settle succeeded. If ROI/view/roles were already applied before interruption, remove the **restore-owned pending overlay/action**, but do not silently roll back user state; explicitly mark `interrupted: partial workspace restored` with what was applied and maintain canonical MainWindow invariants. Cancellation never clears unrelated existing source registrations and never forces Difference calculation. New user input takes authority *only after* epoch revocation and is applied using the normal selection pipeline. Late foreground/preview/difference callbacks check `epoch == active_epoch` **and** owner alive and matching source generations before any UI/write; destroyed MainWindow has no callback access. Shutdown schedules no new workers, releases overlay and does not await synchronous network I/O on UI thread.
+
+Acceptance negative tests: cancel before/after commit, new selection after commit but before foreground load, shutdown after partial registration, late gain/analysis/difference result after revocation, two overlapping restore attempts, requested view on failed source, exception after page switch. Assert complete no-mutation precommit, canonical (possibly partial) committed state postcommit, no stale ROI/view/finding binding, no deleted-QObject access.
+
+### M1 — Freeze producer/consumer APIs, state token and file handoff
+
+Public **design** API signatures to implement/ratify before independent coding:
+
+```python
+# Qt-free value objects in core/review_analysis.py (W02); source token producer UI/controller.
+@dataclass(frozen=True)
+class PresentedAnalysisTokenV1:
+    feature: str
+    request_id: str
+    request_epoch: int
+    source_documents: tuple[tuple[str, int], ...]  # (runtime document ID, generation)
+    source_keys: tuple[str, ...]                    # ordered durable Review source keys
+    roi_ref: tuple[int, int, int, int] | None
+    channel: str
+    domain: str
+    profile_signatures: tuple[str, ...]
+    difference_cache_key: str | None
+
+def capture_presented_analysis(
+    panel: "AnalysisPanelAdapter", expected: PresentedAnalysisTokenV1
+) -> "CaptureResult[AnalysisSnapshotV1]": ...
+def serialize_analysis_context(snapshot: "AnalysisSnapshotV1") -> bytes: ...
+def project_report(
+    review: "ReviewDocumentV1",
+    snapshots: tuple["AnalysisSnapshotV1", ...],
+    disclosure: "DisclosurePolicy",
+) -> "PortableReportV1": ...
+```
+
+**Production responsibility:** the current analysis-owning controller (`comparison_analysis_panel`, Line panel or DifferencePanel) produces and publishes the token **when a numerical result becomes presented**; W02 defines the Qt-free token DTO and read-only extraction adapter; W07 consumes tokens for pivot presentation **without** modifying them or inventing token identity. MainWindow owns canonical document-id→source-key mapping, generation and current-page authority; W09 owns Review durable identity mapper; W10 consumes frozen snapshots and portable report projection. The token is **ephemeral**; `source_documents` and `request_epoch` are never treated as durable source identity. UI producer must expose an immutable `get_presented_analysis_token() -> PresentedAnalysisTokenV1 | None`; W02 validates equality at capture against the exact result displayed, and rejects stale/cross-request values before serializing.
+
+**File locks / explicit release gates:** (i) W01 exclusively owns `image_viewer.py`/`multi_compare_view.py`; it publishes `measure_physical_zoom`, `set_physical_zoom`, and oracle fixtures + merged SHA before W04 editing them. W04 publishes `capture_review_view_state`/`restore_review_view_state` signature and verified restore lifecycle before W05 changes view-mode wiring. (ii) W02 exclusively owns `comparison_analysis_panel.py` export/token seam until its PR is reviewed/integrated and publishes DTO + read-only `get_presented_analysis_token` protocol; W06 may edit its **layout** only after W02 handoff; W07 edits analysis/pivot only after both W02 and W06 handoffs. (iii) W05 owns `presentation_controls.py` preset semantics first; W06 may edit it for command hierarchy only **after W05 integration**, regardless of W03 being ready. W06's completion and thus W07 must wait for W05 for that file; independent W06 layout-only work may proceed earlier in disjoint modules. (iv) orchestrator alone edits `main_window.py`, `bootstrap.py`, central Session/settings/doc authority; adapter hook merge into them is serial and separately reviewed. A handoff contains exact base/head SHA, exported signatures, unit contract tests, files relinquished, and unresolved conflicts. Agents must not concurrently commit shared paths even in separate worktrees.
+
+No W00 independent approval means none of these signatures is asserted to be already implemented. Freeze applies to **implementation inputs after design review**, not a code API claim.
