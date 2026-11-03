@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from math import ceil, cos, floor, radians, sin
+from math import ceil, cos, floor, isfinite, radians, sin
 from typing import Any
 
 import numpy as np
@@ -46,6 +46,7 @@ from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import tile_style
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
+from pixelscope.ui.physical_zoom import PhysicalZoomMeasurement, ZoomApplyResult, measure_basis
 from pixelscope.ui.tile_header import TileHeader
 from pixelscope.workers.task_worker import TaskWorker
 
@@ -108,6 +109,11 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
     roi_dragged = Signal(object, bool)
     line_dragged = Signal(object, bool)
     roi_reset_requested = Signal()
+    wheel_zoom_started = Signal()
+
+    def wheelEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        self.wheel_zoom_started.emit()
+        super().wheelEvent(event, axis)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -242,6 +248,14 @@ class ImageViewer(QWidget):
         self.header.focus_requested.connect(lambda: self.focus_requested.emit(self))
         self.header.navigation_requested.connect(self.navigation_requested)
         self._graphics = TracedGraphicsLayoutWidget()
+        self._physical_zoom_target: float | None = None
+        self._last_valid_physical_zoom: float | None = None
+        self._screen_recalibration_target: float | None = None
+        self._fit_mode = False
+        self._watched_window: Any = None
+        self._geometry_timer = QTimer(self)
+        self._geometry_timer.setSingleShot(True)
+        self._geometry_timer.timeout.connect(self._settle_physical_zoom)
         self._graphics.viewport().installEventFilter(self)
         self.view_box = RoiViewBox(lockAspect=True, enableMenu=False)
         self._graphics.addItem(self.view_box)
@@ -305,6 +319,7 @@ class ImageViewer(QWidget):
         self.view_box.roi_reset_requested.connect(self._reset_overlays)
         self.view_box.sigRangeChanged.connect(self._update_zoom)
         self.view_box.sigRangeChanged.connect(self._position_loading_item)
+        self.view_box.wheel_zoom_started.connect(self._clear_physical_target)
         self.set_active(False)
 
     @property
@@ -358,14 +373,162 @@ class ImageViewer(QWidget):
     ) -> None:
         self.header.set_navigation_items(items, current_key)
 
+    def _device_pixel_ratio(self) -> float:
+        return float(self._graphics.viewport().devicePixelRatioF())
+
+    def _reference_to_viewport(self, x: float, y: float) -> QPointF | None:
+        """Map canonical reference geometry through the displayed ImageItem.
+
+        The prescribed presentation rectangle supplies reference→item-local
+        sampling. ImageItem.mapToScene and QGraphicsView.viewportTransform then
+        incorporate *actual* item/view transforms (including non-unit scaling).
+        """
+        document = self._document
+        if document is None or document.preview is None:
+            return None
+        reference_rect = self._presentation_rect(document)
+        item_rect = self.image_item.boundingRect()
+        if (
+            reference_rect.width() <= 0
+            or reference_rect.height() <= 0
+            or item_rect.width() <= 0
+            or item_rect.height() <= 0
+        ):
+            return None
+        local = QPointF(
+            item_rect.left()
+            + (x - reference_rect.left()) * item_rect.width() / reference_rect.width(),
+            item_rect.top()
+            + (y - reference_rect.top()) * item_rect.height() / reference_rect.height(),
+        )
+        return self._graphics.viewportTransform().map(self.image_item.mapToScene(local))
+
+    def measure_physical_zoom(self) -> PhysicalZoomMeasurement:
+        """Actual screen physical-pixel scale of one reference-space pixel."""
+        dpr = self._device_pixel_ratio()
+        if (
+            self._graphics_resources_disposed
+            or self._document is None
+            or self._document.preview is None
+            or self.view_box.width() <= 0
+            or self.view_box.height() <= 0
+        ):
+            return PhysicalZoomMeasurement(dpr=dpr)
+        rows, columns = self._reference_shape(self._document)
+        center_x, center_y = columns / 2.0, rows / 2.0
+        p = self._reference_to_viewport(center_x, center_y)
+        px = self._reference_to_viewport(center_x + 1.0, center_y)
+        py = self._reference_to_viewport(center_x, center_y + 1.0)
+        if p is None or px is None or py is None:
+            return PhysicalZoomMeasurement(dpr=dpr)
+        return measure_basis(
+            (p.x(), p.y()),
+            (px.x(), px.y()),
+            (py.x(), py.y()),
+            dpr,
+        )
+
     @property
     def zoom_percent(self) -> float | None:
+        return self.measure_physical_zoom().percent
+
+    def set_physical_zoom(
+        self,
+        percent: float,
+        center_ref: tuple[float, float] | None = None,
+        *,
+        track_target: bool = True,
+    ) -> ZoomApplyResult:
+        """Set exact physical zoom by correcting the measured displayed mapping.
+
+        Two bounded synchronous correction passes use the *effective* ViewBox
+        ranges, rather than the outer graphics viewport or the image bounds.
+        A later viewport/layout event re-applies an explicitly requested target.
+        """
+        if not isfinite(percent) or percent <= 0:
+            raise ValueError("physical zoom must be a positive finite percentage")
+        self._fit_mode = False
+        if track_target:
+            self._physical_zoom_target = percent
+        elif self._physical_zoom_target is not None and abs(self._physical_zoom_target - percent) > 1e-6:
+            self._physical_zoom_target = None
+        self._screen_recalibration_target = None
+        measurement = self.measure_physical_zoom()
+        target = percent / 100.0
+        if not measurement.valid:
+            self._update_zoom()
+            return ZoomApplyResult(percent, measurement, False, 0)
+        x_range, y_range = self.view_box.viewRange()
+        center_x, center_y = (
+            ((x_range[0] + x_range[1]) / 2, (y_range[0] + y_range[1]) / 2)
+            if center_ref is None
+            else center_ref
+        )
+        if not all(isfinite(value) for value in (center_x, center_y)):
+            raise ValueError("physical zoom center must be finite")
+        passes = 0
+        for _ in range(2):
+            if (
+                measurement.valid
+                and abs(measurement.scale_x - target) <= target * 0.005
+                and abs(measurement.scale_y - target) <= target * 0.005
+            ):
+                break
+            ranges = self.view_box.viewRange()
+            width = (ranges[0][1] - ranges[0][0]) * measurement.scale_x / target
+            height = (ranges[1][1] - ranges[1][0]) * measurement.scale_y / target
+            if not all(isfinite(v) and v > 0 for v in (width, height)):
+                break
+            self.view_box.setRange(
+                xRange=(center_x - width / 2.0, center_x + width / 2.0),
+                yRange=(center_y - height / 2.0, center_y + height / 2.0),
+                padding=0,
+            )
+            passes += 1
+            measurement = self.measure_physical_zoom()
+            if not measurement.valid:
+                break
+        achieved = (
+            measurement.valid
+            and abs(measurement.scale_x - target) <= target * 0.005
+            and abs(measurement.scale_y - target) <= target * 0.005
+        )
+        self._update_zoom()
+        return ZoomApplyResult(percent, measurement, achieved, passes)
+
+    def _clear_physical_target(self) -> None:
+        self._physical_zoom_target = None
+        self._fit_mode = False
+
+    def _watch_screen_signal(self) -> None:
+        window = self.window().windowHandle()
+        if window is self._watched_window:
+            return
+        if self._watched_window is not None:
+            with suppress(RuntimeError, TypeError):
+                self._watched_window.screenChanged.disconnect(self._on_screen_changed)
+        self._watched_window = window
+        if window is not None:
+            window.screenChanged.connect(self._on_screen_changed)
+
+    def _on_screen_changed(self, _screen: object) -> None:
+        if not self._fit_mode and self._physical_zoom_target is None:
+            self._screen_recalibration_target = self._last_valid_physical_zoom
+        self._geometry_timer.start(0)
+
+    def _settle_physical_zoom(self) -> None:
+        if self._graphics_resources_disposed:
+            return
         if self._document is None or self._document.preview is None:
-            return None
-        pixel_size = self.view_box.viewPixelSize()
-        if not pixel_size or pixel_size[0] <= 0:
-            return None
-        return 100.0 / float(pixel_size[0])
+            return
+        target = self._physical_zoom_target
+        explicit_target = target is not None
+        if target is None:
+            target = self._screen_recalibration_target
+        if target is not None and self.view_box.width() > 0 and self.view_box.height() > 0:
+            self.set_physical_zoom(target, track_target=explicit_target)
+        else:
+            self._update_zoom()
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
         self._graphics.trace_document_id = (
@@ -383,6 +546,8 @@ class ImageViewer(QWidget):
             self._displayed_gain = None
             self.image_item.clear()
             self.image_item.setRect()
+            self._physical_zoom_target = None
+            self._last_valid_physical_zoom = None
             self._loading_item.hide()
             self._loading_timer.stop()
             self.header.clear()
@@ -449,6 +614,7 @@ class ImageViewer(QWidget):
             self.fit_image()
         view_trace.checkpoint("fit_and_header")
         self.document_changed.emit(document)
+        self._update_zoom()
         self._ensure_display_preview()
         view_trace.checkpoint("document_signals_and_gain")
 
@@ -642,6 +808,8 @@ class ImageViewer(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
+        self._watch_screen_signal()
+        self._geometry_timer.start(0)
         self._ensure_display_preview()
 
     def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
@@ -654,6 +822,11 @@ class ImageViewer(QWidget):
 
         self._cancel_display_preview()
         self._loading_timer.stop()
+        self._geometry_timer.stop()
+        if self._watched_window is not None:
+            with suppress(RuntimeError, TypeError):
+                self._watched_window.screenChanged.disconnect(self._on_screen_changed)
+            self._watched_window = None
         if self._graphics_resources_disposed:
             return
         self._graphics_resources_disposed = True
@@ -670,6 +843,8 @@ class ImageViewer(QWidget):
             (self.view_box.roi_reset_requested, self._reset_overlays),
             (self.view_box.sigRangeChanged, self._update_zoom),
             (self.view_box.sigRangeChanged, self._position_loading_item),
+            (self.view_box.wheel_zoom_started, self._clear_physical_target),
+            (self._geometry_timer.timeout, self._settle_physical_zoom),
         )
         for signal, callback in signal_callbacks:
             with suppress(RuntimeError, TypeError):
@@ -697,6 +872,8 @@ class ImageViewer(QWidget):
     def fit_image(self) -> None:
         if self._document is None or self._document.preview is None:
             return
+        self._physical_zoom_target = None
+        self._fit_mode = True
         height, width = self._reference_shape(self._document)
         self.view_box.setRange(QRectF(0, 0, width, height), padding=0.02)
 
@@ -704,18 +881,11 @@ class ImageViewer(QWidget):
         if self._document is None or self._document.preview is None:
             return
         height, width = self._reference_shape(self._document)
-        viewport = self._graphics.viewport().size()
-        visible_width = min(float(width), float(max(viewport.width(), 1)))
-        visible_height = min(float(height), float(max(viewport.height(), 1)))
-        center_x, center_y = width / 2.0, height / 2.0
-        self.view_box.setRange(
-            xRange=(center_x - visible_width / 2, center_x + visible_width / 2),
-            yRange=(center_y - visible_height / 2, center_y + visible_height / 2),
-            padding=0,
-        )
+        self.set_physical_zoom(100.0, (width / 2.0, height / 2.0))
 
     def zoom_by(self, factor: float) -> None:
         if self._document is not None and factor > 0:
+            self._clear_physical_target()
             self.view_box.scaleBy((factor, factor))
 
     def show_cursor(self, x: int, y: int) -> None:
@@ -950,6 +1120,16 @@ class ImageViewer(QWidget):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if watched is self._graphics.viewport():
+            geometry_events = {QEvent.Type.Resize, QEvent.Type.Show}
+            for name in ("DevicePixelRatioChange", "DpiChange", "ScreenChangeInternal"):
+                event_kind = getattr(QEvent.Type, name, None)
+                if event_kind is not None:
+                    geometry_events.add(event_kind)
+            if event.type() in geometry_events and not self._graphics_resources_disposed:
+                if event.type() not in (QEvent.Type.Resize, QEvent.Type.Show):
+                    if not self._fit_mode and self._physical_zoom_target is None:
+                        self._screen_recalibration_target = self._last_valid_physical_zoom
+                self._geometry_timer.start(0)
             if event.type() == QEvent.Type.MouseButtonPress:
                 self.activated.emit(self)
             elif event.type() == QEvent.Type.Paint:
@@ -983,4 +1163,5 @@ class ImageViewer(QWidget):
         percent = self.zoom_percent
         self.header.set_zoom(percent)
         if percent is not None:
+            self._last_valid_physical_zoom = percent
             self.zoom_changed.emit(percent)
