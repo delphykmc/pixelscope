@@ -441,18 +441,26 @@ class MultiCompareView(QWidget):
         )
         if anchor is None:
             return
-        # Each tile owns a different effective ViewBox/viewport size. Sharing
-        # numeric ranges or logical viewPixelSize does not share physical zoom.
-        # Propagate the canonical reference center and *measured* physical scale.
-        measurement = anchor.measure_physical_zoom()
-        percent = measurement.percent
-        if percent is None:
-            return
-        center_x = (float(ranges[0][0]) + float(ranges[0][1])) / 2.0
-        center_y = (float(ranges[1][0]) + float(ranges[1][1])) / 2.0
-        for viewer in self.visible_viewers:
-            if viewer is not anchor and viewer.document is not None:
-                viewer.set_physical_zoom(percent, (center_x, center_y))
+        was_syncing = self._syncing_range
+        self._syncing_range = True
+        try:
+            if source is None:
+                # A saved range is authoritative for the anchor too. Measure
+                # its saved scale only after applying it, not from the view
+                # that happens to be displayed when restoration starts.
+                anchor.view_box.setRange(xRange=ranges[0], yRange=ranges[1], padding=0)
+            # Each tile has its own effective viewport size; propagate the
+            # reference center and measured physical scale rather than ranges.
+            percent = anchor.measure_physical_zoom().percent
+            if percent is None:
+                return
+            center_x = (float(ranges[0][0]) + float(ranges[0][1])) / 2.0
+            center_y = (float(ranges[1][0]) + float(ranges[1][1])) / 2.0
+            for viewer in self.visible_viewers:
+                if viewer.document is not None and (source is None or viewer is not anchor):
+                    viewer.set_physical_zoom(percent, (center_x, center_y))
+        finally:
+            self._syncing_range = was_syncing
 
     def _activate_viewer(self, viewer: object) -> None:
         if not isinstance(viewer, ImageViewer) or viewer.document is None:

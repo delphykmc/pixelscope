@@ -258,3 +258,30 @@ def test_synced_pan_propagates_reference_center_at_unchanged_physical_zoom(
         second_center = sum(second_range[axis]) / 2.0
         assert second_center == pytest.approx(first_center, abs=0.01)
     assert first.zoom_percent == pytest.approx(second.zoom_percent, rel=0.005)
+
+
+@pytest.mark.parametrize("count", [1, 2])
+@pytest.mark.parametrize("sync_enabled", [False, True])
+def test_saved_range_restores_anchor_center_and_scale(
+    qtbot: object, count: int, sync_enabled: bool
+) -> None:
+    multi = MultiCompareView()
+    qtbot.addWidget(multi)  # type: ignore[attr-defined]
+    multi.resize(1103, 651)
+    multi.set_documents([_checkerboard() for _ in range(count)], 0, count, None, None)
+    multi.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    multi.set_sync_enabled(sync_enabled)
+    anchor = multi.visible_viewers[0]
+    assert anchor.set_physical_zoom(150, (20, 30)).achieved
+    saved = multi.capture_view_state()
+    assert saved.ranges is not None
+    assert anchor.set_physical_zoom(400, (70, 90)).achieved
+
+    multi.restore_view_state(saved)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    for actual, expected in zip(anchor.view_box.viewRange(), saved.ranges, strict=True):
+        assert actual == pytest.approx(expected)
+    for viewer in multi.visible_viewers[:count]:
+        assert viewer.zoom_percent == pytest.approx(150.0, rel=0.005)
+    assert multi.sync_enabled is sync_enabled
