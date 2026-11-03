@@ -16,6 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.review_analysis import (
     AnalysisSnapshotV1,
     parse_analysis_context,
@@ -129,9 +130,10 @@ def write_analysis_bundle(
         ],
     }
     entries["manifest.json"] = _json_bytes(manifest)
+    cancellation_checkpoint()
     if cancelled is not None and cancelled():
         raise RuntimeError("analysis export cancelled")
-    destination.parent.mkdir(parents=False, exist_ok=True)
+    # The user chose an existing destination directory; never create unrelated paths.
     fd, temporary_name = tempfile.mkstemp(
         dir=destination.parent, prefix=f".{destination.name}.", suffix=".tmp"
     )
@@ -141,11 +143,13 @@ def write_analysis_bundle(
             with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED,
                                  compresslevel=6, allowZip64=False) as archive:
                 for name, content in sorted(entries.items()):
+                    cancellation_checkpoint()
                     if cancelled is not None and cancelled():
                         raise RuntimeError("analysis export cancelled")
                     archive.writestr(name, content)
             stream.flush()
             os.fsync(stream.fileno())
+        cancellation_checkpoint()
         if cancelled is not None and cancelled():
             raise RuntimeError("analysis export cancelled")
         try:
@@ -159,6 +163,7 @@ def write_analysis_bundle(
             existing.st_dev, existing.st_ino, existing.st_mtime_ns
         ) != expected_existing:
             raise FileExistsError("destination changed after overwrite confirmation")
+        cancellation_checkpoint()
         os.replace(temporary, destination)
         if os.name != "nt":
             directory_fd = os.open(destination.parent, os.O_RDONLY)
