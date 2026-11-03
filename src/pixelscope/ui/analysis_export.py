@@ -18,12 +18,15 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QMessageBox,
     QTableWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from pixelscope.core.review_analysis import capture_presented_analysis
+from pixelscope.io.analysis_bundle import write_analysis_bundle
 from pixelscope.io.analysis_export import (
     DifferenceMetricsExport,
     HistogramExportSeries,
@@ -111,6 +114,7 @@ class AnalysisExportController(QObject):
         super().__init__(window)
         self.window = window
         self._difference_worker: TaskWorker | None = None
+        self._bundle_worker: TaskWorker | None = None
         self._pool = analysis_thread_pool()
         self._shutting_down = False
         self._observed_models: tuple[QObject, ...] = ()
@@ -118,6 +122,10 @@ class AnalysisExportController(QObject):
         self.histogram_action = QAction("Export Histogram CSV...", window)
         self.line_profile_action = QAction("Export Line Profile CSV...", window)
         self.difference_action = QAction("Export Difference Image...", window)
+        self.bundle_action = QAction("Export Analysis Bundle...", window)
+        self.bundle_action.triggered.connect(  # type: ignore[attr-defined]
+            self.export_analysis_bundle
+        )
         self.histogram_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_histogram_csv
         )
@@ -170,6 +178,7 @@ class AnalysisExportController(QObject):
             self.histogram_action,
             self.line_profile_action,
             self.difference_action,
+            self.bundle_action,
         ):
             if before is None:
                 self.file_menu.addAction(action)
@@ -281,6 +290,8 @@ class AnalysisExportController(QObject):
             self.window.removeEventFilter(self)
         if self._difference_worker is not None:
             self._difference_worker.cancel()
+        if self._bundle_worker is not None:
+            self._bundle_worker.cancel()
 
     def refresh_actions(self) -> None:
         if self._shutting_down or bool(getattr(self.window, "_closing", False)):
@@ -291,6 +302,13 @@ class AnalysisExportController(QObject):
         self.statistics_toolbar_action.setEnabled(statistics_ready)
         self.histogram_action.setEnabled(self._histogram_ready())
         self.line_profile_action.setEnabled(self._line_profile_ready())
+        panel = self.window.comparison_analysis_panel
+        token = panel.get_presented_analysis_token()
+        self.bundle_action.setEnabled(
+            self._bundle_worker is None
+            and token is not None
+            and panel.get_current_analysis_token() == token
+        )
         self.difference_action.setEnabled(
             self._difference_worker is None and self._difference_preview() is not None
         )
@@ -587,6 +605,98 @@ class AnalysisExportController(QObject):
         table = self.window.difference_panel.metrics
         set_clipboard_text(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
+
+    def export_analysis_bundle(self) -> None:
+        """Publish a checked, immutable native Statistics snapshot in a ZIP.
+
+        Other standalone CSV commands retain their prior semantics. W09/W10
+        consume the immutable DTO and can add further typed feature adapters.
+        """
+        if self._bundle_worker is not None or self._shutting_down:
+            return
+        panel = self.window.comparison_analysis_panel
+        expected = panel.get_presented_analysis_token()
+        if expected is None:
+            self.window.statusBar().showMessage("No presented analysis to capture", 4000)
+            return
+        capture = capture_presented_analysis(panel, expected)
+        if not capture.available or capture.snapshot is None:
+            self.window.statusBar().showMessage(
+                f"Analysis capture unavailable: {capture.reason}", 5000
+            )
+            self.refresh_actions()
+            return
+        target = self._choose_path(
+            "Export Analysis Bundle",
+            self._timestamped_filename("pixelscope_analysis_bundle", ".zip"),
+            "ZIP archive (*.zip)",
+            ".zip",
+        )
+        if target is None:
+            return
+        # The native dialog may have confirmed a different path BEFORE the
+        # missing suffix was appended. Recheck the final destination.
+        for document in panel._documents:
+            if (document.source_path is not None
+                    and target.resolve(strict=False) == document.source_path.resolve(strict=False)):
+                self.window.statusBar().showMessage(
+                    "Refusing to overwrite a source image", 5000
+                )
+                return
+        expected_existing: tuple[int, int, int] | None = None
+        if target.exists():
+            confirm = QMessageBox.question(
+                self.window,
+                "Replace Analysis Bundle?",
+                f"{target.name} already exists. Replace this ZIP file?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+            existing = target.stat()
+            expected_existing = (
+                existing.st_dev, existing.st_ino, existing.st_mtime_ns
+            )
+        # Only frozen scalars cross the worker boundary. No Qt objects, source
+        # arrays, private paths or callbacks are passed to the ZIP writer.
+        worker = TaskWorker(
+            write_analysis_bundle, target, (capture.snapshot,),
+            expected_existing=expected_existing,
+        )
+        worker.signals.succeeded.connect(self._bundle_succeeded)
+        worker.signals.failed.connect(self._bundle_failed)
+        worker.signals.finished.connect(self._bundle_finished)
+        self._bundle_worker = worker
+        self.refresh_actions()
+        self.window.statusBar().showMessage("Exporting Analysis Bundle...", 0)
+        self._pool.start(worker)
+
+    def _bundle_succeeded(
+        self, _task_id: str, _document_id: str | None,
+        _generation: int, result: object,
+    ) -> None:
+        if self._shutting_down or not isinstance(result, Path):
+            return
+        self._remember_success(result)
+        self.window.statusBar().showMessage(
+            f"Exported Analysis Bundle · {result.name}", 4000
+        )
+
+    def _bundle_failed(
+        self, _task_id: str, _document_id: str | None,
+        _generation: int, error: TaskError,
+    ) -> None:
+        if not self._shutting_down:
+            self.window.statusBar().showMessage(
+                f"Analysis Bundle export failed: {error.message}", 5000
+            )
+
+    def _bundle_finished(self, task_id: str) -> None:
+        if self._bundle_worker is not None and self._bundle_worker.task_id == task_id:
+            self._bundle_worker = None
+        if not self._shutting_down:
+            self.refresh_actions()
 
     def export_statistics_csv(self) -> None:
         if not self._statistics_ready():
