@@ -214,6 +214,28 @@ class FolderDisplayTagController:
             refresh_derived(document)
             viewer.set_header(viewer.header.text())
 
+        active = window.documents.get(window._active_document_id)
+        if active is None:
+            active = next(
+                (
+                    viewer.presented_document
+                    for viewer in viewers
+                    if viewer.presented_document is not None
+                    and viewer.presented_document.document_id == window._active_document_id
+                ),
+                None,
+            )
+        if active is not None:
+            shape = active.shape
+            resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
+            file_format = (
+                active.source_path or Path(active.display_name)
+            ).suffix.upper().lstrip(".") or active.channel_layout
+            window.structured_status.set_active_document(
+                active.display_name,
+                f"{resolution} · {file_format} · {active.bit_depth}-bit",
+            )
+
         if window.viewer.presented_document is not None:
             displayed_id = window.viewer.presented_document.document_id
             window._set_single_navigation(
