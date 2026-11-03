@@ -201,7 +201,10 @@ class TileHeader(QWidget):
         source_description = str(document.source_path or document.display_name)
         self.name.setToolTip(
             f"{document.display_name}\n{source_description}"
-            if document.source_path is not None and document.display_name != document.source_path.name
+            if (
+                document.source_path is not None
+                and document.display_name != document.source_path.name
+            )
             else source_description
         )
         shape = document.shape
