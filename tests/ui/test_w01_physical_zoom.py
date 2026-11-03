@@ -179,3 +179,23 @@ def test_unsynchronized_zoom_does_not_change_other_tile_on_pan(
     assert second.view_box.viewRange() == second_before
     assert first.measure_physical_zoom().percent == pytest.approx(100, rel=0.005)
     assert second.measure_physical_zoom().percent == pytest.approx(100, rel=0.005)
+
+
+def test_synced_pan_propagates_reference_center_at_unchanged_physical_zoom(
+    qtbot: object,
+) -> None:
+    multi = MultiCompareView()
+    qtbot.addWidget(multi)  # type: ignore[attr-defined]
+    multi.resize(1103, 651)
+    multi.set_documents([_checkerboard(), _checkerboard()], 0, 2, None, None)
+    multi.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    multi.zoom_100_percent()
+    first, second = multi.visible_viewers
+    first.view_box.translateBy(x=17, y=9)
+    first_range, second_range = first.view_box.viewRange(), second.view_box.viewRange()
+    for axis in (0, 1):
+        first_center = sum(first_range[axis]) / 2.0
+        second_center = sum(second_range[axis]) / 2.0
+        assert second_center == pytest.approx(first_center, abs=0.01)
+    assert first.zoom_percent == pytest.approx(second.zoom_percent, rel=0.005)
