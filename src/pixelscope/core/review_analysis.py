@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, Protocol
@@ -197,7 +198,8 @@ class AnalysisSeriesV1:
             if state not in _STATE:
                 raise ValueError("invalid series value state")
             if state == "finite":
-                if type(value) not in (int, float) or not math.isfinite(value):
+                if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                        or not math.isfinite(value)):
                     raise ValueError("finite series value required")
             elif value is not None:
                 raise ValueError("nonfinite series value must be null")
@@ -207,7 +209,8 @@ def freeze_series_values(values: object) -> tuple[
     tuple[int | float | None, ...], tuple[str, ...]
 ]:
     """Bounded copy of a 1-D numeric iterable; reject large inputs before copying."""
-    if not hasattr(values, "__len__") or len(values) > MAX_SERIES_SAMPLES:
+    if (not isinstance(values, (Sized, Iterable))
+            or len(values) > MAX_SERIES_SAMPLES):
         raise ValueError("series exceeds budget")
     result: list[int | float | None] = []
     states: list[str] = []
