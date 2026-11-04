@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.io.yuv_profile import YuvProfile
-from pixelscope.ui.input_profile_library import ProfileLibraryControls
+from pixelscope.ui.input_profile_library import InputProfile, ProfileLibraryControls
 
 
 class YuvOpenDialog(QDialog):
@@ -75,8 +75,8 @@ class YuvOpenDialog(QDialog):
         self.profile_library_controls = ProfileLibraryControls(
             "yuv",
             self.profile,
-            self.set_profile,
-            parent=self,  # type: ignore[arg-type]
+            self._apply_library_profile,
+            parent=self,
         )
         layout.addWidget(self.profile_library_controls)
         layout.addWidget(buttons)
@@ -88,6 +88,11 @@ class YuvOpenDialog(QDialog):
             self._update_file_size
         )
         self._update_file_size()
+
+    def _apply_library_profile(self, profile: InputProfile) -> None:
+        if not isinstance(profile, YuvProfile):
+            raise ValueError("Saved profile family does not match the input dialog")
+        self.set_profile(profile)
 
     def set_source_path(self, path: str | Path) -> None:
         self._source_path = Path(path)
