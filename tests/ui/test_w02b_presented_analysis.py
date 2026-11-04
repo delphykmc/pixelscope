@@ -1,6 +1,8 @@
 """W02b UI producer contracts: no renderer-to-exporter numeric reconstruction."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from pixelscope.core.image_document import ImageDocument
@@ -413,9 +415,6 @@ def test_difference_delayed_explicit_preview_cannot_authorize_new_roi(
     monkeypatch: object,
 ) -> None:
     """Preview identity excludes ROI; the result_ready permission must not."""
-    import numpy as np
-    from types import SimpleNamespace
-
     panel = DifferencePanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
     first, second = _document("preview-a.png", 9), _document("preview-b.png", 20)
