@@ -15,6 +15,11 @@ from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import required_file_size
 from pixelscope.io.yuv_profile import YuvProfile
 
+
+InputProfile = RawProfile | YuvProfile
+CandidateStatus = Literal["eligible", "unchanged", "rejected"]
+
+
 def interpretation_key(profile: InputProfile) -> str:
     """Mirror W08a's canonical native interpretation identity without a Qt import."""
 
@@ -27,9 +32,6 @@ def interpretation_key(profile: InputProfile) -> str:
         ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-InputProfile = RawProfile | YuvProfile
-CandidateStatus = Literal["eligible", "unchanged", "rejected"]
 
 
 @dataclass(frozen=True)
