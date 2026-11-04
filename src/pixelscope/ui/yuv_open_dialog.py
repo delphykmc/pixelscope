@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from stat import S_ISREG
 
 from pydantic import ValidationError
 from PySide6.QtCore import Qt
@@ -132,8 +133,9 @@ class YuvOpenDialog(QDialog):
         except (OSError, ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Cannot load YUV profile", str(exc))
             return
-        self.profile_library_controls.origin = "Explicit JSON"
         self.set_profile(profile)
+        self.profile_library_controls.mark_origin("Explicit JSON", profile)
+        self._update_file_size()
 
     def _accept_validated(self) -> None:
         if self.uses_generic_raw():
@@ -144,9 +146,20 @@ class YuvOpenDialog(QDialog):
         except (ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Invalid YUV profile", str(exc))
             return
-        if self._source_path is not None and self._source_path.is_file():
-            actual = self._source_path.stat().st_size
+        if self._source_path is not None:
+            try:
+                current_stat = self._source_path.stat()
+            except OSError as exc:
+                self._update_file_size()
+                QMessageBox.warning(self, "YUV source unavailable", str(exc))
+                return
+            if not S_ISREG(current_stat.st_mode):
+                self._update_file_size()
+                QMessageBox.warning(self, "YUV source unavailable", "Not a regular file.")
+                return
+            actual = current_stat.st_size
             if actual != profile.expected_file_size:
+                self._update_file_size()
                 QMessageBox.warning(
                     self,
                     "YUV file size mismatch",
@@ -154,9 +167,8 @@ class YuvOpenDialog(QDialog):
                 )
                 return
         if not self.profile_library_controls.library.read_only:
-            self.profile_library_controls.library.record_recent(
-                profile, self.profile_library_controls.origin
-            )
+            controls = self.profile_library_controls
+            controls.library.record_recent(profile, controls.effective_origin(profile))
         self.accept()
 
     @property
@@ -165,7 +177,6 @@ class YuvOpenDialog(QDialog):
 
     def _update_file_size(self) -> None:
         source = self._source_path.name if self._source_path is not None else "Not selected"
-        origin = self.profile_library_controls.origin
         if self.uses_generic_raw():
             self._file_size_state = "unverified"
             self.fixed_contract.setText("Use the existing generic RAW profile workflow")
@@ -185,6 +196,7 @@ class YuvOpenDialog(QDialog):
             )
             return
         expected = profile.expected_file_size
+        origin = self.profile_library_controls.effective_origin(profile)
         self.interpretation_summary.setText(
             f"Source: {source} | Origin: {origin} | Profile: {profile.name}\n"
             f"{profile.width}×{profile.height}, {profile.channel_layout}, "
