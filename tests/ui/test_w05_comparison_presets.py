@@ -212,7 +212,7 @@ def test_sync_off_blocks_preset_without_mutating_selection(
     qtbot: object, tmp_path: Path,
 ) -> None:
     window, controller = _window(qtbot)
-    docs = _sources(window, tmp_path, 4)
+    _sources(window, tmp_path, 4)
     page = tuple(doc.document_id for doc in window.current_comparison_documents())
     window.multi_compare_view.set_sync_enabled(False)
     controller.set_preset(ComparisonPreset.ORIGINAL_2)
