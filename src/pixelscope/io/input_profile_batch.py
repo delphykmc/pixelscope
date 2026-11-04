@@ -1,4 +1,4 @@
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 import hashlib
 import json
@@ -15,7 +15,6 @@ from pixelscope.io.path_discovery import (
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import required_file_size
 from pixelscope.io.yuv_profile import YuvProfile
-
 
 InputProfile = RawProfile | YuvProfile
 CandidateStatus = Literal["eligible", "unchanged", "rejected"]
