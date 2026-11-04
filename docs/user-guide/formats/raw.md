@@ -29,14 +29,12 @@ external PixelScope JSON profile as a favorite, first use **Load Profile…**, t
 
 Recent profiles are recorded only when the dialog is confirmed. Renaming a favorite does
 not alter byte-layout identity. The local QSettings library stores profile metadata and
-user-supplied labels, **not the original source file path or image bytes**. Use your app's
-input profile library reset rather than deleting the source files if a stored entry is
-unwanted. The RAW size result may report **trailing bytes ignored**; this differs from
+user-supplied labels, **not the original source file path or image bytes**. To clear all saved input profiles, remove only the local QSettings key
+`InputProfiles/library_v1`; no source files or other application settings need removal. The RAW size result may report **trailing bytes ignored**; this differs from
 native YUV's strict size policy. A matching byte count does not prove a correct packing,
 CFA pattern, or endian choice.
 
-`InputProfiles/library_v1` is a version-1 local-only settings
-key. Unknown future versions are not overwritten; the library remains read-only until
+This is a version-1 local-only settings key. Unknown future versions are not overwritten; the library remains read-only until
 explicitly reset. A source is not re-registered or decoded merely by selecting a saved
 profile in this dialog.
 
