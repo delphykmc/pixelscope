@@ -155,6 +155,61 @@ def test_analyze_keeps_statistics_and_plot_surfaces_accessible(
     window.close()
 
 
+@pytest.mark.parametrize(
+    "presentation",
+    [
+        ComparisonPreset.ORIGINAL_2,
+        ComparisonPreset.ORIGINAL_4,
+        ComparisonPreset.AB_DIFF,
+        ComparisonPreset.DIFF_FOCUS,
+    ],
+)
+def test_w05_presentation_and_w06_workspace_orthogonal(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    presentation: ComparisonPreset,
+) -> None:
+    window, workspace = _window(qtbot)
+    _sources(window, tmp_path, 4)
+    w05 = window.quick_compare_controller.comparison_presets
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Workspace preset cannot calculate Difference")
+
+    monkeypatch.setattr(window.difference_panel, "calculate_difference", forbidden)
+    w05.set_preset(presentation)
+    before = _identity(window)
+    for name in (WorkspacePreset.ANALYZE, WorkspacePreset.REVIEW, WorkspacePreset.COMPARE):
+        workspace.select(name)
+        assert _identity(window) == before
+    window.close()
+
+
+def test_command_hierarchy_preserves_single_existing_actions(qtbot: object) -> None:
+    window, workspace = _window(qtbot)
+    toolbar = window.main_toolbar
+    actions = toolbar.actions()
+    w05 = window.quick_compare_controller.comparison_presets
+    w05_group_action = next(
+        action for action in actions
+        if toolbar.widgetForAction(action) is w05.group
+    )
+    workspace_group_action = next(
+        action for action in actions
+        if toolbar.widgetForAction(action) is window.workspace_preset_control
+    )
+    existing_open = window.action_map["Open Images..."]
+    assert actions.count(existing_open) == 1
+    assert actions.index(existing_open) < actions.index(workspace_group_action)
+    assert actions.index(workspace_group_action) < actions.index(w05_group_action)
+    assert actions.index(w05_group_action) < actions.index(window.action_map["Fit Image"])
+    assert actions.index(window.action_map["Fit Image"]) < actions.index(window.diff_action)
+    assert actions.index(window.diff_action) < actions.index(window.export_toolbar_action)
+    assert workspace.selector.accessibleName() == "Workspace layout preset"
+    window.close()
+
+
 def test_manual_splitters_are_restored_for_each_preset(qtbot: object) -> None:
     window, workspace = _window(qtbot)
     workspace.select(WorkspacePreset.ANALYZE)
@@ -190,6 +245,25 @@ def test_floating_hidden_close_reopen_and_preset_restore(qtbot: object) -> None:
     dock.hide()
     dock.show()
     assert dock.isFloating()
+    window.close()
+
+
+def test_floating_maximize_and_redock_remain_native(qtbot: object) -> None:
+    window, workspace = _window(qtbot)
+    workspace.select(WorkspacePreset.ANALYZE)
+    dock = window.bottom_dock
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
+    dock.showMaximized()
+    qtbot.waitUntil(dock.isMaximized)  # type: ignore[attr-defined]
+    dock.showNormal()
+    qtbot.waitUntil(lambda: not dock.isMaximized())  # type: ignore[attr-defined]
+    window._redock_plots()
+    assert not dock.isFloating()
+    assert not dock.isHidden()
+    workspace.select(WorkspacePreset.REVIEW)
+    workspace.select(WorkspacePreset.ANALYZE)
+    assert not dock.isFloating()
     window.close()
 
 
