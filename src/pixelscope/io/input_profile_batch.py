@@ -138,20 +138,23 @@ def preflight_input_profile_batch(
                 revision = _revision(path)
                 sidecar = raw_profile_sidecar_for_path(path)
                 if revision.size < required:
-                    status, reason = "rejected", (
-                        f"Truncated: {revision.size} bytes; needs at least {required}"
+                    status, reason = (
+                        "rejected",
+                        (f"Truncated: {revision.size} bytes; needs at least {required}"),
                     )
                 elif isinstance(profile, YuvProfile) and revision.size != required:
-                    status, reason = "rejected", (
-                        f"YUV requires exactly {required} bytes; got {revision.size}"
+                    status, reason = (
+                        "rejected",
+                        (f"YUV requires exactly {required} bytes; got {revision.size}"),
                     )
                 elif (
                     isinstance(profile, RawProfile)
                     and require_exact_raw_size
                     and revision.size != required
                 ):
-                    status, reason = "rejected", (
-                        f"Exact RAW size setting requires {required} bytes; got {revision.size}"
+                    status, reason = (
+                        "rejected",
+                        (f"Exact RAW size setting requires {required} bytes; got {revision.size}"),
                     )
                 elif isinstance(profile, RawProfile) and revision.size > required:
                     reason = (
@@ -166,8 +169,9 @@ def preflight_input_profile_batch(
             elif binding is not None and not override_registered:
                 status, reason = "rejected", "Registered interpretation requires explicit override"
             elif sidecar is not None and not override_sidecars:
-                status, reason = "rejected", (
-                    f"{sidecar.suffix} sidecar takes priority without explicit override"
+                status, reason = (
+                    "rejected",
+                    (f"{sidecar.suffix} sidecar takes priority without explicit override"),
                 )
         candidates.append(
             ProfileBatchCandidate(
