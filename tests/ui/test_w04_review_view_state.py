@@ -36,7 +36,10 @@ def _fixture(
     multi.show()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: not multi._layout_refit_active
-        and all(viewer.measure_physical_zoom().valid for viewer in multi.occupied_viewers),
+        and all(
+            not viewer._geometry_timer.isActive() and viewer.measure_physical_zoom().valid
+            for viewer in multi.occupied_viewers
+        ),
         timeout=3000,
     )
     keys = tuple(str(UUID(int=index + 1)) for index in range(count))
