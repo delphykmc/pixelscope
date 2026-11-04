@@ -519,12 +519,11 @@ class RawOpenDialog(QDialog):
         self.dont_show_json_profiles.setChecked(False)
         self.dont_show_json_profiles.setVisible(visible)
         if visible:
-            self.profile_library_controls.origin = "Explicit JSON"
-            self._update_interpretation_summary()
+            self.set_input_origin("Explicit JSON")
 
     def set_input_origin(self, origin: str) -> None:
         """Presentation-only sidecar provenance; not part of native profile identity."""
-        self.profile_library_controls.origin = origin
+        self.profile_library_controls.mark_origin(origin, self.profile())
         self._update_interpretation_summary()
 
     def dont_show_json_profiles_requested(self) -> bool:
@@ -881,10 +880,10 @@ class RawOpenDialog(QDialog):
         return None
 
     def _update_interpretation_summary(self) -> None:
-        origin = self.profile_library_controls.origin
         source = self._source_path.name if self._source_path is not None else "Not selected"
         try:
             profile = self.profile()
+            origin = self.profile_library_controls.effective_origin(profile)
             storage = str(profile.storage_format)
             if storage == "unpacked":
                 storage += f" / {profile.container_dtype}"
@@ -908,7 +907,7 @@ class RawOpenDialog(QDialog):
             )
         except (ValueError, ValidationError):
             self.native_interpretation_summary.setText(
-                f"Source: {source} | Origin: {origin} | Unsupported or invalid interpretation"
+                f"Source: {source} | Unsupported or invalid interpretation"
             )
 
     def _update_diagnostics(self, _value: object = None) -> None:
@@ -1041,7 +1040,10 @@ class RawOpenDialog(QDialog):
             return
         library_controls = self.profile_library_controls
         if not library_controls.library.read_only:
-            library_controls.library.record_recent(self.profile(), library_controls.origin)
+            current_profile = self.profile()
+            library_controls.library.record_recent(
+                current_profile, library_controls.effective_origin(current_profile)
+            )
         self.accept()
 
     def _load(self) -> None:
@@ -1055,8 +1057,8 @@ class RawOpenDialog(QDialog):
             return
         try:
             profile = RawProfile.load_json(path)
-            self.profile_library_controls.origin = "Explicit JSON"
             self.set_profile(profile)
+            self.set_input_origin("Explicit JSON")
         except (OSError, ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Cannot load profile", str(exc))
 
