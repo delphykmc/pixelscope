@@ -626,11 +626,16 @@ class ComparisonPresetController(QObject):
         self._status(plan)
         if not plan.available:
             return
-        if self._preset is ComparisonPreset.DIFF_FOCUS and not plan.show_difference:
-            # Keep the previous original canvas rather than display an old Diff.
-            return
         by_id = {document.document_id: document for document in page}
-        visible = [by_id[source_id] for source_id in plan.source_ids]
+        # An unavailable Diff Focus must evict the old derived tile immediately;
+        # presenting its current A/B originals is a safe, explicit fallback.
+        presentation_ids = (
+            plan.pair.source_ids
+            if self._preset is ComparisonPreset.DIFF_FOCUS and not plan.show_difference
+            and plan.pair is not None
+            else plan.source_ids
+        )
+        visible = [by_id[source_id] for source_id in presentation_ids]
         if plan.show_difference:
             panel = self.window.difference_panel
             cached = panel.cached_display_for_current()
@@ -693,6 +698,15 @@ class ComparisonPresetController(QObject):
             self._page_binding = None
             self.window._render_selection(preserve_view=True)
             return
+        # MultiCompareView's current live restore shares an anchor range even
+        # when Sync is Off; W04's verified per-source adapter needs W09 bindings.
+        # Reject instead of destroying independent physical centers/zoom.
+        if not self.window.multi_compare_view.sync_enabled:
+            self.window.statusBar().showMessage(
+                "Comparison preset unavailable with Sync Off: per-source restore "
+                "requires the W04 runtime binding handoff", 5500,
+            )
+            return
         plan = self._state(preset)
         if not plan.available:
             self._status(plan)
@@ -736,6 +750,12 @@ class ComparisonPresetController(QObject):
 
     def _change_pair(self, *, reference_id: str | None = None, target_id: str | None = None) -> None:
         if self._closed or self._syncing or self._pair is None:
+            return
+        if self._preset is not ComparisonPreset.WORKSPACE and not self.window.multi_compare_view.sync_enabled:
+            self.window.statusBar().showMessage(
+                "Pair change blocked with Sync Off to preserve independent view state", 4500,
+            )
+            self._sync_roles()
             return
         pair = ComparisonPair(
             reference_id or self._pair.reference_id,
@@ -785,6 +805,16 @@ class ComparisonPresetController(QObject):
             self._page_binding = None
             self.window.statusBar().showMessage(
                 "Comparison preset dismissed: page source or generation changed", 4500
+            )
+        if (
+            self._preset is not ComparisonPreset.WORKSPACE
+            and not self.window.multi_compare_view.sync_enabled
+        ):
+            self._preset = ComparisonPreset.WORKSPACE
+            self._page_binding = None
+            self.window.statusBar().showMessage(
+                "Temporary preset dismissed: Sync Off cannot restore hidden-source view state",
+                4500,
             )
         self._sync_roles()
         if self._preset is not ComparisonPreset.WORKSPACE and not self.window.diff_action.isChecked():
