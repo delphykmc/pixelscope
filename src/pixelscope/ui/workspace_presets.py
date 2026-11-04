@@ -38,7 +38,7 @@ _MAX_QT_STATE_BYTES = 1024 * 1024
 
 def _stored_bytes(settings: QSettings, key: str) -> QByteArray | None:
     value = settings.value(key)
-    if not isinstance(value, (QByteArray, bytes)):
+    if not isinstance(value, QByteArray | bytes):
         return None
     result = QByteArray(value)
     if result.isEmpty() or result.size() > _MAX_QT_STATE_BYTES:
