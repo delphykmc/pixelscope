@@ -64,9 +64,7 @@ def native_interpretation_preview(
             height -= height % 2
         if width <= 0 or height <= 0:
             raise ValueError("RAW dimensions are too small for this storage format")
-        crop_profile = RawProfile.parse_obj(
-            {**profile.dict(), "width": width, "height": height}
-        )
+        crop_profile = RawProfile.parse_obj({**profile.dict(), "width": width, "height": height})
         native = read_raw(path, crop_profile)
         cancellation_checkpoint()
         pixels = render_raw_preview(
@@ -164,16 +162,16 @@ class NativeInputPreviewController(QObject):
         return not self._closing and epoch == self._epoch and task_id == self._active_task_id
 
     @Slot(str, object, int, object)
-    def _succeeded(
-        self, task_id: str, _document_id: object, epoch: int, result: object
-    ) -> None:
+    def _succeeded(self, task_id: str, _document_id: object, epoch: int, result: object) -> None:
         if not self._is_current(task_id, epoch):
             return
         if not isinstance(result, NativeInputPreview):
             self.preview_failed.emit(epoch, "Invalid native preview result")
             return
-        if (result.interpretation != self._requested_profile
-                or result.source_generation != self._requested_generation):
+        if (
+            result.interpretation != self._requested_profile
+            or result.source_generation != self._requested_generation
+        ):
             return
         self.preview_ready.emit(epoch, result)
 
