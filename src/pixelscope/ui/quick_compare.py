@@ -703,6 +703,15 @@ class ComparisonPresetController(QObject):
         if self._closed:
             return
         if preset is ComparisonPreset.WORKSPACE:
+            if (
+                self._preset is not ComparisonPreset.WORKSPACE
+                and not self.window.multi_compare_view.sync_enabled
+            ):
+                self.window.statusBar().showMessage(
+                    "Enable Sync before returning to Workspace: "
+                    "independent source views cannot be safely reconstructed", 5500
+                )
+                return
             self._preset = preset
             self._page_binding = None
             self.window._render_selection(preserve_view=True)
