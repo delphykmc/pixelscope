@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionComboBox,
     QStylePainter,
+    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -822,9 +823,10 @@ def install_comparison_preset_controls(
     """
     from pixelscope.core.comparison_presets import ComparisonPreset
 
-    parent = window.presentation_controls
-    layout = window.presentation_controls_layout
-    group = QWidget(parent)
+    toolbar = window.main_toolbar
+    if not isinstance(toolbar, QToolBar):
+        raise RuntimeError("Comparison preset requires the existing main toolbar")
+    group = QWidget(toolbar)
     group.setObjectName("comparisonPresetControl")
     row = QHBoxLayout(group)
     row.setContentsMargins(0, 0, 0, 0)
@@ -863,15 +865,12 @@ def install_comparison_preset_controls(
     row.addWidget(status)
     group.setVisible(True)
 
-    insert_at = layout.count()
-    for index in range(layout.count()):
-        item = layout.itemAt(index)
-        if item is not None and item.spacerItem() is not None:
-            insert_at = index
-            break
-    layout.insertWidget(insert_at, group)
-    refresh_owner = getattr(window, "_command_row_metric_refresh", None)
-    refresh = getattr(refresh_owner, "refresh", None)
-    if callable(refresh):
-        refresh()
+    # The Main toolbar spans the window, unlike the Image row inside the
+    # horizontal splitter. Keep W05 controls before zoom/difference without
+    # consuming the available source viewer width.
+    before = getattr(window, "split_channels_action", None)
+    if before is not None and before in toolbar.actions():
+        toolbar.insertWidget(before, group)
+    else:
+        toolbar.addWidget(group)
     return group, preset, reference, target, status
