@@ -8,9 +8,11 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QLabel,
     QMessageBox,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
 )
@@ -28,7 +30,7 @@ class YuvOpenDialog(QDialog):
         super().__init__(parent)  # type: ignore[arg-type]
         self.setWindowTitle("YUV profile")
         self._source_path: Path | None = None
-        self._profile_name = "native_yuv"
+        self._profile_name: str | None = None
         self._file_size_state = "unverified"
 
         self.width_box = QSpinBox()
@@ -68,12 +70,15 @@ class YuvOpenDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        self.import_button = QPushButton("Load YUV JSON…")
+        layout.addWidget(self.import_button)
         self.profile_library_controls = ProfileLibraryControls(
             "yuv", self.profile, self.set_profile, parent=self  # type: ignore[arg-type]
         )
         layout.addWidget(self.profile_library_controls)
         layout.addWidget(buttons)
 
+        self.import_button.clicked.connect(self._import_profile_json)  # type: ignore[attr-defined]
         self.width_box.valueChanged.connect(self._update_file_size)  # type: ignore[attr-defined]
         self.height_box.valueChanged.connect(self._update_file_size)  # type: ignore[attr-defined]
         self.layout_kind.currentIndexChanged.connect(  # type: ignore[attr-defined]
@@ -101,11 +106,28 @@ class YuvOpenDialog(QDialog):
         if self.uses_generic_raw():
             raise ValueError("Generic RAW selection does not define a YUV profile")
         return YuvProfile(
-            name=self._profile_name,
+            name=(
+                self._profile_name
+                or (self._source_path.stem if self._source_path is not None else "native_yuv")
+            ),
             width=self.width_box.value(),
             height=self.height_box.value(),
             channel_layout=self.layout_kind.currentData(),
         )
+
+    def _import_profile_json(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load YUV profile", "", "JSON (*.json)"
+        )
+        if not path:
+            return
+        try:
+            profile = YuvProfile.load_json(path)
+        except (OSError, ValidationError, ValueError) as exc:
+            QMessageBox.warning(self, "Cannot load YUV profile", str(exc))
+            return
+        self.profile_library_controls.origin = "Explicit JSON"
+        self.set_profile(profile)
 
     def _accept_validated(self) -> None:
         if self.uses_generic_raw():
