@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isfinite
-from typing import Literal, TYPE_CHECKING
+from typing import Literal
 
 from shiboken6 import isValid
 
@@ -22,10 +22,8 @@ from pixelscope.core.review_view_state import (
     ReviewViewStateV1,
     ReviewViewportV1,
 )
-
-if TYPE_CHECKING:
-    from pixelscope.ui.image_viewer import ImageViewer
-    from pixelscope.ui.multi_compare_view import MultiCompareView
+from pixelscope.ui.image_viewer import ImageViewer
+from pixelscope.ui.multi_compare_view import MultiCompareView
 
 
 @dataclass(frozen=True)
