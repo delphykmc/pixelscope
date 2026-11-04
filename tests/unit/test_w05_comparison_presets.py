@@ -16,7 +16,8 @@ def test_four_presets_and_workspace_preserve_runtime_identity() -> None:
     pair = ComparisonPair(ids[0], ids[2])
     assert plan_comparison(ids, ComparisonPreset.WORKSPACE, pair).source_ids == ids
     assert plan_comparison(ids, ComparisonPreset.ORIGINAL_2, pair).source_ids == (
-        ids[0], ids[2],
+        ids[0],
+        ids[2],
     )
     assert plan_comparison(ids, ComparisonPreset.ORIGINAL_4, pair).source_ids == ids
     result = plan_comparison(ids, ComparisonPreset.AB_DIFF, pair, cached_valid=True)
@@ -50,16 +51,22 @@ def test_page_two_uses_actual_ids_not_slot_numbers() -> None:
 def test_missing_difference_is_never_presented(state: str) -> None:
     pair = ComparisonPair("a", "b")
     plan = plan_comparison(
-        ("a", "b"), ComparisonPreset.AB_DIFF, pair,
-        pending=state == "pending", stale=state == "stale",
+        ("a", "b"),
+        ComparisonPreset.AB_DIFF,
+        pair,
+        pending=state == "pending",
+        stale=state == "stale",
     )
     assert plan.available
     assert not plan.show_difference
     assert plan.source_ids == ("a", "b")
     assert plan.difference_state == state
     focus = plan_comparison(
-        ("a", "b"), ComparisonPreset.DIFF_FOCUS, pair,
-        pending=state == "pending", stale=state == "stale",
+        ("a", "b"),
+        ComparisonPreset.DIFF_FOCUS,
+        pair,
+        pending=state == "pending",
+        stale=state == "stale",
     )
     assert not focus.show_difference and focus.source_ids == ()
 
@@ -89,7 +96,9 @@ def test_invalid_pair_fails_closed(pair: ComparisonPair | None) -> None:
 def test_four_mode_does_not_silently_show_source_outside_first_four() -> None:
     ids = ("a", "b", "c", "d", "e", "f")
     plan = plan_comparison(
-        ids, ComparisonPreset.ORIGINAL_4, ComparisonPair("a", "e"),
+        ids,
+        ComparisonPreset.ORIGINAL_4,
+        ComparisonPair("a", "e"),
     )
     assert not plan.available
     assert not plan.source_ids
@@ -98,11 +107,18 @@ def test_four_mode_does_not_silently_show_source_outside_first_four() -> None:
 def test_generation_and_channel_gate_belongs_to_caller() -> None:
     pair = ComparisonPair("a", "b")
     stale = plan_comparison(
-        ("a", "b"), ComparisonPreset.AB_DIFF, pair,
-        cached_valid=False, stale=True,
+        ("a", "b"),
+        ComparisonPreset.AB_DIFF,
+        pair,
+        cached_valid=False,
+        stale=True,
     )
     valid = plan_comparison(
-        ("a", "b"), ComparisonPreset.AB_DIFF, pair, cached_valid=True, stale=True,
+        ("a", "b"),
+        ComparisonPreset.AB_DIFF,
+        pair,
+        cached_valid=True,
+        stale=True,
     )
     assert stale.difference_state == "stale"
     assert not stale.show_difference
