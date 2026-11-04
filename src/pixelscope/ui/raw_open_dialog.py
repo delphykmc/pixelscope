@@ -347,7 +347,10 @@ class RawOpenDialog(QDialog):
         body_layout.addSpacing(2)
         body_layout.addLayout(self.json_actions_layout)
         self.profile_library_controls = ProfileLibraryControls(
-            "raw", self.profile, self.set_profile, parent=self  # type: ignore[arg-type]
+            "raw",
+            self.profile,
+            self.set_profile,
+            parent=self,  # type: ignore[arg-type]
         )
         body_layout.addWidget(self.profile_library_controls)
         body_layout.addWidget(self.dont_show_json_profiles)
@@ -881,23 +884,15 @@ class RawOpenDialog(QDialog):
             if storage == "unpacked":
                 storage += f" / {profile.container_dtype}"
             alignment = (
-                f" / {profile.bit_alignment} aligned"
-                if profile.bit_alignment is not None
-                else ""
+                f" / {profile.bit_alignment} aligned" if profile.bit_alignment is not None else ""
             )
-            byte_order = (
-                f" / {profile.endianness} endian" if profile.endianness is not None else ""
-            )
+            byte_order = f" / {profile.endianness} endian" if profile.endianness is not None else ""
             packed_order = (
                 f" / {profile.packed_bit_order} bit order"
                 if profile.packed_bit_order is not None
                 else ""
             )
-            cfa = (
-                f" / {profile.bayer_pattern}"
-                if profile.channel_layout == "BAYER"
-                else ""
-            )
+            cfa = f" / {profile.bayer_pattern}" if profile.channel_layout == "BAYER" else ""
             self.native_interpretation_summary.setText(
                 f"Source: {source} | Origin: {origin} | Profile: {profile.name}\n"
                 f"Native: {profile.width}×{profile.height} / "
