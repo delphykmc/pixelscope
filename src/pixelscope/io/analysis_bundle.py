@@ -15,8 +15,9 @@ import os
 import tempfile
 import zipfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.review_analysis import (
@@ -29,6 +30,74 @@ MAX_BUNDLE_BYTES = 32 * 1024 * 1024
 MAX_ENTRIES = 16
 BUNDLE_KIND = "pixelscope-analysis-bundle"
 SCHEMA_VERSION = 1
+FEATURE_ORDER = ("statistics", "histogram", "line", "difference")
+AVAILABILITY_STATES = frozenset((
+    "captured", "pending", "stale", "mismatched", "cancelled", "uncomputed"
+))
+
+
+@dataclass(frozen=True)
+class AnalysisFeatureAvailabilityV1:
+    """User-visible state of all four analysis producers at bundle capture."""
+
+    feature: str
+    state: Literal["captured", "pending", "stale", "mismatched", "cancelled", "uncomputed"]
+
+    def __post_init__(self) -> None:
+        if self.feature not in FEATURE_ORDER or self.state not in AVAILABILITY_STATES:
+            raise ValueError("unknown analysis feature availability")
+
+
+def _availability_records(
+    snapshots: tuple[AnalysisSnapshotV1, ...],
+    availability: tuple[AnalysisFeatureAvailabilityV1, ...] | None,
+) -> list[dict[str, str]]:
+    features = [s.token.feature for s in snapshots]
+    if len(set(features)) != len(features):
+        raise ValueError("only one snapshot per feature may be exported")
+    captured = set(features)
+    if availability is None:
+        availability = tuple(
+            AnalysisFeatureAvailabilityV1(
+                feature, "captured" if feature in captured else "uncomputed"
+            )
+            for feature in FEATURE_ORDER
+        )
+    if len(availability) != len(FEATURE_ORDER) or {
+        x.feature for x in availability
+    } != set(FEATURE_ORDER):
+        raise ValueError("bundle must enumerate all four producer states")
+    statuses = {x.feature: x.state for x in availability}
+    if {feature for feature, state in statuses.items() if state == "captured"} != captured:
+        raise ValueError("availability must match the exact captured features")
+    return [
+        {"feature": feature, "state": statuses[feature]} for feature in FEATURE_ORDER
+    ]
+
+
+def _validated_availability(payload: object, snapshots: object) -> list[dict[str, str]]:
+    if not isinstance(payload, list) or not isinstance(snapshots, list):
+        raise ValueError("invalid availability data")
+    typed: list[AnalysisFeatureAvailabilityV1] = []
+    for row in payload:
+        if type(row) is not dict or set(row) != {"feature", "state"}:
+            raise ValueError("invalid feature availability record")
+        if type(row["feature"]) is not str or type(row["state"]) is not str:
+            raise ValueError("invalid availability string")
+        typed.append(AnalysisFeatureAvailabilityV1(row["feature"], row["state"]))
+    snapshots_features = [item.get("feature") for item in snapshots if isinstance(item, dict)]
+    if len(snapshots_features) != len(snapshots):
+        raise ValueError("invalid snapshot feature list")
+    if len(set(snapshots_features)) != len(snapshots_features):
+        raise ValueError("duplicate analysis feature")
+    if len(typed) != len(FEATURE_ORDER) or {x.feature for x in typed} != set(FEATURE_ORDER):
+        raise ValueError("incomplete availability record")
+    normalized = [{"feature": feature, "state": next(
+        x.state for x in typed if x.feature == feature
+    )} for feature in FEATURE_ORDER]
+    if {row["feature"] for row in normalized if row["state"] == "captured"} != set(snapshots_features):
+        raise ValueError("availability disagrees with contained snapshots")
+    return normalized
 
 
 def _json_bytes(data: object) -> bytes:
@@ -67,7 +136,10 @@ def _safe_entry(name: str) -> bool:
                 and not any(p in ("", ".", "..") for p in parts))
 
 
-def _payloads(snapshots: tuple[AnalysisSnapshotV1, ...]) -> dict[str, bytes]:
+def _payloads(
+    snapshots: tuple[AnalysisSnapshotV1, ...],
+    availability: list[dict[str, str]],
+) -> dict[str, bytes]:
     if not 1 <= len(snapshots) <= 4:
         raise ValueError("bundle requires 1–4 frozen analysis snapshots")
     contexts = [parse_analysis_context(serialize_analysis_context(s)) for s in snapshots]
@@ -77,6 +149,7 @@ def _payloads(snapshots: tuple[AnalysisSnapshotV1, ...]) -> dict[str, bytes]:
         "kind": "pixelscope-analysis-context-bundle",
         "schema_version": 1,
         "snapshots": contexts,
+        "availability": availability,
     }
     measurements_root = {
         "kind": "pixelscope-analysis-measurements",
@@ -101,6 +174,7 @@ def write_analysis_bundle(
     *,
     cancelled: Callable[[], bool] | None = None,
     expected_existing: tuple[int, int, int] | None = None,
+    availability: tuple[AnalysisFeatureAvailabilityV1, ...] | None = None,
 ) -> Path:
     """Write and publish one complete bundle; failure leaves old target unchanged.
 
@@ -111,7 +185,8 @@ def write_analysis_bundle(
     destination = Path(path)
     if destination.suffix.casefold() != ".zip":
         raise ValueError("analysis bundle requires a .zip destination")
-    entries = _payloads(snapshots)
+    availability_records = _availability_records(snapshots, availability)
+    entries = _payloads(snapshots, availability_records)
     if len(entries) + 1 > MAX_ENTRIES or any(
         not _safe_entry(name) for name in entries
     ):
@@ -126,6 +201,7 @@ def write_analysis_bundle(
         "source_names_included": False,
         "user_text_included": False,
         "snapshot_count": len(snapshots),
+        "availability": availability_records,
         "entries": [
             {"path": name, "size": len(content),
              "sha256": hashlib.sha256(content).hexdigest()}
@@ -200,7 +276,7 @@ def verify_analysis_bundle(path: Path) -> dict[str, Any]:
         manifest = json.loads(archive.read("manifest.json"))
         if type(manifest) is not dict or set(manifest) != {
             "kind", "schema_version", "redaction_policy", "source_names_included",
-            "user_text_included", "snapshot_count", "entries",
+            "user_text_included", "snapshot_count", "availability", "entries",
         } or manifest["kind"] != BUNDLE_KIND or type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION:
             raise ValueError("unsupported ZIP manifest")
         if manifest["redaction_policy"] != "portable-default" or manifest["source_names_included"] is not False or manifest["user_text_included"] is not False:
@@ -223,10 +299,15 @@ def verify_analysis_bundle(path: Path) -> dict[str, Any]:
         if declared != set(names) - {"manifest.json"}:
             raise ValueError("unmanifested ZIP content")
         context = json.loads(archive.read("data/context.json"))
-        if type(context) is not dict or set(context) != {"kind", "schema_version", "snapshots"} or context["kind"] != "pixelscope-analysis-context-bundle" or type(context["schema_version"]) is not int or context["schema_version"] != 1:
+        if type(context) is not dict or set(context) != {
+            "kind", "schema_version", "snapshots", "availability"
+        } or context["kind"] != "pixelscope-analysis-context-bundle" or type(context["schema_version"]) is not int or context["schema_version"] != 1:
             raise ValueError("invalid context container")
         if type(context["snapshots"]) is not list or not 1 <= len(context["snapshots"]) <= 4 or manifest["snapshot_count"] != len(context["snapshots"]):
             raise ValueError("invalid snapshot count")
         for item in context["snapshots"]:
             parse_analysis_context(_json_bytes(item))
+        validated = _validated_availability(context["availability"], context["snapshots"])
+        if validated != manifest["availability"]:
+            raise ValueError("ZIP manifest/context availability mismatch")
         return manifest
