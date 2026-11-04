@@ -18,9 +18,7 @@ from typing import Any
 from uuid import UUID
 
 REVIEW_VIEW_STATE_VERSION = 1
-SUPPORTED_LAYOUTS = frozenset(
-    {"Auto", "Single", "Focus + 2", "Grid 2x2", "Grid 3x2"}
-)
+SUPPORTED_LAYOUTS = frozenset({"Auto", "Single", "Focus + 2", "Grid 2x2", "Grid 3x2"})
 SUPPORTED_PRESENTATIONS = frozenset(
     {"originals", "difference", "difference_focus", "single", "channel_split"}
 )
@@ -88,9 +86,7 @@ class ReviewViewportV1:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ReviewViewportV1:
-        if not isinstance(value, Mapping) or set(value) != {
-            "center_ref_xy", "physical_scale"
-        }:
+        if not isinstance(value, Mapping) or set(value) != {"center_ref_xy", "physical_scale"}:
             raise ValueError("invalid review viewport fields")
         return cls(value["center_ref_xy"], value["physical_scale"])
 
@@ -202,7 +198,8 @@ class ReviewViewStateV1:
             },
             "per_source": {
                 key: self.per_source[key].to_dict()
-                for key in self.page_source_keys if key in self.per_source
+                for key in self.page_source_keys
+                if key in self.per_source
             },
             "visible_bounds_ref": (
                 list(self.visible_bounds_ref) if self.visible_bounds_ref is not None else None
@@ -214,11 +211,20 @@ class ReviewViewStateV1:
         if not isinstance(value, Mapping):
             raise ValueError("review view state must be a mapping")
         required = {
-            "schema_version", "reference_source_key", "page_source_keys",
-            "active_source_key", "primary_source_key", "layout_kind",
-            "presentation_mode", "sync_enabled", "center_ref_xy",
-            "physical_scale", "reference_shape", "source_shapes_ref",
-            "per_source", "visible_bounds_ref",
+            "schema_version",
+            "reference_source_key",
+            "page_source_keys",
+            "active_source_key",
+            "primary_source_key",
+            "layout_kind",
+            "presentation_mode",
+            "sync_enabled",
+            "center_ref_xy",
+            "physical_scale",
+            "reference_shape",
+            "source_shapes_ref",
+            "per_source",
+            "visible_bounds_ref",
         }
         if set(value) != required:
             raise ValueError("invalid ReviewViewState fields")
@@ -241,8 +247,7 @@ class ReviewViewStateV1:
             reference_shape=value["reference_shape"],
             source_shapes_ref=value["source_shapes_ref"],
             per_source={
-                key: ReviewViewportV1.from_dict(item)
-                for key, item in raw_per_source.items()
+                key: ReviewViewportV1.from_dict(item) for key, item in raw_per_source.items()
             },
             visible_bounds_ref=value["visible_bounds_ref"],
             schema_version=value["schema_version"],
