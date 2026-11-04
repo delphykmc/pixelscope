@@ -25,7 +25,9 @@ def make_state(*, count: int = 2, sync: bool = True) -> review_view_state.Review
         reference_shape=(64, 96),
         source_shapes_ref={key: (64, 96) for key in keys},
         per_source=(
-            {} if sync else {
+            {}
+            if sync
+            else {
                 key: review_view_state.ReviewViewportV1((20.5 + i, 30.5 + i), 1.0 + i)
                 for i, key in enumerate(keys)
             }
