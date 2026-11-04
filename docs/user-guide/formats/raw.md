@@ -18,6 +18,28 @@ When compatible metadata exists, PixelScope resolves the interpretation before a
 
 An `.imgprops` file can provide dimensions, sensor bit width, Bayer/Gray image type, Bayer pattern, and pedestal information. Missing byte-layout information is not guessed from unrelated fields; compatible defaults follow the current RAW contract.
 
+## Reusing input profiles
+
+The RAW dialog now provides **Recent input profiles** and **Favorite input profiles**.
+Choose a recent entry to reapply the same validated storage interpretation, including an
+explicit row stride and data offset. Use **Add favorite** to save the current form with a
+recognizable label; select, rename, or remove favorites in the same section. To import an
+external PixelScope JSON profile as a favorite, first use **Load Profile…**, then choose
+**Add favorite**. The existing JSON Load/Save features remain independent.
+
+Recent profiles are recorded only when the dialog is confirmed. Renaming a favorite does
+not alter byte-layout identity. The local QSettings library stores profile metadata and
+user-supplied labels, **not the original source file path or image bytes**. Use your app's
+input profile library reset rather than deleting the source files if a stored entry is
+unwanted. The RAW size result may report **trailing bytes ignored**; this differs from
+native YUV's strict size policy. A matching byte count does not prove a correct packing,
+CFA pattern, or endian choice.
+
+`InputProfiles/library_v1` is a version-1 local-only settings
+key. Unknown future versions are not overwritten; the library remains read-only until
+explicitly reset. A source is not re-registered or decoded merely by selecting a saved
+profile in this dialog.
+
 ## RAW profile fields
 
 - **Width / Height**: decoded pixel dimensions.
