@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING, Literal, Mapping
 
+from shiboken6 import isValid
+
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
     ReviewViewStateV1,
@@ -70,6 +72,8 @@ def _viewport(viewer: ImageViewer) -> ReviewViewportV1 | None:
 
 
 def _ready(view: MultiCompareView) -> str | None:
+    if not isValid(view):
+        return "owner-deleted"
     if view._review_restore_closed:
         return "owner-closed"
     if view._setting_documents or view._layout_refit_active or not view.isVisible():
@@ -77,6 +81,8 @@ def _ready(view: MultiCompareView) -> str | None:
     if not view.occupied_viewers:
         return "no-presented-sources"
     for viewer in view.occupied_viewers:
+        if not isValid(viewer):
+            return "viewer-deleted"
         document = viewer.document
         if document is None:
             return "missing-presented-source"
@@ -202,7 +208,7 @@ def restore_review_view_state(
     foreground/display/layout notifications. User input must call
     view.cancel_review_restore(). This routine never schedules a late mutation.
     """
-    if view._review_restore_closed or view._review_restore_pending_epoch != epoch:
+    if not isValid(view) or view._review_restore_closed or view._review_restore_pending_epoch != epoch:
         return ReviewRestoreResult("interrupted", epoch, "epoch-revoked-or-owner-closed")
     if view._review_restore_applied_epoch == epoch:
         return ReviewRestoreResult("interrupted", epoch, "epoch-already-applied")
@@ -228,7 +234,9 @@ def restore_review_view_state(
     reason = _ready(view)
     if reason is not None:
         status: Literal["pending", "unavailable"] = (
-            "unavailable" if reason in {"owner-closed", "source-load-failed"} else "pending"
+            "unavailable"
+            if reason in {"owner-closed", "owner-deleted", "viewer-deleted", "source-load-failed"}
+            else "pending"
         )
         return ReviewRestoreResult(status, epoch, reason)
     # Map *document object* to its canonical key. Matching a tile ordinal or a
