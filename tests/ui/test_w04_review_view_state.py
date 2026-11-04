@@ -149,7 +149,7 @@ def test_restore_fails_closed_without_modifying_view(
     elif failure == "generation":
         bindings[keys[1]] = VerifiedViewSource(docs[1], docs[1].generation + 1, True)
     elif failure == "bounds":
-        state = replace(state, source_shapes_ref={keys[0]: (128, 192), keys[1]: (1, 1)})
+        state = replace(state, source_shapes_ref={keys[0]: (128, 192), keys[1]: (128, 193)})
     elif failure == "replaced":
         other = ImageDocument.from_array(np.zeros((128, 192, 3), dtype=np.uint8), "replace.png")
         other.document_id = docs[1].document_id  # same transient ID is NOT same source
