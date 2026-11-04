@@ -717,6 +717,18 @@ class ComparisonPresetController(QObject):
             preserve_view=True,
             slot_by_id=slot_by_id,
         )
+        if plan.pair is not None:
+            for viewer in view.occupied_viewers:
+                document = viewer.document
+                if document is None or document.channel_layout == "DIFFERENCE":
+                    continue
+                slot = slot_by_id.get(document.document_id, 0)
+                pair_role = (
+                    "A" if document.document_id == plan.pair.reference_id
+                    else "B" if document.document_id == plan.pair.target_id
+                    else ""
+                )
+                viewer.set_tile_context(slot, f"{pair_role}{slot}" if pair_role else "")
         if primary_id not in {document.document_id for document in visible}:
             # The fallback layout anchor is NOT semantic Primary. Do not draw
             # a misleading Primary highlight on a different runtime source.
