@@ -373,9 +373,7 @@ class BatchProfileApprovalDialog(QDialog):
         self.details = QPlainTextEdit(self)
         self.details.setReadOnly(True)
         self.details.setPlainText(
-            ("\n\n" + "-" * 72 + "\n\n").join(
-                candidate_disclosure(item) for item in candidates
-            )
+            ("\n\n" + "-" * 72 + "\n\n").join(candidate_disclosure(item) for item in candidates)
         )
         root.addWidget(self.details)
         buttons = QHBoxLayout()
