@@ -172,9 +172,7 @@ class WorkspacePresetController(QObject):
             selector.addItem(preset.value, preset.value)
         selector.setFixedHeight(TOKENS.control_height)
         selector.setMinimumWidth(0)
-        selector.setMaximumWidth(max(
-            110, selector.fontMetrics().horizontalAdvance("Analyze") + 42
-        ))
+        selector.setMaximumWidth(max(110, selector.fontMetrics().horizontalAdvance("Analyze") + 42))
         row.addWidget(selector)
         if original_first is None:
             toolbar.addWidget(group)
@@ -278,8 +276,11 @@ class WorkspacePresetController(QObject):
         main = getattr(window, "main_splitter", None)
         sidebar = getattr(window, "sidebar_splitter", None)
         dock = getattr(window, "bottom_dock", None)
-        if not (isinstance(main, QSplitter) and isinstance(sidebar, QSplitter)
-                and isinstance(dock, QDockWidget)):
+        if not (
+            isinstance(main, QSplitter)
+            and isinstance(sidebar, QSplitter)
+            and isinstance(dock, QDockWidget)
+        ):
             return False
         if not window.restoreState(dock_state):
             return False
@@ -303,8 +304,11 @@ class WorkspacePresetController(QObject):
         main = getattr(window, "main_splitter", None)
         sidebar = getattr(window, "sidebar_splitter", None)
         dock = getattr(window, "bottom_dock", None)
-        if not (isinstance(main, QSplitter) and isinstance(sidebar, QSplitter)
-                and isinstance(dock, QDockWidget)):
+        if not (
+            isinstance(main, QSplitter)
+            and isinstance(sidebar, QSplitter)
+            and isinstance(dock, QDockWidget)
+        ):
             return
         # A new or corrupted preset must have a deterministic dock topology,
         # regardless of the previous preset's floating/maximized Plots state.
@@ -329,7 +333,8 @@ class WorkspacePresetController(QObject):
         dock.setVisible(plots)
         if plots and not dock.isFloating():
             window.resizeDocks(
-                [dock], [max(180, round(window.height() * 0.29))],
+                [dock],
+                [max(180, round(window.height() * 0.29))],
                 Qt.Orientation.Vertical,
             )
 
@@ -349,7 +354,9 @@ class WorkspacePresetController(QObject):
             dock = getattr(self.window, "bottom_dock", None)
             if watched is dock:
                 if event.type() in (
-                    QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange
+                    QEvent.Type.Move,
+                    QEvent.Type.Resize,
+                    QEvent.Type.WindowStateChange,
                 ):
                     self._layout_changed()
                 if event.type() == QEvent.Type.Show:
