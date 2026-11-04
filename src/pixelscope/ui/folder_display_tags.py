@@ -10,6 +10,11 @@ from typing import Any, cast
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog
 
+from pixelscope.core.source_presentation import (
+    SourceLabelInput,
+    normalized_label_key,
+    resolve_display_aliases,
+)
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
@@ -26,10 +31,19 @@ class FolderDisplayTagController:
         self._original_update_document_item = OwnerCallback(window._update_document_item)
         self._original_register_input = OwnerCallback(window._register_input)
         self._original_add_document = OwnerCallback(window.add_document)
+        self._original_remove_documents = OwnerCallback(window._remove_document_ids)
+        self._source_groups: dict[str, set[str]] = {}
+        self._group_by_source: dict[str, str] = {}
+        self._folder_by_source: dict[str, tuple[Path, str]] = {}
+        self._pending_alias_groups: set[str] = set()
         self._bulk_registration_depth = 0
         self._pending_folder_rows: dict[str, Path] = {}
         self._install_document_hooks()
         self._install_context_menu_hook()
+        self._install_tile_tag_actions()
+        # The files-tree signal was connected to the original MainWindow slot
+        # before this controller was installed; observe completed removals too.
+        window.document_list.remove_requested.connect(self._removed_from_tree)
         self._refresh_existing_documents()
 
     @property
@@ -95,12 +109,187 @@ class FolderDisplayTagController:
         return cast(str | None, record.canonical_folder_key)
 
     def _apply_document_tag(self, document: Any, *, folder_key: str | None = None) -> None:
-        source_path = getattr(document, "source_path", None)
-        if not isinstance(source_path, Path):
+        """Set the inexpensive initial label before catalog registration."""
+        path = getattr(document, "source_path", None)
+        if not isinstance(path, Path):
             return
-        key = folder_key or self._registration_folder_key(source_path)
-        tag = self.tag_for_folder(source_path.parent, folder_key=key)
-        document.display_name = f"[{tag}] {source_path.name}" if tag else source_path.name
+        key = self._source_folder_key(document, folder_key=folder_key)
+        tag = self.tag_for_folder(path.parent, folder_key=key)
+        document.display_name = f"[{tag}] {path.name}" if tag else path.name
+
+    def _source_folder_key(self, document: Any, *, folder_key: str | None = None) -> str:
+        """Retain worker-canonicalized identity for later presentation refreshes."""
+        path = document.source_path
+        key = folder_key or self._registration_folder_key(path)
+        cached = self._folder_by_source.get(document.document_id)
+        if key is None:
+            key = cached[1] if cached is not None and cached[0] == path.parent else None
+        if key is None:
+            key = self._folder_key(path.parent)
+        self._folder_by_source[document.document_id] = (path.parent, key)
+        return key
+
+    def _remember_source(self, document: Any) -> str | None:
+        path = getattr(document, "source_path", None)
+        if not isinstance(path, Path):
+            return None
+        self._source_folder_key(document)
+        source_id = document.document_id
+        group = normalized_label_key(path.name)
+        previous = self._group_by_source.get(source_id)
+        if previous is not None and previous != group:
+            self._source_groups.get(previous, set()).discard(source_id)
+        self._group_by_source[source_id] = group
+        self._source_groups.setdefault(group, set()).add(source_id)
+        return group
+
+    def _refresh_alias_groups(self, groups: set[str]) -> set[str]:
+        """Only change presentation; no document registration or worker requests."""
+        if self._bulk_registration_depth:
+            self._pending_alias_groups.update(groups)
+            return set()
+        changed: set[str] = set()
+        for group in groups:
+            documents = [
+                self.window.documents[source_id]
+                for source_id in sorted(self._source_groups.get(group, ()))
+                if source_id in self.window.documents
+            ]
+            inputs = [
+                SourceLabelInput(
+                    source_key=document.document_id,
+                    source_path=document.source_path,
+                    fallback_name=document.display_name,
+                    display_tag=self.tag_for_folder(
+                        document.source_path.parent,
+                        folder_key=self._source_folder_key(document),
+                    ),
+                )
+                for document in documents
+                if isinstance(document.source_path, Path)
+            ]
+            labels = resolve_display_aliases(inputs)
+            for document in documents:
+                label = labels.get(document.document_id)
+                if label is not None and document.display_name != label.text:
+                    document.display_name = label.text
+                    self._original_update_document_item(document)
+                    changed.add(document.document_id)
+        return changed
+
+    def _forget_removed_sources(self) -> set[str]:
+        removed = set(self._group_by_source).difference(self.window.documents)
+        changed_groups: set[str] = set()
+        for source_id in removed:
+            self._folder_by_source.pop(source_id, None)
+            group = self._group_by_source.pop(source_id)
+            self._source_groups[group].discard(source_id)
+            if not self._source_groups[group]:
+                del self._source_groups[group]
+            changed_groups.add(group)
+        return changed_groups
+
+    def _removed_from_tree(self, _selected_ids: object) -> None:
+        changed = self._refresh_alias_groups(self._forget_removed_sources())
+        if changed:
+            self._refresh_presentation()
+
+    def _install_tile_tag_actions(self) -> None:
+        viewers = (self.window.viewer, *self.window.multi_compare_view.viewers)
+        for viewer in viewers:
+            viewer.header.edit_tag_requested.connect(self._prompt_for_tag)
+
+    def _refresh_presentation(self) -> None:
+        """Refresh labels only; never re-enter selection/load/Calculate paths."""
+        window = self.window
+        difference = window._difference_document
+        if difference is not None and window._difference_source_ids is not None:
+            pair = window.difference_panel.selected_documents()
+            if pair is not None and {doc.document_id for doc in pair} == set(
+                window._difference_source_ids
+            ):
+                difference.display_name = window.difference_panel._title()
+
+        # Channel split documents are transient derived presentations, not
+        # registered sources. Update their origin annotation in place without
+        # regenerating arrays or changing derived document identities.
+        def refresh_derived(document: Any) -> None:
+            source_id, marker, channel = document.document_id.partition(":split:")
+            if not marker:
+                return
+            origin = window.documents.get(source_id)
+            if origin is not None:
+                document.display_name = f"{origin.display_name} · {channel}"
+
+        for derived in window._channel_view_cache.values():
+            for document in derived:
+                refresh_derived(document)
+        viewers = (window.viewer, *window.multi_compare_view.viewers)
+        for viewer in viewers:
+            document = viewer.presented_document
+            if document is None:
+                continue
+            refresh_derived(document)
+            viewer.set_header(viewer.header.text())
+
+        active = window.documents.get(window._active_document_id)
+        if active is None:
+            active = next(
+                (
+                    viewer.presented_document
+                    for viewer in viewers
+                    if viewer.presented_document is not None
+                    and viewer.presented_document.document_id == window._active_document_id
+                ),
+                None,
+            )
+        if active is not None:
+            shape = active.shape
+            resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
+            file_format = (active.source_path or Path(active.display_name)).suffix.upper().lstrip(
+                "."
+            ) or active.channel_layout
+            window.structured_status.set_active_document(
+                active.display_name,
+                f"{resolution} · {file_format} · {active.bit_depth}-bit",
+            )
+
+        if window.viewer.presented_document is not None:
+            displayed_id = window.viewer.presented_document.document_id
+            window._set_single_navigation(
+                "difference" if window.viewer.presented_document is difference else displayed_id
+            )
+
+        analysis = window.comparison_analysis_panel
+        if analysis.last_results and analysis._histogram_specs:
+            analysis._render(analysis.last_results, analysis._histogram_specs)
+        line = window.line_profile_panel
+        # Refresh text in place: rebuilding the selector can change its
+        # reference lock/priority, while emitting index changes can re-render.
+        selector = line.reference_selector
+        previously_blocked = selector.blockSignals(True)
+        try:
+            documents_by_id = {document.document_id: document for document in line._documents}
+            for index in range(selector.count()):
+                document = documents_by_id.get(selector.itemData(index))
+                if document is not None:
+                    selector.setItemText(index, f"{index + 1} · {line._document_label(document)}")
+        finally:
+            selector.blockSignals(previously_blocked)
+        if line.last_results:
+            line._render(line.last_results)
+
+        # Never call DifferencePanel.set_documents(): it owns a generation-keyed
+        # cache, worker state and the explicit Calculate contract.
+        for selector in (window.difference_panel.a_selector, window.difference_panel.b_selector):
+            previously_blocked = selector.blockSignals(True)
+            try:
+                for index in range(selector.count()):
+                    document = window.documents.get(selector.itemData(index))
+                    if document is not None:
+                        selector.setItemText(index, document.display_name)
+            finally:
+                selector.blockSignals(previously_blocked)
 
     @contextmanager
     def bulk_registration(self) -> Iterator[None]:
@@ -115,8 +304,12 @@ class FolderDisplayTagController:
             if outermost:
                 pending = tuple(self._pending_folder_rows.items())
                 self._pending_folder_rows.clear()
+                changed = self._refresh_alias_groups(set(self._pending_alias_groups))
+                self._pending_alias_groups.clear()
                 for folder_key, folder in pending:
                     self._refresh_folder_row(folder, folder_key=folder_key)
+                if changed.intersection(self.window._selection_order):
+                    self._refresh_presentation()
 
     def _queue_folder_row_refresh(self, folder: Path, folder_key: str | None) -> None:
         key = folder_key or self._folder_key(folder)
@@ -128,6 +321,9 @@ class FolderDisplayTagController:
     def _install_document_hooks(self) -> None:
         def update_document_item(document: Any, *, folder_key: str | None = None) -> None:
             self._apply_document_tag(document, folder_key=folder_key)
+            group = self._remember_source(document)
+            if group is not None:
+                self._refresh_alias_groups({group})
             self._original_update_document_item(document)
 
         def register_input(*args: Any, **kwargs: Any) -> str | None:
@@ -135,12 +331,10 @@ class FolderDisplayTagController:
             if document_id is not None:
                 document = self.window.documents.get(document_id)
                 if document is not None:
-                    source_path = getattr(document, "source_path", None)
-                    folder = source_path.parent if isinstance(source_path, Path) else None
+                    path = getattr(document, "source_path", None)
+                    folder = path.parent if isinstance(path, Path) else None
                     folder_key = (
-                        self._registration_folder_key(source_path)
-                        if isinstance(source_path, Path)
-                        else None
+                        self._registration_folder_key(path) if isinstance(path, Path) else None
                     )
                     update_document_item(document, folder_key=folder_key)
                     if folder is not None:
@@ -150,12 +344,22 @@ class FolderDisplayTagController:
         def add_document(document: Any, *args: Any, **kwargs: Any) -> None:
             self._apply_document_tag(document)
             self._original_add_document(document, *args, **kwargs)
-            source_path = getattr(document, "source_path", None)
-            self._refresh_folder_row(source_path.parent if isinstance(source_path, Path) else None)
+            group = self._remember_source(document)
+            if group is not None:
+                changed = self._refresh_alias_groups({group})
+                if changed.intersection(self.window._selection_order):
+                    self._refresh_presentation()
+            path = getattr(document, "source_path", None)
+            self._refresh_folder_row(path.parent if isinstance(path, Path) else None)
+
+        def remove_documents(selected_ids: object) -> None:
+            self._original_remove_documents(selected_ids)
+            self._removed_from_tree(selected_ids)
 
         self.window._update_document_item = update_document_item
         self.window._register_input = register_input
         self.window.add_document = add_document
+        self.window._remove_document_ids = remove_documents
 
     def _install_context_menu_hook(self) -> None:
         menu_controller = getattr(self.window, "workflow_files_context_menu", None)
@@ -198,8 +402,8 @@ class FolderDisplayTagController:
 
     def _refresh_existing_documents(self) -> None:
         for document in self.window.documents.values():
-            self._apply_document_tag(document)
-            self._original_update_document_item(document)
+            self._remember_source(document)
+        self._refresh_alias_groups(set(self._source_groups))
         for index in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(index)
             raw_path = str(item.data(0, self.tree.PATH_ROLE) or "")
@@ -208,20 +412,16 @@ class FolderDisplayTagController:
 
     def _refresh_folder(self, folder: Path) -> None:
         key = self._folder_key(folder)
+        groups: set[str] = set()
         for document in self.window.documents.values():
-            source_path = getattr(document, "source_path", None)
-            if isinstance(source_path, Path) and self._folder_key(source_path.parent) == key:
-                self._apply_document_tag(document, folder_key=key)
-                self._original_update_document_item(document)
+            path = getattr(document, "source_path", None)
+            if isinstance(path, Path) and self._source_folder_key(document) == key:
+                group = self._remember_source(document)
+                if group is not None:
+                    groups.add(group)
+        self._refresh_alias_groups(groups)
         self._refresh_folder_row(folder, folder_key=key)
-        self.window._render_selection(preserve_view=True)
-
-        analysis = self.window.comparison_analysis_panel
-        if analysis.last_results and analysis._histogram_specs:
-            analysis._render(analysis.last_results, analysis._histogram_specs)
-        line = self.window.line_profile_panel
-        if line.last_results:
-            line._render(line.last_results)
+        self._refresh_presentation()
 
     def _refresh_folder_row(
         self,
