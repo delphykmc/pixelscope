@@ -58,6 +58,10 @@ def _shape(value: object) -> tuple[int, int]:
     return int(value[0]), int(value[1])
 
 
+def _center_in_shape(center: tuple[float, float], shape: tuple[int, int]) -> bool:
+    return 0 <= center[0] < shape[1] and 0 <= center[1] < shape[0]
+
+
 def _scale(value: object) -> float:
     if type(value) not in (float, int):
         raise ValueError("physical scale must be a positive finite number")
@@ -126,9 +130,12 @@ class ReviewViewStateV1:
             key = _source_key(getattr(self, name))
             if key not in page:
                 raise ValueError(f"{name} is not in the comparison page")
-        if self.layout_kind not in SUPPORTED_LAYOUTS:
+        if not isinstance(self.layout_kind, str) or self.layout_kind not in SUPPORTED_LAYOUTS:
             raise ValueError("unknown review layout")
-        if self.presentation_mode not in SUPPORTED_PRESENTATIONS:
+        if (
+            not isinstance(self.presentation_mode, str)
+            or self.presentation_mode not in SUPPORTED_PRESENTATIONS
+        ):
             raise ValueError("unknown review presentation mode")
         if type(self.sync_enabled) is not bool:
             raise ValueError("sync_enabled must be bool")
@@ -147,6 +154,8 @@ class ReviewViewStateV1:
             raise ValueError("source_shapes_ref must cover exactly the comparison page")
         if source_shapes[self.reference_source_key] != shape:
             raise ValueError("reference shape disagrees with source_shapes_ref")
+        if not _center_in_shape(self.center_ref_xy, shape):
+            raise ValueError("reference center falls outside reference coordinates")
         object.__setattr__(self, "source_shapes_ref", MappingProxyType(source_shapes))
         if not isinstance(self.per_source, Mapping):
             raise ValueError("per_source must be a mapping")
@@ -156,6 +165,9 @@ class ReviewViewStateV1:
             if not isinstance(viewport, ReviewViewportV1):
                 raise ValueError("per_source values must be ReviewViewportV1")
             viewports[key] = viewport
+        for key, viewport in viewports.items():
+            if not _center_in_shape(viewport.center_ref_xy, source_shapes.get(key, (0, 0))):
+                raise ValueError("source center falls outside its reference coordinates")
         if self.sync_enabled and viewports:
             raise ValueError("synchronized capture must use the shared viewport")
         if not self.sync_enabled and set(viewports) != set(page):
@@ -214,9 +226,12 @@ class ReviewViewStateV1:
         raw_per_source = value["per_source"]
         if not isinstance(raw_per_source, Mapping):
             raise ValueError("per_source must be a mapping")
+        page = value["page_source_keys"]
+        if not isinstance(page, (tuple, list)):
+            raise ValueError("page_source_keys must be an ordered sequence")
         return cls(
             reference_source_key=value["reference_source_key"],
-            page_source_keys=tuple(value["page_source_keys"]),
+            page_source_keys=tuple(page),
             active_source_key=value["active_source_key"],
             primary_source_key=value["primary_source_key"],
             layout_kind=value["layout_kind"],
