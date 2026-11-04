@@ -117,17 +117,19 @@ class InputProfileLibrary:
             self.error = "Input profile library has invalid collections."
             self.read_only = True
             return
-        for row in recent[:_RECENT_LIMIT]:
+        invalid_recent = False
+        for row in recent:
             entry = self._decode(row)
-            if entry is not None:
+            if entry is None:
+                invalid_recent = True
+            else:
                 self._recent.append(self._encode(entry))
+        self._retain_recent_by_family()
         for row in favorites:
             entry = self._decode(row)
             if entry is not None and entry.id:
                 self._favorites.append(self._encode(entry))
-        if len(self._recent) != min(len(recent), _RECENT_LIMIT) or len(self._favorites) != len(
-            favorites
-        ):
+        if invalid_recent or len(self._favorites) != len(favorites):
             self.error = "Some invalid saved input profiles were ignored."
 
     @staticmethod
@@ -166,6 +168,24 @@ class InputProfileLibrary:
             if (entry := self._decode(row)) is not None and self._kind(entry.profile) == kind
         )
 
+    def _retain_recent_by_family(self) -> None:
+        """Maintain independent MRU caps with backward-compatible v1 settings."""
+        seen: set[str] = set()
+        counts = {"raw": 0, "yuv": 0}
+        retained: list[dict[str, object]] = []
+        for row in self._recent:
+            entry = self._decode(row)
+            if entry is None:
+                continue
+            kind = self._kind(entry.profile)
+            key = interpretation_key(entry.profile)
+            if key in seen or counts[kind] >= _RECENT_LIMIT:
+                continue
+            retained.append(self._encode(entry))
+            seen.add(key)
+            counts[kind] += 1
+        self._recent = retained
+
     def record_recent(self, profile: InputProfile, origin: str = "Manual") -> None:
         key = interpretation_key(profile)
         self._recent = [
@@ -174,7 +194,7 @@ class InputProfileLibrary:
             if (entry := self._decode(row)) is not None and interpretation_key(entry.profile) != key
         ]
         self._recent.insert(0, self._encode(ProfileEntry("", profile.name, profile, origin)))
-        del self._recent[_RECENT_LIMIT:]
+        self._retain_recent_by_family()
         self._save()
 
     def add_favorite(self, profile: InputProfile, label: str) -> str:
@@ -232,6 +252,7 @@ class ProfileLibraryControls(QWidget):
         self._apply_profile = WeakMethod(apply_profile)
         self.library = InputProfileLibrary(settings)
         self.origin = "Manual"
+        self._origin_interpretation_key: str | None = None
 
         self.recent_box = QComboBox()
         self.recent_box.setObjectName("inputProfileRecent")
@@ -304,25 +325,38 @@ class ProfileLibraryControls(QWidget):
         if self.library.error is not None:
             self.setToolTip(self.library.error)
 
+    def mark_origin(self, origin: str, profile: InputProfile) -> None:
+        """Bind provenance to the actual native interpretation, not the label."""
+        self.origin = origin
+        self._origin_interpretation_key = interpretation_key(profile)
+
+    def effective_origin(self, profile: InputProfile) -> str:
+        key = self._origin_interpretation_key
+        if key is not None and key != interpretation_key(profile):
+            return f"Modified from {self.origin}"
+        return self.origin
+
     def _select_recent(self, index: int) -> None:
         if index <= 0:
             return
         entries = self.library.recent(self.kind)
         if index <= len(entries):
-            self.origin = "Recent"
             apply_profile = self._apply_profile()
             if apply_profile is not None:
-                apply_profile(entries[index - 1].profile)
+                profile = entries[index - 1].profile
+                self.mark_origin("Recent", profile)
+                apply_profile(profile)
 
     def _select_favorite(self, index: int) -> None:
         if index <= 0:
             return
         entries = self.library.favorites(self.kind)
         if index <= len(entries):
-            self.origin = "Favorite"
             apply_profile = self._apply_profile()
             if apply_profile is not None:
-                apply_profile(entries[index - 1].profile)
+                profile = entries[index - 1].profile
+                self.mark_origin("Favorite", profile)
+                apply_profile(profile)
 
     def _selected_favorite(self) -> ProfileEntry | None:
         index = self.favorite_box.currentIndex()
