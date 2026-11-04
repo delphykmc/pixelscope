@@ -939,6 +939,10 @@ class DifferencePanel(QWidget):
         presentation_pair: tuple[str, str] | None = None,
     ) -> None:
         key = self._preview_cache_key(difference_map)
+        # A late preview must not use the *new* ROI's metric request to
+        # authorize an older explicit Calculate. Display keys exclude ROI.
+        metric_key_at_request = self._metric_key()
+        metric_request_id = self._difference_request_id
         snapshot = self._build_sampling_snapshot(selected)
         if key == self._preview_key and self._preview_value is not None:
             self.status.setText("Ready")
@@ -977,6 +981,8 @@ class DifferencePanel(QWidget):
                 request_serial=request_serial,
                 expected_key=key,
                 expected_map=difference_map,
+                expected_metric_key=metric_key_at_request,
+                expected_metric_request_id=metric_request_id,
                 title=title,
                 selected=selected,
                 snapshot=snapshot,
@@ -999,6 +1005,8 @@ class DifferencePanel(QWidget):
         request_serial: int,
         expected_key: tuple[object, ...],
         expected_map: CachedDifferenceMap,
+        expected_metric_key: tuple[object, ...] | None,
+        expected_metric_request_id: str,
         title: str,
         selected: NDArray[np.generic],
         snapshot: DifferenceSamplingSnapshot,
@@ -1010,6 +1018,14 @@ class DifferencePanel(QWidget):
             or worker.task_id != task_id
             or request_serial != self._preview_request_serial
             or expected_key != self._preview_cache_key(expected_map)
+            or (
+                publish_result
+                and (
+                    expected_metric_key != self._metric_key()
+                    or expected_metric_key != self._presented_metric_key
+                    or expected_metric_request_id != self._difference_request_id
+                )
+            )
         ):
             return
         if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
