@@ -31,13 +31,40 @@ Resident when required
   Page membership follows Selected ordering and page offset; it is not a second
   independently owned document collection.
 - **Presented** means the current viewer representation. Multi View presents the
-  current page; Single View presents one active image within that page.
+  current page by default; Single View presents one active image within that page.
+  The runtime comparison presets below may present an explicit subset or derived
+  Difference without changing the Current Comparison Page or Analysis Working Set.
 - **Resident** means decoded native source is currently retained under the P2
   source-memory budget because current runtime correctness requires it.
 
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always local `1..6` within the Current Comparison Page. Global
 Selected ordinal and viewer slot are distinct concepts.
+
+### Runtime comparison presets
+
+Workspace retains the ordinary layout. Original 2 presents the exact Reference A
+and Target B; Original 4 presents the first four page sources with A/B roles among
+them. A/B/Diff presents those two originals plus their valid cached Difference;
+Diff Focus presents only that Difference. Missing/pending/stale Difference uses an
+explicit status and original-pair fallback, never an unrelated historical map.
+Changing presets or A/B does not calculate Difference, mutate Selected/Page/Pick,
+or grant frozen numerical-export permission. Explicit Calculate and Drop-to-Prepare
+keep their established authority. A/B, Primary, Active and Picked remain distinct.
+
+MainWindow publishes the actual presented set/capacity/Active/Files state. All six
+page sources remain protected for analysis while some are hidden. T rotates source
+Primary across the page without reassigning A/B; preset A/B positions remain fixed.
+Arrows cycle presented originals in multi-tile presets; page navigation invalidates
+the temporary preset. Explicit layout commands dismiss it. Numeric source commands
+in Single/Diff Focus return to the ordinary source presentation.
+
+Settled source physical zoom/center survive preset transitions with Sync on or off.
+Hidden-source records are runtime weak object bindings verified against generation
+and reference shape, not durable Review source UUIDs or Session state. Pending
+restoration loses authority on user navigation/zoom, Sync change, page/source change
+and close. Failure is explicit and rolls back in-flight geometry. No new Session
+schema, source loading/residency authority or background numeric algorithm is added.
 
 Statistics `1. Region` exposes compact X/Y/W/H entry for the same application-owned
 shared ROI created by Ctrl+drag. Numeric values are reference/full-resolution

@@ -524,9 +524,7 @@ class ComparisonPresetController(QObject):
             self.target_combo,
             self.status_label,
         ) = install_comparison_preset_controls(window)
-        self.preset_combo.currentIndexChanged.connect(
-            self._choose_preset
-        )
+        self.preset_combo.currentIndexChanged.connect(self._choose_preset)  # type: ignore[attr-defined]
         self.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._choose_reference
         )
@@ -542,13 +540,9 @@ class ComparisonPresetController(QObject):
             panel.region,
             panel.mode,
         ):
-            combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-                self._analysis_controls_changed
-            )
+            combo.currentIndexChanged.connect(self._analysis_controls_changed)
         for spin in (panel.gain, panel.threshold):
-            spin.valueChanged.connect(
-                self._analysis_controls_changed
-            )
+            spin.valueChanged.connect(self._analysis_controls_changed)
         panel.map_cached.connect(self._analysis_controls_changed)
         panel.preview_updated.connect(self._analysis_controls_changed)
         self.on_workspace_rendered()
@@ -647,153 +641,45 @@ class ComparisonPresetController(QObject):
             self.window.statusBar().showMessage(message, 4500)
 
     def _project(self) -> None:
-        if self._closed or self._preset is ComparisonPreset.WORKSPACE:
+        if self._closed or self._preset is ComparisonPreset.WORKSPACE or self._syncing:
             return
-        page = self._page()
         plan = self._state(self._preset)
         self._status(plan)
         if not plan.available:
             return
-        by_id = {document.document_id: document for document in page}
-        # An unavailable Diff Focus must evict the old derived tile immediately;
-        # presenting its current A/B originals is a safe, explicit fallback.
-        presentation_ids = (
-            plan.pair.source_ids
-            if self._preset is ComparisonPreset.DIFF_FOCUS
-            and not plan.show_difference
-            and plan.pair is not None
-            else plan.source_ids
-        )
-        visible = [by_id[source_id] for source_id in presentation_ids]
-        if plan.show_difference:
-            panel = self.window.difference_panel
-            cached = panel.cached_display_for_current()
-            if cached is None or self._pair is None:
-                self.status_label.setText("Not calculated")
-                return
-            mapping = panel.mapping_snapshot_for_payload(cached[1], cached[2])
-            self.window._store_difference_document(
-                *cached,
-                mapping,
-                switch_to_result=False,
-            )
-            difference = getattr(self.window, "_difference_document", None)
-            if difference is None or self.window._difference_source_ids != self._pair.source_ids:
-                self.status_label.setText("Stale")
-                return
-            visible = (
-                [difference]
-                if self._preset is ComparisonPreset.DIFF_FOCUS
-                else [*visible, difference]
-            )
-        view = self.window.multi_compare_view
-        saved = view.capture_view_state() if view.occupied_viewers else self._original_view_state
-        capacity = 1 if len(visible) == 1 else 2 if len(visible) == 2 else 4
-        kind = (
-            "Single"
-            if capacity == 1
-            else "Side by Side"
-            if capacity == 2
-            else "Grid 2x2"
-            if len(visible) == 4
-            else "Focus + 2"
-        )
-        # Source-only Primary remains MainWindow-owned; W05 merely presents tiles.
-        primary_id = getattr(self.window, "_focus_document_id", None)
-        focus_id = (
-            primary_id
-            if primary_id in plan.source_ids
-            else (plan.source_ids[0] if plan.source_ids else visible[0].document_id)
-        )
-        view.set_capacity(capacity)
-        view.set_layout_kind(kind, focus_id)
-        slot_by_id = {document.document_id: index + 1 for index, document in enumerate(page)}
-        view.set_documents(
-            visible,
-            0,
-            len(page),
-            self.window._shared_roi,
-            self.window._shared_line,
-            preserve_view=True,
-            slot_by_id=slot_by_id,
-        )
-        if plan.pair is not None:
-            for viewer in view.occupied_viewers:
-                document = viewer.document
-                if document is None or document.channel_layout == "DIFFERENCE":
-                    continue
-                slot = slot_by_id.get(document.document_id, 0)
-                pair_role = (
-                    "A" if document.document_id == plan.pair.reference_id
-                    else "B" if document.document_id == plan.pair.target_id
-                    else ""
-                )
-                viewer.set_tile_context(slot, f"{pair_role}{slot}" if pair_role else "")
-        if primary_id not in {document.document_id for document in visible}:
-            # The fallback layout anchor is NOT semantic Primary. Do not draw
-            # a misleading Primary highlight on a different runtime source.
-            for viewer in view.occupied_viewers:
-                viewer.set_focus(False)
-        self.window.central_stack.setCurrentWidget(view)
-        if saved is not None and view.sync_enabled:
-            view.restore_view_state(saved)
-        elif not view.sync_enabled:
-            # W04's source-verified per-source engine is NOT usable without W09
-            # bindings. Do not invent UUIDs or mark unverified restore as applied.
-            self.status_label.setToolTip(
-                "Sync Off: only currently retained viewer transforms are preserved; "
-                "hidden-source physical zoom restore requires W04 owner handoff."
-            )
-        quick = self._quick_ref()
-        if quick is not None:
-            quick._update_three_view_controls()
-        self.window._update_action_states()
+        self._syncing = True
+        try:
+            self.window.set_comparison_plan(plan)
+        finally:
+            self._syncing = False
+        self._sync_roles()
+
+    def dismiss(self) -> None:
+        self._preset = ComparisonPreset.WORKSPACE
+        self._page_binding = None
+        self._sync_roles()
 
     def _activate(self, preset: ComparisonPreset) -> None:
         if self._closed:
             return
-        if preset is ComparisonPreset.WORKSPACE:
-            if (
-                self._preset is not ComparisonPreset.WORKSPACE
-                and not self.window.multi_compare_view.sync_enabled
-            ):
-                self.window.statusBar().showMessage(
-                    "Enable Sync before returning to Workspace: "
-                    "independent source views cannot be safely reconstructed", 5500
-                )
-                return
-            self._preset = preset
-            self._page_binding = None
-            self.window._render_selection(preserve_view=True)
-            return
-        # MultiCompareView's current live restore shares an anchor range even
-        # when Sync is Off; W04's verified per-source adapter needs W09 bindings.
-        # Reject instead of destroying independent physical centers/zoom.
-        if not self.window.multi_compare_view.sync_enabled:
-            self.window.statusBar().showMessage(
-                "Comparison preset unavailable with Sync Off: per-source restore "
-                "requires the W04 runtime binding handoff",
-                5500,
-            )
-            return
         plan = self._state(preset)
         if not plan.available:
             self._status(plan)
-            self._sync_roles()
             return
-        if self._preset is ComparisonPreset.WORKSPACE:
-            view = self.window.multi_compare_view
-            self._original_view_state = view.capture_view_state() if view.occupied_viewers else None
         if self.window.diff_action.isChecked():
             self.window.diff_action.setChecked(False)
-        if self._pair is not None:
-            lifecycle = self.window.difference_curation_lifecycle
-            if not lifecycle.select_preset_pair(self._pair.source_ids):
-                self.window.statusBar().showMessage(
-                    "Pair is not loaded on the current Comparison Page", 4500
-                )
-                return
-        self.window.multi_compare_view.cancel_review_restore()
+        if preset is ComparisonPreset.WORKSPACE:
+            self.dismiss()
+            self.window.set_comparison_plan(plan)
+            return
+        if (
+            self._pair is not None
+            and not self.window.difference_curation_lifecycle.select_preset_pair(
+                self._pair.source_ids
+            )
+        ):
+            self.window.statusBar().showMessage("Pair is not loaded on the current page", 4500)
+            return
         self._preset = preset
         self._page_binding = self._binding()
         self._project()
@@ -820,25 +706,11 @@ class ComparisonPresetController(QObject):
     ) -> None:
         if self._closed or self._syncing or self._pair is None:
             return
-        if (
-            self._preset is not ComparisonPreset.WORKSPACE
-            and not self.window.multi_compare_view.sync_enabled
-        ):
-            self.window.statusBar().showMessage(
-                "Pair change blocked with Sync Off to preserve independent view state",
-                4500,
-            )
-            self._sync_roles()
-            return
         pair = ComparisonPair(
             reference_id or self._pair.reference_id,
             target_id or self._pair.target_id,
         )
-        allowed = (
-            self._page()[:4]
-            if self._preset is ComparisonPreset.ORIGINAL_4
-            else self._page()
-        )
+        allowed = self._page()[:4] if self._preset is ComparisonPreset.ORIGINAL_4 else self._page()
         if not pair.valid_on([doc.document_id for doc in allowed]):
             self.window.statusBar().showMessage(
                 "Reference and Target must be distinct visible preset sources", 4000
@@ -889,6 +761,7 @@ class ComparisonPresetController(QObject):
         if self._pair is None or selected_ids != self._pair.source_ids:
             self._preset = ComparisonPreset.WORKSPACE
             self._page_binding = None
+            self.window._comparison_plan = None
             self.window._render_selection(preserve_view=True)
             self.window.statusBar().showMessage(
                 "Comparison preset closed: Analysis A/B pair changed", 4000
@@ -898,37 +771,19 @@ class ComparisonPresetController(QObject):
             self._project()
 
     def _external_diff_toggled(self, checked: bool) -> None:
-        # The established toolbar/explicit Calculate contract outranks W05.
         if not self._closed and checked and self._preset is not ComparisonPreset.WORKSPACE:
-            self._preset = ComparisonPreset.WORKSPACE
-            self._page_binding = None
-            self._sync_roles()
+            self.window._comparison_plan = None
+            self.dismiss()
 
     def on_workspace_rendered(self) -> None:
         if self._closed:
             return
-        if self._preset is not ComparisonPreset.WORKSPACE and self._page_binding != self._binding():
+        if self.window._comparison_plan is None:
             self._preset = ComparisonPreset.WORKSPACE
             self._page_binding = None
-            self.window.statusBar().showMessage(
-                "Comparison preset dismissed: page source or generation changed", 4500
-            )
-        if (
-            self._preset is not ComparisonPreset.WORKSPACE
-            and not self.window.multi_compare_view.sync_enabled
-        ):
-            self._preset = ComparisonPreset.WORKSPACE
-            self._page_binding = None
-            self.window.statusBar().showMessage(
-                "Temporary preset dismissed: Sync Off cannot restore hidden-source view state",
-                4500,
-            )
         self._sync_roles()
-        if (
-            self._preset is not ComparisonPreset.WORKSPACE
-            and not self.window.diff_action.isChecked()
-        ):
-            self._project()
+        if self.window._comparison_plan is not None:
+            self._status(self.window._comparison_plan)
 
     def shutdown(self) -> None:
         if self._closed:

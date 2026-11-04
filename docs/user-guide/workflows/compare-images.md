@@ -28,7 +28,9 @@ The **A** and **B** selectors identify the exact runtime sources, even when file
 
 **A/B/Diff** reports *Not Calculated*, *Pending* or *Stale* instead of showing an unrelated Difference. **Diff Focus** does not display an old map when the requested pair has no valid cached result. Use **Difference > Calculate** explicitly to compute it; a Preset change alone never requests calculation. The separate two-file Drop-to-Prepare behavior remains available.
 
-**Workspace** returns to the ordinary presentation. Temporary presets are not saved as Session v1 or durable Review documents. Physical-pan/zoom continuity uses the existing live multi-view state while synchronized. **Preset changes are currently blocked with Sync Off** because the live multi-view restore would overwrite independent source transforms; the W04 verified runtime per-source restore extension is an explicit outstanding handoff. Enable Sync before changing presets. No unverified restore is represented as successful.
+**Workspace** returns to the ordinary presentation. Temporary presets are not saved as Session v1 or durable Review documents. Physical zoom and center are preserved across settled source views, including hidden sources with **Sync Off**. Turning Sync on uses a common source anchor for the presented tiles. A page/source change cancels the temporary preset; zoom/navigation cancels a pending restore so a delayed callback cannot undo your action.
+
+Preset tiles retain the page-local source numbers. The A/B labels remain fixed while **T** changes the separate source Primary. In multi-tile presets, arrows activate the presented originals. Explicit layout choices return to Workspace; number keys in Single/Diff Focus return to an original source. Statistics and other analysis still cover the full Current Comparison Page, including temporarily hidden sources.
 
 ## Quick Compare
 

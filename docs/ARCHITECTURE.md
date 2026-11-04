@@ -78,6 +78,24 @@ bounded comparison working set. The following consume the same page:
 
 Feature-owned explicit Difference pair/reference authority remains separate.
 
+W05 comparison presets submit Qt-free runtime `ComparisonPlan` values through
+`MainWindow.set_comparison_plan`. Canonical `_render_selection` revalidates page
+object/generation membership and Difference pair/channel cache authority, then
+publishes viewer capacity, Presented IDs, Active, Files state and normal residency
+protection. The Quick Compare controller owns A/B controls and intent, not a second
+post-render source registry or viewer projection. Analysis remains the entire page.
+
+`PresetViewState` is an owned, revocable live display helper. It retains weak source
+object references plus generation/reference shape and W01-measured physical center/
+scale, never source arrays, widgets or invented durable source keys. It includes the
+Single viewer, retains hidden source geometry only on the unchanged page, waits for
+layout/display settle, and reuses MultiCompareView's W04 epoch/checkpoint rollback
+boundary. User input and explicit MainWindow zoom commands revoke pending work;
+page/source changes and shutdown prune it. A valid shared Sync anchor applies to
+newly visible tiles too. Sync-Off rebinding never propagates a common ViewBox range.
+This runtime continuity is separate from W04/W09 durable Review verification and
+never authorizes a frozen Difference measurement capture.
+
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always `1..6` within the Current Comparison Page. A global Selected
 ordinal is never used as a viewer slot.

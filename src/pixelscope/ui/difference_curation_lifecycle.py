@@ -101,7 +101,8 @@ class DifferenceCurationLifecycle:
         panel = self.window.difference_panel
         cached_display = panel.cached_display_for_current
         calculate = panel.calculate_difference
-        panel.cached_display_for_current = lambda: None
+        if getattr(self.window, "_comparison_plan", None) is None:
+            panel.cached_display_for_current = lambda: None
         panel.calculate_difference = lambda *args, **kwargs: None
         try:
             self._original_render_selection(preserve_view=preserve_view)
