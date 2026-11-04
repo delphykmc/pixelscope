@@ -186,6 +186,49 @@ class DifferenceCurationLifecycle:
         self.window._update_action_states()
         self._enforce_action_state()
 
+    def select_preset_pair(self, pair: tuple[str, str]) -> bool:
+        """Bind explicit W05 A/B roles without scheduling Difference Calculate.
+
+        DifferencePanel's ordinary selector-change handler may restore metrics by
+        calling calculate_difference(publish_result=False). Preset selection MUST
+        NOT enter that path. Reuse its cancellation/cache/key/validation primitives
+        and leave immutable measurement publication revoked until explicit Calculate.
+        """
+        if self.window.diff_action.isChecked():
+            return False
+        panel = self.window.difference_panel
+        if panel._closing or pair[0] == pair[1]:
+            return False
+        indices = (panel.a_selector.findData(pair[0]), panel.b_selector.findData(pair[1]))
+        if min(indices) < 0:
+            return False
+        selected = panel.selected_documents()
+        if selected is not None and tuple(doc.document_id for doc in selected) == pair:
+            return True
+
+        panel._cancel_worker()
+        panel._cancel_preview_worker()
+        panel._display_timer.stop()
+        panel.a_selector.blockSignals(True)
+        panel.b_selector.blockSignals(True)
+        try:
+            panel.a_selector.setCurrentIndex(indices[0])
+            panel.b_selector.setCurrentIndex(indices[1])
+        finally:
+            panel.a_selector.blockSignals(False)
+            panel.b_selector.blockSignals(False)
+        panel.last_result = None
+        panel._presented_difference_token = None
+        panel._explicit_display_key = None
+        panel._presentation_snapshot_identity = None
+        panel._presentation_snapshot = None
+        panel._clear_metrics()
+        panel._update_channels()
+        panel._validate()
+        # No _restore_or_refresh_metrics(), calculate_difference(), or result_ready.
+        self._enforce_action_state()
+        return True
+
     def keep_picked(self) -> bool:
         kept_ids = self.review_controller.state.kept_selected_ids()
         if not self.review_controller.state.active or not kept_ids:
