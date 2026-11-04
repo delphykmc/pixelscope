@@ -167,6 +167,8 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
         return None
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        if event.isStart():
+            self.user_navigation_started.emit()
         gesture = self.gesture_for_modifiers(event.modifiers())
         if event.button() == Qt.MouseButton.LeftButton and gesture == "roi":
             start = self.mapSceneToView(event.buttonDownScenePos())
@@ -180,12 +182,11 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
             self.line_dragged.emit((start, end), bool(event.isFinish()))
             event.accept()
             return
-        if event.isStart():
-            self.user_navigation_started.emit()
         super().mouseDragEvent(event, axis)
 
     def mouseClickEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton and event.double():
+            self.user_navigation_started.emit()
             self.roi_reset_requested.emit()
             event.accept()
             return
