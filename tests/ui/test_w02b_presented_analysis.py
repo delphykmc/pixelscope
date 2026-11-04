@@ -246,3 +246,97 @@ def test_background_difference_map_does_not_authorize_implicit_capture(
         timeout=15000,
     )  # type: ignore[attr-defined]
     panel.shutdown()
+
+
+def test_line_pending_new_request_never_relabels_old_series(
+    qtbot: object,
+) -> None:
+    """A control redraw during a new request must not publish old line samples."""
+    panel = LineProfilePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    doc = _document("line.png", 19)
+    panel.set_documents_default([doc], LineSelection(1, 1, 7, 1))
+    qtbot.waitUntil(
+        lambda: panel.get_current_line_token() is not None,
+        timeout=10000,
+    )  # type: ignore[attr-defined]
+    previous = panel.last_results
+    old_token = panel.get_presented_line_token()
+    assert old_token is not None
+
+    # Simulate a different request becoming authoritative before its
+    # asynchronous calculate has published any results.
+    panel._selection = LineSelection(2, 4, 9, 4)
+    signature = panel._line_request_signature()
+    panel._begin_line_request(signature)
+    assert panel.last_results is previous
+    panel.y_mode.setCurrentText("Normalized 0–1")
+    assert panel.get_current_line_token() is None
+    assert panel.get_presented_line_token() is None
+    adapter = _FrozenFeatureAdapter(panel, "line")
+    assert capture_presented_analysis(adapter, old_token).snapshot is None
+    panel.shutdown()
+
+
+def test_native_line_series_domain_is_not_display_transform_domain(
+    qtbot: object,
+) -> None:
+    panel = LineProfilePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    baseline, target = _document("ref.png", 128), _document("target.png", 64)
+    panel.set_documents_default(
+        [baseline, target],
+        LineSelection(1, 2, 9, 2),
+        reference_priority_ids=(baseline.document_id,),
+    )
+    qtbot.waitUntil(
+        lambda: panel.get_current_line_token() is not None,
+        timeout=10000,
+    )  # type: ignore[attr-defined]
+    adapter = _FrozenFeatureAdapter(panel, "line")
+
+    panel.y_mode.setCurrentText("Normalized 0–1")
+    normalized_token = adapter.get_presented_analysis_token()
+    normalized = capture_presented_analysis(adapter, normalized_token)
+    assert normalized.snapshot is not None
+    assert normalized.snapshot.token.domain == "native"
+    assert dict(normalized.snapshot.presentation)["y_mode"] == "normalized"
+    assert all(v == 128 for v in normalized.snapshot.series[0].values)
+    assert all(v == 64 for v in normalized.snapshot.series[-1].values)
+
+    panel.y_mode.setCurrentText("Difference from reference")
+    difference_token = adapter.get_presented_analysis_token()
+    difference = capture_presented_analysis(adapter, difference_token)
+    assert difference.snapshot is not None
+    assert difference.snapshot.token.domain == "native"
+    assert dict(difference.snapshot.presentation)["y_mode"] == "reference-delta"
+    assert all(v == 128 for v in difference.snapshot.series[0].values)
+    assert all(v == 64 for v in difference.snapshot.series[-1].values)
+    panel.shutdown()
+
+
+def test_feature_availability_reports_pending_cancelled_and_stale(
+    qtbot: object,
+) -> None:
+    from pixelscope.workers.task_worker import TaskWorker
+
+    panel = LineProfilePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.set_documents_default([_document("a.png", 10)], LineSelection(1, 1, 7, 1))
+    qtbot.waitUntil(
+        lambda: panel.get_current_line_token() is not None,
+        timeout=10000,
+    )  # type: ignore[attr-defined]
+    adapter = _FrozenFeatureAdapter(panel, "line")
+    ready = adapter.get_presented_analysis_token()
+    assert adapter.availability(ready, adapter.get_current_analysis_token()).state == "captured"
+    panel._selection = LineSelection(2, 2, 8, 2)
+    panel._begin_line_request(panel._line_request_signature())
+    pending_worker = TaskWorker(lambda: None)
+    panel._worker = pending_worker
+    assert adapter.availability(None, adapter.get_current_analysis_token()).state == "pending"
+    pending_worker.cancel()
+    assert adapter.availability(None, adapter.get_current_analysis_token()).state == "cancelled"
+    panel._worker = None
+    assert adapter.availability(None, adapter.get_current_analysis_token()).state == "stale"
+    panel.shutdown()
