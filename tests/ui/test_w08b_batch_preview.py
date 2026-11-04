@@ -308,7 +308,7 @@ def test_dialog_discloses_full_native_before_after_and_sidecar_override(
     assert "Sidecar interpretation override: YES" in details
     assert before_fragment in dialog.table.item(0, 1).text()
     assert after_fragment in dialog.table.item(0, 2).text()
-    assert "OVERRIDE APPROVED" in dialog.table.item(0, 3).text()
+    assert "OVERRIDE REQUESTED" in dialog.table.item(0, 3).text()
 
     captured: list[str] = []
 
