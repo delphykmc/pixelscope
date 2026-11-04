@@ -104,6 +104,13 @@ def test_reference_remains_fixed_as_target_changes_in_original_four(
             ref_id,
             target.document_id,
         )
+        badges = {
+            viewer.document.document_id: viewer.header.badge.text()
+            for viewer in window.multi_compare_view.occupied_viewers
+            if viewer.document is not None
+        }
+        assert badges[ref_id] == "A1"
+        assert badges[target.document_id] == f"B{docs.index(target) + 1}"
     assert len(window.selected_documents) == 4
     window.close()
 
