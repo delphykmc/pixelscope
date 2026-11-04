@@ -28,7 +28,7 @@ The **A** and **B** selectors identify the exact runtime sources, even when file
 
 **A/B/Diff** reports *Not Calculated*, *Pending* or *Stale* instead of showing an unrelated Difference. **Diff Focus** does not display an old map when the requested pair has no valid cached result. Use **Difference > Calculate** explicitly to compute it; a Preset change alone never requests calculation. The separate two-file Drop-to-Prepare behavior remains available.
 
-**Workspace** returns to the ordinary presentation. Temporary presets are not saved as Session v1 or durable Review documents. Physical-pan/zoom continuity uses the existing live multi-view state while synchronized; with Sync Off, hidden-source independent zoom reconstruction is not yet guaranteed by the W05 runtime-only adapter. Do not treat a missing or unverified restore as applied.
+**Workspace** returns to the ordinary presentation. Temporary presets are not saved as Session v1 or durable Review documents. Physical-pan/zoom continuity uses the existing live multi-view state while synchronized. **Preset changes are currently blocked with Sync Off** because the live multi-view restore would overwrite independent source transforms; the W04 verified runtime per-source restore extension is an explicit outstanding handoff. Enable Sync before changing presets. No unverified restore is represented as successful.
 
 ## Quick Compare
 
