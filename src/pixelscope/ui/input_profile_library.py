@@ -163,8 +163,7 @@ class InputProfileLibrary:
         return tuple(
             entry
             for row in self._favorites
-            if (entry := self._decode(row)) is not None
-            and self._kind(entry.profile) == kind
+            if (entry := self._decode(row)) is not None and self._kind(entry.profile) == kind
         )
 
     def record_recent(self, profile: InputProfile, origin: str = "Manual") -> None:
