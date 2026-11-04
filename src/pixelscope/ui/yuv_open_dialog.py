@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.io.yuv_profile import YuvProfile
+from pixelscope.ui.input_profile_library import ProfileLibraryControls
 
 
 class YuvOpenDialog(QDialog):
@@ -27,6 +28,8 @@ class YuvOpenDialog(QDialog):
         super().__init__(parent)  # type: ignore[arg-type]
         self.setWindowTitle("YUV profile")
         self._source_path: Path | None = None
+        self._profile_name = "native_yuv"
+        self._file_size_state = "unverified"
 
         self.width_box = QSpinBox()
         self.width_box.setRange(1, 1_000_000)
@@ -50,6 +53,12 @@ class YuvOpenDialog(QDialog):
         form.addRow("Interpretation", self.layout_kind)
         form.addRow("Contract", self.fixed_contract)
         form.addRow("File size", self.file_size)
+        self.interpretation_summary = QLabel()
+        self.interpretation_summary.setWordWrap(True)
+        self.interpretation_summary.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        form.addRow("Native layout", self.interpretation_summary)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -59,6 +68,10 @@ class YuvOpenDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        self.profile_library_controls = ProfileLibraryControls(
+            "yuv", self.profile, self.set_profile, parent=self  # type: ignore[arg-type]
+        )
+        layout.addWidget(self.profile_library_controls)
         layout.addWidget(buttons)
 
         self.width_box.valueChanged.connect(self._update_file_size)  # type: ignore[attr-defined]
@@ -73,6 +86,7 @@ class YuvOpenDialog(QDialog):
         self._update_file_size()
 
     def set_profile(self, profile: YuvProfile) -> None:
+        self._profile_name = profile.name
         self.width_box.setValue(profile.width)
         self.height_box.setValue(profile.height)
         index = self.layout_kind.findData(profile.channel_layout)
@@ -87,7 +101,7 @@ class YuvOpenDialog(QDialog):
         if self.uses_generic_raw():
             raise ValueError("Generic RAW selection does not define a YUV profile")
         return YuvProfile(
-            name=self._source_path.stem if self._source_path is not None else "native_yuv",
+            name=self._profile_name,
             width=self.width_box.value(),
             height=self.height_box.value(),
             channel_layout=self.layout_kind.currentData(),
@@ -111,22 +125,63 @@ class YuvOpenDialog(QDialog):
                     f"Expected {profile.expected_file_size} bytes but file has {actual} bytes.",
                 )
                 return
+        if not self.profile_library_controls.library.read_only:
+            self.profile_library_controls.library.record_recent(
+                profile, self.profile_library_controls.origin
+            )
         self.accept()
 
+    @property
+    def file_size_state(self) -> str:
+        return self._file_size_state
+
     def _update_file_size(self) -> None:
+        source = self._source_path.name if self._source_path is not None else "Not selected"
+        origin = self.profile_library_controls.origin
         if self.uses_generic_raw():
+            self._file_size_state = "unverified"
             self.fixed_contract.setText("Use the existing generic RAW profile workflow")
             self.file_size.setText("Expected size —")
+            self.interpretation_summary.setText(
+                f"Source: {source} | Generic RAW requires explicit interpretation."
+            )
             return
         self.fixed_contract.setText("8-bit · UV order · BT.601 Full · tightly packed")
         try:
             profile = self.profile()
-        except (ValidationError, ValueError):
-            self.file_size.setText("Expected size —")
+        except (ValidationError, ValueError) as exc:
+            self._file_size_state = "unsupported"
+            self.file_size.setText(f"Unsupported interpretation: {exc}")
+            self.interpretation_summary.setText(
+                f"Source: {source} | Invalid Native YUV interpretation"
+            )
             return
-        text = f"Expected {profile.expected_file_size:,} bytes"
-        if self._source_path is not None and self._source_path.is_file():
+        expected = profile.expected_file_size
+        self.interpretation_summary.setText(
+            f"Source: {source} | Origin: {origin} | Profile: {profile.name}\n"
+            f"{profile.width}×{profile.height}, {profile.channel_layout}, "
+            "Y-first / interleaved UV, tightly packed uint8; "
+            "Y/U/V values remain native. Size matching cannot verify interpretation."
+        )
+        if self._source_path is None:
+            self._file_size_state = "unverified"
+            self.file_size.setText(f"Expected {expected:,} bytes · actual unverified")
+            return
+        try:
             actual = self._source_path.stat().st_size
-            state = "match" if actual == profile.expected_file_size else f"actual {actual:,}"
-            text += f" · {state}"
-        self.file_size.setText(text)
+        except OSError as exc:
+            self._file_size_state = "unverified"
+            self.file_size.setText(f"Expected {expected:,} bytes · cannot stat file: {exc}")
+            return
+        if actual == expected:
+            self._file_size_state = "match"
+            state = "match"
+        elif actual < expected:
+            self._file_size_state = "truncated"
+            state = f"truncated by {expected - actual:,} bytes (reject)"
+        else:
+            self._file_size_state = "trailing"
+            state = f"{actual - expected:,} trailing bytes (reject for native YUV)"
+        self.file_size.setText(
+            f"Expected {expected:,} bytes · actual {actual:,} bytes · {state}"
+        )
