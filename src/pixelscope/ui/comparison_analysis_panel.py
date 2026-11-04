@@ -576,30 +576,7 @@ class ComparisonAnalysisPanel(QWidget):
         ):
             if document.source is None:
                 raise ValueError("unloaded analysis source")
-            sources.append(
-                AnalysisSourceV1(
-                    source_key=key,
-                    document_id=document.document_id,
-                    generation=document.generation,
-                    native_shape=tuple(int(v) for v in document.shape),
-                    reference_shape=(
-                        int(document.reference_shape[0]),
-                        int(document.reference_shape[1]),
-                    ),
-                    native_dtype=str(document.original_dtype),
-                    channel_layout=document.channel_layout,
-                    effective_bits=document.bit_depth,
-                    profile_signature=self._review_profile_signature(document),
-                    sha256=(
-                        document.encoded_source_sha256
-                        if isinstance(document.encoded_source_sha256, str)
-                        and len(document.encoded_source_sha256) == 64
-                        else None
-                    ),
-                    # A decode-time digest is not a currently verified file revision.
-                    verification="unverified",
-                )
-            )
+            sources.append(snapshot_source(document, key))
             for index, (channel, stats) in enumerate(
                 zip(result.channel_names, result.channel_statistics, strict=True)
             ):
