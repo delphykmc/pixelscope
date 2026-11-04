@@ -125,9 +125,9 @@ class InputProfileLibrary:
             entry = self._decode(row)
             if entry is not None and entry.id:
                 self._favorites.append(self._encode(entry))
-        if len(self._recent) != min(len(recent), _RECENT_LIMIT) or len(
-            self._favorites
-        ) != len(favorites):
+        if len(self._recent) != min(len(recent), _RECENT_LIMIT) or len(self._favorites) != len(
+            favorites
+        ):
             self.error = "Some invalid saved input profiles were ignored."
 
     @staticmethod
@@ -156,8 +156,7 @@ class InputProfileLibrary:
         return tuple(
             entry
             for row in self._recent
-            if (entry := self._decode(row)) is not None
-            and self._kind(entry.profile) == kind
+            if (entry := self._decode(row)) is not None and self._kind(entry.profile) == kind
         )
 
     def favorites(self, kind: str) -> tuple[ProfileEntry, ...]:
@@ -173,8 +172,7 @@ class InputProfileLibrary:
         self._recent = [
             row
             for row in self._recent
-            if (entry := self._decode(row)) is not None
-            and interpretation_key(entry.profile) != key
+            if (entry := self._decode(row)) is not None and interpretation_key(entry.profile) != key
         ]
         self._recent.insert(0, self._encode(ProfileEntry("", profile.name, profile, origin)))
         del self._recent[_RECENT_LIMIT:]
@@ -184,9 +182,7 @@ class InputProfileLibrary:
         if not label.strip():
             raise ValueError("Favorite name must not be empty")
         uid = uuid4().hex
-        self._favorites.append(
-            self._encode(ProfileEntry(uid, label.strip(), profile, "Favorite"))
-        )
+        self._favorites.append(self._encode(ProfileEntry(uid, label.strip(), profile, "Favorite")))
         self._save()
         return uid
 
@@ -260,9 +256,9 @@ class ProfileLibraryControls(QWidget):
 
         self.recent_box.currentIndexChanged.connect(self._select_recent)  # type: ignore[attr-defined]
         self.favorite_box.currentIndexChanged.connect(self._select_favorite)  # type: ignore[attr-defined]
-        self.add_button.clicked.connect(self._add_favorite)
-        self.rename_button.clicked.connect(self._rename_favorite)
-        self.remove_button.clicked.connect(self._remove_favorite)
+        self.add_button.clicked.connect(self._add_favorite)  # type: ignore[attr-defined]
+        self.rename_button.clicked.connect(self._rename_favorite)  # type: ignore[attr-defined]
+        self.remove_button.clicked.connect(self._remove_favorite)  # type: ignore[attr-defined]
         self.refresh()
 
     def refresh(self) -> None:
@@ -274,9 +270,7 @@ class ProfileLibraryControls(QWidget):
             combo.clear()
             combo.addItem(placeholder, "")
             for entry in entries:
-                description = (
-                    f"{entry.label} · {entry.profile.width}×{entry.profile.height}"
-                )
+                description = f"{entry.label} · {entry.profile.width}×{entry.profile.height}"
                 combo.addItem(description, entry.id or interpretation_key(entry.profile))
             combo.setCurrentIndex(0)
             combo.blockSignals(False)
@@ -335,9 +329,7 @@ class ProfileLibraryControls(QWidget):
         entry = self._selected_favorite()
         if entry is None:
             return
-        label, ok = QInputDialog.getText(
-            self, "Rename favorite", "Display name:", text=entry.label
-        )
+        label, ok = QInputDialog.getText(self, "Rename favorite", "Display name:", text=entry.label)
         if ok and label.strip():
             self.library.rename_favorite(entry.id, label)
             self.refresh()
