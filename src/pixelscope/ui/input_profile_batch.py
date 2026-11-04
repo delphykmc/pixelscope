@@ -312,16 +312,13 @@ class CanonicalBatchProfileAdapter:
         return cast(str, document_id)
 
 
-
 def native_profile_summary(profile: InputProfile | None) -> str:
     """Visible field-for-field comparison, including decode-critical RAW parameters."""
 
     if profile is None:
         return "No native profile available"
     family = "RAW" if isinstance(profile, RawProfile) else "YUV"
-    return family + " | " + " | ".join(
-        f"{name}={value}" for name, value in profile.dict().items()
-    )
+    return family + " | " + " | ".join(f"{name}={value}" for name, value in profile.dict().items())
 
 
 def candidate_disclosure(candidate: ProfileBatchCandidate) -> str:
@@ -358,9 +355,7 @@ def candidate_disclosure(candidate: ProfileBatchCandidate) -> str:
 class BatchProfileApprovalDialog(QDialog):
     """Every eligible file's previous and proposed interpretation is visible."""
 
-    def __init__(
-        self, candidates: tuple[ProfileBatchCandidate, ...], parent: QWidget
-    ) -> None:
+    def __init__(self, candidates: tuple[ProfileBatchCandidate, ...], parent: QWidget) -> None:
         super().__init__(parent)
         if not candidates or not all(candidate.eligible for candidate in candidates):
             raise ValueError("Approval requires a nonempty eligible candidate list")
@@ -572,11 +567,7 @@ class InputProfileBatchDialog(QDialog):
                 if item.document_id is None
                 else native_profile_summary(item.previous_profile)
             )
-            sidecar = (
-                str(item.sidecar)
-                if item.sidecar is not None
-                else "None"
-            )
+            sidecar = str(item.sidecar) if item.sidecar is not None else "None"
             if item.sidecar_override:
                 sidecar += " — OVERRIDE REQUESTED (no write)"
             elif item.sidecar is not None:
