@@ -20,7 +20,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core.comparison_presets import (
+    ComparisonPair,
+    ComparisonPlan,
+    ComparisonPreset,
+    plan_comparison,
+)
 from pixelscope.io.path_discovery import discover_image_inputs
+from pixelscope.ui.presentation_controls import install_comparison_preset_controls
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
@@ -59,6 +66,7 @@ class QuickCompareController(QObject):
         self._install_three_view_geometry()
         self._install_render_hook()
         self._install_input_filter()
+        self.comparison_presets = ComparisonPresetController(window, self)
 
     @property
     def window(self) -> Any:
@@ -155,6 +163,9 @@ class QuickCompareController(QObject):
     def _render_selection(self, preserve_view: bool = False) -> None:
         self._original_render_selection(preserve_view)
         self._update_three_view_controls()
+        presets = getattr(self, "comparison_presets", None)
+        if isinstance(presets, ComparisonPresetController):
+            presets.on_workspace_rendered()
 
     def _install_input_filter(self) -> None:
         app = QApplication.instance()
@@ -200,6 +211,7 @@ class QuickCompareController(QObject):
         if watched is self.window and event_type == QEvent.Type.Close:
             self._clear_pending_difference(clear_protected=True)
             self._uninstall_input_filter()
+            self.comparison_presets.shutdown()
 
         # QApplication can route internal Qt objects (for example QWidgetItem) through
         # an application-level filter. Calling QObject.eventFilter() with those Python
@@ -486,6 +498,306 @@ class QuickCompareController(QObject):
         )
         self.three_view_group.setVisible(visible)
         self._sync_three_view_buttons(self._effective_three_view_variant())
+
+
+
+class ComparisonPresetController(QObject):
+    """W05 runtime-only presentation overlay; Files/Page and Analysis stay canonical.
+
+    Installed through the existing Quick Compare composition entrypoint; no
+    MainWindow, Session, registration controller, or W04 viewer hook is replaced.
+    """
+
+    def __init__(self, window: Any, quick_compare: QuickCompareController) -> None:
+        super().__init__(window)
+        self._window_ref = weakref.ref(window)
+        self._quick_ref = weakref.ref(quick_compare)
+        self._closed = False
+        self._syncing = False
+        self._preset = ComparisonPreset.WORKSPACE
+        self._pair: ComparisonPair | None = None
+        self._page_binding: tuple[tuple[str, int, int], ...] | None = None
+        self._original_view_state: Any = None
+        (
+            self.group,
+            self.preset_combo,
+            self.reference_combo,
+            self.target_combo,
+            self.status_label,
+        ) = install_comparison_preset_controls(window)
+        self.preset_combo.currentIndexChanged.connect(self._choose_preset)
+        self.reference_combo.currentIndexChanged.connect(self._choose_reference)
+        self.target_combo.currentIndexChanged.connect(self._choose_target)
+        window.diff_action.toggled.connect(self._external_diff_toggled)
+        self.on_workspace_rendered()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Comparison preset window was destroyed")
+        return window
+
+    @property
+    def preset(self) -> ComparisonPreset:
+        return self._preset
+
+    @property
+    def pair(self) -> ComparisonPair | None:
+        return self._pair
+
+    def _page(self) -> list[Any]:
+        return self.window.current_comparison_documents()
+
+    def _binding(self) -> tuple[tuple[str, int, int], ...]:
+        return tuple(
+            (document.document_id, id(document), document.generation)
+            for document in self._page()
+        )
+
+    def _sync_roles(self) -> None:
+        """Aliases change; data roles remain exact ImageDocument IDs."""
+        page = self._page()
+        ids = [document.document_id for document in page]
+        self._syncing = True
+        try:
+            if self._pair is None or not self._pair.valid_on(ids):
+                self._pair = ComparisonPair(ids[0], ids[1]) if len(ids) >= 2 else None
+            for combo, selected in (
+                (self.reference_combo, self._pair.reference_id if self._pair else None),
+                (self.target_combo, self._pair.target_id if self._pair else None),
+            ):
+                combo.blockSignals(True)
+                combo.clear()
+                for index, document in enumerate(page):
+                    combo.addItem(f"{index + 1}: {document.display_name}", document.document_id)
+                combo.setCurrentIndex(combo.findData(selected))
+                combo.setEnabled(len(page) >= 2)
+                combo.blockSignals(False)
+            self.preset_combo.blockSignals(True)
+            self.preset_combo.setCurrentIndex(self.preset_combo.findData(self._preset.value))
+            self.preset_combo.blockSignals(False)
+        finally:
+            self._syncing = False
+
+    def _state(self, preset: ComparisonPreset) -> ComparisonPlan:
+        page = self._page()
+        ids = [document.document_id for document in page]
+        panel = self.window.difference_panel
+        selected = panel.selected_documents()
+        selected_ids = (
+            tuple(document.document_id for document in selected) if selected else ()
+        )
+        matching = self._pair is not None and selected_ids == self._pair.source_ids
+        cached = bool(matching and panel.has_cached_map())
+        pending = bool(
+            matching
+            and panel._worker is not None
+            and panel._worker_key is not None
+            and panel._worker_key[0] == panel._cache_key()
+        )
+        old_pair = getattr(self.window, "_difference_source_ids", None)
+        stale = bool(matching and not cached and old_pair == selected_ids)
+        return plan_comparison(
+            ids, preset, self._pair, cached_valid=cached,
+            pending=pending, stale=stale,
+        )
+
+    def _status(self, plan: ComparisonPlan) -> None:
+        message = plan.explanation
+        if not message and plan.show_difference:
+            message = "Cached valid Difference"
+        elif not message and plan.pair is not None:
+            message = "Reference A / Target B (not Primary or Active)"
+        self.status_label.setText(
+            "Cached" if plan.show_difference else plan.difference_state.replace("-", " ").title()
+            if plan.preset in (ComparisonPreset.AB_DIFF, ComparisonPreset.DIFF_FOCUS)
+            else ""
+        )
+        self.status_label.setToolTip(message)
+        if message and (not plan.available or plan.difference_state in ("pending", "stale", "not-calculated")):
+            self.window.statusBar().showMessage(message, 4500)
+
+    def _project(self) -> None:
+        if self._closed or self._preset is ComparisonPreset.WORKSPACE:
+            return
+        page = self._page()
+        plan = self._state(self._preset)
+        self._status(plan)
+        if not plan.available:
+            return
+        if self._preset is ComparisonPreset.DIFF_FOCUS and not plan.show_difference:
+            # Keep the previous original canvas rather than display an old Diff.
+            return
+        by_id = {document.document_id: document for document in page}
+        visible = [by_id[source_id] for source_id in plan.source_ids]
+        if plan.show_difference:
+            panel = self.window.difference_panel
+            cached = panel.cached_display_for_current()
+            if cached is None or self._pair is None:
+                self.status_label.setText("Not calculated")
+                return
+            mapping = panel.mapping_snapshot_for_payload(cached[1], cached[2])
+            self.window._store_difference_document(
+                *cached, mapping, switch_to_result=False,
+            )
+            difference = getattr(self.window, "_difference_document", None)
+            if (
+                difference is None
+                or self.window._difference_source_ids != self._pair.source_ids
+            ):
+                self.status_label.setText("Stale")
+                return
+            visible = [difference] if self._preset is ComparisonPreset.DIFF_FOCUS else [
+                *visible, difference
+            ]
+        view = self.window.multi_compare_view
+        saved = view.capture_view_state() if view.occupied_viewers else self._original_view_state
+        capacity = 1 if len(visible) == 1 else 2 if len(visible) == 2 else 4
+        kind = (
+            "Single" if capacity == 1 else "Side by Side" if capacity == 2
+            else "Grid 2x2" if len(visible) == 4 else "Focus + 2"
+        )
+        # Source-only Primary remains MainWindow-owned; W05 merely presents tiles.
+        primary_id = getattr(self.window, "_focus_document_id", None)
+        focus_id = primary_id if primary_id in plan.source_ids else (
+            plan.source_ids[0] if plan.source_ids else visible[0].document_id
+        )
+        view.set_capacity(capacity)
+        view.set_layout_kind(kind, focus_id)
+        slot_by_id = {document.document_id: index + 1 for index, document in enumerate(page)}
+        view.set_documents(
+            visible, 0, len(page), self.window._shared_roi, self.window._shared_line,
+            preserve_view=True, slot_by_id=slot_by_id,
+        )
+        self.window.central_stack.setCurrentWidget(view)
+        if saved is not None and view.sync_enabled:
+            view.restore_view_state(saved)
+        elif not view.sync_enabled:
+            # W04's source-verified per-source engine is NOT usable without W09
+            # bindings. Do not invent UUIDs or mark unverified restore as applied.
+            self.status_label.setToolTip(
+                "Sync Off: only currently retained viewer transforms are preserved; "
+                "hidden-source physical zoom restore requires W04 owner handoff."
+            )
+        quick = self._quick_ref()
+        if quick is not None:
+            quick._update_three_view_controls()
+        self.window._update_action_states()
+
+    def _activate(self, preset: ComparisonPreset) -> None:
+        if self._closed:
+            return
+        if preset is ComparisonPreset.WORKSPACE:
+            self._preset = preset
+            self._page_binding = None
+            self.window._render_selection(preserve_view=True)
+            return
+        plan = self._state(preset)
+        if not plan.available:
+            self._status(plan)
+            self._sync_roles()
+            return
+        if self._preset is ComparisonPreset.WORKSPACE:
+            view = self.window.multi_compare_view
+            self._original_view_state = (
+                view.capture_view_state() if view.occupied_viewers else None
+            )
+        if self.window.diff_action.isChecked():
+            self.window.diff_action.setChecked(False)
+        if self._pair is not None:
+            lifecycle = self.window.difference_curation_lifecycle
+            if not lifecycle.select_preset_pair(self._pair.source_ids):
+                self.window.statusBar().showMessage(
+                    "Pair is not loaded on the current Comparison Page", 4500
+                )
+                return
+        self.window.multi_compare_view.cancel_review_restore()
+        self._preset = preset
+        self._page_binding = self._binding()
+        self._project()
+
+    def set_preset(self, preset: ComparisonPreset) -> None:
+        """Typed explicit entrypoint; also used by the command-row combobox."""
+        if not isinstance(preset, ComparisonPreset):
+            raise ValueError("unknown Comparison Preset")
+        self._activate(preset)
+        self._sync_roles()
+
+    def _choose_preset(self, _index: int) -> None:
+        if self._syncing:
+            return
+        value = self.preset_combo.currentData()
+        try:
+            preset = ComparisonPreset(str(value))
+        except ValueError:
+            return
+        self.set_preset(preset)
+
+    def _change_pair(self, *, reference_id: str | None = None, target_id: str | None = None) -> None:
+        if self._closed or self._syncing or self._pair is None:
+            return
+        pair = ComparisonPair(
+            reference_id or self._pair.reference_id,
+            target_id or self._pair.target_id,
+        )
+        if not pair.valid_on([doc.document_id for doc in self._page()]):
+            self.window.statusBar().showMessage("Reference and Target must be distinct page sources", 4000)
+            self._sync_roles()
+            return
+        if self.window.diff_action.isChecked():
+            self.window.diff_action.setChecked(False)
+        lifecycle = self.window.difference_curation_lifecycle
+        if not lifecycle.select_preset_pair(pair.source_ids):
+            self.window.statusBar().showMessage("Pair is not loaded", 4000)
+            self._sync_roles()
+            return
+        self._pair = pair
+        self._sync_roles()
+        if self._preset is not ComparisonPreset.WORKSPACE:
+            self._project()
+
+    def _choose_reference(self, _index: int) -> None:
+        reference_id = self.reference_combo.currentData()
+        if reference_id is not None:
+            self._change_pair(reference_id=str(reference_id))
+
+    def _choose_target(self, _index: int) -> None:
+        target_id = self.target_combo.currentData()
+        if target_id is not None:
+            self._change_pair(target_id=str(target_id))
+
+    def _external_diff_toggled(self, checked: bool) -> None:
+        # The established toolbar/explicit Calculate contract outranks W05.
+        if not self._closed and checked and self._preset is not ComparisonPreset.WORKSPACE:
+            self._preset = ComparisonPreset.WORKSPACE
+            self._page_binding = None
+            self._sync_roles()
+
+    def on_workspace_rendered(self) -> None:
+        if self._closed:
+            return
+        if (
+            self._preset is not ComparisonPreset.WORKSPACE
+            and self._page_binding != self._binding()
+        ):
+            self._preset = ComparisonPreset.WORKSPACE
+            self._page_binding = None
+            self.window.statusBar().showMessage(
+                "Comparison preset dismissed: page source or generation changed", 4500
+            )
+        self._sync_roles()
+        if self._preset is not ComparisonPreset.WORKSPACE and not self.window.diff_action.isChecked():
+            self._project()
+
+    def shutdown(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        # Children are owned by the MainWindow; no background work belongs to W05.
+        self._page_binding = None
+        self._original_view_state = None
+
 
 
 def install_quick_compare_workflow(window: Any) -> QuickCompareController:
