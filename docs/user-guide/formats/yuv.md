@@ -26,6 +26,20 @@ YUV422 requires an even width. YUV420 requires even width and even height. Pixel
 
 A `.yuv` suffix by itself does not force native YUV semantics. Explicit metadata/profile choice owns the interpretation.
 
+## Reusing native YUV profiles
+
+The YUV dialog uses the same Recent/Favorite library as RAW, with separate entries by
+native input family. A favorite saves dimensions and one of the currently supported
+8-bit YUV444/YUV422/YUV420 tightly packed Y+UV interpretations; it cannot enable P010,
+NV12, BT.709, or other currently unsupported formats. The dialog displays the source
+filename, profile provenance, native byte-layout summary, and expected versus actual bytes.
+
+Native YUV requires an **exact** file-size match. Truncated inputs and trailing bytes
+are shown separately and rejected. File-size matching does **not** verify that the actual
+bytes use the selected interpretation. The YUV-to-Generic RAW option still uses the
+existing RAW workflow; neither a filename extension nor a saved favorite silently
+changes native source identity or reloads an already registered source.
+
 ## Analysis semantics
 
 Native YUV retains Y/U/V channel identity for supported analysis. Difference requires the two sources to use matching native YUV layout/subsampling and then exposes Y, U, and V. Mixed YUV subsampling or YUV-versus-non-YUV Difference is unavailable.
