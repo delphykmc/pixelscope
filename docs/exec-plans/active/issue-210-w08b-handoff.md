@@ -8,12 +8,12 @@ This PR does **not** modify W04 viewer/view-state modules or private Enterprise 
 ## Components and typed entry points
 
 - `io.input_profile_batch.preflight_input_profile_batch(paths, profile, *, existing, override_sidecars, override_registered, require_exact_raw_size)`:
-  **read-only** per-source status, required bytes, file revision and previous native interpretation ID. Rejects missing/nonregular, unknown extension, YUV layout/size mismatch, invalid RAW footprint, and silent sidecar/registered overrides. RAW allows documented trailing bytes unless exact-size setting is enabled; native YUV always requires exact bytes.
+  **read-only** per-source status, required bytes, file revision, prior interpretation ID and a deep-copied typed prior native profile snapshot. Rejects missing/nonregular, unknown extension, YUV layout/size mismatch, invalid RAW footprint, and silent sidecar/registered overrides. RAW allows documented trailing bytes unless exact-size setting is enabled; native YUV always requires exact bytes.
 - `ui.input_profile_batch.InputProfileBatchDialog(window, paths, *, require_exact_raw_size)`:
-  chooses **W08a Recent/Favorite** RAW/YUV interpretations; runs bounded-worker Preflight, displays each source/status, requests explicit yes/no confirmation before commitment, reports per-source partial outcomes; offers non-authoritative native preview.
+  chooses **W08a Recent/Favorite** RAW/YUV interpretations; runs bounded-worker Preflight, displays per-file before/after native fields (including endian, bit alignment, packed bit order, CFA phase, black/white and stride), source size, sidecar origin/override, and status. A separate scrollable confirmation dialog shows the complete before/after record for every eligible source before explicit approval. Reports per-source partial outcomes; completed totals are retained and Cancel Pending is disabled after completion; offers non-authoritative native preview.
 - `ui.input_profile_batch.CanonicalBatchProfileAdapter(window)`: typed `existing(paths)` and `commit_one(candidate) -> document_id`. Uses the existing `_register_inputs(..., resolve_raw_profiles=False)` for new sources and `_mark_document_for_reload` plus `_refresh_reopened_selected_documents` for existing sources. Preserves registered/selected/page/primary authorities. New/off-page sources are **not decoded** merely by application.
 - `ui.input_profile_batch.BatchProfileController.preflight(...)` → `preflight_ready(epoch, candidates)` → `approve(epoch, candidates)` → `commit_progress(epoch, outcome)` → `commit_finished(result)`. Cancellation before first committed source does not mutate the workspace. After commit, result is **partial**, not transactional rollback.
-- `ui.native_input_preview.NativeInputPreviewController.request(path, profile, generation)`, `cancel()`, `shutdown()`; `preview_ready(epoch, NativeInputPreview)`, `preview_failed(epoch, reason)`. Uses established `TaskWorker` and application-owned two-thread analysis pool; native decoder and presentation-only 256-pixel crop. The controller invalidates the previous epoch on every request, cancel and shutdown; stale callbacks never publish. Preview arrays are not submitted to native numeric consumers.
+- `ui.native_input_preview.NativeInputPreviewController.request(path, profile, generation)`, `cancel()`, `shutdown()`; `preview_ready(epoch, NativeInputPreview)`, `preview_failed(epoch, reason)`. Uses established `TaskWorker` and application-owned two-thread analysis pool; native decoder and presentation-only 256-pixel crop. The YUV full-native reader is gated at 128 MiB input size so oversized YUV sources cannot trigger unbounded full-read preview memory; applying the profile is still available. The controller invalidates the previous epoch on every request, cancel and shutdown; stale callbacks never publish. Preview arrays are not submitted to native numeric consumers.
 
 ## Orchestrator-only minimal wiring suggestion
 
@@ -38,6 +38,12 @@ def open_batch_profiles(self) -> None:
 
 The owner must select the actual source picker/action and decide whether the command targets `Registered` or `Selected`. The helper is not installed in bootstrap by this branch. If a source was changed externally between preflight and commit, the adapter rejects it and requests a fresh approval. It never modifies source files or JSON/imgprops.
 
+## Review-driven corrections (PR #217)
+
+- P1: per-file **typed old-profile snapshot**, complete field-by-field before/after disclosure and JSON/imgprops override in the preflight table, details panel and mandatory approval dialog. No hash-only comparison.
+- P2: the final batch result persists after successful or interrupted commit; Cancel Pending is disabled after completion and cannot rewrite totals to “no changes made”.
+- Regression: actual `InputProfileBatchDialog` tests cover endian-only, Bayer-pattern-only, sidecar override, and 4-file apply → finish → cancel.
+
 ## Validation gates
 
 New focused tests:
@@ -52,6 +58,6 @@ The owner must additionally run the existing W08a RAW/YUV library/dialog suites,
 ## Boundaries and residual risks
 
 - A file-size match is not proof of endian, CFA, packing or source content identity.
-- Preview uses the existing native YUV reader, which currently loads the full YUV byte payload before cropping. Worker count and published preview size are bounded, but **peak YUV decode memory is not bounded by 256 × 256**.
+- Preview uses the existing native YUV reader for files up to **128 MiB**, still loading the full byte payload before cropping. The cap bounds source-file input size per YUV task, **not** total process RSS to a 256 × 256 crop. With two simultaneous workers the aggregate memory budget still needs Windows native validation. Larger YUV files show Preview Unavailable while remaining eligible for batch application.
 - Preflight and commit recheck size/mtime/device/inode, but those advisory fields cannot detect a same-metadata content rewrite. Additional content fingerprinting is not claimed.
 - Adding a user-facing command and exercising true owner Windows native lifecycle remain integration gates. MainWindow and W04-owned files are deliberately unchanged.
