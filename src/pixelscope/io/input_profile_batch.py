@@ -2,6 +2,8 @@ from __future__ import annotations
 
 """Read-only RAW/YUV batch profile eligibility; no Qt or registration side effects."""
 
+import hashlib
+import json
 import stat
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +13,19 @@ from pixelscope.io.path_discovery import RAW_LIKE_IMAGE_SUFFIXES, raw_profile_si
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import required_file_size
 from pixelscope.io.yuv_profile import YuvProfile
-from pixelscope.ui.input_profile_library import interpretation_key
+
+def interpretation_key(profile: InputProfile) -> str:
+    """Mirror W08a's canonical native interpretation identity without a Qt import."""
+
+    kind = "raw" if isinstance(profile, RawProfile) else "yuv"
+    payload = profile.dict(exclude={"name"})
+    encoded = json.dumps(
+        {"kind": kind, "interpretation": payload},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 InputProfile = RawProfile | YuvProfile
 CandidateStatus = Literal["eligible", "unchanged", "rejected"]
