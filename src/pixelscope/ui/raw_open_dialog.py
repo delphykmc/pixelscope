@@ -510,6 +510,14 @@ class RawOpenDialog(QDialog):
         self._json_option_available = visible
         self.dont_show_json_profiles.setChecked(False)
         self.dont_show_json_profiles.setVisible(visible)
+        if visible:
+            self.profile_library_controls.origin = "Explicit JSON"
+            self._update_interpretation_summary()
+
+    def set_input_origin(self, origin: str) -> None:
+        """Presentation-only sidecar provenance; not part of native profile identity."""
+        self.profile_library_controls.origin = origin
+        self._update_interpretation_summary()
 
     def dont_show_json_profiles_requested(self) -> bool:
         return self._json_option_available and self.dont_show_json_profiles.isChecked()
