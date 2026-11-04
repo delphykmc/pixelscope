@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QSettings
 
 from pixelscope.io.raw_profile import RawProfile
@@ -10,6 +11,8 @@ from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.input_profile_library import InputProfileLibrary, interpretation_key
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _settings(tmp_path: Path) -> QSettings:
@@ -175,6 +178,7 @@ def test_saved_json_snapshot_survives_deleted_external_file(tmp_path: Path) -> N
     library = InputProfileLibrary(_settings(tmp_path))
     imported = RawProfile.load_json(sidecar)
     library.add_favorite(imported, "Safe copy")
+    library.settings.sync()
     sidecar.unlink()
 
     reopened = InputProfileLibrary(_settings(tmp_path))
@@ -189,6 +193,7 @@ def test_same_label_profiles_have_discriminating_selector_signatures(
     library = InputProfileLibrary(_settings(tmp_path))
     library.add_favorite(_raw(stride_bytes=8), "Sensor")
     library.add_favorite(_raw(stride_bytes=10), "Sensor")
+    library.settings.sync()
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     controls = dialog.profile_library_controls
