@@ -189,9 +189,7 @@ def preflight_input_profile_batch(
                 ),
                 sidecar=sidecar,
                 sidecar_override=bool(
-                    sidecar is not None
-                    and override_sidecars
-                    and status == "eligible"
+                    sidecar is not None and override_sidecars and status == "eligible"
                 ),
                 revision=revision,
                 required_size=required,
