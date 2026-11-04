@@ -149,7 +149,8 @@ def test_preview_epoch_generation_close_and_late_callback(
     accepted: list[NativeInputPreview] = []
     preview.preview_ready.connect(lambda _epoch, value: accepted.append(value))
     first = preview.request(path, _raw(), generation=1)
-    second = preview.request(path, _raw(), generation=2)
+    changed_profile = _raw().copy(update={"black_level": 1})
+    second = preview.request(path, changed_profile, generation=2)
     assert second > first
     qtbot.waitUntil(lambda: len(accepted) == 1, timeout=10000)  # type: ignore[attr-defined]
     assert accepted[0].source_generation == 2
@@ -188,3 +189,59 @@ def test_adapter_register_and_reinterpret_preserves_existing_identity(
     assert window.documents[document_id].generation == generation + 1
     assert [item.document_id for item in window.selected_documents] == selected_before
     assert window.documents[document_id].loading_state == "pending"
+
+ 
+
+def test_adapter_reinterpret_offpage_defers_native_decode(tmp_path: Path) -> None:
+    from pixelscope.core.image_document import ImageDocument
+
+    path = _files(tmp_path, 1)[0]
+    profile = _raw()
+    document = ImageDocument.pending_document(path)
+    document_id = document.document_id
+
+    class StubCanonicalWindow:
+        _closing = False
+
+        def __init__(self) -> None:
+            self.documents = {document_id: document}
+            self._document_id_by_path = {str(path): document_id}
+            self._raw_profiles = {document_id: profile}
+            self._raw_profile_prompt_suppressed: set[str] = set()
+            self._current_page: list[ImageDocument] = []
+            self.reloads: list[str] = []
+            self.refresh_calls: list[str] = []
+
+        @staticmethod
+        def _path_key(candidate: Path) -> str:
+            return str(candidate)
+
+        def _mark_document_for_reload(self, target_id: str, _profile: object) -> None:
+            self.reloads.append(target_id)
+            self.documents[target_id].generation += 1
+
+        def current_comparison_documents(self) -> list[ImageDocument]:
+            return self._current_page
+
+        def _refresh_reopened_selected_documents(self, ids: list[str]) -> None:
+            self.refresh_calls.extend(ids)
+
+    owner = StubCanonicalWindow()
+    adapter = CanonicalBatchProfileAdapter(owner)
+    changed = profile.copy(update={"black_level": 2})
+    candidates = preflight_input_profile_batch(
+        (path,), changed, existing=adapter.existing((path,)), override_registered=True
+    )
+    assert candidates[0].eligible
+    assert adapter.commit_one(candidates[0]) == document_id
+    assert owner.reloads == [document_id]
+    assert owner.refresh_calls == []
+    assert owner.documents[document_id].generation == 1
+
+    owner._current_page = [document]
+    newer = profile.copy(update={"black_level": 4})
+    next_candidate = preflight_input_profile_batch(
+        (path,), newer, existing=adapter.existing((path,)), override_registered=True
+    )[0]
+    assert adapter.commit_one(next_candidate) == document_id
+    assert owner.refresh_calls == [document_id]
