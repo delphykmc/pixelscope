@@ -50,6 +50,7 @@ class ReviewRestoreResult:
     status: Literal["applied", "pending", "unavailable", "interrupted"]
     epoch: int
     reason: str | None = None
+    partial_state: bool = False
 
     @property
     def applied(self) -> bool:
@@ -289,32 +290,56 @@ def restore_review_view_state(
     for key, viewer in presented.items():
         if _viewport(viewer) is None:
             return ReviewRestoreResult("pending", epoch, f"geometry-unavailable:{key}")
+    if not view._begin_review_apply(epoch):
+        return ReviewRestoreResult("interrupted", epoch, "checkpoint-unavailable")
     view._review_restoring = True
     prior_sync = view._syncing_range
     view._syncing_range = True
     applied: list[str] = []
+
+    def interrupted(reason: str) -> ReviewRestoreResult:
+        # cancel_review_restore() undoes every changed range/zoom target and
+        # previous sync/active role under the still-owned UI-thread epoch.
+        # On reentrant user input or a newer epoch it has already undone the
+        # checkpoint before handing control to that action. Never cancel the
+        # *new* epoch from this stale stack frame.
+        if view._review_restore_pending_epoch == epoch:
+            view.cancel_review_restore()
+        error = view._review_rollback_error
+        if error is not None:
+            return ReviewRestoreResult(
+                "interrupted",
+                epoch,
+                f"{reason}; rollback-incomplete:{error}; applied={applied}",
+                partial_state=True,
+            )
+        return ReviewRestoreResult("interrupted", epoch, reason)
+
     try:
         view.set_sync_enabled(state.sync_enabled)
         for key in state.page_source_keys:
+            if view._review_restore_pending_epoch != epoch or view._review_restore_closed:
+                return interrupted("epoch-revoked-during-apply")
             target = requested[key]
             result = presented[key].set_physical_zoom(
                 100.0 * target.physical_scale, target.center_ref_xy
             )
+            if view._review_restore_pending_epoch != epoch or view._review_restore_closed:
+                return interrupted("epoch-revoked-during-apply")
             if not result.achieved:
-                view.cancel_review_restore()
-                return ReviewRestoreResult(
-                    "interrupted", epoch, f"physical-zoom-not-achieved:{key};applied={applied}"
-                )
+                return interrupted(f"physical-zoom-not-achieved:{key}")
             applied.append(key)
         if view._review_restore_pending_epoch != epoch or view._review_restore_closed:
-            return ReviewRestoreResult("interrupted", epoch, "epoch-revoked-during-apply")
+            return interrupted("epoch-revoked-during-apply")
         view._activate_viewer(presented[state.active_source_key])
+        if view._review_restore_pending_epoch != epoch or view._review_restore_closed:
+            return interrupted("epoch-revoked-during-active-change")
         view._review_restore_applied_epoch = epoch
         view._review_restore_pending_epoch = None
         return ReviewRestoreResult("applied", epoch)
     except (RuntimeError, ValueError, TypeError) as exc:
-        view.cancel_review_restore()
-        return ReviewRestoreResult("interrupted", epoch, f"apply-exception:{exc};applied={applied}")
+        return interrupted(f"apply-exception:{type(exc).__name__}:{exc}")
     finally:
+        view._finish_review_apply(epoch)
         view._syncing_range = prior_sync
         view._review_restoring = False
