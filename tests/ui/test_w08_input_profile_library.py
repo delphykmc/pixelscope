@@ -97,9 +97,7 @@ def test_independent_family_mru_caps_and_interleaved_persistence(tmp_path: Path)
 
     for index in range(14):
         width = 6 + 2 * index
-        library.record_recent(
-            YuvProfile(width=width, height=4, channel_layout="YUV422")
-        )
+        library.record_recent(YuvProfile(width=width, height=4, channel_layout="YUV422"))
     assert len(library.recent("raw")) == 12
     assert len(library.recent("yuv")) == 12
     assert library.recent("yuv")[0].profile.width == 32
@@ -137,9 +135,7 @@ def test_legacy_v1_global_history_migrates_to_family_caps(tmp_path: Path) -> Non
     migrated = InputProfileLibrary(settings)
     assert len(migrated.recent("raw")) == 12
     assert len(migrated.recent("yuv")) == 1
-    assert interpretation_key(migrated.recent("yuv")[0].profile) == interpretation_key(
-        old_yuv
-    )
+    assert interpretation_key(migrated.recent("yuv")[0].profile) == interpretation_key(old_yuv)
 
 
 def test_yuv_is_separate_family_and_rejects_unsupported_saved_profile(tmp_path: Path) -> None:
@@ -255,9 +251,7 @@ def test_raw_dialog_reuse_preserves_explicit_stride_and_validation(
     assert "Recent" in reopened.native_interpretation_summary.text()
 
 
-def test_raw_provenance_tracks_edits_after_favorite_and_json(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_raw_provenance_tracks_edits_after_favorite_and_json(qtbot: object, tmp_path: Path) -> None:
     library = InputProfileLibrary(_settings(tmp_path))
     library.add_favorite(_raw(), "Original")
     dialog = RawOpenDialog()
@@ -285,9 +279,7 @@ def test_raw_provenance_tracks_edits_after_favorite_and_json(
     assert "Origin: Explicit JSON" in other.native_interpretation_summary.text()
 
 
-def test_raw_recent_origin_becomes_modified_after_edit(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_raw_recent_origin_becomes_modified_after_edit(qtbot: object, tmp_path: Path) -> None:
     library = InputProfileLibrary(_settings(tmp_path))
     library.record_recent(_raw())
     dialog = RawOpenDialog()
@@ -339,6 +331,7 @@ def test_yuv_dialog_strict_size_and_native_summary(qtbot: object, tmp_path: Path
     dialog.set_source_path(path)
     dialog._accept_validated()
     assert dialog.result() == dialog.DialogCode.Accepted
+
 
 def test_yuv_favorite_and_explicit_json_provenance_track_edits(
     qtbot: object, tmp_path: Path
@@ -417,9 +410,7 @@ def test_yuv_rejects_truncated_and_trailing_at_accept_time(
     assert not library.recent("yuv")
 
 
-def test_yuv_profile_only_acceptance_does_not_require_file(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_yuv_profile_only_acceptance_does_not_require_file(qtbot: object, tmp_path: Path) -> None:
     dialog = YuvOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     library = InputProfileLibrary(_settings(tmp_path))
