@@ -29,7 +29,8 @@ A `.yuv` suffix by itself does not force native YUV semantics. Explicit metadata
 ## Reusing native YUV profiles
 
 The YUV dialog uses the same Recent/Favorite library as RAW, with separate entries by
-native input family. A favorite saves dimensions and one of the currently supported
+native input family and independently limited recent histories. Editing a selected
+Favorite/Recent/JSON profile changes its displayed origin to **Modified from ...**. A favorite saves dimensions and one of the currently supported
 8-bit YUV444/YUV422/YUV420 tightly packed Y+UV interpretations; it cannot enable P010,
 NV12, BT.709, or other currently unsupported formats. The dialog displays the source
 filename, profile provenance, native byte-layout summary, and expected versus actual bytes.
