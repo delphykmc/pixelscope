@@ -556,6 +556,11 @@
     }
   ],
   "shared_source_globs": [
+    "src/pixelscope/core/review_analysis.py",
+    "src/pixelscope/core/review_analysis_native.py",
+    "src/pixelscope/core/review_analysis_sources.py",
+    "src/pixelscope/io/analysis_bundle.py",
+    "src/pixelscope/ui/analysis_export.py",
     "pyproject.toml",
     "requirements/runtime.txt",
     "scripts/capture_ui_review.py",

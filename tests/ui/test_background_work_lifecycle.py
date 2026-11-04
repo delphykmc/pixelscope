@@ -109,6 +109,12 @@ def test_difference_preview_runs_off_gui_thread_and_drops_stale_result(
     assert np.all(emitted[0] == 3)
     assert calls
     assert all(thread_id != main_thread_id for _gain, thread_id in calls)
+    # A display-only cached map has no numerical request or explicit Calculate
+    # provenance. Rendering it must not manufacture export authority.
+    assert panel.last_result is None
+    assert panel.get_current_difference_token() is None
+    assert panel.get_presented_difference_token() is None
+    assert panel._explicit_display_key is None
     panel.shutdown()
 
 

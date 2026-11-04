@@ -3,6 +3,7 @@ from __future__ import annotations
 import weakref
 from contextlib import suppress
 from typing import Any, cast
+from uuid import uuid4
 
 import numpy as np
 import pyqtgraph as pg
@@ -26,6 +27,14 @@ from pixelscope.core.line_profile import (
     selected_bayer_line_profile,
     selected_line_profile,
 )
+from pixelscope.core.review_analysis import (
+    AnalysisMeasurementV1,
+    AnalysisSeriesV1,
+    AnalysisSourceV1,
+    PresentedAnalysisTokenV1,
+    freeze_series_values,
+)
+from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
@@ -42,6 +51,16 @@ class LineProfilePanel(QWidget):
         self._selection: LineSelection | None = None
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
+        # A requested line is not a rendered line until its exact calculation
+        # completed. Keep this separate from the mutable UI request.
+        self._completed_signature: tuple[object, ...] = ()
+        self._token_request_signature: tuple[object, ...] = ()
+        self._analysis_request_id = str(uuid4())
+        self._analysis_request_epoch = 0
+        self._presentation_epoch = 0
+        self._presented_line_token: PresentedAnalysisTokenV1 | None = None
+        self._presented_line_ui: tuple[object, ...] = ()
+        self._analysis_source_keys: dict[str, str] = {}
         self.last_results: tuple[LineProfileResult, ...] = ()
         self._hover_lines: list[pg.InfiniteLine | None] = [None] * 6
         self._hover_texts: list[pg.TextItem | None] = [None] * 6
@@ -187,6 +206,188 @@ class LineProfilePanel(QWidget):
 
         return self._hover_texts[0]
 
+    def set_analysis_source_keys(self, shared: dict[str, str]) -> None:
+        """Share the W09-owned UUID mapping with Statistics and Difference."""
+        self._analysis_source_keys = shared
+        self._presented_line_token = None
+
+    def _line_source_key(self, document_id: str) -> str:
+        return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
+
+    def _begin_line_request(self, signature: tuple[object, ...]) -> None:
+        """Invalidate previously presented samples before starting a new request.
+
+        Both the ordinary and native-YUV delegates enter through this seam.
+        Old curves may remain visible during computation, but never acquire the
+        new line's token or become exportable as its measurements.
+        """
+        if self._worker is not None:
+            self._worker.cancel()
+        self._request_signature = signature
+        self._completed_signature = ()
+        self._presented_line_token = None
+        self._analysis_request_id = str(uuid4())
+        self._analysis_request_epoch += 1
+
+    def _line_request_signature(self) -> tuple[object, ...]:
+        return (
+            tuple(
+                (
+                    doc.document_id,
+                    doc.generation,
+                    doc.channel_layout,
+                    id(doc.yuv_frame)
+                    if doc.yuv_frame is not None
+                    else getattr(doc.raw_profile, "bayer_pattern", None),
+                )
+                for doc in self._documents
+            ),
+            self._selection,
+        )
+
+    def _line_ui_signature(self) -> tuple[object, ...]:
+        return (
+            self.x_mode.currentText(),
+            self.y_mode.currentText(),
+            self.view_mode.currentText(),
+            self._reference_document_id,
+            tuple(
+                sorted((name, button.isChecked()) for name, button in self.channel_buttons.items())
+            ),
+        )
+
+    def _line_token(self, *, during_render: bool = False) -> PresentedAnalysisTokenV1 | None:
+        if (
+            self._plot_resources_disposed
+            or not self.last_results
+            or self._selection is None
+            or not self._documents
+            or len(self.last_results) != len(self._documents)
+            or not self._completed_signature
+            or self._completed_signature != self._request_signature
+            or self._request_signature != self._line_request_signature()
+            or (self._worker is not None and not during_render)
+        ):
+            return None
+        # Series payload is *always native absolute samples*. Screen transforms
+        # such as normalized and reference-delta are presentation only.
+        return PresentedAnalysisTokenV1(
+            feature="line",
+            request_id=self._analysis_request_id,
+            request_epoch=self._analysis_request_epoch + self._presentation_epoch,
+            source_documents=tuple((d.document_id, d.generation) for d in self._documents),
+            source_keys=tuple(self._line_source_key(d.document_id) for d in self._documents),
+            roi_ref=None,
+            channel="All",
+            domain="native",
+            profile_signatures=tuple(native_profile_signature(d) for d in self._documents),
+            difference_cache_key=None,
+        )
+
+    def get_presented_line_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._presented_line_token
+
+    def get_current_line_token(self) -> PresentedAnalysisTokenV1 | None:
+        if self._presented_line_ui != self._line_ui_signature():
+            return None
+        return self._line_token()
+
+    # W00 M1 generic producer protocol; feature-specific names remain available.
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_presented_line_token()
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_current_line_token()
+
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        return self.read_presented_line()
+
+    def read_presented_line(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        if (
+            self.get_current_line_token() is None
+            or self.get_current_line_token() != self.get_presented_line_token()
+        ):
+            raise ValueError("line result is stale")
+        selection = self._selection
+        assert selection is not None and selection.y2 is not None
+        sources = tuple(
+            snapshot_source(doc, self._line_source_key(doc.document_id)) for doc in self._documents
+        )
+        reference = next(
+            (
+                self._line_source_key(doc.document_id)
+                for doc in self._documents
+                if doc.document_id == self._reference_document_id
+            ),
+            "none",
+        )
+        presentation = (
+            ("line_ref", f"{selection.x1}:{selection.y1}:{selection.x2}:{selection.y2}"),
+            (
+                "x_mode",
+                "normalized"
+                if self.x_mode.currentText() == "Normalized distance"
+                else "distance-px",
+            ),
+            (
+                "y_mode",
+                {
+                    "Native value": "native",
+                    "Normalized 0–1": "normalized",
+                    "Difference from reference": "reference-delta",
+                }[self.y_mode.currentText()],
+            ),
+            ("reference_key", reference),
+        )
+        return sources, (), presentation
+
+    def read_presented_series(self) -> tuple[AnalysisSeriesV1, ...]:
+        return self.read_presented_line_series()
+
+    def read_presented_line_series(self) -> tuple[AnalysisSeriesV1, ...]:
+        if self.get_current_line_token() != self.get_presented_line_token():
+            raise ValueError("line request changed")
+        visible = {
+            (image_index, channel)
+            for group in self._profile_series
+            for image_index, channel, _xs, _ys in group
+        }
+        frozen: list[AnalysisSeriesV1] = []
+        for index, (doc, result) in enumerate(zip(self._documents, self.last_results, strict=True)):
+            for positions, values, channel in zip(
+                result.positions, result.values, result.channel_names, strict=True
+            ):
+                if (index, channel) not in visible:
+                    continue
+                values_copy, states = freeze_series_values(values)
+                frozen.append(
+                    AnalysisSeriesV1(
+                        source_key=self._line_source_key(doc.document_id),
+                        channel=channel,
+                        kind="line",
+                        coordinates=tuple(float(x) for x in positions),
+                        values=values_copy,
+                        value_states=states,
+                        sample_count=len(values_copy),
+                        definition_revision="native-line-profile-v1",
+                    )
+                )
+        if not frozen:
+            raise ValueError("no presented line series")
+        return tuple(frozen)
+
     def set_semantics_delegate(self, delegate: Any | None) -> None:
         """Select an optional profile strategy without replacing instance methods."""
 
@@ -263,6 +464,8 @@ class LineProfilePanel(QWidget):
         self._reference_priority_ids = ()
         self._sync_reference_selector()
         self._request_signature = ()
+        self._completed_signature = ()
+        self._presented_line_token = None
         self.last_results = ()
         self._clear_plot()
 
@@ -272,6 +475,8 @@ class LineProfilePanel(QWidget):
         self._worker = None
         self._selection = None
         self._request_signature = ()
+        self._completed_signature = ()
+        self._presented_line_token = None
         self.last_results = ()
         self._clear_plot()
 
@@ -302,9 +507,7 @@ class LineProfilePanel(QWidget):
             ),
             selection,
         )
-        self._request_signature = signature
-        if self._worker is not None:
-            self._worker.cancel()
+        self._begin_line_request(signature)
         sources = [
             (
                 document.source[..., :3]
@@ -335,6 +538,7 @@ class LineProfilePanel(QWidget):
         )
         if len(typed_cached) == len(cached_results):
             self.last_results = typed_cached
+            self._completed_signature = signature
             self._render(typed_cached)
             return
 
@@ -361,8 +565,8 @@ class LineProfilePanel(QWidget):
         self._set_status("Calculating line profile...")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_result(
-                signature, cache_keys, result
+            lambda task_id, _document_id, _generation, result: self._on_result(
+                signature, cache_keys, result, task_id=task_id
             )
         )
         worker.signals.failed.connect(self._on_error)
@@ -375,7 +579,13 @@ class LineProfilePanel(QWidget):
         signature: tuple[object, ...],
         cache_keys: list[tuple[object, ...]],
         result: object,
+        *,
+        task_id: str | None = None,
     ) -> None:
+        if task_id is not None and (
+            self._worker is None or self._worker.task_id != task_id or self._worker.is_cancelled
+        ):
+            return
         if (
             self._plot_resources_disposed
             or signature != self._request_signature
@@ -387,6 +597,7 @@ class LineProfilePanel(QWidget):
         ):
             return
         self.last_results = tuple(result)
+        self._completed_signature = signature
         for document, key, item in zip(self._documents, cache_keys, self.last_results, strict=True):
             document.statistics_cache[key] = item
         self._render(self.last_results)
@@ -607,6 +818,19 @@ class LineProfilePanel(QWidget):
             self._set_status(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
+        # Plot-option changes may rerender *previous* samples while a newer
+        # line request is pending. A render is not a result publication unless
+        # this exact result tuple belongs to the completed request.
+        if (
+            results is self.last_results
+            and self._completed_signature
+            and self._completed_signature == self._request_signature
+        ):
+            self._presentation_epoch += 1
+            self._presented_line_ui = self._line_ui_signature()
+            self._presented_line_token = self._line_token(during_render=True)
+        else:
+            self._presented_line_token = None
 
     @staticmethod
     def _marker_indices(sample_count: int, target_count: int = 18) -> NDArray[np.intp]:
@@ -786,6 +1010,8 @@ class LineProfilePanel(QWidget):
         if self._worker is not None:
             self._worker.cancel()
         self._request_signature = ()
+        self._completed_signature = ()
+        self._presented_line_token = None
         if self._plot_resources_disposed:
             return
         self._plot_resources_disposed = True
