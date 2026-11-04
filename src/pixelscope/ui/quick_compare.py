@@ -535,6 +535,23 @@ class ComparisonPresetController(QObject):
             self._choose_target
         )
         window.diff_action.toggled.connect(self._external_diff_toggled)
+        panel = window.difference_panel
+        for combo in (
+            panel.a_selector,
+            panel.b_selector,
+            panel.channel,
+            panel.region,
+            panel.mode,
+        ):
+            combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+                self._analysis_controls_changed
+            )
+        for spin in (panel.gain, panel.threshold):
+            spin.valueChanged.connect(  # type: ignore[attr-defined]
+                self._analysis_controls_changed
+            )
+        panel.map_cached.connect(self._analysis_controls_changed)
+        panel.preview_updated.connect(self._analysis_controls_changed)
         self.on_workspace_rendered()
 
     @property
@@ -811,6 +828,36 @@ class ComparisonPresetController(QObject):
         target_id = self.target_combo.currentData()
         if target_id is not None:
             self._change_pair(target_id=str(target_id))
+
+    def _analysis_controls_changed(self, *_args: object) -> None:
+        """Reject a stale derived tile when panel pair/channel changes.
+
+        This receiver only projects already-authorized cache contents and
+        never calls DifferencePanel.calculate_difference.
+        """
+        if self._closed or self._syncing:
+            return
+        panel_pair = self.window.difference_panel.selected_documents()
+        selected_ids = (
+            tuple(document.document_id for document in panel_pair)
+            if panel_pair is not None
+            else None
+        )
+        if self._preset is ComparisonPreset.WORKSPACE:
+            if selected_ids is not None:
+                self._pair = ComparisonPair(*selected_ids)
+                self._sync_roles()
+            return
+        if self._pair is None or selected_ids != self._pair.source_ids:
+            self._preset = ComparisonPreset.WORKSPACE
+            self._page_binding = None
+            self.window._render_selection(preserve_view=True)
+            self.window.statusBar().showMessage(
+                "Comparison preset closed: Analysis A/B pair changed", 4000
+            )
+            return
+        if self._preset in (ComparisonPreset.AB_DIFF, ComparisonPreset.DIFF_FOCUS):
+            self._project()
 
     def _external_diff_toggled(self, checked: bool) -> None:
         # The established toolbar/explicit Calculate contract outranks W05.
