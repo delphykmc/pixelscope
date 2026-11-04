@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -161,6 +161,7 @@ class BatchProfileController(QObject):
             self.cancel()
             self._closing = True
 
+    @Slot(str, object, int, object)
     def _on_preflight_ready(
         self, task_id: str, _document_id: object, epoch: int, value: object
     ) -> None:
@@ -177,6 +178,7 @@ class BatchProfileController(QObject):
         self._phase = "ready"
         self.preflight_ready.emit(epoch, value)
 
+    @Slot(str, object, int, object)
     def _on_preflight_failed(
         self, task_id: str, _document_id: object, epoch: int, error: object
     ) -> None:
@@ -185,6 +187,7 @@ class BatchProfileController(QObject):
             self._phase = "idle"
             self.preflight_failed.emit(epoch, str(getattr(error, "message", error)))
 
+    @Slot(str)
     def _on_worker_finished(self, task_id: str) -> None:
         if task_id == self._task_id:
             self._worker = None
