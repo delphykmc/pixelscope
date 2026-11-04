@@ -339,9 +339,8 @@ class DifferencePanel(QWidget):
             or metric_key is None
             or metric_key != self._presented_metric_key
             or self.cached_result_for_current() is None
-            or self._explicit_display_key != (
-                key, metric_key, self.channel.currentText(), self._difference_request_id
-            )
+            or self._explicit_display_key
+            != (key, metric_key, self.channel.currentText(), self._difference_request_id)
         ):
             return None
         expected_preview = (

@@ -384,10 +384,13 @@ def test_difference_explicit_full_roi_background_does_not_renew_permission(
     assert panel.get_current_difference_token() is None
     assert panel.get_presented_difference_token() is None
     assert capture_presented_analysis(adapter, full_token).snapshot is None
-    assert adapter.availability(
-        adapter.get_presented_analysis_token(),
-        adapter.get_current_analysis_token(),
-    ).state == "stale"
+    assert (
+        adapter.availability(
+            adapter.get_presented_analysis_token(),
+            adapter.get_current_analysis_token(),
+        ).state
+        == "stale"
+    )
 
     # The user explicitly authorizes presentation of those exact ROI metrics.
     panel.calculate_difference()
@@ -423,8 +426,7 @@ def test_difference_delayed_explicit_preview_cannot_authorize_new_roi(
     panel.result_ready.connect(lambda *_args: observed.append(True))  # type: ignore[attr-defined]
     panel.calculate_difference()
     qtbot.waitUntil(
-        lambda: panel.get_current_difference_token() is not None
-        and panel._worker is None,
+        lambda: panel.get_current_difference_token() is not None and panel._worker is None,
         timeout=15000,
     )  # type: ignore[attr-defined]
     assert len(observed) == 1

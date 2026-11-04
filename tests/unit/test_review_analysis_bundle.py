@@ -616,16 +616,18 @@ def test_histogram_and_line_wire_reject_missing_or_empty_series(
 def test_nonseries_wire_rejects_nonempty_native_series(feature: str) -> None:
     context = parse_analysis_context(serialize_analysis_context(_snapshot()))
     context["feature"] = feature
-    context["series"] = [{
-        "source_key": context["sources"][0]["source_key"],
-        "channel": "R",
-        "kind": "histogram",
-        "coordinates": [0.0, 1.0],
-        "values": [3],
-        "value_states": ["finite"],
-        "sample_count": 3,
-        "definition_revision": "native-v1",
-    }]
+    context["series"] = [
+        {
+            "source_key": context["sources"][0]["source_key"],
+            "channel": "R",
+            "kind": "histogram",
+            "coordinates": [0.0, 1.0],
+            "values": [3],
+            "value_states": ["finite"],
+            "sample_count": 3,
+            "definition_revision": "native-v1",
+        }
+    ]
     with pytest.raises(ValueError, match="cannot include native series"):
         parse_analysis_context(json.dumps(context).encode("utf-8"))
 
