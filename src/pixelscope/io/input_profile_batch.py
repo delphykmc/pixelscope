@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from pixelscope.io.path_discovery import RAW_LIKE_IMAGE_SUFFIXES, raw_profile_sidecar_for_path
+from pixelscope.io.path_discovery import (
+    RAW_LIKE_IMAGE_SUFFIXES,
+    raw_profile_sidecar_for_path,
+)
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import required_file_size
 from pixelscope.io.yuv_profile import YuvProfile
