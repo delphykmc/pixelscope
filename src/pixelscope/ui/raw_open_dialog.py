@@ -1011,7 +1011,8 @@ class RawOpenDialog(QDialog):
         elif actual > expected:
             self._set_status(
                 "warning",
-                f"{actual - expected:,} trailing bytes will be ignored.",
+                f"{actual - expected:,} trailing bytes will be ignored "
+                f"(byte offsets [{expected:,}, {actual:,})).",
                 QStyle.StandardPixmap.SP_MessageBoxWarning,
             )
             self.ok_button.setEnabled(True)
