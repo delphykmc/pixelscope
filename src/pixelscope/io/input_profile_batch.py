@@ -59,7 +59,9 @@ class ProfileBatchCandidate:
     document_id: str | None
     generation: int | None
     previous_interpretation: str | None
+    previous_profile: InputProfile | None
     sidecar: Path | None
+    sidecar_override: bool
     revision: FileRevision | None
     required_size: int
     status: CandidateStatus
@@ -180,7 +182,13 @@ def preflight_input_profile_batch(
                 document_id=binding.document_id if binding is not None else None,
                 generation=binding.generation if binding is not None else None,
                 previous_interpretation=prior,
+                previous_profile=(
+                    binding.profile.copy(deep=True)
+                    if binding is not None and binding.profile is not None
+                    else None
+                ),
                 sidecar=sidecar,
+                sidecar_override=bool(sidecar is not None and override_sidecars and status == "eligible"),
                 revision=revision,
                 required_size=required,
                 status=status,
