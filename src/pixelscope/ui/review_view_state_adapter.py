@@ -171,11 +171,14 @@ def capture_review_view_state(
                 0.005 * anchor.physical_scale
             ):
                 return ReviewCaptureResult(reason="shared-physical-scale-diverged")
-            if max(
-                abs(viewport.center_ref_xy[axis] - anchor.center_ref_xy[axis])
-                * anchor.physical_scale
-                for axis in (0, 1)
-            ) > 0.5:
+            if (
+                max(
+                    abs(viewport.center_ref_xy[axis] - anchor.center_ref_xy[axis])
+                    * anchor.physical_scale
+                    for axis in (0, 1)
+                )
+                > 0.5
+            ):
                 return ReviewCaptureResult(reason="shared-reference-center-diverged")
     ref_viewer = source_viewers[reference_source_key]
     bounds = ref_viewer.view_box.viewRange()
@@ -194,8 +197,10 @@ def capture_review_view_state(
             source_shapes_ref=shapes,
             per_source={} if view.sync_enabled else viewports,
             visible_bounds_ref=(
-                float(bounds[0][0]), float(bounds[1][0]),
-                float(bounds[0][1]), float(bounds[1][1]),
+                float(bounds[0][0]),
+                float(bounds[1][0]),
+                float(bounds[0][1]),
+                float(bounds[1][1]),
             ),
         )
     except (ValueError, TypeError, OverflowError) as exc:
@@ -249,9 +254,13 @@ def restore_review_view_state(
     if reason is not None:
         status: Literal["pending", "unavailable"] = (
             "unavailable"
-            if reason in {
-                "owner-closed", "owner-deleted", "viewer-deleted",
-                "viewer-closed", "source-load-failed",
+            if reason
+            in {
+                "owner-closed",
+                "owner-deleted",
+                "viewer-deleted",
+                "viewer-closed",
+                "source-load-failed",
             }
             else "pending"
         )
@@ -280,15 +289,15 @@ def restore_review_view_state(
     if set(presented) != set(state.page_source_keys):
         return ReviewRestoreResult("pending", epoch, "page-not-fully-presented")
     primary_document = resolved_sources[state.primary_source_key].document
-    if (
-        len(state.page_source_keys) > 1
-        and view.focus_document_id != primary_document.document_id
-    ):
+    if len(state.page_source_keys) > 1 and view.focus_document_id != primary_document.document_id:
         return ReviewRestoreResult("pending", epoch, "primary-role-not-staged")
     requested = (
-        {key: ReviewViewportV1(state.center_ref_xy, state.physical_scale)
-         for key in state.page_source_keys}
-        if state.sync_enabled else state.per_source
+        {
+            key: ReviewViewportV1(state.center_ref_xy, state.physical_scale)
+            for key in state.page_source_keys
+        }
+        if state.sync_enabled
+        else state.per_source
     )
     # Preflight all transforms without touching the viewport; no implicit
     # clamp or guessed physical scale when the W01 geometry oracle is invalid.
