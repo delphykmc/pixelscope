@@ -157,7 +157,9 @@ class MultiCompareView(QWidget):
                 viewer.begin_layout_refit()
             else:
                 viewer.end_layout_refit()
-        anchor_range = self._current_shared_range() if not requires_refit else None
+        anchor_range = (
+            self._current_shared_range() if not requires_refit and self.sync_enabled else None
+        )
         self._prepare_viewers_for_documents(documents)
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
@@ -230,7 +232,11 @@ class MultiCompareView(QWidget):
             self._activate_viewer(active)
         if anchor_range is not None:
             self._apply_range(anchor_range)
-        elif documents and all(document.preview is not None for document in documents):
+        elif (
+            requires_refit
+            and documents
+            and all(document.preview is not None for document in documents)
+        ):
             self.fit_images()
             self._finish_layout_refit()
         elif not documents or all(

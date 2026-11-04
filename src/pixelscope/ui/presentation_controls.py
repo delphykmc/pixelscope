@@ -766,3 +766,69 @@ def polish_presentation_controls(window: Any) -> None:
     # the new buttons receive the same endpoint state as actions and shortcuts.
     window._comparison_page_controls_state = None
     window._update_comparison_page_controls()
+
+
+def install_comparison_preset_controls(
+    window: Any,
+) -> tuple[QWidget, QComboBox, QComboBox, QComboBox, QLabel]:
+    """Create the W05 source-only comparison controls in the existing command row.
+
+    Callers own the signals and runtime pair state. This presentation-only helper
+    is the W05 -> W06 handoff seam; it neither registers sources nor calculates
+    Difference results.
+    """
+    from pixelscope.core.comparison_presets import ComparisonPreset
+
+    parent = window.presentation_controls
+    layout = window.presentation_controls_layout
+    group = QWidget(parent)
+    group.setObjectName("comparisonPresetControl")
+    row = QHBoxLayout(group)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(TOKENS.spacing_xs)
+
+    preset = QComboBox(group)
+    preset.setObjectName("comparisonPresetCombo")
+    preset.setAccessibleName("Comparison preset")
+    preset.setToolTip("Choose an explicit source comparison layout without changing Files Selected")
+    for choice in ComparisonPreset:
+        preset.addItem(choice.value, choice.value)
+    preset.setMinimumWidth(108)
+    preset.setMaximumWidth(126)
+
+    reference = QComboBox(group)
+    reference.setObjectName("comparisonReferenceCombo")
+    reference.setAccessibleName("Reference A source")
+    reference.setToolTip("Reference A (independent of Primary, Active, and Picked)")
+    reference.setMinimumWidth(70)
+    reference.setMaximumWidth(124)
+    target = QComboBox(group)
+    target.setObjectName("comparisonTargetCombo")
+    target.setAccessibleName("Target B source")
+    target.setToolTip("Target B (pair change does not calculate Difference)")
+    target.setMinimumWidth(70)
+    target.setMaximumWidth(124)
+    status = QLabel("", group)
+    status.setObjectName("comparisonPresetStatus")
+    status.setAccessibleName("Comparison preset Difference status")
+    status.setMaximumWidth(145)
+    status.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    for label_text, combo in (("Preset", preset), ("A", reference), ("B", target)):
+        label = QLabel(label_text, group)
+        row.addWidget(label)
+        row.addWidget(combo)
+    row.addWidget(status)
+    group.setVisible(True)
+
+    insert_at = layout.count()
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item is not None and item.spacerItem() is not None:
+            insert_at = index
+            break
+    layout.insertWidget(insert_at, group)
+    refresh_owner = getattr(window, "_command_row_metric_refresh", None)
+    refresh = getattr(refresh_owner, "refresh", None)
+    if callable(refresh):
+        refresh()
+    return group, preset, reference, target, status
