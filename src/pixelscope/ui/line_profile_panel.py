@@ -51,6 +51,9 @@ class LineProfilePanel(QWidget):
         self._selection: LineSelection | None = None
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
+        # A requested line is not a rendered line until its exact calculation
+        # completed. Keep this separate from the mutable UI request.
+        self._completed_signature: tuple[object, ...] = ()
         self._token_request_signature: tuple[object, ...] = ()
         self._analysis_request_id = str(uuid4())
         self._analysis_request_epoch = 0
@@ -211,6 +214,21 @@ class LineProfilePanel(QWidget):
     def _line_source_key(self, document_id: str) -> str:
         return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
 
+    def _begin_line_request(self, signature: tuple[object, ...]) -> None:
+        """Invalidate previously presented samples before starting a new request.
+
+        Both the ordinary and native-YUV delegates enter through this seam.
+        Old curves may remain visible during computation, but never acquire the
+        new line's token or become exportable as its measurements.
+        """
+        if self._worker is not None:
+            self._worker.cancel()
+        self._request_signature = signature
+        self._completed_signature = ()
+        self._presented_line_token = None
+        self._analysis_request_id = str(uuid4())
+        self._analysis_request_epoch += 1
+
     def _line_request_signature(self) -> tuple[object, ...]:
         return (
             tuple(
@@ -245,15 +263,14 @@ class LineProfilePanel(QWidget):
             or self._selection is None
             or not self._documents
             or len(self.last_results) != len(self._documents)
+            or not self._completed_signature
+            or self._completed_signature != self._request_signature
             or self._request_signature != self._line_request_signature()
             or (self._worker is not None and not during_render)
         ):
             return None
-        domain = {
-            "Native value": "native",
-            "Normalized 0–1": "normalized",
-            "Difference from reference": "reference-delta",
-        }[self.y_mode.currentText()]
+        # Series payload is *always native absolute samples*. Screen transforms
+        # such as normalized and reference-delta are presentation only.
         return PresentedAnalysisTokenV1(
             feature="line",
             request_id=self._analysis_request_id,
@@ -262,7 +279,7 @@ class LineProfilePanel(QWidget):
             source_keys=tuple(self._line_source_key(d.document_id) for d in self._documents),
             roi_ref=None,
             channel="All",
-            domain=domain,
+            domain="native",
             profile_signatures=tuple(native_profile_signature(d) for d in self._documents),
             difference_cache_key=None,
         )
@@ -324,7 +341,14 @@ class LineProfilePanel(QWidget):
                 if self.x_mode.currentText() == "Normalized distance"
                 else "distance-px",
             ),
-            ("y_mode", self.get_presented_line_token().domain),  # type: ignore[union-attr]
+            (
+                "y_mode",
+                {
+                    "Native value": "native",
+                    "Normalized 0–1": "normalized",
+                    "Difference from reference": "reference-delta",
+                }[self.y_mode.currentText()],
+            ),
             ("reference_key", reference),
         )
         return sources, (), presentation
@@ -440,6 +464,7 @@ class LineProfilePanel(QWidget):
         self._reference_priority_ids = ()
         self._sync_reference_selector()
         self._request_signature = ()
+        self._completed_signature = ()
         self._presented_line_token = None
         self.last_results = ()
         self._clear_plot()
@@ -450,6 +475,7 @@ class LineProfilePanel(QWidget):
         self._worker = None
         self._selection = None
         self._request_signature = ()
+        self._completed_signature = ()
         self._presented_line_token = None
         self.last_results = ()
         self._clear_plot()
@@ -481,12 +507,7 @@ class LineProfilePanel(QWidget):
             ),
             selection,
         )
-        self._request_signature = signature
-        self._presented_line_token = None
-        self._analysis_request_id = str(uuid4())
-        self._analysis_request_epoch += 1
-        if self._worker is not None:
-            self._worker.cancel()
+        self._begin_line_request(signature)
         sources = [
             (
                 document.source[..., :3]
@@ -517,6 +538,7 @@ class LineProfilePanel(QWidget):
         )
         if len(typed_cached) == len(cached_results):
             self.last_results = typed_cached
+            self._completed_signature = signature
             self._render(typed_cached)
             return
 
@@ -575,6 +597,7 @@ class LineProfilePanel(QWidget):
         ):
             return
         self.last_results = tuple(result)
+        self._completed_signature = signature
         for document, key, item in zip(self._documents, cache_keys, self.last_results, strict=True):
             document.statistics_cache[key] = item
         self._render(self.last_results)
@@ -795,15 +818,19 @@ class LineProfilePanel(QWidget):
             self._set_status(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
-        # Publish from the native result owning panel, never an exporter-
-        # reconstructed mix of a previous line and current selection.
-        if self._token_request_signature != self._request_signature:
-            self._analysis_request_id = str(uuid4())
-            self._analysis_request_epoch += 1
-            self._token_request_signature = self._request_signature
-        self._presentation_epoch += 1
-        self._presented_line_ui = self._line_ui_signature()
-        self._presented_line_token = self._line_token(during_render=True)
+        # Plot-option changes may rerender *previous* samples while a newer
+        # line request is pending. A render is not a result publication unless
+        # this exact result tuple belongs to the completed request.
+        if (
+            results is self.last_results
+            and self._completed_signature
+            and self._completed_signature == self._request_signature
+        ):
+            self._presentation_epoch += 1
+            self._presented_line_ui = self._line_ui_signature()
+            self._presented_line_token = self._line_token(during_render=True)
+        else:
+            self._presented_line_token = None
 
     @staticmethod
     def _marker_indices(sample_count: int, target_count: int = 18) -> NDArray[np.intp]:
@@ -983,6 +1010,8 @@ class LineProfilePanel(QWidget):
         if self._worker is not None:
             self._worker.cancel()
         self._request_signature = ()
+        self._completed_signature = ()
+        self._presented_line_token = None
         if self._plot_resources_disposed:
             return
         self._plot_resources_disposed = True
