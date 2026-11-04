@@ -17,7 +17,7 @@ import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.review_analysis import (
@@ -31,6 +31,7 @@ MAX_ENTRIES = 16
 BUNDLE_KIND = "pixelscope-analysis-bundle"
 SCHEMA_VERSION = 1
 FEATURE_ORDER = ("statistics", "histogram", "line", "difference")
+AvailabilityState = Literal["captured", "pending", "stale", "mismatched", "cancelled", "uncomputed"]
 AVAILABILITY_STATES = frozenset((
     "captured", "pending", "stale", "mismatched", "cancelled", "uncomputed"
 ))
@@ -41,7 +42,7 @@ class AnalysisFeatureAvailabilityV1:
     """User-visible state of all four analysis producers at bundle capture."""
 
     feature: str
-    state: Literal["captured", "pending", "stale", "mismatched", "cancelled", "uncomputed"]
+    state: AvailabilityState
 
     def __post_init__(self) -> None:
         if self.feature not in FEATURE_ORDER or self.state not in AVAILABILITY_STATES:
@@ -84,7 +85,7 @@ def _validated_availability(payload: object, snapshots: object) -> list[dict[str
             raise ValueError("invalid feature availability record")
         if type(row["feature"]) is not str or type(row["state"]) is not str:
             raise ValueError("invalid availability string")
-        typed.append(AnalysisFeatureAvailabilityV1(row["feature"], row["state"]))
+        typed.append(AnalysisFeatureAvailabilityV1(row["feature"], cast(AvailabilityState, row["state"])))
     snapshots_features = [item.get("feature") for item in snapshots if isinstance(item, dict)]
     if len(snapshots_features) != len(snapshots):
         raise ValueError("invalid snapshot feature list")
