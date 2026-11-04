@@ -16,9 +16,9 @@ from typing import Literal
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
+    SUPPORTED_PRESENTATIONS,
     ReviewViewportV1,
     ReviewViewStateV1,
-    SUPPORTED_PRESENTATIONS,
 )
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
