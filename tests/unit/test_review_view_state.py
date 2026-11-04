@@ -103,6 +103,10 @@ def test_strict_wire_no_unknown_fields_or_future_schema() -> None:
 
 def test_uuid_is_canonical_not_display_name_or_runtime_document_id() -> None:
     state = make_state()
-    for wrong in ("file.png", "/home/user/file.png", str(UUID(int=1)).upper()):
+    for wrong in (
+        "file.png",
+        "/home/user/file.png",
+        "ABCDEF00-0000-4000-8000-000000000001",
+    ):
         with pytest.raises(ValueError):
             replace(state, reference_source_key=wrong)
