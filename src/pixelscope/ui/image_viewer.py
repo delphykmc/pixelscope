@@ -110,8 +110,11 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
     line_dragged = Signal(object, bool)
     roi_reset_requested = Signal()
     wheel_zoom_started = Signal()
+    # Explicit gesture boundary for cancelling an in-flight W04 restore.
+    user_navigation_started = Signal()
 
     def wheelEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        self.user_navigation_started.emit()
         self.wheel_zoom_started.emit()
         super().wheelEvent(event, axis)
 
@@ -164,6 +167,8 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
         return None
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        if event.isStart():
+            self.user_navigation_started.emit()
         gesture = self.gesture_for_modifiers(event.modifiers())
         if event.button() == Qt.MouseButton.LeftButton and gesture == "roi":
             start = self.mapSceneToView(event.buttonDownScenePos())
@@ -181,6 +186,7 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
 
     def mouseClickEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton and event.double():
+            self.user_navigation_started.emit()
             self.roi_reset_requested.emit()
             event.accept()
             return
