@@ -877,7 +877,7 @@ class RawOpenDialog(QDialog):
         source = self._source_path.name if self._source_path is not None else "Not selected"
         try:
             profile = self.profile()
-            storage = profile.storage_format
+            storage = str(profile.storage_format)
             if storage == "unpacked":
                 storage += f" / {profile.container_dtype}"
             alignment = (
