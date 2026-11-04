@@ -206,6 +206,10 @@ class DifferenceCurationLifecycle:
         if selected is not None and tuple(doc.document_id for doc in selected) == pair:
             return True
 
+        # Revoke an already-bound derived tile from a different pair before
+        # changing panel selectors. Its map remains generation-keyed in cache.
+        if getattr(self.window, "_difference_source_ids", None) not in (None, pair):
+            self._reset_active_difference()
         panel._cancel_worker()
         panel._cancel_preview_worker()
         panel._display_timer.stop()
