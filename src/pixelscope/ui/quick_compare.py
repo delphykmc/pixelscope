@@ -702,6 +702,11 @@ class ComparisonPresetController(QObject):
             visible, 0, len(page), self.window._shared_roi, self.window._shared_line,
             preserve_view=True, slot_by_id=slot_by_id,
         )
+        if primary_id not in {document.document_id for document in visible}:
+            # The fallback layout anchor is NOT semantic Primary. Do not draw
+            # a misleading Primary highlight on a different runtime source.
+            for viewer in view.occupied_viewers:
+                viewer.set_focus(False)
         self.window.central_stack.setCurrentWidget(view)
         if saved is not None and view.sync_enabled:
             view.restore_view_state(saved)
