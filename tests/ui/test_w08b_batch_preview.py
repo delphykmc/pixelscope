@@ -378,3 +378,15 @@ def test_dialog_four_applied_remains_truthful_after_cancel_pending(
     assert dialog._last_batch_result.applied == 4
     assert window._document_id_by_path == ids
     dialog.reject()
+
+
+def test_oversized_yuv_preview_is_rejected_before_full_native_read(tmp_path: Path) -> None:
+    from pixelscope.ui.native_input_preview import MAX_YUV_PREVIEW_INPUT_BYTES
+
+    profile = YuvProfile(width=12000, height=12000, channel_layout="YUV420")
+    assert profile.expected_file_size > MAX_YUV_PREVIEW_INPUT_BYTES
+    path = tmp_path / "oversized.yuv"
+    with path.open("wb") as file:
+        file.truncate(profile.expected_file_size)
+    with pytest.raises(ValueError, match="128 MiB"):
+        native_interpretation_preview(path, profile, 0)
