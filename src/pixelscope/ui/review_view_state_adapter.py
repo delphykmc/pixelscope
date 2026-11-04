@@ -9,9 +9,10 @@ nested event loops, worker callbacks or implicit Difference Calculate live here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isfinite
-from typing import TYPE_CHECKING, Literal, Mapping
+from typing import TYPE_CHECKING, Literal
 
 from shiboken6 import isValid
 
@@ -208,7 +209,11 @@ def restore_review_view_state(
     foreground/display/layout notifications. User input must call
     view.cancel_review_restore(). This routine never schedules a late mutation.
     """
-    if not isValid(view) or view._review_restore_closed or view._review_restore_pending_epoch != epoch:
+    if (
+        not isValid(view)
+        or view._review_restore_closed
+        or view._review_restore_pending_epoch != epoch
+    ):
         return ReviewRestoreResult("interrupted", epoch, "epoch-revoked-or-owner-closed")
     if view._review_restore_applied_epoch == epoch:
         return ReviewRestoreResult("interrupted", epoch, "epoch-already-applied")
@@ -246,12 +251,20 @@ def restore_review_view_state(
     presented: dict[str, ImageViewer] = {}
     for viewer in view.occupied_viewers:
         document = viewer.document
-        key = by_object.get(id(document)) if document is not None else None
-        if key is None or resolved_sources[key].document is not document or key in presented:
+        if document is None:
+            return ReviewRestoreResult("pending", epoch, "foreground-load-pending")
+        matched_key = by_object.get(id(document))
+        if (
+            matched_key is None
+            or resolved_sources[matched_key].document is not document
+            or matched_key in presented
+        ):
             return ReviewRestoreResult("unavailable", epoch, "presented-source-identity-mismatch")
-        if document.generation != resolved_sources[key].expected_generation:
-            return ReviewRestoreResult("unavailable", epoch, f"late-generation-change:{key}")
-        presented[key] = viewer
+        if document.generation != resolved_sources[matched_key].expected_generation:
+            return ReviewRestoreResult(
+                "unavailable", epoch, f"late-generation-change:{matched_key}"
+            )
+        presented[matched_key] = viewer
     if set(presented) != set(state.page_source_keys):
         return ReviewRestoreResult("pending", epoch, "page-not-fully-presented")
     primary_document = resolved_sources[state.primary_source_key].document
