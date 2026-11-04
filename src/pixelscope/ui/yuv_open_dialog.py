@@ -119,9 +119,7 @@ class YuvOpenDialog(QDialog):
         )
 
     def _import_profile_json(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Load YUV profile", "", "JSON (*.json)"
-        )
+        path, _ = QFileDialog.getOpenFileName(self, "Load YUV profile", "", "JSON (*.json)")
         if not path:
             return
         try:
