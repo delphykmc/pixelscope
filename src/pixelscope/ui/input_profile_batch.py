@@ -32,6 +32,7 @@ from pixelscope.io.input_profile_batch import (
     preflight_input_profile_batch,
 )
 from pixelscope.io.path_discovery import ImageInput, raw_profile_sidecar_for_path
+from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.input_profile_library import InputProfileLibrary
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.native_input_preview import (
@@ -356,12 +357,15 @@ class InputProfileBatchDialog(QDialog):
         self.override_registered.toggled.connect(  # type: ignore[attr-defined]
             self._profile_changed
         )
-        self.table = QTableWidget(0, 4, self)
+        self.table = QTableWidget(0, 6, self)
         self.table.setHorizontalHeaderLabels(
-            ["Source", "Size", "Preflight / outcome", "Reason"]
+            ["Source", "Existing key", "Proposed native profile", "Bytes", "Status", "Reason"]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         root.addWidget(self.table)
+        self.table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
+            self._preview_selection_changed
+        )
         self.status = QLabel(f"{len(self._paths)} source(s) selected; no changes made", self)
         root.addWidget(self.status)
         self.preview_label = QLabel("Preview not requested", self)
@@ -386,6 +390,23 @@ class InputProfileBatchDialog(QDialog):
         self.preview_button.clicked.connect(self._request_preview)  # type: ignore[attr-defined]
         self.stop_button.clicked.connect(self._cancel)  # type: ignore[attr-defined]
         self.close_button.clicked.connect(self.reject)  # type: ignore[attr-defined]
+
+    @staticmethod
+    def _profile_summary(profile: InputProfile) -> str:
+        if isinstance(profile, RawProfile):
+            return (
+                f"{profile.name} · {profile.width}×{profile.height} · "
+                f"{profile.storage_format} {profile.bit_depth}-bit, "
+                f"stride {profile.stride_bytes}"
+            )
+        return (
+            f"{profile.name} · {profile.width}×{profile.height} · "
+            f"{profile.channel_layout} 8-bit Y+UV"
+        )
+
+    def _preview_selection_changed(self) -> None:
+        self._preview.cancel()
+        self.preview_label.setText("Preview invalidated by source selection")
 
     def _profile(self) -> InputProfile | None:
         index = self.profile_box.currentIndex() - 1
@@ -429,9 +450,19 @@ class InputProfileBatchDialog(QDialog):
             if not isinstance(item, ProfileBatchCandidate):
                 continue
             eligible += int(item.eligible)
+            previous = (
+                item.previous_interpretation[:12]
+                if item.previous_interpretation is not None
+                else "None"
+            )
+            actual_size = item.revision.size if item.revision is not None else "?"
             for column, label in enumerate((
-                str(item.path), str(item.revision.size) if item.revision else "—",
-                item.status, item.reason,
+                str(item.path),
+                previous,
+                self._profile_summary(item.profile),
+                f"{actual_size} / {item.required_size}",
+                item.status,
+                item.reason,
             )):
                 self.table.setItem(row, column, QTableWidgetItem(label))
         self.apply_button.setEnabled(eligible > 0)
@@ -462,6 +493,9 @@ class InputProfileBatchDialog(QDialog):
         self._preview.cancel()
         self.apply_button.setEnabled(False)
         self.preflight_button.setEnabled(False)
+        self.profile_box.setEnabled(False)
+        self.override_sidecars.setEnabled(False)
+        self.override_registered.setEnabled(False)
         self._batch.approve(self._preflight_epoch, self._candidates)
 
     def _commit_progress(self, epoch: int, value: object) -> None:
@@ -469,14 +503,17 @@ class InputProfileBatchDialog(QDialog):
             return
         for row, candidate in enumerate(self._candidates):
             if candidate.path == value.path:
-                self.table.setItem(row, 2, QTableWidgetItem(value.status))
-                self.table.setItem(row, 3, QTableWidgetItem(value.reason))
+                self.table.setItem(row, 4, QTableWidgetItem(value.status))
+                self.table.setItem(row, 5, QTableWidgetItem(value.reason))
                 break
 
     def _commit_finished(self, result: object) -> None:
         if not isinstance(result, ProfileBatchResult):
             return
         self.preflight_button.setEnabled(True)
+        self.profile_box.setEnabled(True)
+        self.override_sidecars.setEnabled(True)
+        self.override_registered.setEnabled(True)
         for outcome in result.outcomes:
             self._commit_progress(result.epoch, outcome)
         failures = sum(item.status == "failed" for item in result.outcomes)
@@ -501,6 +538,14 @@ class InputProfileBatchDialog(QDialog):
 
     def _preview_ready(self, epoch: int, value: object) -> None:
         if epoch != self._preview.epoch or not isinstance(value, NativeInputPreview):
+            return
+        try:
+            registered = self._adapter.existing((value.source_path,)).get(value.source_path)
+        except RuntimeError:
+            return
+        generation = registered.generation if registered is not None else 0
+        if generation != value.source_generation:
+            self.preview_label.setText("Preview discarded: source generation changed")
             return
         pixels = value.pixels
         if pixels.ndim == 2:
