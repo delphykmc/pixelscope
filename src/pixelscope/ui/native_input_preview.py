@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.raw_display import render_raw_preview
@@ -163,6 +163,7 @@ class NativeInputPreviewController(QObject):
     def _is_current(self, task_id: str, epoch: int) -> bool:
         return not self._closing and epoch == self._epoch and task_id == self._active_task_id
 
+    @Slot(str, object, int, object)
     def _succeeded(
         self, task_id: str, _document_id: object, epoch: int, result: object
     ) -> None:
@@ -176,13 +177,16 @@ class NativeInputPreviewController(QObject):
             return
         self.preview_ready.emit(epoch, result)
 
+    @Slot(str, object, int, object)
     def _failed(self, task_id: str, _document_id: object, epoch: int, error: object) -> None:
         if self._is_current(task_id, epoch):
             self.preview_failed.emit(epoch, str(getattr(error, "message", error)))
 
+    @Slot(str, object, int)
     def _cancelled(self, _task_id: str, _document_id: object, _epoch: int) -> None:
         pass
 
+    @Slot(str)
     def _finished(self, task_id: str) -> None:
         if task_id == self._active_task_id:
             self._active_worker = None
