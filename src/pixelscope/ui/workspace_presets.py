@@ -116,6 +116,14 @@ class WorkspacePresetController(QObject):
         self._install_recent_entry(window)
         if restore_selected:
             self._apply_preset(self._preset, prefer_saved=True)
+        elif not (
+            self._settings.contains("ui/main_splitter")
+            or self._settings.contains("ui/sidebar_splitter")
+            or self._settings.contains("ui/dock_state")
+        ):
+            # Fresh install: establish Compare's Files/Viewer ratio. Existing
+            # pre-W06 users keep their legacy layout until an explicit switch.
+            self._apply_preset(WorkspacePreset.COMPARE, prefer_saved=False)
         self._recover_timer.start(0)
 
     @property
