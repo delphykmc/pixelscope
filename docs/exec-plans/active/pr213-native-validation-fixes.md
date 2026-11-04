@@ -1,6 +1,6 @@
 # PR #213 native validation follow-up
 
-Status: Active
+Status: Complete (implementation and automated validation; no merge)
 Owner: ChatGPT-assisted implementation
 Branch/PR: https://github.com/delphykmc/pixelscope/pull/213
 Last updated: 2026-11-04
@@ -47,3 +47,26 @@ commit and PR comment. Independent review and merge remain owner decisions.
 - Windows COM diagnostic `0x8001010d` recurred during early event processing in
   that interrupted run. No source cause has been established; retain the evidence
   and report it separately from deterministic test failures.
+
+## Completion evidence
+
+Full clean-HEAD Windows run at
+`c301c0c00b1a8aabdbcae6d4cf07f11173f78506`, Python 3.10.11 / PySide6 6.4.2,
+normal GC, no test exclusions or timeout changes:
+
+```powershell
+python -u -m pytest -q --basetemp=C:/Users/Public/Documents/ESTsoft/CreatorTemp/pixelscope-pr213-clean-full-20261104 --junitxml=../pr213-clean-full.xml
+```
+
+Observed: **1645 passed, 1 warning in 529.38s**, exit 0. The warning is the existing
+intentional duplicate ZIP member in the tampering test. Both reported UI failures
+and the Git-root test pass. The COM `0x8001010d` diagnostic recurred during Qt event
+processing; the process continued to completion. Its cause remains unverified and
+is not claimed fixed. No manual GUI rerun, packaging or multi-DPI check was added.
+
+Local evidence is in ignored `temp/native-acceptance-20261104/`, including
+`pr213-clean-full.log`, `pr213-clean-full.xml`, exit status and focused test logs.
+The completion-record commit changes only this Markdown file after the tested
+source commit. PR attribution uses the configured owner identity plus
+`Co-authored-by: ChatGPT <noreply@openai.com>`; the PR comment is ChatGPT-assisted.
+Independent review of the follow-up diff and any merge remain owner decisions.
