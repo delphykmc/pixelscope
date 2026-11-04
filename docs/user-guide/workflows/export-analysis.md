@@ -22,19 +22,28 @@ A cached Difference entry by itself does not establish a new exportable current 
 
 ## Analysis Bundle (versioned ZIP)
 
-Use **File > Export Analysis Bundle...** after Statistics has finished displaying.
+Use **File > Export Analysis Bundle...** when at least one analysis feature has
+finished presenting numerical results.
 The bundle captures independently frozen **Statistics, Histogram, Line Profile,
 and Difference** results when each is fully presented and current. Each feature
 has its own request/generation token: an unavailable, pending or stale feature
 is excluded rather than importing its old values. At least one current feature
-is required to export. It does not trigger another analysis.
+is required to export. The Bundle records a state for **every** feature:
+`captured`, `pending`, `stale`, `mismatched`, `cancelled`, or `uncomputed`.
+The export status reports captured count and omitted features. A partial Bundle
+is not evidence that an omitted analysis completed. Export never triggers
+another calculation.
 
 The context stores exact **reference-space ROI coordinates** (or Full Image),
 source generations, native channel sample counts, non-path profile signatures,
-request identity, and numeric definition revisions. Histogram series freeze
-native bin edges and integer counts, and Line Profile series freeze native sample
-coordinates/values separately from presentation modes. Difference metrics freeze
-the exact ordered pair, channel, domain, ROI and Difference Cache identity.
+request identity, and numeric definition revisions. Explicit, path-free native
+interpretation records Bayer CFA pattern/phase, RAW storage/endianness/bit alignment,
+sampling step/phase, and YUV subsampling and plane geometry. Histogram series
+freeze native bin edges and integer counts; Line Profile series preserve **native
+absolute sample values** regardless of Normalized or Reference Difference display
+mode. The chosen display transformation is recorded separately in `presentation`.
+Difference metrics freeze the exact ordered pair, channel, domain, ROI and
+Difference Cache identity.
 
 A ZIP contains `manifest.json`, `data/context.json`,
 `data/measurements.json`, and `data/measurements.csv`. This **portable-default**
@@ -42,11 +51,13 @@ export does not include source names, original source bytes, filesystem paths,
 arbitrary profile data, or annotations. Source content verification is explicitly
 `unverified` unless a matching SHA-256 verification has been established; file
 size or modification time alone is not proof of unchanged content. The manifest
-records SHA-256 for each ZIP entry.
+records SHA-256 for each ZIP entry and the four feature availability states.
 
-When analysis is pending, replaced, stale, or has changed ROI/source generation,
-the export is unavailable. The destination extension is resolved before any
-overwrite confirmation. The ZIP is written to a temporary sibling and published
+A pending, replaced, stale, or changed-ROI/source-generation feature is never
+included as a current snapshot. Other independently current features may still
+be exported in a **partial** Bundle, with omitted feature states visible in the
+status and archive. The destination extension is resolved before overwrite
+confirmation. The ZIP is written to a temporary sibling and published
 atomically; cancellation or an I/O error does not publish an incomplete bundle.
 
 This bundle is **not** a full HTML/PNG Review Report. Named findings and report
