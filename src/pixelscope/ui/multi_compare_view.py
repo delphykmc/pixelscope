@@ -370,7 +370,8 @@ class MultiCompareView(QWidget):
         """
         if (
             self._review_restore_closed
-            or type(epoch) is not int
+            or not isinstance(epoch, int)
+            or isinstance(epoch, bool)
             or epoch <= self._review_restore_epoch
         ):
             return False
