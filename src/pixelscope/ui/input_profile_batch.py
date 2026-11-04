@@ -165,8 +165,12 @@ class BatchProfileController(QObject):
     def _on_preflight_ready(
         self, task_id: str, _document_id: object, epoch: int, value: object
     ) -> None:
-        if (self._closing or self._phase != "preflight"
-                or epoch != self._epoch or task_id != self._task_id):
+        if (
+            self._closing
+            or self._phase != "preflight"
+            or epoch != self._epoch
+            or task_id != self._task_id
+        ):
             return
         if not isinstance(value, tuple) or not all(
             isinstance(item, ProfileBatchCandidate) for item in value
@@ -182,8 +186,12 @@ class BatchProfileController(QObject):
     def _on_preflight_failed(
         self, task_id: str, _document_id: object, epoch: int, error: object
     ) -> None:
-        if (not self._closing and self._phase == "preflight"
-                and epoch == self._epoch and task_id == self._task_id):
+        if (
+            not self._closing
+            and self._phase == "preflight"
+            and epoch == self._epoch
+            and task_id == self._task_id
+        ):
             self._phase = "idle"
             self.preflight_failed.emit(epoch, str(getattr(error, "message", error)))
 
@@ -226,7 +234,7 @@ class BatchProfileController(QObject):
 
     def _finish(self, *, interrupted: bool) -> None:
         candidates = self._candidates or ()
-        for candidate in candidates[self._index:]:
+        for candidate in candidates[self._index :]:
             self._outcomes.append(
                 BatchProfileOutcome(
                     candidate.path, "interrupted", "Not applied", candidate.document_id
@@ -262,7 +270,8 @@ class CanonicalBatchProfileAdapter:
             document = window.documents[document_id]
             profile = window._raw_profiles.get(document_id) or document.raw_profile
             bindings[path] = ExistingProfileBinding(
-                document_id, document.generation,
+                document_id,
+                document.generation,
                 profile if hasattr(profile, "dict") else None,
             )
         return bindings
@@ -284,9 +293,7 @@ class CanonicalBatchProfileAdapter:
             window._mark_document_for_reload(current_id, candidate.profile)
             window._raw_profiles[current_id] = candidate.profile.copy(deep=True)
             window._raw_profile_prompt_suppressed.discard(current_id)
-            page_ids = {
-                item.document_id for item in window.current_comparison_documents()
-            }
+            page_ids = {item.document_id for item in window.current_comparison_documents()}
             if current_id in page_ids:
                 window._refresh_reopened_selected_documents([current_id])
             return cast(str, current_id)
@@ -336,18 +343,18 @@ class InputProfileBatchDialog(QDialog):
 
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.addWidget(QLabel(
-            "Choose a saved native interpretation. File size alone cannot verify layout, "
-            "packing, stride, endianness or CFA phase."
-        ))
+        root.addWidget(
+            QLabel(
+                "Choose a saved native interpretation. File size alone cannot verify layout, "
+                "packing, stride, endianness or CFA phase."
+            )
+        )
         self.profile_box = QComboBox(self)
         self.profile_box.addItem("Select a Recent or Favorite profile…")
         for kind in ("raw", "yuv"):
             for entry in (*self._library.favorites(kind), *self._library.recent(kind)):
                 self._profiles.append(entry.profile)
-                self.profile_box.addItem(
-                    f"{kind.upper()} · {entry.label} ({entry.origin})"
-                )
+                self.profile_box.addItem(f"{kind.upper()} · {entry.label} ({entry.origin})")
         self.profile_box.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._profile_changed
         )
@@ -387,8 +394,11 @@ class InputProfileBatchDialog(QDialog):
         self.stop_button = QPushButton("Cancel pending", self)
         self.close_button = QPushButton("Close", self)
         for button in (
-            self.preflight_button, self.apply_button, self.preview_button,
-            self.stop_button, self.close_button,
+            self.preflight_button,
+            self.apply_button,
+            self.preview_button,
+            self.stop_button,
+            self.close_button,
         ):
             actions.addWidget(button)
         root.addLayout(actions)
@@ -439,7 +449,8 @@ class InputProfileBatchDialog(QDialog):
         self.preview_button.setEnabled(False)
         self.status.setText("Checking source sizes and registered interpretations…")
         epoch = self._batch.preflight(
-            self._paths, profile,
+            self._paths,
+            profile,
             existing=self._adapter.existing(self._paths),
             override_sidecars=self.override_sidecars.isChecked(),
             override_registered=self.override_registered.isChecked(),
@@ -463,14 +474,16 @@ class InputProfileBatchDialog(QDialog):
                 else "None"
             )
             actual_size = item.revision.size if item.revision is not None else "?"
-            for column, label in enumerate((
-                str(item.path),
-                previous,
-                self._profile_summary(item.profile),
-                f"{actual_size} / {item.required_size}",
-                item.status,
-                item.reason,
-            )):
+            for column, label in enumerate(
+                (
+                    str(item.path),
+                    previous,
+                    self._profile_summary(item.profile),
+                    f"{actual_size} / {item.required_size}",
+                    item.status,
+                    item.reason,
+                )
+            ):
                 self.table.setItem(row, column, QTableWidgetItem(label))
         self.apply_button.setEnabled(eligible > 0)
         self.preview_button.setEnabled(eligible > 0)
@@ -488,7 +501,8 @@ class InputProfileBatchDialog(QDialog):
             return
         eligible = sum(candidate.eligible for candidate in self._candidates)
         choice = QMessageBox.question(
-            self, "Confirm batch profile override",
+            self,
+            "Confirm batch profile override",
             f"Apply the selected profile to {eligible} source(s)? "
             "Approved registered sources will be reloaded. "
             "The operation is not atomic after it starts.",
@@ -562,9 +576,7 @@ class InputProfileBatchDialog(QDialog):
         else:
             self.preview_label.setText("Unsupported preview shape")
             return
-        image = QImage(
-            pixels.data, value.width, value.height, pixels.strides[0], fmt
-        ).copy()
+        image = QImage(pixels.data, value.width, value.height, pixels.strides[0], fmt).copy()
         self.preview_label.setPixmap(QPixmap.fromImage(image))
 
     def _preview_failed(self, epoch: int, error: str) -> None:
