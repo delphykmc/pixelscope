@@ -273,7 +273,7 @@ class CanonicalBatchProfileAdapter:
             bindings[path] = ExistingProfileBinding(
                 document_id,
                 document.generation,
-                profile.copy(deep=True) if isinstance(profile, (RawProfile, YuvProfile)) else None,
+                profile.copy(deep=True) if isinstance(profile, RawProfile | YuvProfile) else None,
             )
         return bindings
 
@@ -456,7 +456,15 @@ class InputProfileBatchDialog(QDialog):
         )
         self.table = QTableWidget(0, 7, self)
         self.table.setHorizontalHeaderLabels(
-            ["Source", "Before (native)", "After (native)", "Sidecar override", "Bytes", "Status", "Reason"]
+            [
+                "Source",
+                "Before (native)",
+                "After (native)",
+                "Sidecar override",
+                "Bytes",
+                "Status",
+                "Reason",
+            ]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         root.addWidget(self.table)
