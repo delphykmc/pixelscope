@@ -1,5 +1,3 @@
-"""Read-only RAW/YUV batch profile eligibility; no Qt or registration side effects."""
-
 from __future__ import annotations
 
 import hashlib
