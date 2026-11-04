@@ -340,3 +340,69 @@ def test_feature_availability_reports_pending_cancelled_and_stale(
     panel._worker = None
     assert adapter.availability(None, adapter.get_current_analysis_token()).state == "stale"
     panel.shutdown()
+
+
+def test_difference_explicit_full_roi_background_does_not_renew_permission(
+    qtbot: object,
+) -> None:
+    """A prior explicit full-image presentation cannot authorize ROI metrics.
+
+    The native Difference map/preview is deliberately shared by Full and ROI,
+    while the metric request provenance must be separate.
+    """
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    first, second = _document("explicit-a.png", 10), _document("explicit-b.png", 30)
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+    published: list[object] = []
+    panel.result_ready.connect(lambda *_args: published.append(True))  # type: ignore[attr-defined]
+
+    panel.calculate_difference()
+    qtbot.waitUntil(
+        lambda: panel.get_current_difference_token() is not None
+        and panel.get_current_difference_token() == panel.get_presented_difference_token()
+        and panel._worker is None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    assert len(published) == 1
+    adapter = _FrozenFeatureAdapter(panel, "difference")
+    full_token = adapter.get_presented_analysis_token()
+    assert full_token.roi_ref is None
+    assert capture_presented_analysis(adapter, full_token).snapshot is not None
+
+    roi = RoiBounds(2, 3, 4, 5)
+    panel.set_active_roi(roi)
+    # Cached map is still valid; only ROI metrics are refreshed in the background.
+    qtbot.waitUntil(
+        lambda: panel.last_result is not None and panel._worker is None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    assert len(published) == 1  # no ROI-specific result_ready
+    assert panel._presented_metric_key == panel._metric_key()
+    assert panel.get_current_difference_token() is None
+    assert panel.get_presented_difference_token() is None
+    assert capture_presented_analysis(adapter, full_token).snapshot is None
+    assert adapter.availability(
+        adapter.get_presented_analysis_token(),
+        adapter.get_current_analysis_token(),
+    ).state == "stale"
+
+    # The user explicitly authorizes presentation of those exact ROI metrics.
+    panel.calculate_difference()
+    qtbot.waitUntil(
+        lambda: panel.get_current_difference_token() is not None
+        and panel.get_current_difference_token() == panel.get_presented_difference_token(),
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    assert len(published) == 2
+    roi_token = adapter.get_presented_analysis_token()
+    assert roi_token.roi_ref == (2, 3, 4, 5)
+    assert capture_presented_analysis(adapter, roi_token).snapshot is not None
+
+    # Returning to a previously explicit full-image scope via cached metrics
+    # must not reuse the old event's token/request_id.
+    panel.set_active_roi(None)
+    assert len(published) == 2
+    assert panel.get_current_difference_token() is None
+    assert capture_presented_analysis(adapter, roi_token).snapshot is None
+    panel.shutdown()
