@@ -385,9 +385,8 @@ def test_series_parse_fails_closed_on_wrong_status_and_future_fields() -> None:
 
 def test_capture_freezes_series_only_when_both_tokens_stay_current() -> None:
     snap = _snapshot()
-    target = replace(snap, token=replace(snap.token, feature="line"))
     series = AnalysisSeriesV1(
-        source_key=target.sources[0].source_key,
+        source_key=snap.sources[0].source_key,
         channel="R",
         kind="line",
         coordinates=(0.0, 1.0),
@@ -396,6 +395,7 @@ def test_capture_freezes_series_only_when_both_tokens_stay_current() -> None:
         sample_count=2,
         definition_revision="native-line-profile-v1",
     )
+    target = replace(snap, token=replace(snap.token, feature="line"), series=(series,))
 
     class SeriesAdapter(_FakeAdapter):
         def read_presented_series(self) -> tuple[AnalysisSeriesV1, ...]:
@@ -594,3 +594,81 @@ def test_missing_native_interpretation_fails_closed_for_special_layouts(layout: 
             channel_layout=layout,
             native_interpretation=AnalysisNativeInterpretationV1(),
         )
+
+
+@pytest.mark.parametrize("feature", ["histogram", "line"])
+@pytest.mark.parametrize("series_field", ["missing", "empty"])
+def test_histogram_and_line_wire_reject_missing_or_empty_series(
+    feature: str,
+    series_field: str,
+) -> None:
+    context = parse_analysis_context(serialize_analysis_context(_snapshot()))
+    context["feature"] = feature
+    if series_field == "missing":
+        context.pop("series")
+    else:
+        context["series"] = []
+    with pytest.raises(ValueError, match="require native series"):
+        parse_analysis_context(json.dumps(context).encode("utf-8"))
+
+
+@pytest.mark.parametrize("feature", ["statistics", "difference"])
+def test_nonseries_wire_rejects_nonempty_native_series(feature: str) -> None:
+    context = parse_analysis_context(serialize_analysis_context(_snapshot()))
+    context["feature"] = feature
+    context["series"] = [{
+        "source_key": context["sources"][0]["source_key"],
+        "channel": "R",
+        "kind": "histogram",
+        "coordinates": [0.0, 1.0],
+        "values": [3],
+        "value_states": ["finite"],
+        "sample_count": 3,
+        "definition_revision": "native-v1",
+    }]
+    with pytest.raises(ValueError, match="cannot include native series"):
+        parse_analysis_context(json.dumps(context).encode("utf-8"))
+
+
+def test_dto_rejects_missing_histogram_or_line_native_series() -> None:
+    base = _snapshot()
+    for feature in ("histogram", "line"):
+        with pytest.raises(ValueError, match="require nonempty native series"):
+            replace(base, token=replace(base.token, feature=feature))
+
+
+def test_python_integer_histogram_counts_remain_lossless_in_bundle(tmp_path: Path) -> None:
+    base = _snapshot()
+    count = 2**53 + 1
+    values, states = freeze_series_values((count, 4))
+    assert values == (count, 4)
+    assert tuple(type(value) for value in values) == (int, int)
+    frozen = AnalysisSeriesV1(
+        source_key=base.sources[0].source_key,
+        channel="R",
+        kind="histogram",
+        coordinates=(0.0, 1.0, 2.0),
+        values=values,
+        value_states=states,
+        sample_count=count + 4,
+        definition_revision="native-bin-counts-v1",
+    )
+    snapshot = replace(
+        base,
+        token=replace(base.token, feature="histogram"),
+        measurements=(),
+        series=(frozen,),
+    )
+    path = tmp_path / "python-int-histogram.zip"
+    write_analysis_bundle(path, (snapshot,))
+    assert verify_analysis_bundle(path)["snapshot_count"] == 1
+    with ZipFile(path) as archive:
+        contexts = json.loads(archive.read("data/context.json"))
+        measurements = json.loads(archive.read("data/measurements.json"))
+    assert contexts["snapshots"][0]["series"][0]["values"] == [count, 4]
+    assert measurements["snapshots"][0]["series"][0]["values"][0] == count
+
+
+def test_series_rejects_bool_counts() -> None:
+    with pytest.raises(ValueError, match="boolean"):
+        freeze_series_values((True, False))
