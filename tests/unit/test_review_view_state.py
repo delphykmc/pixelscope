@@ -45,7 +45,9 @@ def test_strict_round_trip_and_deep_immutability(count: int, sync: bool) -> None
     assert review_view_state.ReviewViewStateV1.from_dict(wire) == state
     assert wire["page_source_keys"] == list(KEYS[:count])
     with pytest.raises(TypeError):
-        state.per_source[KEYS[0]] = review_view_state.ReviewViewportV1((2.0, 3.0), 1.0)  # type: ignore[index]
+        state.per_source[KEYS[0]] = review_view_state.ReviewViewportV1(  # type: ignore[index]
+            (2.0, 3.0), 1.0
+        )
     with pytest.raises(TypeError):
         state.source_shapes_ref[KEYS[0]] = (1, 1)  # type: ignore[index]
     wire["source_shapes_ref"][KEYS[0]] = [1, 1]
@@ -81,7 +83,9 @@ def test_invalid_state_rejected(field: str, value: object) -> None:
 def test_invalid_unsynced_shape_and_viewports_rejected() -> None:
     state = make_state(sync=False)
     with pytest.raises(ValueError):
-        dataclasses.replace(state, per_source={KEYS[0]: review_view_state.ReviewViewportV1((1, 1), 1)})
+        dataclasses.replace(
+            state, per_source={KEYS[0]: review_view_state.ReviewViewportV1((1, 1), 1)}
+        )
     with pytest.raises(ValueError):
         dataclasses.replace(state, source_shapes_ref={KEYS[0]: (64, 96)})
     with pytest.raises(ValueError):
