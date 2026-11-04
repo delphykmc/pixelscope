@@ -11,10 +11,10 @@ from __future__ import annotations
 import json
 import math
 import re
-from numbers import Integral
 from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from numbers import Integral
 from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
