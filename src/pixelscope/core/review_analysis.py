@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
+from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
+
 FEATURES = frozenset({"statistics", "histogram", "line", "difference"})
 _STATE = frozenset({"finite", "pos_inf", "neg_inf", "nan", "unavailable"})
 _SAFE_NAME = re.compile(r"^[\w .:+-]{1,96}$", flags=re.UNICODE)
@@ -89,6 +91,9 @@ class AnalysisSourceV1:
     profile_signature: str
     sha256: str | None = None
     verification: Literal["verified", "unverified"] = "unverified"
+    native_interpretation: AnalysisNativeInterpretationV1 = field(
+        default_factory=AnalysisNativeInterpretationV1
+    )
 
     def __post_init__(self) -> None:
         if not _is_uuid(self.source_key) or not self.document_id or type(self.generation) is not int or self.generation < 0:
@@ -107,6 +112,14 @@ class AnalysisSourceV1:
             raise ValueError("invalid SHA-256")
         if self.verification == "verified" and self.sha256 is None:
             raise ValueError("verified source requires digest")
+        if not isinstance(self.native_interpretation, AnalysisNativeInterpretationV1):
+            raise ValueError("invalid native source interpretation")
+        if self.native_interpretation.yuv_layout is not None and (
+            self.native_interpretation.yuv_layout != self.channel_layout
+            or self.native_interpretation.yuv_plane_shapes is None
+            or self.native_interpretation.yuv_plane_shapes[0] != self.native_shape[:2]
+        ):
+            raise ValueError("native YUV source shape/layout mismatch")
 
 
 @dataclass(frozen=True)
@@ -345,6 +358,7 @@ def serialize_analysis_context(snapshot: AnalysisSnapshotV1) -> bytes:
                 "profile_signature": s.profile_signature,
                 "sha256": s.sha256,
                 "verification": s.verification,
+                "native_interpretation": s.native_interpretation.to_portable(),
             } for s in snapshot.sources
         ],
         "measurements": [
@@ -437,7 +451,7 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         if type(source) is not dict or set(source) != {
             "source_key", "native_shape", "reference_shape", "native_dtype",
             "channel_layout", "effective_bits", "profile_signature",
-            "sha256", "verification",
+            "sha256", "verification", "native_interpretation",
         }:
             raise ValueError("unknown source fields")
         key = source["source_key"]
@@ -464,6 +478,13 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
             source["verification"] == "verified" and sha is None
         ):
             raise ValueError("invalid verification")
+        native = AnalysisNativeInterpretationV1.from_portable(source["native_interpretation"])
+        if native.yuv_layout is not None and (
+            native.yuv_layout != source["channel_layout"]
+            or native.yuv_plane_shapes is None
+            or tuple(native.yuv_plane_shapes[0]) != tuple(source["native_shape"][:2])
+        ):
+            raise ValueError("invalid YUV source interpretation")
     values = data["measurements"]
     if type(values) is not list or len(values) > MAX_MEASUREMENTS:
         raise ValueError("invalid measurement collection")
@@ -496,7 +517,9 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
             "value_states", "sample_count", "definition_revision",
         }:
             raise ValueError("invalid series shape")
-        if item["source_key"] not in keys or item["kind"] != data["feature"]:
+        if (item["source_key"] not in keys
+                or item["kind"] not in ("histogram", "line")
+                or item["kind"] != data["feature"]):
             raise ValueError("series source or feature mismatch")
         if any(type(item[k]) is not str or not _SAFE_NAME.fullmatch(item[k])
                for k in ("channel", "definition_revision")):
