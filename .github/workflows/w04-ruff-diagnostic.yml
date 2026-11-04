@@ -45,3 +45,4 @@ jobs:
           python -c "import pixelscope; print(pixelscope.__file__)"
           python -m pytest -q tests/unit/test_review_view_state.py tests/unit/test_physical_zoom.py
           python -m pytest -q tests/ui/test_w04_review_view_state.py tests/ui/test_w01_physical_zoom.py
+          python -m pytest -q tests/ui/test_issue75_viewer_coordinates.py tests/ui/test_ui_workspace_contracts.py tests/ui/test_plot_statistics_contracts.py tests/ui/test_difference_workspace_contracts.py tests/ui/test_p4c_session_restore.py
