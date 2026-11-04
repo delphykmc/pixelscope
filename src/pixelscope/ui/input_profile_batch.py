@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -33,6 +33,7 @@ from pixelscope.io.input_profile_batch import (
 )
 from pixelscope.io.path_discovery import ImageInput, raw_profile_sidecar_for_path
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.input_profile_library import InputProfileLibrary
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.native_input_preview import (
@@ -272,7 +273,7 @@ class CanonicalBatchProfileAdapter:
             bindings[path] = ExistingProfileBinding(
                 document_id,
                 document.generation,
-                profile if hasattr(profile, "dict") else None,
+                profile.copy(deep=True) if isinstance(profile, (RawProfile, YuvProfile)) else None,
             )
         return bindings
 
@@ -311,6 +312,87 @@ class CanonicalBatchProfileAdapter:
         return cast(str, document_id)
 
 
+
+def native_profile_summary(profile: InputProfile | None) -> str:
+    """Visible field-for-field comparison, including decode-critical RAW parameters."""
+
+    if profile is None:
+        return "No native profile available"
+    family = "RAW" if isinstance(profile, RawProfile) else "YUV"
+    return family + " | " + " | ".join(
+        f"{name}={value}" for name, value in profile.dict().items()
+    )
+
+
+def candidate_disclosure(candidate: ProfileBatchCandidate) -> str:
+    """Human-readable preflight record, also used in final approval dialogue."""
+
+    before = (
+        "Not registered"
+        if candidate.document_id is None
+        else native_profile_summary(candidate.previous_profile)
+    )
+    if candidate.document_id is not None and candidate.previous_profile is None:
+        before = "Registered source — previous native interpretation unavailable"
+    sidecar = str(candidate.sidecar) if candidate.sidecar is not None else "None"
+    override = (
+        "YES — memory only; source and sidecar are not written"
+        if candidate.sidecar_override
+        else "NO"
+    )
+    actual_size = candidate.revision.size if candidate.revision is not None else "unknown"
+    return "\n".join(
+        (
+            f"Source: {candidate.path}",
+            f"Registered source ID: {candidate.document_id or 'None'}",
+            f"Existing native interpretation: {before}",
+            f"Proposed native interpretation: {native_profile_summary(candidate.profile)}",
+            f"Sidecar: {sidecar}",
+            f"Sidecar interpretation override: {override}",
+            f"Bytes actual/required: {actual_size}/{candidate.required_size}",
+            f"Preflight status: {candidate.status} — {candidate.reason}",
+        )
+    )
+
+
+class BatchProfileApprovalDialog(QDialog):
+    """Every eligible file's previous and proposed interpretation is visible."""
+
+    def __init__(
+        self, candidates: tuple[ProfileBatchCandidate, ...], parent: QWidget
+    ) -> None:
+        super().__init__(parent)
+        if not candidates or not all(candidate.eligible for candidate in candidates):
+            raise ValueError("Approval requires a nonempty eligible candidate list")
+        self.setWindowTitle("Confirm native interpretations for each source")
+        self.resize(900, 560)
+        root = QVBoxLayout(self)
+        headline = QLabel(
+            f"Review the BEFORE / AFTER interpretation and sidecar override for "
+            f"all {len(candidates)} sources. A wrong layout can change decoded values; "
+            "size matching is not proof of correctness. This operation is not atomic.",
+            self,
+        )
+        headline.setWordWrap(True)
+        root.addWidget(headline)
+        self.details = QPlainTextEdit(self)
+        self.details.setReadOnly(True)
+        self.details.setPlainText(
+            "\n\n" + ("-" * 72) + "\n\n".join(
+                candidate_disclosure(item) for item in candidates
+            )
+        )
+        root.addWidget(self.details)
+        buttons = QHBoxLayout()
+        self.cancel_button = QPushButton("Back without applying", self)
+        self.confirm_button = QPushButton(f"Apply {len(candidates)} source(s)", self)
+        buttons.addWidget(self.cancel_button)
+        buttons.addWidget(self.confirm_button)
+        root.addLayout(buttons)
+        self.cancel_button.clicked.connect(self.reject)  # type: ignore[attr-defined]
+        self.confirm_button.clicked.connect(self.accept)  # type: ignore[attr-defined]
+
+
 class InputProfileBatchDialog(QDialog):
     """Explicit profile choice, preflight, approval, outcomes and async preview."""
 
@@ -331,6 +413,7 @@ class InputProfileBatchDialog(QDialog):
         self._require_exact_raw_size = require_exact_raw_size
         self._candidates: tuple[ProfileBatchCandidate, ...] = ()
         self._preflight_epoch: int | None = None
+        self._last_batch_result: ProfileBatchResult | None = None
         self._profiles: list[InputProfile] = []
         self._library = InputProfileLibrary()
         self._setup_ui()
@@ -371,15 +454,21 @@ class InputProfileBatchDialog(QDialog):
         self.override_registered.toggled.connect(  # type: ignore[attr-defined]
             self._profile_changed
         )
-        self.table = QTableWidget(0, 6, self)
+        self.table = QTableWidget(0, 7, self)
         self.table.setHorizontalHeaderLabels(
-            ["Source", "Existing key", "Proposed native profile", "Bytes", "Status", "Reason"]
+            ["Source", "Before (native)", "After (native)", "Sidecar override", "Bytes", "Status", "Reason"]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         root.addWidget(self.table)
         self.table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._preview_selection_changed
         )
+        root.addWidget(QLabel("Selected source: full BEFORE / AFTER interpretation"))
+        self.details_panel = QPlainTextEdit(self)
+        self.details_panel.setReadOnly(True)
+        self.details_panel.setMinimumHeight(140)
+        self.details_panel.setMaximumHeight(210)
+        root.addWidget(self.details_panel)
         self.status = QLabel(f"{len(self._paths)} source(s) selected; no changes made", self)
         root.addWidget(self.status)
         self.preview_label = QLabel("Preview not requested", self)
@@ -392,6 +481,7 @@ class InputProfileBatchDialog(QDialog):
         self.preview_button = QPushButton("Preview selected", self)
         self.preview_button.setEnabled(False)
         self.stop_button = QPushButton("Cancel pending", self)
+        self.stop_button.setEnabled(False)
         self.close_button = QPushButton("Close", self)
         for button in (
             self.preflight_button,
@@ -408,22 +498,14 @@ class InputProfileBatchDialog(QDialog):
         self.stop_button.clicked.connect(self._cancel)  # type: ignore[attr-defined]
         self.close_button.clicked.connect(self.reject)  # type: ignore[attr-defined]
 
-    @staticmethod
-    def _profile_summary(profile: InputProfile) -> str:
-        if isinstance(profile, RawProfile):
-            return (
-                f"{profile.name} · {profile.width}×{profile.height} · "
-                f"{profile.storage_format} {profile.bit_depth}-bit, "
-                f"stride {profile.stride_bytes}"
-            )
-        return (
-            f"{profile.name} · {profile.width}×{profile.height} · "
-            f"{profile.channel_layout} 8-bit Y+UV"
-        )
-
     def _preview_selection_changed(self) -> None:
         self._preview.cancel()
         self.preview_label.setText("Preview invalidated by source selection")
+        row = self.table.currentRow()
+        if 0 <= row < len(self._candidates):
+            self.details_panel.setPlainText(candidate_disclosure(self._candidates[row]))
+        else:
+            self.details_panel.clear()
 
     def _profile(self) -> InputProfile | None:
         index = self.profile_box.currentIndex() - 1
@@ -434,6 +516,10 @@ class InputProfileBatchDialog(QDialog):
         self._preview.cancel()
         self._preflight_epoch = None
         self._candidates = ()
+        self._last_batch_result = None
+        self.table.setRowCount(0)
+        self.details_panel.clear()
+        self.stop_button.setEnabled(False)
         self.apply_button.setEnabled(False)
         self.preview_button.setEnabled(False)
         self.preview_label.setText("Preview invalidated by profile change")
@@ -445,8 +531,13 @@ class InputProfileBatchDialog(QDialog):
             self.status.setText("Select a saved RAW or YUV profile first")
             return
         self._preview.cancel()
+        self._last_batch_result = None
+        self._candidates = ()
+        self.table.setRowCount(0)
+        self.details_panel.clear()
         self.apply_button.setEnabled(False)
         self.preview_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
         self.status.setText("Checking source sizes and registered interpretations…")
         epoch = self._batch.preflight(
             self._paths,
@@ -468,23 +559,39 @@ class InputProfileBatchDialog(QDialog):
             if not isinstance(item, ProfileBatchCandidate):
                 continue
             eligible += int(item.eligible)
-            previous = (
-                item.previous_interpretation[:12]
-                if item.previous_interpretation is not None
+            before = (
+                "Not registered"
+                if item.document_id is None
+                else native_profile_summary(item.previous_profile)
+            )
+            sidecar = (
+                str(item.sidecar)
+                if item.sidecar is not None
                 else "None"
             )
+            if item.sidecar_override:
+                sidecar += " — OVERRIDE APPROVED (no write)"
+            elif item.sidecar is not None:
+                sidecar += " — not overridden"
             actual_size = item.revision.size if item.revision is not None else "?"
+            details = candidate_disclosure(item)
             for column, label in enumerate(
                 (
                     str(item.path),
-                    previous,
-                    self._profile_summary(item.profile),
+                    before,
+                    native_profile_summary(item.profile),
+                    sidecar,
                     f"{actual_size} / {item.required_size}",
                     item.status,
                     item.reason,
                 )
             ):
-                self.table.setItem(row, column, QTableWidgetItem(label))
+                cell = QTableWidgetItem(label)
+                cell.setToolTip(details)
+                self.table.setItem(row, column, cell)
+        if self._candidates:
+            self.table.selectRow(0)
+            self.details_panel.setPlainText(candidate_disclosure(self._candidates[0]))
         self.apply_button.setEnabled(eligible > 0)
         self.preview_button.setEnabled(eligible > 0)
         self.status.setText(
@@ -495,21 +602,16 @@ class InputProfileBatchDialog(QDialog):
     def _preflight_failed(self, epoch: int, error: str) -> None:
         if epoch == self._preflight_epoch:
             self.status.setText(f"Preflight failed: {error}")
+            self.stop_button.setEnabled(False)
 
     def _approve(self) -> None:
         if self._preflight_epoch is None or not self._candidates:
             return
-        eligible = sum(candidate.eligible for candidate in self._candidates)
-        choice = QMessageBox.question(
-            self,
-            "Confirm batch profile override",
-            f"Apply the selected profile to {eligible} source(s)? "
-            "Approved registered sources will be reloaded. "
-            "The operation is not atomic after it starts.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if choice != QMessageBox.StandardButton.Yes:
+        eligible = tuple(candidate for candidate in self._candidates if candidate.eligible)
+        if not eligible:
+            return
+        approval = BatchProfileApprovalDialog(eligible, self)
+        if approval.exec() != QDialog.DialogCode.Accepted:
             return
         self._preview.cancel()
         self.apply_button.setEnabled(False)
@@ -524,13 +626,18 @@ class InputProfileBatchDialog(QDialog):
             return
         for row, candidate in enumerate(self._candidates):
             if candidate.path == value.path:
-                self.table.setItem(row, 4, QTableWidgetItem(value.status))
-                self.table.setItem(row, 5, QTableWidgetItem(value.reason))
+                self.table.setItem(row, 5, QTableWidgetItem(value.status))
+                self.table.setItem(row, 6, QTableWidgetItem(value.reason))
                 break
 
     def _commit_finished(self, result: object) -> None:
         if not isinstance(result, ProfileBatchResult):
             return
+        if result.epoch != self._preflight_epoch:
+            return
+        self._last_batch_result = result
+        self.stop_button.setEnabled(False)
+        self.preview_button.setEnabled(False)
         self.preflight_button.setEnabled(True)
         self.profile_box.setEnabled(True)
         self.override_sidecars.setEnabled(True)
@@ -584,12 +691,18 @@ class InputProfileBatchDialog(QDialog):
             self.preview_label.setText(f"Preview unavailable: {error}")
 
     def _cancel(self) -> None:
+        if self._last_batch_result is not None:
+            # Completion/partial-commit totals are the durable user-visible truth.
+            return
+        if self._batch.phase not in ("preflight", "ready", "committing"):
+            return
         was_committing = self._batch.phase == "committing"
         self._batch.cancel()
         self._preview.cancel()
         self.apply_button.setEnabled(False)
         self.preflight_button.setEnabled(True)
         self.preview_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
         if not was_committing:
             self.status.setText("Pending work cancelled; no batch changes made")
 
