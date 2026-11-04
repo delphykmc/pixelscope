@@ -378,9 +378,8 @@ class MultiCompareView(QWidget):
 
     def set_layout_kind(self, kind: str, focus_document_id: str | None = None) -> None:
         if (
-            (kind != self.layout_kind or focus_document_id != self.focus_document_id)
-            and not self._review_restoring
-        ):
+            kind != self.layout_kind or focus_document_id != self.focus_document_id
+        ) and not self._review_restoring:
             self.cancel_review_restore()
         self.layout_kind = kind
         self.focus_document_id = focus_document_id
@@ -460,10 +459,7 @@ class MultiCompareView(QWidget):
             try:
                 for tile in checkpoint.tiles:
                     viewer = tile.viewer
-                    if (
-                        viewer._graphics_resources_disposed
-                        or viewer.document is not tile.document
-                    ):
+                    if viewer._graphics_resources_disposed or viewer.document is not tile.document:
                         errors.append("source-replaced-or-closed")
                         continue
                     try:
