@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Callable
 from uuid import uuid4
+from weakref import WeakMethod
 
 from pydantic import ValidationError
 from PySide6.QtCore import QSettings
@@ -231,8 +232,9 @@ class ProfileLibraryControls(QWidget):
     ) -> None:
         super().__init__(parent)
         self.kind = kind
-        self.get_profile = get_profile
-        self.apply_profile = apply_profile
+        # WeakMethod avoids child-widget -> parent-dialog Python reference cycles.
+        self._get_profile = WeakMethod(get_profile)
+        self._apply_profile = WeakMethod(apply_profile)
         self.library = InputProfileLibrary(settings)
         self.origin = "Manual"
 
@@ -290,7 +292,9 @@ class ProfileLibraryControls(QWidget):
         entries = self.library.recent(self.kind)
         if index <= len(entries):
             self.origin = "Recent"
-            self.apply_profile(entries[index - 1].profile)
+            apply_profile = self._apply_profile()
+            if apply_profile is not None:
+                apply_profile(entries[index - 1].profile)
 
     def _select_favorite(self, index: int) -> None:
         if index <= 0:
@@ -307,11 +311,14 @@ class ProfileLibraryControls(QWidget):
 
     def _add_favorite(self) -> None:
         try:
-            profile = self.get_profile()
+            get_profile = self._get_profile()
+            if get_profile is None:
+                return
+            profile = get_profile()
         except (ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Invalid profile", str(exc))
             return
-        label, ok = QInputDialog.getText(self, "Favorite profile", "Display name:", text=profile.name)
+        label, ok = QInputDialog.getText(\n            self, "Favorite profile", "Display name:", text=profile.name\n        )
         if not ok or not label.strip():
             return
         try:
@@ -324,7 +331,7 @@ class ProfileLibraryControls(QWidget):
         entry = self._selected_favorite()
         if entry is None:
             return
-        label, ok = QInputDialog.getText(self, "Rename favorite", "Display name:", text=entry.label)
+        label, ok = QInputDialog.getText(\n            self, "Rename favorite", "Display name:", text=entry.label\n        )
         if ok and label.strip():
             self.library.rename_favorite(entry.id, label)
             self.refresh()
