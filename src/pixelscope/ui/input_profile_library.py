@@ -8,7 +8,7 @@ from uuid import uuid4
 from weakref import WeakMethod
 
 from pydantic import ValidationError
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -260,6 +260,23 @@ class ProfileLibraryControls(QWidget):
         self.remove_button.clicked.connect(self._remove_favorite)  # type: ignore[attr-defined]
         self.refresh()
 
+    @staticmethod
+    def _short_interpretation(profile: InputProfile) -> str:
+        if isinstance(profile, YuvProfile):
+            return f"{profile.channel_layout} · 8-bit · Y+UV"
+        if profile.storage_format == "unpacked":
+            storage = str(profile.container_dtype)
+            endian = profile.endianness or "n/a"
+            align = profile.bit_alignment or "n/a"
+        else:
+            storage = profile.storage_format
+            endian = "n/a"
+            align = profile.packed_bit_order or "n/a"
+        return (
+            f"{storage} · {profile.bit_depth}-bit · stride {profile.stride_bytes} · "
+            f"{endian}/{align} · {profile.channel_layout}"
+        )
+
     def refresh(self) -> None:
         for combo, entries, placeholder in (
             (self.recent_box, self.library.recent(self.kind), "Select recent…"),
@@ -269,8 +286,16 @@ class ProfileLibraryControls(QWidget):
             combo.clear()
             combo.addItem(placeholder, "")
             for entry in entries:
-                description = f"{entry.label} · {entry.profile.width}×{entry.profile.height}"
+                signature = self._short_interpretation(entry.profile)
+                description = (
+                    f"{entry.label} · {entry.profile.width}×{entry.profile.height} · {signature}"
+                )
                 combo.addItem(description, entry.id or interpretation_key(entry.profile))
+                combo.setItemData(
+                    combo.count() - 1,
+                    signature,
+                    Qt.ItemDataRole.ToolTipRole,
+                )
             combo.setCurrentIndex(0)
             combo.blockSignals(False)
         self.add_button.setEnabled(not self.library.read_only)
