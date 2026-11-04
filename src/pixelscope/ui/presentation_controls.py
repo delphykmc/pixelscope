@@ -768,7 +768,9 @@ def polish_presentation_controls(window: Any) -> None:
     window._update_comparison_page_controls()
 
 
-def install_comparison_preset_controls(window: Any) -> tuple[QWidget, QComboBox, QComboBox, QComboBox, QLabel]:
+def install_comparison_preset_controls(
+    window: Any,
+) -> tuple[QWidget, QComboBox, QComboBox, QComboBox, QLabel]:
     """Create the W05 source-only comparison controls in the existing command row.
 
     Callers own the signals and runtime pair state. This presentation-only helper
