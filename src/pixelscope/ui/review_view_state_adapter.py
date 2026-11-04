@@ -202,7 +202,7 @@ def restore_review_view_state(
     foreground/display/layout notifications. User input must call
     view.cancel_review_restore(). This routine never schedules a late mutation.
     """
-    if view._review_restore_closed or view._review_restore_epoch != epoch:
+    if view._review_restore_closed or view._review_restore_pending_epoch != epoch:
         return ReviewRestoreResult("interrupted", epoch, "epoch-revoked-or-owner-closed")
     if view._review_restore_applied_epoch == epoch:
         return ReviewRestoreResult("interrupted", epoch, "epoch-already-applied")
@@ -279,10 +279,11 @@ def restore_review_view_state(
                     "interrupted", epoch, f"physical-zoom-not-achieved:{key};applied={applied}"
                 )
             applied.append(key)
-        if view._review_restore_epoch != epoch or view._review_restore_closed:
+        if view._review_restore_pending_epoch != epoch or view._review_restore_closed:
             return ReviewRestoreResult("interrupted", epoch, "epoch-revoked-during-apply")
         view._activate_viewer(presented[state.active_source_key])
         view._review_restore_applied_epoch = epoch
+        view._review_restore_pending_epoch = None
         return ReviewRestoreResult("applied", epoch)
     except (RuntimeError, ValueError, TypeError) as exc:
         view.cancel_review_restore()
