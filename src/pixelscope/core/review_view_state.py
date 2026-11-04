@@ -10,10 +10,11 @@ durable keys independently before applying the record to live documents.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isfinite
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID
 
 REVIEW_VIEW_STATE_VERSION = 1
@@ -38,7 +39,7 @@ def _source_key(value: object) -> str:
 
 
 def _pair(value: object, *, name: str) -> tuple[float, float]:
-    if not isinstance(value, (tuple, list)) or len(value) != 2:
+    if not isinstance(value, tuple | list) or len(value) != 2:
         raise ValueError(f"{name} must contain exactly two coordinates")
     if any(type(number) not in (float, int) for number in value):
         raise ValueError(f"{name} requires finite numeric coordinates")
@@ -50,9 +51,9 @@ def _pair(value: object, *, name: str) -> tuple[float, float]:
 
 def _shape(value: object) -> tuple[int, int]:
     if (
-        not isinstance(value, (tuple, list))
+        not isinstance(value, tuple | list)
         or len(value) != 2
-        or any(type(number) is not int or number <= 0 for number in value)
+        or any(not isinstance(number, int) or isinstance(number, bool) or number <= 0 for number in value)
     ):
         raise ValueError("reference shape must be positive integer (rows, columns)")
     return int(value[0]), int(value[1])
@@ -63,7 +64,7 @@ def _center_in_shape(center: tuple[float, float], shape: tuple[int, int]) -> boo
 
 
 def _scale(value: object) -> float:
-    if type(value) not in (float, int):
+    if isinstance(value, bool) or not isinstance(value, float | int):
         raise ValueError("physical scale must be a positive finite number")
     scale = float(value)
     if not isfinite(scale) or scale <= 0:
@@ -120,7 +121,7 @@ class ReviewViewStateV1:
     schema_version: int = REVIEW_VIEW_STATE_VERSION
 
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 1:
+        if not isinstance(self.schema_version, int) or isinstance(self.schema_version, bool) or self.schema_version != 1:
             raise ValueError("unsupported ReviewViewState schema_version")
         page = tuple(_source_key(key) for key in self.page_source_keys)
         if not 1 <= len(page) <= 6 or len(page) != len(set(page)):
@@ -137,7 +138,7 @@ class ReviewViewStateV1:
             or self.presentation_mode not in SUPPORTED_PRESENTATIONS
         ):
             raise ValueError("unknown review presentation mode")
-        if type(self.sync_enabled) is not bool:
+        if not isinstance(self.sync_enabled, bool):
             raise ValueError("sync_enabled must be bool")
         if self.presentation_mode == "single" and len(page) != 1:
             raise ValueError("single presentation requires exactly one source")
@@ -156,6 +157,11 @@ class ReviewViewStateV1:
             raise ValueError("reference shape disagrees with source_shapes_ref")
         if not _center_in_shape(self.center_ref_xy, shape):
             raise ValueError("reference center falls outside reference coordinates")
+        if self.sync_enabled and any(
+            not _center_in_shape(self.center_ref_xy, dimensions)
+            for dimensions in source_shapes.values()
+        ):
+            raise ValueError("shared center falls outside a page source reference grid")
         object.__setattr__(self, "source_shapes_ref", MappingProxyType(source_shapes))
         if not isinstance(self.per_source, Mapping):
             raise ValueError("per_source must be a mapping")
