@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from numbers import Integral
 from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -236,8 +237,12 @@ def freeze_series_values(values: object) -> tuple[
     result: list[int | float | None] = []
     states: list[str] = []
     for value in values:
-        # Preserve integer histogram counts losslessly.
-        native = int(value) if hasattr(value, "dtype") and value.dtype.kind in "iu" else float(value)
+        # Native int/uint values must remain exact even beyond float64's 2**53
+        # mantissa bound. numbers.Integral covers Python int and numpy integer
+        # scalars; only true floating values pass through float().
+        if isinstance(value, bool) or getattr(getattr(value, "dtype", None), "kind", None) == "b":
+            raise ValueError("boolean is not a numerical series sample")
+        native = int(value) if isinstance(value, Integral) else float(value)
         if isinstance(native, int) or math.isfinite(native):
             result.append(native)
             states.append("finite")
@@ -273,6 +278,10 @@ class AnalysisSnapshotV1:
             raise ValueError("measurement source not presented")
         if sum(len(item.values) for item in self.series) > MAX_SERIES_SAMPLES:
             raise ValueError("series budget exceeded")
+        if self.token.feature in ("histogram", "line") and not self.series:
+            raise ValueError("Histogram/Line snapshots require nonempty native series")
+        if self.token.feature in ("statistics", "difference") and self.series:
+            raise ValueError("Statistics/Difference snapshots cannot include native series")
         if any(item.source_key not in self.token.source_keys for item in self.series):
             raise ValueError("series source not presented")
         if any(item.kind != self.token.feature for item in self.series):
@@ -520,6 +529,10 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
     series_data = data.get("series", [])
     if type(series_data) is not list:
         raise ValueError("invalid series array")
+    if data["feature"] in ("histogram", "line") and not series_data:
+        raise ValueError("Histogram/Line contexts require native series")
+    if data["feature"] in ("statistics", "difference") and series_data:
+        raise ValueError("Statistics/Difference contexts cannot include native series")
     series_size = 0
     for item in series_data:
         if type(item) is not dict or set(item) != {
