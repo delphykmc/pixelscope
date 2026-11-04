@@ -114,6 +114,11 @@ class AnalysisSourceV1:
             raise ValueError("verified source requires digest")
         if not isinstance(self.native_interpretation, AnalysisNativeInterpretationV1):
             raise ValueError("invalid native source interpretation")
+        if (self.channel_layout in ("YUV444", "YUV422", "YUV420")
+                and self.native_interpretation.yuv_layout != self.channel_layout):
+            raise ValueError("native YUV source interpretation missing")
+        if self.channel_layout == "BAYER" and self.native_interpretation.cfa_pattern is None:
+            raise ValueError("native Bayer CFA interpretation missing")
         if self.native_interpretation.yuv_layout is not None and (
             self.native_interpretation.yuv_layout != self.channel_layout
             or self.native_interpretation.yuv_plane_shapes is None
@@ -479,6 +484,11 @@ def parse_analysis_context(raw: bytes) -> dict[str, object]:
         ):
             raise ValueError("invalid verification")
         native = AnalysisNativeInterpretationV1.from_portable(source["native_interpretation"])
+        if (source["channel_layout"] in ("YUV444", "YUV422", "YUV420")
+                and native.yuv_layout != source["channel_layout"]):
+            raise ValueError("missing YUV native interpretation")
+        if source["channel_layout"] == "BAYER" and native.cfa_pattern is None:
+            raise ValueError("missing Bayer native interpretation")
         if native.yuv_layout is not None and (
             native.yuv_layout != source["channel_layout"]
             or native.yuv_plane_shapes is None
