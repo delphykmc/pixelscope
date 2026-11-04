@@ -8,6 +8,17 @@ Choose **File > Save Session...**. PixelScope writes a `.pixelscope` JSON Sessio
 
 A Session does not own decoded arrays, caches, workers, or generated Difference maps.
 
+## Inspection viewport and Review handoff
+
+The existing `.pixelscope` Session v1 workflow is unchanged: it does **not**
+persist a durable per-source physical zoom/center snapshot. The independent
+Review View State adapter introduced for future named findings (W09) records
+verified source keys, reference-space center, measured physical scale, sync,
+layout and per-source geometry. The adapter is not yet a new menu command,
+Review file format or a Session migration. It only restores when the relevant
+sources and final layout have been resolved and validated; it does not invoke
+Difference Calculate implicitly.
+
 ## Open a Session
 
 Choose **File > Open Session...** and select the saved `.pixelscope` file. PixelScope validates and stages restore information before replacing the current workspace. Missing source paths can prevent complete reconstruction because saved work references source files rather than embedding them.
