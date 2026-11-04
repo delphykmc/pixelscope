@@ -89,10 +89,7 @@ def test_workspace_roundtrip_preserves_w05_sources_and_roi(
         (
             viewer.document.document_id,
             viewer.zoom_percent,
-            tuple(
-                (axis[0] + axis[1]) * 0.5
-                for axis in viewer.view_box.viewRange()
-            ),
+            tuple((axis[0] + axis[1]) * 0.5 for axis in viewer.view_box.viewRange()),
         )
         for viewer in window.multi_compare_view.occupied_viewers
         if viewer.document is not None
@@ -116,10 +113,7 @@ def test_workspace_roundtrip_preserves_w05_sources_and_roi(
             (
                 viewer.document.document_id,
                 viewer.zoom_percent,
-                tuple(
-                    (axis[0] + axis[1]) * 0.5
-                    for axis in viewer.view_box.viewRange()
-                ),
+                tuple((axis[0] + axis[1]) * 0.5 for axis in viewer.view_box.viewRange()),
             )
             for viewer in window.multi_compare_view.occupied_viewers
             if viewer.document is not None
@@ -192,11 +186,11 @@ def test_command_hierarchy_preserves_single_existing_actions(qtbot: object) -> N
     actions = toolbar.actions()
     w05 = window.quick_compare_controller.comparison_presets
     w05_group_action = next(
-        action for action in actions
-        if toolbar.widgetForAction(action) is w05.group
+        action for action in actions if toolbar.widgetForAction(action) is w05.group
     )
     workspace_group_action = next(
-        action for action in actions
+        action
+        for action in actions
         if toolbar.widgetForAction(action) is window.workspace_preset_control
     )
     existing_open = window.action_map["Open Images..."]
@@ -220,12 +214,13 @@ def test_manual_splitters_are_restored_for_each_preset(qtbot: object) -> None:
 
     workspace.select(WorkspacePreset.REVIEW)
     workspace.select(WorkspacePreset.ANALYZE)
-    assert all(abs(a - b) <= 8 for a, b in zip(
-        window.main_splitter.sizes(), recorded_main, strict=True
-    ))
-    assert all(abs(a - b) <= 8 for a, b in zip(
-        window.sidebar_splitter.sizes(), recorded_sidebar, strict=True
-    ))
+    assert all(
+        abs(a - b) <= 8 for a, b in zip(window.main_splitter.sizes(), recorded_main, strict=True)
+    )
+    assert all(
+        abs(a - b) <= 8
+        for a, b in zip(window.sidebar_splitter.sizes(), recorded_sidebar, strict=True)
+    )
     window.close()
 
 
