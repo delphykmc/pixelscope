@@ -7,9 +7,10 @@ alias, widget, Difference map, or synthetic durable source UUID is stored.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal, Sequence
+from typing import Literal
 
 
 class ComparisonPreset(str, Enum):
