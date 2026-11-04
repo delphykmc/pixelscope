@@ -416,16 +416,18 @@ def test_wire_series_kind_cannot_bypass_dto_classification(feature: str) -> None
     """A malicious wire document must not represent impossible native series."""
     data = parse_analysis_context(serialize_analysis_context(_snapshot()))
     data["feature"] = feature
-    data["series"] = [{
-        "source_key": data["sources"][0]["source_key"],
-        "channel": "R",
-        "kind": feature,
-        "coordinates": [0.0],
-        "values": [1.0],
-        "value_states": ["finite"],
-        "sample_count": 1,
-        "definition_revision": "native-v1",
-    }]
+    data["series"] = [
+        {
+            "source_key": data["sources"][0]["source_key"],
+            "channel": "R",
+            "kind": feature,
+            "coordinates": [0.0],
+            "values": [1.0],
+            "value_states": ["finite"],
+            "sample_count": 1,
+            "definition_revision": "native-v1",
+        }
+    ]
     with pytest.raises(ValueError, match="series source or feature mismatch"):
         parse_analysis_context(json.dumps(data).encode("utf-8"))
 
@@ -433,14 +435,23 @@ def test_wire_series_kind_cannot_bypass_dto_classification(feature: str) -> None
 def test_bayer_native_interpretation_and_private_profile_name_are_portable() -> None:
     profile = RawProfile(
         name="C:\\internal\\private-profile.raw",
-        width=8, height=4, stride_bytes=16, offset_bytes=8,
-        bit_depth=10, channel_layout="BAYER", bayer_pattern="GRBG",
-        endianness="big", bit_alignment="msb", black_level=64,
+        width=8,
+        height=4,
+        stride_bytes=16,
+        offset_bytes=8,
+        bit_depth=10,
+        channel_layout="BAYER",
+        bayer_pattern="GRBG",
+        endianness="big",
+        bit_alignment="msb",
+        black_level=64,
         white_level=1023,
     )
     doc = ImageDocument.from_array(
         np.full((4, 8), 333, dtype=np.uint16),
-        "private-name.raw", channel_layout="BAYER", bit_depth=10,
+        "private-name.raw",
+        channel_layout="BAYER",
+        bit_depth=10,
         raw_profile=profile,
     )
     interpretation = native_interpretation(doc)
@@ -451,9 +462,9 @@ def test_bayer_native_interpretation_and_private_profile_name_are_portable() -> 
     assert interpretation.raw_endianness == "big"
     assert interpretation.raw_bit_alignment == "msb"
     assert interpretation.raw_black_levels == (64,)
-    assert AnalysisNativeInterpretationV1.from_portable(
-        interpretation.to_portable()
-    ) == interpretation
+    assert (
+        AnalysisNativeInterpretationV1.from_portable(interpretation.to_portable()) == interpretation
+    )
     base = _snapshot()
     signature = native_profile_signature(doc)
     source = replace(
@@ -490,9 +501,9 @@ def test_yuv_native_plane_shapes_and_chroma_footprint_roundtrip() -> None:
     assert interpretation.yuv_layout == "YUV420"
     assert interpretation.yuv_chroma_step_xy == (2, 2)
     assert interpretation.yuv_plane_shapes == ((8, 10), (4, 5), (4, 5))
-    assert AnalysisNativeInterpretationV1.from_portable(
-        interpretation.to_portable()
-    ) == interpretation
+    assert (
+        AnalysisNativeInterpretationV1.from_portable(interpretation.to_portable()) == interpretation
+    )
     base = _snapshot()
     digest = native_profile_signature(document)
     source = replace(
@@ -506,7 +517,9 @@ def test_yuv_native_plane_shapes_and_chroma_footprint_roundtrip() -> None:
         native_interpretation=interpretation,
     )
     snap = replace(
-        base, token=replace(base.token, profile_signatures=(digest,)), sources=(source,),
+        base,
+        token=replace(base.token, profile_signatures=(digest,)),
+        sources=(source,),
     )
     payload = serialize_analysis_context(snap)
     assert b"private-yuv-name" not in payload
@@ -517,9 +530,7 @@ def test_yuv_native_plane_shapes_and_chroma_footprint_roundtrip() -> None:
 def test_native_interpretation_wire_rejects_extra_paths_and_bad_planes() -> None:
     base = AnalysisNativeInterpretationV1().to_portable()
     with pytest.raises(ValueError, match="unknown native interpretation fields"):
-        AnalysisNativeInterpretationV1.from_portable(
-            base | {"source_path": "C:/secret.raw"}
-        )
+        AnalysisNativeInterpretationV1.from_portable(base | {"source_path": "C:/secret.raw"})
     wrong_step = base | {
         "sampling_semantics": "cell_footprint",
         "sample_step_xy": [2, 2],
@@ -551,16 +562,15 @@ def test_analysis_bundle_records_omissions_and_rejects_inconsistent_availability
     )
     write_analysis_bundle(target, (snap,), availability=entries)
     verified = verify_analysis_bundle(target)
-    expected = [
-        {"feature": row.feature, "state": row.state} for row in entries
-    ]
+    expected = [{"feature": row.feature, "state": row.state} for row in entries]
     assert verified["availability"] == expected
     with ZipFile(target) as archive:
         context = json.loads(archive.read("data/context.json"))
     assert context["availability"] == expected
     with pytest.raises(ValueError, match="availability"):
         write_analysis_bundle(
-            tmp_path / "wrong.zip", (snap,),
+            tmp_path / "wrong.zip",
+            (snap,),
             availability=(
                 AnalysisFeatureAvailabilityV1("statistics", "stale"),
                 *entries[1:],

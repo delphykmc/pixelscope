@@ -148,24 +148,21 @@ class _FrozenFeatureAdapter:
             preview_worker = getattr(panel, "_preview_worker", None)
             refresh_timer = getattr(panel, "_refresh_timer", None)
             display_timer = getattr(panel, "_display_timer", None)
-            if any(
-                task is not None and task.is_cancelled
-                for task in (worker, preview_worker)
-            ):
+            if any(task is not None and task.is_cancelled for task in (worker, preview_worker)):
                 state = "cancelled"
             elif any(
-                task is not None and not task.is_cancelled
-                for task in (worker, preview_worker)
+                task is not None and not task.is_cancelled for task in (worker, preview_worker)
             ) or any(
-                timer is not None and timer.isActive()
-                for timer in (refresh_timer, display_timer)
+                timer is not None and timer.isActive() for timer in (refresh_timer, display_timer)
             ):
                 state = "pending"
             elif expected is not None and current is not None:
                 state = "mismatched"
-            elif expected is not None or bool(
-                getattr(panel, "last_results", ())
-            ) or getattr(panel, "last_result", None) is not None:
+            elif (
+                expected is not None
+                or bool(getattr(panel, "last_results", ()))
+                or getattr(panel, "last_result", None) is not None
+            ):
                 state = "stale"
             else:
                 state = "uncomputed"
@@ -767,12 +764,12 @@ class AnalysisExportController(QObject):
         self._bundle_worker = worker
         self.refresh_actions()
         omitted = ", ".join(
-            f"{entry.feature}: {entry.state}"
-            for entry in availability if entry.state != "captured"
+            f"{entry.feature}: {entry.state}" for entry in availability if entry.state != "captured"
         )
         summary = (
             f"Exporting Analysis Bundle ({len(snapshots)}/4 captured"
-            + (f"; omitted {omitted}" if omitted else "") + ")..."
+            + (f"; omitted {omitted}" if omitted else "")
+            + ")..."
         )
         self.window.statusBar().showMessage(summary, 0)
         self._pool.start(worker)
@@ -789,7 +786,8 @@ class AnalysisExportController(QObject):
         self._remember_success(result)
         omitted = ", ".join(
             f"{item.feature}: {item.state}"
-            for item in self._bundle_availability if item.state != "captured"
+            for item in self._bundle_availability
+            if item.state != "captured"
         )
         suffix = f" · omitted {omitted}" if omitted else " · all features captured"
         self.window.statusBar().showMessage(

@@ -20,20 +20,20 @@ def native_interpretation(document: ImageDocument) -> AnalysisNativeInterpretati
     sampling = document.spatial_sampling
     black_level = getattr(profile, "black_level", None)
     levels = (
-        (black_level,) if isinstance(black_level, int) and not isinstance(black_level, bool)
-        else tuple(black_level) if isinstance(black_level, tuple | list)
+        (black_level,)
+        if isinstance(black_level, int) and not isinstance(black_level, bool)
+        else tuple(black_level)
+        if isinstance(black_level, tuple | list)
         else None
     )
     cfa_pattern = getattr(profile, "bayer_pattern", None)
     return AnalysisNativeInterpretationV1(
         sampling_semantics=sampling.sampling_semantics if sampling is not None else "direct",
         sample_step_xy=(
-            (sampling.column_step, sampling.row_step)
-            if sampling is not None else (1, 1)
+            (sampling.column_step, sampling.row_step) if sampling is not None else (1, 1)
         ),
         sample_phase_xy=(
-            (sampling.column_phase, sampling.row_phase)
-            if sampling is not None else (0, 0)
+            (sampling.column_phase, sampling.row_phase) if sampling is not None else (0, 0)
         ),
         sample_channel=document.sample_channel,
         cfa_pattern=cfa_pattern,
@@ -53,7 +53,8 @@ def native_interpretation(document: ImageDocument) -> AnalysisNativeInterpretati
         yuv_chroma_step_xy=frame.chroma_scale if frame is not None else None,
         yuv_plane_shapes=(
             tuple((int(plane.shape[0]), int(plane.shape[1])) for plane in frame.planes)
-            if frame is not None else None
+            if frame is not None
+            else None
         ),
     )
 

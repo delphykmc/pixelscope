@@ -43,9 +43,10 @@ class AnalysisNativeInterpretationV1:
                 type(v) is not int or v < (1 if positive else 0) for v in pair
             ):
                 raise ValueError("invalid sampling step/phase")
-        if any(phase >= step for phase, step in zip(
-            self.sample_phase_xy, self.sample_step_xy, strict=True
-        )):
+        if any(
+            phase >= step
+            for phase, step in zip(self.sample_phase_xy, self.sample_step_xy, strict=True)
+        ):
             raise ValueError("phase is outside step")
         if self.sampling_semantics == "direct" and (
             self.sample_step_xy != (1, 1) or self.sample_phase_xy != (0, 0)
@@ -54,7 +55,7 @@ class AnalysisNativeInterpretationV1:
         if self.sampling_semantics == "cell_footprint" and self.sample_phase_xy != (0, 0):
             raise ValueError("cell footprint must have zero phase")
         if self.sample_channel is not None and self.sample_channel not in (
-            "R", "Gr", "Gb", "G", "B", "A", "Gray", "Mosaic", "Y", "U", "V"
+            "R",
         ):
             raise ValueError("unknown sample channel")
         if self.cfa_pattern not in (None, "RGGB", "GRBG", "GBRG", "BGGR"):
@@ -63,12 +64,18 @@ class AnalysisNativeInterpretationV1:
             if self.cfa_phase_xy is not None:
                 raise ValueError("CFA phase without Bayer pattern")
         elif (
-            self.cfa_phase_xy is None or len(self.cfa_phase_xy) != 2
+            self.cfa_phase_xy is None
+            or len(self.cfa_phase_xy) != 2
             or any(type(v) is not int or v not in (0, 1) for v in self.cfa_phase_xy)
         ):
             raise ValueError("Bayer phase requires two CFA parity offsets")
         if self.raw_storage_format not in (
-            None, "unpacked", "packed_stream", "mipi_raw10", "mipi_raw12", "mipi_raw14"
+            None,
+            "unpacked",
+            "packed_stream",
+            "mipi_raw10",
+            "mipi_raw12",
+            "mipi_raw14",
         ):
             raise ValueError("unsupported RAW storage")
         if self.raw_container_dtype not in (None, "uint8", "uint16"):
@@ -80,12 +87,12 @@ class AnalysisNativeInterpretationV1:
         if self.raw_packed_bit_order not in (None, "lsb", "msb"):
             raise ValueError("unsupported RAW bit order")
         for value, positive in (
-            (self.raw_row_stride_bytes, True), (self.raw_byte_offset, False),
+            (self.raw_row_stride_bytes, True),
+            (self.raw_byte_offset, False),
             (self.raw_white_level, True),
         ):
             if value is not None and (
-                type(value) is not int or value < (1 if positive else 0)
-                or value > 2**63 - 1
+                type(value) is not int or value < (1 if positive else 0) or value > 2**63 - 1
             ):
                 raise ValueError("invalid RAW numeric metadata")
         if self.raw_black_levels is not None and (
@@ -107,9 +114,13 @@ class AnalysisNativeInterpretationV1:
             if self.yuv_chroma_step_xy != expected:
                 raise ValueError("YUV layout/chroma step mismatch")
             shapes = self.yuv_plane_shapes
-            if shapes is None or len(shapes) != 3 or any(
-                len(pair) != 2 or any(type(v) is not int or v <= 0 for v in pair)
-                for pair in shapes
+            if (
+                shapes is None
+                or len(shapes) != 3
+                or any(
+                    len(pair) != 2 or any(type(v) is not int or v <= 0 for v in pair)
+                    for pair in shapes
+                )
             ):
                 raise ValueError("YUV requires three native plane shapes")
             y, u, v = shapes
@@ -142,7 +153,8 @@ class AnalysisNativeInterpretationV1:
             ),
             "yuv_plane_shapes": (
                 [list(pair) for pair in self.yuv_plane_shapes]
-                if self.yuv_plane_shapes is not None else None
+                if self.yuv_plane_shapes is not None
+                else None
             ),
         }
 
@@ -151,19 +163,17 @@ class AnalysisNativeInterpretationV1:
         if type(payload) is not dict or set(payload) != set(cls().to_portable()):
             raise ValueError("unknown native interpretation fields")
         obj: dict[str, Any] = payload
+
         def pair(key: str, nullable: bool = False) -> tuple[int, int] | None:
             value = obj[key]
             if nullable and value is None:
                 return None
-            if type(value) is not list or len(value) != 2 or any(
-                type(v) is not int for v in value
-            ):
+            if type(value) is not list or len(value) != 2 or any(type(v) is not int for v in value):
                 raise ValueError("invalid native sampling pair")
             return value[0], value[1]
+
         shapes = obj["yuv_plane_shapes"]
-        if shapes is not None and (
-            type(shapes) is not list or len(shapes) != 3
-        ):
+        if shapes is not None and (type(shapes) is not list or len(shapes) != 3):
             raise ValueError("invalid YUV plane list")
         sample_step = pair("sample_step_xy")
         sample_phase = pair("sample_phase_xy")
@@ -183,7 +193,8 @@ class AnalysisNativeInterpretationV1:
             raw_bit_alignment=obj["raw_bit_alignment"],
             raw_packed_bit_order=obj["raw_packed_bit_order"],
             raw_black_levels=(
-                tuple(obj["raw_black_levels"]) if type(obj["raw_black_levels"]) is list
+                tuple(obj["raw_black_levels"])
+                if type(obj["raw_black_levels"]) is list
                 else obj["raw_black_levels"]
             ),
             raw_white_level=obj["raw_white_level"],
@@ -191,14 +202,13 @@ class AnalysisNativeInterpretationV1:
             yuv_chroma_step_xy=pair("yuv_chroma_step_xy", nullable=True),
             yuv_plane_shapes=(
                 tuple(pair_value for pair_value in (cls._wire_plane(item) for item in shapes))
-                if shapes is not None else None
+                if shapes is not None
+                else None
             ),
         )
 
     @staticmethod
     def _wire_plane(value: object) -> tuple[int, int]:
-        if type(value) is not list or len(value) != 2 or any(
-            type(n) is not int for n in value
-        ):
+        if type(value) is not list or len(value) != 2 or any(type(n) is not int for n in value):
             raise ValueError("invalid YUV plane shape")
         return value[0], value[1]
