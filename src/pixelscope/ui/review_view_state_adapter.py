@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Literal
 
+# Keep the Qt-wrapper dependency in its own group for lifecycle isolation.
+# isort: split
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
     SUPPORTED_PRESENTATIONS,
