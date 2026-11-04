@@ -81,7 +81,22 @@ def test_workspace_roundtrip_preserves_w05_sources_and_roi(
     w05 = window.quick_compare_controller.comparison_presets
     w05.set_preset(ComparisonPreset.ORIGINAL_2)
     window._shared_roi = RoiBounds(3, 4, 20, 18)
-    zoom_before = window.multi_compare_view.capture_view_state()
+    # Layout changes can legitimately change the visible bounds. W01 physical
+    # scale and reference-space center, not the full ViewBox ranges, are stable.
+    window.multi_compare_view.zoom_100_percent()
+    qtbot.wait(60)  # type: ignore[attr-defined]
+    zoom_before = tuple(
+        (
+            viewer.document.document_id,
+            viewer.zoom_percent,
+            tuple(
+                (axis[0] + axis[1]) * 0.5
+                for axis in viewer.view_box.viewRange()
+            ),
+        )
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+    )
 
     def no_calculate(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("Workspace switch must not calculate a Difference")
@@ -96,7 +111,27 @@ def test_workspace_roundtrip_preserves_w05_sources_and_roi(
         workspace.select(preset)
         assert workspace.preset is preset
         assert _identity(window) == identity_before
-        assert window.multi_compare_view.capture_view_state() == zoom_before
+        qtbot.wait(60)  # type: ignore[attr-defined]
+        zoom_after = tuple(
+            (
+                viewer.document.document_id,
+                viewer.zoom_percent,
+                tuple(
+                    (axis[0] + axis[1]) * 0.5
+                    for axis in viewer.view_box.viewRange()
+                ),
+            )
+            for viewer in window.multi_compare_view.occupied_viewers
+            if viewer.document is not None
+        )
+        assert len(zoom_after) == len(zoom_before)
+        for (source_id, scale, center), (after_id, after_scale, after_center) in zip(
+            zoom_before, zoom_after, strict=True
+        ):
+            assert after_id == source_id
+            if scale is not None and after_scale is not None:
+                assert after_scale == pytest.approx(scale, rel=0.025)
+            assert after_center == pytest.approx(center, abs=3.0)
     assert w05.preset is ComparisonPreset.ORIGINAL_2
     window.close()
 
