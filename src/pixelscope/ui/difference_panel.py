@@ -181,6 +181,9 @@ class DifferencePanel(QWidget):
         self.last_result: DifferenceMetrics | None = None
         self._analysis_source_keys: dict[str, str] = {}
         self._analysis_request_epoch = 0
+        # A cached-map display can render before any metrics request exists.
+        # Empty provenance is never authority to capture an analysis result.
+        self._difference_request_id = ""
         self._presented_difference_token: PresentedAnalysisTokenV1 | None = None
         # A result_ready event for this exact metric scope/request authorizes
         # capture. Cached maps and background ROI metrics cannot reuse it.
@@ -318,6 +321,7 @@ class DifferencePanel(QWidget):
     ) -> PresentedAnalysisTokenV1 | None:
         if (
             self._closing
+            or not self._difference_request_id
             or self.last_result is None
             or self._presented_metric_result is not self.last_result
             or (self._worker is not None and not during_render)

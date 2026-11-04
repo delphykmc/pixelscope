@@ -249,7 +249,9 @@ def test_yuv_cache_variant_entries_are_dropped_on_generation_change(qtbot: objec
     assert panel._metric_cache == {}
 
 
-def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtbot: object) -> None:
+def test_cancelled_yuv_channel_result_cannot_cache_or_publish(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
     first, second = _yuv_pair("YUV420", channel="Y")
     panel = DifferencePanel(difference_cache_budget_bytes=4096)
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
@@ -258,7 +260,19 @@ def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtb
     old_metric_key = panel._metric_key()
     assert old_key is not None and old_metric_key is not None
 
+    # Hold a real production request before execution, then cancel it through
+    # the same channel transition used by the UI. A success already queued at
+    # cancellation must not regain cache or presentation authority.
+    monkeypatch.setattr(panel, "_pool", SimpleNamespace(start=lambda _worker: None))
+    published: list[object] = []
+    panel.result_ready.connect(lambda *_args: published.append(True))
+    panel.map_cached.connect(lambda *_args: published.append(True))
+    panel.calculate_difference()
+    old_worker = panel._worker
+    assert old_worker is not None and not old_worker.is_cancelled
     panel.channel.setCurrentText("U")
+    assert old_worker.is_cancelled
+    assert panel._worker is None
     assert panel.last_result is None
     late_map = CachedDifferenceMap(
         absolute=np.ones((4, 4), dtype=np.uint8),
@@ -281,17 +295,22 @@ def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtb
         minimum_absolute=1.0,
     )
 
-    panel._on_result(
-        "late-yuv-result",
-        old_key,
-        old_metric_key,
+    old_worker.signals.succeeded.emit(
+        old_worker.task_id,
+        None,
+        0,
         (late_map, late_metrics, False),
-        True,
     )
 
-    assert old_key in panel.difference_cache
+    assert old_key not in panel.difference_cache
+    assert old_metric_key not in panel._metric_cache
+    assert panel.difference_cache.entry_count == 0
+    assert not published
     assert panel.last_result is None
     assert panel.cached_result_for_current() is None
+    assert panel.get_current_difference_token() is None
+    assert panel.get_presented_difference_token() is None
+    panel.shutdown()
 
 
 def test_legacy_gray_rgb_bayer_and_normalized_compatibility_is_preserved() -> None:
