@@ -73,7 +73,10 @@ class YuvOpenDialog(QDialog):
         self.import_button = QPushButton("Load YUV JSON…")
         layout.addWidget(self.import_button)
         self.profile_library_controls = ProfileLibraryControls(
-            "yuv", self.profile, self.set_profile, parent=self  # type: ignore[arg-type]
+            "yuv",
+            self.profile,
+            self.set_profile,
+            parent=self,  # type: ignore[arg-type]
         )
         layout.addWidget(self.profile_library_controls)
         layout.addWidget(buttons)
@@ -204,6 +207,4 @@ class YuvOpenDialog(QDialog):
         else:
             self._file_size_state = "trailing"
             state = f"{actual - expected:,} trailing bytes (reject for native YUV)"
-        self.file_size.setText(
-            f"Expected {expected:,} bytes · actual {actual:,} bytes · {state}"
-        )
+        self.file_size.setText(f"Expected {expected:,} bytes · actual {actual:,} bytes · {state}")
