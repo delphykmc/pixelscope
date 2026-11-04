@@ -42,6 +42,7 @@ class MultiCompareView(QWidget):
         # Monotonic per-widget epoch: an old foreground completion has no
         # permission to replay a saved viewport after user input or shutdown.
         self._review_restore_epoch = 0
+        self._review_restore_pending_epoch: int | None = None
         self._review_restore_applied_epoch: int | None = None
         self._review_restore_closed = False
         self._review_restoring = False
@@ -293,7 +294,8 @@ class MultiCompareView(QWidget):
             viewer.set_line_selection(selection)
 
     def fit_images(self) -> None:
-        if not self._review_restoring:
+        # set_documents() legitimately fits as a foreground load finishes.
+        if not self._review_restoring and not self._layout_refit_active:
             self.cancel_review_restore()
         occupied = [viewer for viewer in self.visible_viewers if viewer.document is not None]
         if not occupied:
@@ -361,7 +363,7 @@ class MultiCompareView(QWidget):
         self.focus_document_id = focus_document_id
 
     def begin_review_restore(self, epoch: int) -> bool:
-        """Reserve an epoch after canonical source/page/layout/role staging.
+        """Reserve a new owner-issued epoch after canonical workspace staging.
 
         W09, not this widget, waits for foreground/Display Gain completion.
         Retry the adapter with this epoch on terminal settle notifications.
@@ -373,13 +375,13 @@ class MultiCompareView(QWidget):
         ):
             return False
         self._review_restore_epoch = epoch
+        self._review_restore_pending_epoch = epoch
         self._review_restore_applied_epoch = None
         return True
 
     def cancel_review_restore(self, *_args: object) -> int:
-        """Revoke pending/old callbacks before accepting another user action."""
-        self._review_restore_epoch += 1
-        self._review_restore_applied_epoch = None
+        """Revoke an outstanding epoch, not unrelated ordinary navigation."""
+        self._review_restore_pending_epoch = None
         return self._review_restore_epoch
 
     def capture_view_state(self) -> MultiCompareViewState:
