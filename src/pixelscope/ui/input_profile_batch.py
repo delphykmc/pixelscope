@@ -6,7 +6,7 @@ import weakref
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
@@ -273,7 +273,7 @@ class CanonicalBatchProfileAdapter:
             window._raw_profiles[current_id] = candidate.profile.copy(deep=True)
             window._raw_profile_prompt_suppressed.discard(current_id)
             window._refresh_reopened_selected_documents([current_id])
-            return current_id
+            return cast(str, current_id)
         registered = window._register_inputs(
             (ImageInput(candidate.path, None),), resolve_raw_profiles=False
         )
@@ -285,7 +285,7 @@ class CanonicalBatchProfileAdapter:
         document.raw_profile = candidate.profile.copy(deep=True)
         document.channel_layout = candidate.profile.channel_layout
         document.bit_depth = candidate.profile.bit_depth
-        return document_id
+        return cast(str, document_id)
 
 
 class InputProfileBatchDialog(QDialog):
@@ -332,7 +332,7 @@ class InputProfileBatchDialog(QDialog):
                 self.profile_box.addItem(
                     f"{kind.upper()} · {entry.label} ({entry.origin})"
                 )
-        self.profile_box.currentIndexChanged.connect(self._profile_changed)
+        self.profile_box.currentIndexChanged.connect(self._profile_changed)  # type: ignore[attr-defined]
         root.addWidget(self.profile_box)
         self.override_sidecars = QCheckBox(
             "Explicitly override JSON / imgprops sidecar interpretation", self
@@ -342,6 +342,8 @@ class InputProfileBatchDialog(QDialog):
         )
         root.addWidget(self.override_sidecars)
         root.addWidget(self.override_registered)
+        self.override_sidecars.toggled.connect(self._profile_changed)  # type: ignore[attr-defined]
+        self.override_registered.toggled.connect(self._profile_changed)  # type: ignore[attr-defined]
         self.table = QTableWidget(0, 4, self)
         self.table.setHorizontalHeaderLabels(
             ["Source", "Size", "Preflight / outcome", "Reason"]
@@ -367,11 +369,11 @@ class InputProfileBatchDialog(QDialog):
         ):
             actions.addWidget(button)
         root.addLayout(actions)
-        self.preflight_button.clicked.connect(self._start_preflight)
-        self.apply_button.clicked.connect(self._approve)
-        self.preview_button.clicked.connect(self._request_preview)
-        self.stop_button.clicked.connect(self._cancel)
-        self.close_button.clicked.connect(self.reject)
+        self.preflight_button.clicked.connect(self._start_preflight)  # type: ignore[attr-defined]
+        self.apply_button.clicked.connect(self._approve)  # type: ignore[attr-defined]
+        self.preview_button.clicked.connect(self._request_preview)  # type: ignore[attr-defined]
+        self.stop_button.clicked.connect(self._cancel)  # type: ignore[attr-defined]
+        self.close_button.clicked.connect(self.reject)  # type: ignore[attr-defined]
 
     def _profile(self) -> InputProfile | None:
         index = self.profile_box.currentIndex() - 1
@@ -506,12 +508,14 @@ class InputProfileBatchDialog(QDialog):
             self.preview_label.setText(f"Preview unavailable: {error}")
 
     def _cancel(self) -> None:
+        was_committing = self._batch.phase == "committing"
         self._batch.cancel()
         self._preview.cancel()
         self.apply_button.setEnabled(False)
         self.preflight_button.setEnabled(True)
         self.preview_button.setEnabled(False)
-        self.status.setText("Pending work cancelled; committed changes, if any, remain")
+        if not was_committing:
+            self.status.setText("Pending work cancelled; no batch changes made")
 
     def reject(self) -> None:
         self._batch.shutdown()
