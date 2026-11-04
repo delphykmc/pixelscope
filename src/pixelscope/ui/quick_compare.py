@@ -500,7 +500,6 @@ class QuickCompareController(QObject):
         self._sync_three_view_buttons(self._effective_three_view_variant())
 
 
-
 class ComparisonPresetController(QObject):
     """W05 runtime-only presentation overlay; Files/Page and Analysis stay canonical.
 
@@ -574,8 +573,7 @@ class ComparisonPresetController(QObject):
 
     def _binding(self) -> tuple[tuple[str, int, int], ...]:
         return tuple(
-            (document.document_id, id(document), document.generation)
-            for document in self._page()
+            (document.document_id, id(document), document.generation) for document in self._page()
         )
 
     def _sync_roles(self) -> None:
@@ -609,9 +607,7 @@ class ComparisonPresetController(QObject):
         ids = [document.document_id for document in page]
         panel = self.window.difference_panel
         selected = panel.selected_documents()
-        selected_ids = (
-            tuple(document.document_id for document in selected) if selected else ()
-        )
+        selected_ids = tuple(document.document_id for document in selected) if selected else ()
         matching = self._pair is not None and selected_ids == self._pair.source_ids
         cached = bool(matching and panel.has_cached_map())
         pending = bool(
@@ -623,8 +619,12 @@ class ComparisonPresetController(QObject):
         old_pair = getattr(self.window, "_difference_source_ids", None)
         stale = bool(matching and not cached and old_pair == selected_ids)
         return plan_comparison(
-            ids, preset, self._pair, cached_valid=cached,
-            pending=pending, stale=stale,
+            ids,
+            preset,
+            self._pair,
+            cached_valid=cached,
+            pending=pending,
+            stale=stale,
         )
 
     def _status(self, plan: ComparisonPlan) -> None:
@@ -634,14 +634,15 @@ class ComparisonPresetController(QObject):
         elif not message and plan.pair is not None:
             message = "Reference A / Target B (not Primary or Active)"
         self.status_label.setText(
-            "Cached" if plan.show_difference else plan.difference_state.replace("-", " ").title()
+            "Cached"
+            if plan.show_difference
+            else plan.difference_state.replace("-", " ").title()
             if plan.preset in (ComparisonPreset.AB_DIFF, ComparisonPreset.DIFF_FOCUS)
             else ""
         )
         self.status_label.setToolTip(message)
         if message and (
-            not plan.available
-            or plan.difference_state in ("pending", "stale", "not-calculated")
+            not plan.available or plan.difference_state in ("pending", "stale", "not-calculated")
         ):
             self.window.statusBar().showMessage(message, 4500)
 
@@ -658,7 +659,8 @@ class ComparisonPresetController(QObject):
         # presenting its current A/B originals is a safe, explicit fallback.
         presentation_ids = (
             plan.pair.source_ids
-            if self._preset is ComparisonPreset.DIFF_FOCUS and not plan.show_difference
+            if self._preset is ComparisonPreset.DIFF_FOCUS
+            and not plan.show_difference
             and plan.pair is not None
             else plan.source_ids
         )
@@ -745,7 +747,8 @@ class ComparisonPresetController(QObject):
         if not self.window.multi_compare_view.sync_enabled:
             self.window.statusBar().showMessage(
                 "Comparison preset unavailable with Sync Off: per-source restore "
-                "requires the W04 runtime binding handoff", 5500,
+                "requires the W04 runtime binding handoff",
+                5500,
             )
             return
         plan = self._state(preset)
@@ -755,9 +758,7 @@ class ComparisonPresetController(QObject):
             return
         if self._preset is ComparisonPreset.WORKSPACE:
             view = self.window.multi_compare_view
-            self._original_view_state = (
-                view.capture_view_state() if view.occupied_viewers else None
-            )
+            self._original_view_state = view.capture_view_state() if view.occupied_viewers else None
         if self.window.diff_action.isChecked():
             self.window.diff_action.setChecked(False)
         if self._pair is not None:
@@ -799,7 +800,8 @@ class ComparisonPresetController(QObject):
             and not self.window.multi_compare_view.sync_enabled
         ):
             self.window.statusBar().showMessage(
-                "Pair change blocked with Sync Off to preserve independent view state", 4500,
+                "Pair change blocked with Sync Off to preserve independent view state",
+                4500,
             )
             self._sync_roles()
             return
@@ -880,10 +882,7 @@ class ComparisonPresetController(QObject):
     def on_workspace_rendered(self) -> None:
         if self._closed:
             return
-        if (
-            self._preset is not ComparisonPreset.WORKSPACE
-            and self._page_binding != self._binding()
-        ):
+        if self._preset is not ComparisonPreset.WORKSPACE and self._page_binding != self._binding():
             self._preset = ComparisonPreset.WORKSPACE
             self._page_binding = None
             self.window.statusBar().showMessage(
@@ -913,7 +912,6 @@ class ComparisonPresetController(QObject):
         # Children are owned by the MainWindow; no background work belongs to W05.
         self._page_binding = None
         self._original_view_state = None
-
 
 
 def install_quick_compare_workflow(window: Any) -> QuickCompareController:
