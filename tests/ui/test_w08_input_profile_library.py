@@ -70,9 +70,8 @@ def test_recent_dedup_order_and_favorites_persist_without_path(tmp_path: Path) -
         "Sensor A",
         "Sensor baseline",
     )
-    assert (
-        interpretation_key(reopened.favorites("raw")[0].profile)
-        != interpretation_key(reopened.favorites("raw")[1].profile)
+    assert interpretation_key(reopened.favorites("raw")[0].profile) != interpretation_key(
+        reopened.favorites("raw")[1].profile
     )
     reopened.remove_favorite(second)
     assert len(InputProfileLibrary(_settings(tmp_path)).favorites("raw")) == 1
@@ -158,9 +157,7 @@ def test_raw_dialog_reuse_preserves_explicit_stride_and_validation(
     assert reopened.stride.value() == 10
     assert not reopened.stride_is_auto
     assert reopened.file_size_state == "match"
-    assert "Byte-size validation does not prove" in (
-        reopened.native_interpretation_summary.text()
-    )
+    assert "Byte-size validation does not prove" in (reopened.native_interpretation_summary.text())
     assert "Recent" in reopened.native_interpretation_summary.text()
 
 
