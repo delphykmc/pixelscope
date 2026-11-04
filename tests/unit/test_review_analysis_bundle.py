@@ -348,7 +348,7 @@ def test_series_rejects_wrong_feature_count_and_pathlike_labels() -> None:
         definition_revision="native-line-profile-v1",
     )
     series = AnalysisSeriesV1(**kwargs)
-    with pytest.raises(ValueError, match="feature mismatch"):
+    with pytest.raises(ValueError, match="cannot include native series"):
         replace(base, series=(series,))
     with pytest.raises(ValueError, match="cardinality"):
         AnalysisSeriesV1(**(kwargs | {"coordinates": (0.0,)}))
@@ -428,7 +428,7 @@ def test_wire_series_kind_cannot_bypass_dto_classification(feature: str) -> None
             "definition_revision": "native-v1",
         }
     ]
-    with pytest.raises(ValueError, match="series source or feature mismatch"):
+    with pytest.raises(ValueError, match="cannot include native series"):
         parse_analysis_context(json.dumps(data).encode("utf-8"))
 
 
