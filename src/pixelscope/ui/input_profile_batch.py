@@ -208,9 +208,13 @@ class BatchProfileController(QObject):
         else:
             try:
                 document_id = self._commit_one(candidate)
-                outcome = BatchProfileOutcome(\n                    candidate.path, "applied", "Canonical binding committed", document_id\n                )
+                outcome = BatchProfileOutcome(
+                    candidate.path, "applied", "Canonical binding committed", document_id
+                )
             except Exception as exc:  # noqa: BLE001 - preserve other sources and report error
-                outcome = BatchProfileOutcome(\n                    candidate.path, "failed", str(exc), candidate.document_id\n                )
+                outcome = BatchProfileOutcome(
+                    candidate.path, "failed", str(exc), candidate.document_id
+                )
         self._outcomes.append(outcome)
         self.commit_progress.emit(self._epoch, outcome)
         if self._phase == "committing":
@@ -220,10 +224,14 @@ class BatchProfileController(QObject):
         candidates = self._candidates or ()
         for candidate in candidates[self._index:]:
             self._outcomes.append(
-                BatchProfileOutcome(\n                    candidate.path, "interrupted", "Not applied", candidate.document_id\n                )
+                BatchProfileOutcome(
+                    candidate.path, "interrupted", "Not applied", candidate.document_id
+                )
             )
         self._phase = "finished"
-        self.commit_finished.emit(\n            ProfileBatchResult(self._epoch, tuple(self._outcomes), interrupted)\n        )
+        self.commit_finished.emit(
+            ProfileBatchResult(self._epoch, tuple(self._outcomes), interrupted)
+        )
 
 
 class CanonicalBatchProfileAdapter:
@@ -332,7 +340,9 @@ class InputProfileBatchDialog(QDialog):
                 self.profile_box.addItem(
                     f"{kind.upper()} · {entry.label} ({entry.origin})"
                 )
-        self.profile_box.currentIndexChanged.connect(self._profile_changed)  # type: ignore[attr-defined]
+        self.profile_box.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._profile_changed
+        )
         root.addWidget(self.profile_box)
         self.override_sidecars = QCheckBox(
             "Explicitly override JSON / imgprops sidecar interpretation", self
@@ -343,7 +353,9 @@ class InputProfileBatchDialog(QDialog):
         root.addWidget(self.override_sidecars)
         root.addWidget(self.override_registered)
         self.override_sidecars.toggled.connect(self._profile_changed)  # type: ignore[attr-defined]
-        self.override_registered.toggled.connect(self._profile_changed)  # type: ignore[attr-defined]
+        self.override_registered.toggled.connect(  # type: ignore[attr-defined]
+            self._profile_changed
+        )
         self.table = QTableWidget(0, 4, self)
         self.table.setHorizontalHeaderLabels(
             ["Source", "Size", "Preflight / outcome", "Reason"]
