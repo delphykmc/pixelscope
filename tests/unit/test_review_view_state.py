@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from pixelscope.core.review_view_state import ReviewViewportV1, ReviewViewStateV1
+from pixelscope.core.review_view_state import ReviewViewStateV1, ReviewViewportV1
 
 
 KEYS = tuple(str(UUID(int=i + 1)) for i in range(6))
