@@ -138,7 +138,7 @@ def test_raw_dialog_reuse_preserves_explicit_stride_and_validation(
     qtbot: object, tmp_path: Path
 ) -> None:
     path = tmp_path / "sensor.raw"
-    path.write_bytes(bytes(20))
+    path.write_bytes(bytes(18))
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     settings = _settings(tmp_path)
