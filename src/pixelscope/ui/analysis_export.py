@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.core.review_analysis import capture_presented_analysis
-from pixelscope.io.analysis_bundle import write_analysis_bundle
+from pixelscope.io.analysis_bundle import AnalysisFeatureAvailabilityV1, write_analysis_bundle
 from pixelscope.io.analysis_export import (
     DifferenceMetricsExport,
     HistogramExportSeries,
@@ -134,6 +134,38 @@ class _FrozenFeatureAdapter:
             return getattr(self._panel, f"read_presented_{self._feature}_series")()
         return ()
 
+    def availability(self, expected: Any, current: Any) -> AnalysisFeatureAvailabilityV1:
+        if expected is not None and current == expected:
+            state = "captured"
+        else:
+            panel = self._panel
+            worker = getattr(panel, "_worker", None)
+            preview_worker = getattr(panel, "_preview_worker", None)
+            refresh_timer = getattr(panel, "_refresh_timer", None)
+            display_timer = getattr(panel, "_display_timer", None)
+            if any(
+                task is not None and task.is_cancelled
+                for task in (worker, preview_worker)
+            ):
+                state = "cancelled"
+            elif any(
+                task is not None and not task.is_cancelled
+                for task in (worker, preview_worker)
+            ) or any(
+                timer is not None and timer.isActive()
+                for timer in (refresh_timer, display_timer)
+            ):
+                state = "pending"
+            elif expected is not None and current is not None:
+                state = "mismatched"
+            elif expected is not None or bool(
+                getattr(panel, "last_results", ())
+            ) or getattr(panel, "last_result", None) is not None:
+                state = "stale"
+            else:
+                state = "uncomputed"
+        return AnalysisFeatureAvailabilityV1(self._feature, state)
+
 
 class AnalysisExportController(QObject):
     """Focused export and clipboard adapter for already-computed analysis results."""
@@ -148,6 +180,7 @@ class AnalysisExportController(QObject):
         window.difference_panel.set_analysis_source_keys(keys)
         self._difference_worker: TaskWorker | None = None
         self._bundle_worker: TaskWorker | None = None
+        self._bundle_availability: tuple[AnalysisFeatureAvailabilityV1, ...] = ()
         self._pool = analysis_thread_pool()
         self._shutting_down = False
         self._observed_models: tuple[QObject, ...] = ()
@@ -657,9 +690,13 @@ class AnalysisExportController(QObject):
         if self._bundle_worker is not None or self._shutting_down:
             return
         snapshots = []
+        availability: list[AnalysisFeatureAvailabilityV1] = []
         for adapter in self._bundle_adapters():
             expected = adapter.get_presented_analysis_token()
-            if expected is None or adapter.get_current_analysis_token() != expected:
+            current = adapter.get_current_analysis_token()
+            state = adapter.availability(expected, current)
+            availability.append(state)
+            if state.state != "captured":
                 continue
             capture = capture_presented_analysis(adapter, expected)
             if not capture.available or capture.snapshot is None:
@@ -716,13 +753,23 @@ class AnalysisExportController(QObject):
             target,
             tuple(snapshots),
             expected_existing=expected_existing,
+            availability=tuple(availability),
         )
         worker.signals.succeeded.connect(self._bundle_succeeded)
         worker.signals.failed.connect(self._bundle_failed)
         worker.signals.finished.connect(self._bundle_finished)
+        self._bundle_availability = tuple(availability)
         self._bundle_worker = worker
         self.refresh_actions()
-        self.window.statusBar().showMessage("Exporting Analysis Bundle...", 0)
+        omitted = ", ".join(
+            f"{entry.feature}: {entry.state}"
+            for entry in availability if entry.state != "captured"
+        )
+        summary = (
+            f"Exporting Analysis Bundle ({len(snapshots)}/4 captured"
+            + (f"; omitted {omitted}" if omitted else "") + ")..."
+        )
+        self.window.statusBar().showMessage(summary, 0)
         self._pool.start(worker)
 
     def _bundle_succeeded(
@@ -735,7 +782,14 @@ class AnalysisExportController(QObject):
         if self._shutting_down or not isinstance(result, Path):
             return
         self._remember_success(result)
-        self.window.statusBar().showMessage(f"Exported Analysis Bundle · {result.name}", 4000)
+        omitted = ", ".join(
+            f"{item.feature}: {item.state}"
+            for item in self._bundle_availability if item.state != "captured"
+        )
+        suffix = f" · omitted {omitted}" if omitted else " · all features captured"
+        self.window.statusBar().showMessage(
+            f"Exported Analysis Bundle · {result.name}{suffix}", 9000
+        )
 
     def _bundle_failed(
         self,
