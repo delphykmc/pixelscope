@@ -39,7 +39,7 @@ from pixelscope.io.raw_format import (
     storage_format_spec,
 )
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.ui.input_profile_library import ProfileLibraryControls
+from pixelscope.ui.input_profile_library import InputProfile, ProfileLibraryControls
 
 RAW_DIALOG_WIDTH = 280
 FORM_LABEL_WIDTH = 100
@@ -349,8 +349,8 @@ class RawOpenDialog(QDialog):
         self.profile_library_controls = ProfileLibraryControls(
             "raw",
             self.profile,
-            self.set_profile,
-            parent=self,  # type: ignore[arg-type]
+            self._apply_library_profile,
+            parent=self,
         )
         body_layout.addWidget(self.profile_library_controls)
         body_layout.addWidget(self.dont_show_json_profiles)
@@ -493,6 +493,11 @@ class RawOpenDialog(QDialog):
     @property
     def container_dtype(self) -> ContainerDType | None:
         return cast(ContainerDType | None, self.container.currentData())
+
+    def _apply_library_profile(self, profile: InputProfile) -> None:
+        if not isinstance(profile, RawProfile):
+            raise ValueError("Saved profile family does not match the input dialog")
+        self.set_profile(profile)
 
     def set_source_path(self, path: str | Path | None) -> None:
         self._source_path = Path(path).resolve() if path is not None else None
