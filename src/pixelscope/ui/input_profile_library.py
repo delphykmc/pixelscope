@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 from uuid import uuid4
 from weakref import WeakMethod
 
@@ -258,8 +258,8 @@ class ProfileLibraryControls(QWidget):
         layout.addWidget(self.favorite_box)
         layout.addLayout(row)
 
-        self.recent_box.currentIndexChanged.connect(self._select_recent)
-        self.favorite_box.currentIndexChanged.connect(self._select_favorite)
+        self.recent_box.currentIndexChanged.connect(self._select_recent)  # type: ignore[attr-defined]
+        self.favorite_box.currentIndexChanged.connect(self._select_favorite)  # type: ignore[attr-defined]
         self.add_button.clicked.connect(self._add_favorite)
         self.rename_button.clicked.connect(self._rename_favorite)
         self.remove_button.clicked.connect(self._remove_favorite)
