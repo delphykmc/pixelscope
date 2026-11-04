@@ -54,9 +54,7 @@ class AnalysisNativeInterpretationV1:
             raise ValueError("direct sampling requires unit step/zero phase")
         if self.sampling_semantics == "cell_footprint" and self.sample_phase_xy != (0, 0):
             raise ValueError("cell footprint must have zero phase")
-        if self.sample_channel is not None and self.sample_channel not in (
-            "R",
-        ):
+        if self.sample_channel is not None and self.sample_channel not in ("R",):
             raise ValueError("unknown sample channel")
         if self.cfa_pattern not in (None, "RGGB", "GRBG", "GBRG", "BGGR"):
             raise ValueError("unsupported Bayer CFA")
