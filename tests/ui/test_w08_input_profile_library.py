@@ -111,6 +111,39 @@ def test_yuv_is_separate_family_and_rejects_unsupported_saved_profile(tmp_path: 
     assert reopened.error is not None
 
 
+def test_saved_json_snapshot_survives_deleted_external_file(tmp_path: Path) -> None:
+    sidecar = tmp_path / "external.json"
+    original = _raw(name="external camera")
+    original.save_json(sidecar)
+    library = InputProfileLibrary(_settings(tmp_path))
+    imported = RawProfile.load_json(sidecar)
+    library.add_favorite(imported, "Safe copy")
+    sidecar.unlink()
+
+    reopened = InputProfileLibrary(_settings(tmp_path))
+    saved = reopened.favorites("raw")[0].profile
+    assert interpretation_key(saved) == interpretation_key(original)
+    assert not sidecar.exists()
+
+
+def test_same_label_profiles_have_discriminating_selector_signatures(
+    qtbot: object, tmp_path: Path
+) -> None:
+    library = InputProfileLibrary(_settings(tmp_path))
+    library.add_favorite(_raw(stride_bytes=8), "Sensor")
+    library.add_favorite(_raw(stride_bytes=10), "Sensor")
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    controls = dialog.profile_library_controls
+    controls.library = InputProfileLibrary(_settings(tmp_path))
+    controls.refresh()
+    first = controls.favorite_box.itemText(1)
+    second = controls.favorite_box.itemText(2)
+    assert first != second
+    assert "stride 8" in first
+    assert "stride 10" in second
+
+
 def test_unsupported_schema_and_corrupt_settings_fail_closed(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     settings.setValue("InputProfiles/library_v1", '{"version": 999, "recent": []}')
