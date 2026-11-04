@@ -18,6 +18,11 @@ Use **Left/Right** to move through the complete ordered Selected set. Crossing a
 
 Use the viewer controls and pointer interactions to inspect source detail. Shared comparison coordinates support synchronized cursor, ROI, and Line Profile workflows where the participating source geometry allows it.
 
+**Fit** frames the image in the available tile; it is not a 100% scale.
+**100% (1:1)** means one source *reference* pixel spans one physical monitor pixel, with the active screen's device-pixel ratio taken into account. 200% and 400% span two and four physical pixels per reference pixel respectively. The tile zoom label is measured from the displayed image's transform, not the requested command. A nonuniform, mirrored, rotated, or sheared image mapping has no trustworthy single zoom percentage and is shown as unavailable. Small images may have empty canvas around them at 100%; they are not enlarged to fill the tile. Bayer and subsampled YUV views retain their reference-grid coordinate scale.
+
+On synchronized Multi View tiles, zoom/pan uses a common reference-space center and physical scale even when tile sizes differ. With synchronization disabled, the tiles can keep independent centers. On Windows, check the actual physical zoom after a monitor/DPI change if the OS or remote desktop changes its scale reporting.
+
 ## Display gain
 
 Display gain changes presentation only; it does not rewrite native source values used by Statistics or Difference.
