@@ -583,3 +583,13 @@ def test_analysis_bundle_rejects_duplicate_feature_snapshots(tmp_path: Path) -> 
     second = replace(first, snapshot_id=str(uuid4()))
     with pytest.raises(ValueError, match="one snapshot per feature"):
         write_analysis_bundle(tmp_path / "duplicate.zip", (first, second))
+
+
+@pytest.mark.parametrize("layout", ["BAYER", "YUV420"])
+def test_missing_native_interpretation_fails_closed_for_special_layouts(layout: str) -> None:
+    base = _snapshot()
+    with pytest.raises(ValueError, match="interpretation missing"):
+        replace(
+            base.sources[0], channel_layout=layout,
+            native_interpretation=AnalysisNativeInterpretationV1(),
+        )
