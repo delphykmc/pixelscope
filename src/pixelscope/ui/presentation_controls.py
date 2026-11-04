@@ -194,12 +194,12 @@ class _ElidingAliasCombo(QComboBox):
         option.currentText = self.fontMetrics().elidedText(
             option.currentText,
             Qt.TextElideMode.ElideMiddle,
-            max(0, self.width() - self.style().subControlRect(
+            max(0, self.style().subControlRect(
                 QStyle.ComplexControl.CC_ComboBox,
                 option,
                 QStyle.SubControl.SC_ComboBoxEditField,
                 self,
-            ).x() - 38),
+            ).width()),
         )
         painter = QStylePainter(self)
         painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
