@@ -17,18 +17,26 @@ from pixelscope.io.yuv_profile import YuvProfile
 
 def raw_profile(*, width: int = 4, height: int = 4, stride: int = 8) -> RawProfile:
     return RawProfile(
-        name="batch", width=width, height=height, stride_bytes=stride,
-        storage_format="unpacked", container_dtype="uint16", endianness="little",
-        bit_depth=12, bit_alignment="lsb", channel_layout="GRAY",
-        black_level=0, white_level=4095,
+        name="batch",
+        width=width,
+        height=height,
+        stride_bytes=stride,
+        storage_format="unpacked",
+        container_dtype="uint16",
+        endianness="little",
+        bit_depth=12,
+        bit_alignment="lsb",
+        channel_layout="GRAY",
+        black_level=0,
+        white_level=4095,
     )
 
 
 def test_one_raw_profile_preflights_four_binary_sources(tmp_path: Path) -> None:
     profile = raw_profile()
-    paths = tuple(tmp_path / f"sample_{i}{ext}" for i, ext in enumerate(
-        (".raw", ".data", ".yuv", ".raw")
-    ))
+    paths = tuple(
+        tmp_path / f"sample_{i}{ext}" for i, ext in enumerate((".raw", ".data", ".yuv", ".raw"))
+    )
     for path in paths:
         path.write_bytes(bytes(required_file_size(profile)))
     result = preflight_input_profile_batch(paths, profile)
@@ -47,20 +55,21 @@ def test_raw_trailing_bytes_exact_mode_and_min_last_row(tmp_path: Path) -> None:
     assert eligible.eligible
     assert "3 trailing bytes" in eligible.reason
     assert "offset 32" in eligible.reason
-    strict = preflight_input_profile_batch(
-        (path,), profile, require_exact_raw_size=True
-    )[0]
+    strict = preflight_input_profile_batch((path,), profile, require_exact_raw_size=True)[0]
     assert strict.status == "rejected"
     path.write_bytes(bytes(31))
     assert preflight_input_profile_batch((path,), profile)[0].status == "rejected"
 
 
-@pytest.mark.parametrize("layout,bytes_required", (
-    ("YUV444", 48), ("YUV422", 32), ("YUV420", 24),
-))
-def test_yuv_size_must_be_exact(
-    tmp_path: Path, layout: str, bytes_required: int
-) -> None:
+@pytest.mark.parametrize(
+    "layout,bytes_required",
+    (
+        ("YUV444", 48),
+        ("YUV422", 32),
+        ("YUV420", 24),
+    ),
+)
+def test_yuv_size_must_be_exact(tmp_path: Path, layout: str, bytes_required: int) -> None:
     profile = YuvProfile(width=4, height=4, channel_layout=layout)
     path = tmp_path / "frame.yuv"
     assert profile.expected_file_size == bytes_required
@@ -93,8 +102,7 @@ def test_sidecar_registration_and_explicit_override(
     )[0]
     assert partial.status == "rejected"
     approved = preflight_input_profile_batch(
-        (path,), profile, existing={path: binding},
-        override_registered=True, override_sidecars=True
+        (path,), profile, existing={path: binding}, override_registered=True, override_sidecars=True
     )[0]
     assert approved.eligible
     assert approved.document_id == "doc-1" and approved.generation == 7
@@ -123,6 +131,10 @@ def test_missing_nonregular_unsupported_and_mixed_size_sources(tmp_path: Path) -
         (matching, short, unsupported, missing, directory), profile
     )
     assert [item.status for item in entries] == [
-        "eligible", "rejected", "rejected", "rejected", "rejected"
+        "eligible",
+        "rejected",
+        "rejected",
+        "rejected",
+        "rejected",
     ]
     assert all(not entry.eligible for entry in entries[1:])
