@@ -525,9 +525,15 @@ class ComparisonPresetController(QObject):
             self.target_combo,
             self.status_label,
         ) = install_comparison_preset_controls(window)
-        self.preset_combo.currentIndexChanged.connect(self._choose_preset)
-        self.reference_combo.currentIndexChanged.connect(self._choose_reference)
-        self.target_combo.currentIndexChanged.connect(self._choose_target)
+        self.preset_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._choose_preset
+        )
+        self.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._choose_reference
+        )
+        self.target_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._choose_target
+        )
         window.diff_action.toggled.connect(self._external_diff_toggled)
         self.on_workspace_rendered()
 
@@ -547,7 +553,7 @@ class ComparisonPresetController(QObject):
         return self._pair
 
     def _page(self) -> list[Any]:
-        return self.window.current_comparison_documents()
+        return cast(list[Any], self.window.current_comparison_documents())
 
     def _binding(self) -> tuple[tuple[str, int, int], ...]:
         return tuple(
