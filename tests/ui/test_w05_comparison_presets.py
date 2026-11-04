@@ -182,3 +182,44 @@ def test_closing_preset_controller_rejects_late_callbacks(
     window.close()
     assert controller._closed
     controller.on_workspace_rendered()
+
+
+def test_sync_off_blocks_preset_without_mutating_selection(
+    qtbot: object, tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    docs = _sources(window, tmp_path, 4)
+    page = tuple(doc.document_id for doc in window.current_comparison_documents())
+    window.multi_compare_view.set_sync_enabled(False)
+    controller.set_preset(ComparisonPreset.ORIGINAL_2)
+    assert controller.preset is ComparisonPreset.WORKSPACE
+    assert tuple(doc.document_id for doc in window.selected_documents) == page
+    assert window._difference_document is None
+    window.multi_compare_view.set_sync_enabled(True)
+    controller.set_preset(ComparisonPreset.ORIGINAL_2)
+    assert controller.preset is ComparisonPreset.ORIGINAL_2
+    window.multi_compare_view.set_sync_enabled(False)
+    controller.set_preset(ComparisonPreset.WORKSPACE)
+    assert controller.preset is ComparisonPreset.ORIGINAL_2
+    window.close()
+
+
+def test_page_two_presets_bind_exact_runtime_documents(
+    qtbot: object, tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    docs = _sources(window, tmp_path, 8)
+    window.next_comparison_page()
+    current = window.current_comparison_documents()
+    assert tuple(doc.document_id for doc in current) == (
+        docs[6].document_id, docs[7].document_id,
+    )
+    assert controller.pair == ComparisonPair(docs[6].document_id, docs[7].document_id)
+    controller.set_preset(ComparisonPreset.ORIGINAL_2)
+    presented = [
+        v.document for v in window.multi_compare_view.occupied_viewers
+        if v.document is not None
+    ]
+    assert presented == current
+    assert len(window.selected_documents) == 8
+    window.close()
