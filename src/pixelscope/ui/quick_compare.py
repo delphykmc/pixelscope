@@ -673,36 +673,49 @@ class ComparisonPresetController(QObject):
                 return
             mapping = panel.mapping_snapshot_for_payload(cached[1], cached[2])
             self.window._store_difference_document(
-                *cached, mapping, switch_to_result=False,
+                *cached,
+                mapping,
+                switch_to_result=False,
             )
             difference = getattr(self.window, "_difference_document", None)
-            if (
-                difference is None
-                or self.window._difference_source_ids != self._pair.source_ids
-            ):
+            if difference is None or self.window._difference_source_ids != self._pair.source_ids:
                 self.status_label.setText("Stale")
                 return
-            visible = [difference] if self._preset is ComparisonPreset.DIFF_FOCUS else [
-                *visible, difference
-            ]
+            visible = (
+                [difference]
+                if self._preset is ComparisonPreset.DIFF_FOCUS
+                else [*visible, difference]
+            )
         view = self.window.multi_compare_view
         saved = view.capture_view_state() if view.occupied_viewers else self._original_view_state
         capacity = 1 if len(visible) == 1 else 2 if len(visible) == 2 else 4
         kind = (
-            "Single" if capacity == 1 else "Side by Side" if capacity == 2
-            else "Grid 2x2" if len(visible) == 4 else "Focus + 2"
+            "Single"
+            if capacity == 1
+            else "Side by Side"
+            if capacity == 2
+            else "Grid 2x2"
+            if len(visible) == 4
+            else "Focus + 2"
         )
         # Source-only Primary remains MainWindow-owned; W05 merely presents tiles.
         primary_id = getattr(self.window, "_focus_document_id", None)
-        focus_id = primary_id if primary_id in plan.source_ids else (
-            plan.source_ids[0] if plan.source_ids else visible[0].document_id
+        focus_id = (
+            primary_id
+            if primary_id in plan.source_ids
+            else (plan.source_ids[0] if plan.source_ids else visible[0].document_id)
         )
         view.set_capacity(capacity)
         view.set_layout_kind(kind, focus_id)
         slot_by_id = {document.document_id: index + 1 for index, document in enumerate(page)}
         view.set_documents(
-            visible, 0, len(page), self.window._shared_roi, self.window._shared_line,
-            preserve_view=True, slot_by_id=slot_by_id,
+            visible,
+            0,
+            len(page),
+            self.window._shared_roi,
+            self.window._shared_line,
+            preserve_view=True,
+            slot_by_id=slot_by_id,
         )
         if primary_id not in {document.document_id for document in visible}:
             # The fallback layout anchor is NOT semantic Primary. Do not draw
