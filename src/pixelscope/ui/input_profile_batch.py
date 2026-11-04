@@ -378,7 +378,7 @@ class BatchProfileApprovalDialog(QDialog):
         self.details = QPlainTextEdit(self)
         self.details.setReadOnly(True)
         self.details.setPlainText(
-            "\n\n" + ("-" * 72) + "\n\n".join(
+            ("\n\n" + "-" * 72 + "\n\n").join(
                 candidate_disclosure(item) for item in candidates
             )
         )
@@ -570,7 +570,7 @@ class InputProfileBatchDialog(QDialog):
                 else "None"
             )
             if item.sidecar_override:
-                sidecar += " — OVERRIDE APPROVED (no write)"
+                sidecar += " — OVERRIDE REQUESTED (no write)"
             elif item.sidecar is not None:
                 sidecar += " — not overridden"
             actual_size = item.revision.size if item.revision is not None else "?"
