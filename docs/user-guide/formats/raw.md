@@ -27,8 +27,11 @@ recognizable label; select, rename, or remove favorites in the same section. To 
 external PixelScope JSON profile as a favorite, first use **Load Profile…**, then choose
 **Add favorite**. The existing JSON Load/Save features remain independent.
 
-Recent profiles are recorded only when the dialog is confirmed. Renaming a favorite does
-not alter byte-layout identity. The local QSettings library stores profile metadata and
+Recent profiles are recorded only when the dialog is confirmed. RAW and native YUV each
+retain their own 12 most recently used interpretations. Renaming a favorite does not
+alter byte-layout identity. If a selected Favorite, Recent, or imported JSON profile is
+edited, its provenance changes to **Modified from ...** until the native fields are
+restored to their original values. The local QSettings library stores profile metadata and
 user-supplied labels, **not the original source file path or image bytes**. To clear all saved input profiles, remove only the local QSettings key
 `InputProfiles/library_v1`; no source files or other application settings need removal. The RAW size result may report **trailing bytes ignored**; this differs from
 native YUV's strict size policy. A matching byte count does not prove a correct packing,
