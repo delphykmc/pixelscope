@@ -883,7 +883,7 @@ class ComparisonPresetController(QObject):
         )
         if self._preset is ComparisonPreset.WORKSPACE:
             if selected_ids is not None:
-                self._pair = ComparisonPair(*selected_ids)
+                self._pair = ComparisonPair(selected_ids[0], selected_ids[1])
                 self._sync_roles()
             return
         if self._pair is None or selected_ids != self._pair.source_ids:
