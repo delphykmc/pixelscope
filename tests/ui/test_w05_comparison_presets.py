@@ -42,7 +42,10 @@ def _sources(window: MainWindow, root: Path, count: int) -> list[ImageDocument]:
 
 @pytest.mark.parametrize("count", [2, 4, 6])
 def test_original_presets_leave_files_selected_and_current_page_untouched(
-    qtbot: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, count: int,
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    count: int,
 ) -> None:
     window, controller = _window(qtbot)
     docs = _sources(window, tmp_path, count)
@@ -57,13 +60,15 @@ def test_original_presets_leave_files_selected_and_current_page_untouched(
     controller.set_preset(ComparisonPreset.ORIGINAL_2)
     assert controller.preset is ComparisonPreset.ORIGINAL_2
     assert [
-        v.document.document_id for v in window.multi_compare_view.occupied_viewers
+        v.document.document_id
+        for v in window.multi_compare_view.occupied_viewers
         if v.document is not None
     ] == [doc.document_id for doc in docs[:2]]
     if count >= 4:
         controller.set_preset(ComparisonPreset.ORIGINAL_4)
         assert [
-            v.document.document_id for v in window.multi_compare_view.occupied_viewers
+            v.document.document_id
+            for v in window.multi_compare_view.occupied_viewers
             if v.document is not None
         ] == [doc.document_id for doc in docs[:4]]
     else:
@@ -77,7 +82,9 @@ def test_original_presets_leave_files_selected_and_current_page_untouched(
 
 
 def test_reference_remains_fixed_as_target_changes_in_original_four(
-    qtbot: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, controller = _window(qtbot)
     docs = _sources(window, tmp_path, 4)
@@ -94,14 +101,17 @@ def test_reference_remains_fixed_as_target_changes_in_original_four(
         pair = window.difference_panel.selected_documents()
         assert pair is not None
         assert (pair[0].document_id, pair[1].document_id) == (
-            ref_id, target.document_id,
+            ref_id,
+            target.document_id,
         )
     assert len(window.selected_documents) == 4
     window.close()
 
 
 def test_diff_preset_does_not_display_missing_or_unrelated_map(
-    qtbot: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, controller = _window(qtbot)
     docs = _sources(window, tmp_path, 2)
@@ -123,7 +133,9 @@ def test_diff_preset_does_not_display_missing_or_unrelated_map(
 
 
 def test_cached_pair_can_be_displayed_only_after_identity_match(
-    qtbot: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, controller = _window(qtbot)
     docs = _sources(window, tmp_path, 4)
@@ -135,12 +147,15 @@ def test_cached_pair_can_be_displayed_only_after_identity_match(
 
     monkeypatch.setattr(panel, "has_cached_map", lambda: panel._cache_key() == correct_key)
     monkeypatch.setattr(
-        panel, "cached_display_for_current",
+        panel,
+        "cached_display_for_current",
         lambda: ("Cached Difference", numerical, preview)
-        if panel._cache_key() == correct_key else None,
+        if panel._cache_key() == correct_key
+        else None,
     )
     monkeypatch.setattr(
-        panel, "calculate_difference",
+        panel,
+        "calculate_difference",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             AssertionError("preset calculated Difference")
         ),
@@ -162,7 +177,8 @@ def test_cached_pair_can_be_displayed_only_after_identity_match(
 
 
 def test_changed_page_generation_revokes_temporary_preset(
-    qtbot: object, tmp_path: Path,
+    qtbot: object,
+    tmp_path: Path,
 ) -> None:
     window, controller = _window(qtbot)
     docs = _sources(window, tmp_path, 6)
@@ -174,7 +190,8 @@ def test_changed_page_generation_revokes_temporary_preset(
 
 
 def test_closing_preset_controller_rejects_late_callbacks(
-    qtbot: object, tmp_path: Path,
+    qtbot: object,
+    tmp_path: Path,
 ) -> None:
     window, controller = _window(qtbot)
     _sources(window, tmp_path, 2)
