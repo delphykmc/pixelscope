@@ -53,7 +53,10 @@ def _shape(value: object) -> tuple[int, int]:
     if (
         not isinstance(value, tuple | list)
         or len(value) != 2
-        or any(not isinstance(number, int) or isinstance(number, bool) or number <= 0 for number in value)
+        or any(
+            not isinstance(number, int) or isinstance(number, bool) or number <= 0
+            for number in value
+        )
     ):
         raise ValueError("reference shape must be positive integer (rows, columns)")
     return int(value[0]), int(value[1])
@@ -121,7 +124,11 @@ class ReviewViewStateV1:
     schema_version: int = REVIEW_VIEW_STATE_VERSION
 
     def __post_init__(self) -> None:
-        if not isinstance(self.schema_version, int) or isinstance(self.schema_version, bool) or self.schema_version != 1:
+        if (
+            not isinstance(self.schema_version, int)
+            or isinstance(self.schema_version, bool)
+            or self.schema_version != 1
+        ):
             raise ValueError("unsupported ReviewViewState schema_version")
         page = tuple(_source_key(key) for key in self.page_source_keys)
         if not 1 <= len(page) <= 6 or len(page) != len(set(page)):
@@ -182,7 +189,7 @@ class ReviewViewStateV1:
         if self.visible_bounds_ref is not None:
             bounds = self.visible_bounds_ref
             if (
-                not isinstance(bounds, (tuple, list))
+                not isinstance(bounds, tuple | list)
                 or len(bounds) != 4
                 or any(type(x) not in (int, float) or not isfinite(float(x)) for x in bounds)
                 or float(bounds[2]) <= float(bounds[0])
@@ -233,7 +240,7 @@ class ReviewViewStateV1:
         if not isinstance(raw_per_source, Mapping):
             raise ValueError("per_source must be a mapping")
         page = value["page_source_keys"]
-        if not isinstance(page, (tuple, list)):
+        if not isinstance(page, tuple | list):
             raise ValueError("page_source_keys must be an ordered sequence")
         return cls(
             reference_source_key=value["reference_source_key"],
