@@ -1,7 +1,5 @@
 """W04 durable Review viewport is a strict, immutable, Qt-free value object."""
 
-from __future__ import annotations
-
 import dataclasses
 import uuid
 
