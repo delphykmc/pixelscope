@@ -190,7 +190,6 @@ def test_adapter_register_and_reinterpret_preserves_existing_identity(
     assert [item.document_id for item in window.selected_documents] == selected_before
     assert window.documents[document_id].loading_state == "pending"
 
- 
 
 def test_adapter_reinterpret_offpage_defers_native_decode(tmp_path: Path) -> None:
     from pixelscope.core.image_document import ImageDocument
