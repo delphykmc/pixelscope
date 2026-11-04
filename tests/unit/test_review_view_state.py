@@ -4,6 +4,8 @@ import dataclasses
 import uuid
 
 import pytest
+# Test subjects remain separate from pytest's test-runner import.
+# isort: split
 from pixelscope.core import review_view_state
 
 
