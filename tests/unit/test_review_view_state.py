@@ -4,7 +4,6 @@ import dataclasses
 import uuid
 
 import pytest
-
 from pixelscope.core import review_view_state
 
 
