@@ -11,11 +11,6 @@ import numpy as np
 import pytest
 
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
-from pixelscope.core.review_analysis_sources import native_interpretation, native_profile_signature
-from pixelscope.core.yuv import NativeYuvFrame
-from pixelscope.io.raw_profile import RawProfile
-from pixelscope.io.analysis_bundle import AnalysisFeatureAvailabilityV1
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSeriesV1,
@@ -28,7 +23,15 @@ from pixelscope.core.review_analysis import (
     parse_analysis_context,
     serialize_analysis_context,
 )
-from pixelscope.io.analysis_bundle import verify_analysis_bundle, write_analysis_bundle
+from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
+from pixelscope.core.review_analysis_sources import native_interpretation, native_profile_signature
+from pixelscope.core.yuv import NativeYuvFrame
+from pixelscope.io.analysis_bundle import (
+    AnalysisFeatureAvailabilityV1,
+    verify_analysis_bundle,
+    write_analysis_bundle,
+)
+from pixelscope.io.raw_profile import RawProfile
 
 
 def _snapshot(roi: tuple[int, int, int, int] | None = None) -> AnalysisSnapshotV1:
