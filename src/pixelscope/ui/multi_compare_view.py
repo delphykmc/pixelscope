@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -38,6 +39,12 @@ class MultiCompareView(QWidget):
         self.capacity = 0
         self._syncing_range = False
         self._setting_documents = False
+        # Monotonic per-widget epoch: an old foreground completion has no
+        # permission to replay a saved viewport after user input or shutdown.
+        self._review_restore_epoch = 0
+        self._review_restore_applied_epoch: int | None = None
+        self._review_restore_closed = False
+        self._review_restoring = False
         self._layout_refit_active = False
         self._document_count = 0
         self._arranged_count = -1
@@ -57,7 +64,9 @@ class MultiCompareView(QWidget):
             viewer.cursor_moved.connect(
                 lambda x, y, value, active=viewer: self._on_cursor(active, x, y, value)
             )
+            viewer.activated.connect(self.cancel_review_restore)
             viewer.activated.connect(self._activate_viewer)
+            viewer.view_box.user_navigation_started.connect(self.cancel_review_restore)
             viewer.focus_requested.connect(self._request_focus)
             viewer.zoom_changed.connect(self.zoom_changed)
             viewer.roi_changed.connect(self.roi_changed)
@@ -86,6 +95,8 @@ class MultiCompareView(QWidget):
             raise ValueError("comparison capacity must be 2, 4, or 6")
         if capacity == self.capacity:
             return
+        if not self._review_restoring:
+            self.cancel_review_restore()
         shrinking_diff_presentation = capacity < self.capacity and self._presentation_has_difference
         self.capacity = capacity
         if shrinking_diff_presentation:
@@ -282,6 +293,8 @@ class MultiCompareView(QWidget):
             viewer.set_line_selection(selection)
 
     def fit_images(self) -> None:
+        if not self._review_restoring:
+            self.cancel_review_restore()
         occupied = [viewer for viewer in self.visible_viewers if viewer.document is not None]
         if not occupied:
             return
@@ -298,6 +311,8 @@ class MultiCompareView(QWidget):
             self._syncing_range = False
 
     def zoom_100_percent(self) -> None:
+        if not self._review_restoring:
+            self.cancel_review_restore()
         occupied = [viewer for viewer in self.visible_viewers if viewer.document is not None]
         if not occupied:
             return
@@ -314,6 +329,8 @@ class MultiCompareView(QWidget):
             self._syncing_range = False
 
     def zoom_by(self, factor: float) -> None:
+        if not self._review_restoring:
+            self.cancel_review_restore()
         anchor = self._active_viewer or next(
             (viewer for viewer in self.visible_viewers if viewer.document is not None),
             None,
@@ -330,11 +347,40 @@ class MultiCompareView(QWidget):
             viewer.set_line_selection(None)
 
     def set_sync_enabled(self, enabled: bool) -> None:
+        if enabled != self.sync_enabled and not self._review_restoring:
+            self.cancel_review_restore()
         self.sync_enabled = enabled
 
     def set_layout_kind(self, kind: str, focus_document_id: str | None = None) -> None:
+        if (
+            (kind != self.layout_kind or focus_document_id != self.focus_document_id)
+            and not self._review_restoring
+        ):
+            self.cancel_review_restore()
         self.layout_kind = kind
         self.focus_document_id = focus_document_id
+
+    def begin_review_restore(self, epoch: int) -> bool:
+        """Reserve an epoch after canonical source/page/layout/role staging.
+
+        W09, not this widget, waits for foreground/Display Gain completion.
+        Retry the adapter with this epoch on terminal settle notifications.
+        """
+        if (
+            self._review_restore_closed
+            or type(epoch) is not int
+            or epoch <= self._review_restore_epoch
+        ):
+            return False
+        self._review_restore_epoch = epoch
+        self._review_restore_applied_epoch = None
+        return True
+
+    def cancel_review_restore(self, *_args: object) -> int:
+        """Revoke pending/old callbacks before accepting another user action."""
+        self._review_restore_epoch += 1
+        self._review_restore_applied_epoch = None
+        return self._review_restore_epoch
 
     def capture_view_state(self) -> MultiCompareViewState:
         ranges = self._current_shared_range()
@@ -386,9 +432,16 @@ class MultiCompareView(QWidget):
         super().hideEvent(event)
 
     def shutdown(self) -> None:
-        """Release each owned ImageViewer's third-party graphics graph."""
-
+        """Deterministically release restore hooks and owned graphics resources."""
+        if self._review_restore_closed:
+            return
+        self.cancel_review_restore()
+        self._review_restore_closed = True
         for viewer in self.viewers:
+            with suppress(RuntimeError, TypeError):
+                viewer.activated.disconnect(self.cancel_review_restore)
+            with suppress(RuntimeError, TypeError):
+                viewer.view_box.user_navigation_started.disconnect(self.cancel_review_restore)
             viewer.shutdown()
 
     def _sync_primary_control_visibility(self, workspace_visible: bool) -> None:
@@ -472,6 +525,7 @@ class MultiCompareView(QWidget):
 
     def _request_focus(self, viewer: object) -> None:
         if isinstance(viewer, ImageViewer) and viewer.document is not None:
+            self.cancel_review_restore()
             self.focus_document_requested.emit(viewer.document)
 
     def _arrange_viewers(self, count: int) -> None:
