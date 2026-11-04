@@ -19,7 +19,9 @@ from pixelscope.ui.review_view_state_adapter import (
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
-def _fixture(qtbot: object, count: int) -> tuple[MultiCompareView, list[ImageDocument], tuple[str, ...]]:
+def _fixture(
+    qtbot: object, count: int
+) -> tuple[MultiCompareView, list[ImageDocument], tuple[str, ...]]:
     multi = MultiCompareView()
     qtbot.addWidget(multi)  # type: ignore[attr-defined]
     multi.resize(1203, 701)
