@@ -10,6 +10,12 @@ from zipfile import ZipFile
 import numpy as np
 import pytest
 
+from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
+from pixelscope.core.review_analysis_sources import native_interpretation, native_profile_signature
+from pixelscope.core.yuv import NativeYuvFrame
+from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.analysis_bundle import AnalysisFeatureAvailabilityV1
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSeriesV1,
@@ -400,3 +406,167 @@ def test_capture_freezes_series_only_when_both_tokens_stay_current() -> None:
     assert capture.snapshot.series == (series,)
     adapter.mutate_during_read = True
     assert capture_presented_analysis(adapter, target.token).reason == "changed_during_capture"
+
+
+@pytest.mark.parametrize("feature", ["statistics", "difference"])
+def test_wire_series_kind_cannot_bypass_dto_classification(feature: str) -> None:
+    """A malicious wire document must not represent impossible native series."""
+    data = parse_analysis_context(serialize_analysis_context(_snapshot()))
+    data["feature"] = feature
+    data["series"] = [{
+        "source_key": data["sources"][0]["source_key"],
+        "channel": "R",
+        "kind": feature,
+        "coordinates": [0.0],
+        "values": [1.0],
+        "value_states": ["finite"],
+        "sample_count": 1,
+        "definition_revision": "native-v1",
+    }]
+    with pytest.raises(ValueError, match="series source or feature mismatch"):
+        parse_analysis_context(json.dumps(data).encode("utf-8"))
+
+
+def test_bayer_native_interpretation_and_private_profile_name_are_portable() -> None:
+    profile = RawProfile(
+        name="C:\\internal\\private-profile.raw",
+        width=8, height=4, stride_bytes=16, offset_bytes=8,
+        bit_depth=10, channel_layout="BAYER", bayer_pattern="GRBG",
+        endianness="big", bit_alignment="msb", black_level=64,
+        white_level=1023,
+    )
+    doc = ImageDocument.from_array(
+        np.full((4, 8), 333, dtype=np.uint16),
+        "private-name.raw", channel_layout="BAYER", bit_depth=10,
+        raw_profile=profile,
+    )
+    interpretation = native_interpretation(doc)
+    assert interpretation.cfa_pattern == "GRBG"
+    assert interpretation.cfa_phase_xy == (0, 0)
+    assert interpretation.raw_row_stride_bytes == 16
+    assert interpretation.raw_byte_offset == 8
+    assert interpretation.raw_endianness == "big"
+    assert interpretation.raw_bit_alignment == "msb"
+    assert interpretation.raw_black_levels == (64,)
+    assert AnalysisNativeInterpretationV1.from_portable(
+        interpretation.to_portable()
+    ) == interpretation
+    base = _snapshot()
+    signature = native_profile_signature(doc)
+    source = replace(
+        base.sources[0],
+        native_shape=doc.shape,
+        reference_shape=doc.reference_shape,
+        native_dtype=str(doc.original_dtype),
+        channel_layout=doc.channel_layout,
+        effective_bits=doc.bit_depth,
+        profile_signature=signature,
+        native_interpretation=interpretation,
+    )
+    snap = replace(
+        base,
+        token=replace(base.token, profile_signatures=(signature,)),
+        sources=(source,),
+    )
+    raw = serialize_analysis_context(snap)
+    assert b"private-profile.raw" not in raw
+    assert b"private-name.raw" not in raw
+    decoded = parse_analysis_context(raw)
+    assert decoded["sources"][0]["native_interpretation"] == interpretation.to_portable()
+
+
+def test_yuv_native_plane_shapes_and_chroma_footprint_roundtrip() -> None:
+    frame = NativeYuvFrame(
+        y=np.zeros((8, 10), dtype=np.uint8),
+        u=np.zeros((4, 5), dtype=np.uint8),
+        v=np.zeros((4, 5), dtype=np.uint8),
+        layout="YUV420",
+    )
+    document = ImageDocument.from_yuv(frame, "private-yuv-name.yuv")
+    interpretation = native_interpretation(document)
+    assert interpretation.yuv_layout == "YUV420"
+    assert interpretation.yuv_chroma_step_xy == (2, 2)
+    assert interpretation.yuv_plane_shapes == ((8, 10), (4, 5), (4, 5))
+    assert AnalysisNativeInterpretationV1.from_portable(
+        interpretation.to_portable()
+    ) == interpretation
+    base = _snapshot()
+    digest = native_profile_signature(document)
+    source = replace(
+        base.sources[0],
+        native_shape=document.shape,
+        reference_shape=document.reference_shape,
+        native_dtype=str(document.original_dtype),
+        channel_layout=document.channel_layout,
+        effective_bits=document.bit_depth,
+        profile_signature=digest,
+        native_interpretation=interpretation,
+    )
+    snap = replace(
+        base, token=replace(base.token, profile_signatures=(digest,)), sources=(source,),
+    )
+    payload = serialize_analysis_context(snap)
+    assert b"private-yuv-name" not in payload
+    restored = parse_analysis_context(payload)
+    assert restored["sources"][0]["native_interpretation"] == interpretation.to_portable()
+
+
+def test_native_interpretation_wire_rejects_extra_paths_and_bad_planes() -> None:
+    base = AnalysisNativeInterpretationV1().to_portable()
+    with pytest.raises(ValueError, match="unknown native interpretation fields"):
+        AnalysisNativeInterpretationV1.from_portable(
+            base | {"source_path": "C:/secret.raw"}
+        )
+    wrong_step = base | {
+        "sampling_semantics": "cell_footprint",
+        "sample_step_xy": [2, 2],
+        "sample_phase_xy": [1, 0],
+    }
+    with pytest.raises(ValueError, match="zero phase"):
+        AnalysisNativeInterpretationV1.from_portable(wrong_step)
+    missing_planes = base | {
+        "yuv_layout": "YUV420",
+        "yuv_chroma_step_xy": [2, 2],
+    }
+    with pytest.raises(ValueError, match="three native plane"):
+        AnalysisNativeInterpretationV1.from_portable(missing_planes)
+    invalid_bool = base | {"raw_byte_offset": True}
+    with pytest.raises(ValueError, match="RAW numeric"):
+        AnalysisNativeInterpretationV1.from_portable(invalid_bool)
+
+
+def test_analysis_bundle_records_omissions_and_rejects_inconsistent_availability(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "partial.zip"
+    snap = _snapshot()
+    entries = (
+        AnalysisFeatureAvailabilityV1("statistics", "captured"),
+        AnalysisFeatureAvailabilityV1("histogram", "stale"),
+        AnalysisFeatureAvailabilityV1("line", "pending"),
+        AnalysisFeatureAvailabilityV1("difference", "uncomputed"),
+    )
+    write_analysis_bundle(target, (snap,), availability=entries)
+    verified = verify_analysis_bundle(target)
+    expected = [
+        {"feature": row.feature, "state": row.state} for row in entries
+    ]
+    assert verified["availability"] == expected
+    with ZipFile(target) as archive:
+        context = json.loads(archive.read("data/context.json"))
+    assert context["availability"] == expected
+    with pytest.raises(ValueError, match="availability"):
+        write_analysis_bundle(
+            tmp_path / "wrong.zip", (snap,),
+            availability=(
+                AnalysisFeatureAvailabilityV1("statistics", "stale"),
+                *entries[1:],
+            ),
+        )
+
+
+def test_analysis_bundle_rejects_duplicate_feature_snapshots(tmp_path: Path) -> None:
+    first = _snapshot()
+    second = replace(first, snapshot_id=str(uuid4()))
+    with pytest.raises(ValueError, match="one snapshot per feature"):
+        write_analysis_bundle(tmp_path / "duplicate.zip", (first, second))
