@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Asynchronous, revocable presentation-only native RAW/YUV preview."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
