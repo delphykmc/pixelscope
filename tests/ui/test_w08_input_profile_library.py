@@ -194,6 +194,21 @@ def test_raw_dialog_reuse_preserves_explicit_stride_and_validation(
     assert "Recent" in reopened.native_interpretation_summary.text()
 
 
+def test_raw_trailing_bytes_are_allowed_with_exact_ignored_offset(
+    qtbot: object, tmp_path: Path
+) -> None:
+    path = tmp_path / "trailing.raw"
+    path.write_bytes(bytes(21))
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.set_source_path(path)
+    dialog.set_profile(_raw(stride_bytes=10))
+    assert dialog.file_size_state == "warning"
+    assert "3 trailing bytes" in dialog.file_status.text()
+    assert "[18, 21)" in dialog.file_status.text()
+    assert dialog.ok_button.isEnabled()
+
+
 def test_yuv_dialog_strict_size_and_native_summary(qtbot: object, tmp_path: Path) -> None:
     path = tmp_path / "plane.yuv"
     path.write_bytes(bytes(24))
