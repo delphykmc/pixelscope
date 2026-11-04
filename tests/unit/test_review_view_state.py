@@ -4,6 +4,7 @@ import dataclasses
 import uuid
 
 import pytest
+
 from pixelscope.core import review_view_state
 
 KEYS = tuple(str(uuid.UUID(int=i + 1)) for i in range(6))
