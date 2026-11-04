@@ -10,6 +10,52 @@ import json
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_analysis import AnalysisSourceV1
+from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
+
+
+def native_interpretation(document: ImageDocument) -> AnalysisNativeInterpretationV1:
+    """Build a path-free, typed description of the *native* numeric meaning."""
+    profile = document.raw_profile
+    frame = document.yuv_frame
+    sampling = document.spatial_sampling
+    black_level = getattr(profile, "black_level", None)
+    levels = (
+        (black_level,) if type(black_level) is int
+        else tuple(black_level) if isinstance(black_level, (tuple, list))
+        else None
+    )
+    cfa_pattern = getattr(profile, "bayer_pattern", None)
+    return AnalysisNativeInterpretationV1(
+        sampling_semantics=sampling.sampling_semantics if sampling is not None else "direct",
+        sample_step_xy=(
+            (sampling.column_step, sampling.row_step)
+            if sampling is not None else (1, 1)
+        ),
+        sample_phase_xy=(
+            (sampling.column_phase, sampling.row_phase)
+            if sampling is not None else (0, 0)
+        ),
+        sample_channel=document.sample_channel,
+        cfa_pattern=cfa_pattern,
+        # The CFA pattern is anchored at source reference origin by the RAW
+        # decoder; ROI parity is conveyed separately by token.roi_ref.
+        cfa_phase_xy=(0, 0) if cfa_pattern is not None else None,
+        raw_storage_format=getattr(profile, "storage_format", None),
+        raw_container_dtype=getattr(profile, "container_dtype", None),
+        raw_row_stride_bytes=getattr(profile, "stride_bytes", None),
+        raw_byte_offset=getattr(profile, "offset_bytes", None),
+        raw_endianness=getattr(profile, "endianness", None),
+        raw_bit_alignment=getattr(profile, "bit_alignment", None),
+        raw_packed_bit_order=getattr(profile, "packed_bit_order", None),
+        raw_black_levels=levels,
+        raw_white_level=getattr(profile, "white_level", None),
+        yuv_layout=frame.layout if frame is not None else None,
+        yuv_chroma_step_xy=frame.chroma_scale if frame is not None else None,
+        yuv_plane_shapes=(
+            tuple(tuple(int(v) for v in plane.shape) for plane in frame.planes)
+            if frame is not None else None
+        ),
+    )
 
 
 def native_profile_signature(document: ImageDocument) -> str:
@@ -46,6 +92,7 @@ def native_profile_signature(document: ImageDocument) -> str:
         ),
         "yuv_layout": getattr(frame, "layout", None),
         "subsampling": getattr(frame, "subsampling", None),
+        "native_interpretation": native_interpretation(document).to_portable(),
     }
     return hashlib.sha256(
         json.dumps(fields, sort_keys=True, default=str).encode("utf-8")
@@ -66,6 +113,7 @@ def snapshot_source(document: ImageDocument, source_key: str) -> AnalysisSourceV
         channel_layout=document.channel_layout,
         effective_bits=document.bit_depth,
         profile_signature=native_profile_signature(document),
+        native_interpretation=native_interpretation(document),
         sha256=(
             encoded_sha256
             if isinstance(encoded_sha256, str) and len(encoded_sha256) == 64
