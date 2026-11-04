@@ -21,9 +21,7 @@ class ComparisonPreset(str, Enum):
     DIFF_FOCUS = "Diff Focus"
 
 
-DifferenceState = Literal[
-    "not-calculated", "cached-valid", "pending", "stale", "invalid"
-]
+DifferenceState = Literal["not-calculated", "cached-valid", "pending", "stale", "invalid"]
 
 
 @dataclass(frozen=True)
@@ -80,7 +78,12 @@ def plan_comparison(
         return ComparisonPlan(preset, ids, pair, True, "invalid", False)
     if pair is None or not pair.valid_on(ids):
         return ComparisonPlan(
-            preset, (), pair, False, "invalid", False,
+            preset,
+            (),
+            pair,
+            False,
+            "invalid",
+            False,
             "Reference A and Target B must be two sources on the current page.",
         )
     if preset is ComparisonPreset.ORIGINAL_2:
@@ -88,18 +91,33 @@ def plan_comparison(
     if preset is ComparisonPreset.ORIGINAL_4:
         if len(ids) < 4 or not set(pair.source_ids).issubset(ids[:4]):
             return ComparisonPlan(
-                preset, (), pair, False, "invalid", False,
+                preset,
+                (),
+                pair,
+                False,
+                "invalid",
+                False,
                 "Original 4 requires four page sources and both pair roles within A/B/C/D.",
             )
         return ComparisonPlan(preset, ids[:4], pair, True, "invalid", False)
     if preset not in (ComparisonPreset.AB_DIFF, ComparisonPreset.DIFF_FOCUS):
         raise ValueError(f"unsupported comparison preset: {preset}")
     diff_state: DifferenceState = (
-        "cached-valid" if cached_valid else "pending" if pending
-        else "stale" if stale else "not-calculated"
+        "cached-valid"
+        if cached_valid
+        else "pending"
+        if pending
+        else "stale"
+        if stale
+        else "not-calculated"
     )
     source_ids = pair.source_ids if preset is ComparisonPreset.AB_DIFF else ()
     return ComparisonPlan(
-        preset, source_ids, pair, True, diff_state, cached_valid,
+        preset,
+        source_ids,
+        pair,
+        True,
+        diff_state,
+        cached_valid,
         "" if cached_valid else f"Difference {diff_state}: use explicit Calculate in Analysis.",
     )
