@@ -494,6 +494,9 @@ class NativeYuvSemanticsController:
             panel.refresh_default()
             return
         if selection is None:
+            panel._request_signature = ()
+            panel._completed_signature = ()
+            panel._presented_line_token = None
             panel.last_results = ()
             panel._clear_plot()
             return
@@ -510,9 +513,7 @@ class NativeYuvSemanticsController:
             ),
             selection,
         )
-        panel._request_signature = signature
-        if panel._worker is not None:
-            panel._worker.cancel()
+        panel._begin_line_request(signature)
         cache_keys = [
             (
                 "line-profile-yuv",
@@ -529,6 +530,7 @@ class NativeYuvSemanticsController:
         if all(isinstance(result, LineProfileResult) for result in cached_results):
             typed = tuple(cached_results)
             panel.last_results = typed
+            panel._completed_signature = signature
             panel._render(typed)
             return
 
