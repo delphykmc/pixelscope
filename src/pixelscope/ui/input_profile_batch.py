@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """W08b batch profile transaction controller; registration stays in MainWindow."""
+
+from __future__ import annotations
 
 import weakref
 from collections.abc import Callable, Mapping
@@ -29,7 +29,6 @@ from pixelscope.io.input_profile_batch import (
     InputProfile,
     ProfileBatchCandidate,
     candidate_file_is_current,
-    interpretation_key,
     preflight_input_profile_batch,
 )
 from pixelscope.io.path_discovery import ImageInput, raw_profile_sidecar_for_path
@@ -209,9 +208,9 @@ class BatchProfileController(QObject):
         else:
             try:
                 document_id = self._commit_one(candidate)
-                outcome = BatchProfileOutcome(candidate.path, "applied", "Canonical binding committed", document_id)
+                outcome = BatchProfileOutcome(\n                    candidate.path, "applied", "Canonical binding committed", document_id\n                )
             except Exception as exc:  # noqa: BLE001 - preserve other sources and report error
-                outcome = BatchProfileOutcome(candidate.path, "failed", str(exc), candidate.document_id)
+                outcome = BatchProfileOutcome(\n                    candidate.path, "failed", str(exc), candidate.document_id\n                )
         self._outcomes.append(outcome)
         self.commit_progress.emit(self._epoch, outcome)
         if self._phase == "committing":
@@ -221,10 +220,10 @@ class BatchProfileController(QObject):
         candidates = self._candidates or ()
         for candidate in candidates[self._index:]:
             self._outcomes.append(
-                BatchProfileOutcome(candidate.path, "interrupted", "Not applied", candidate.document_id)
+                BatchProfileOutcome(\n                    candidate.path, "interrupted", "Not applied", candidate.document_id\n                )
             )
         self._phase = "finished"
-        self.commit_finished.emit(ProfileBatchResult(self._epoch, tuple(self._outcomes), interrupted))
+        self.commit_finished.emit(\n            ProfileBatchResult(self._epoch, tuple(self._outcomes), interrupted)\n        )
 
 
 class CanonicalBatchProfileAdapter:
