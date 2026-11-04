@@ -281,7 +281,11 @@ class CanonicalBatchProfileAdapter:
             window._mark_document_for_reload(current_id, candidate.profile)
             window._raw_profiles[current_id] = candidate.profile.copy(deep=True)
             window._raw_profile_prompt_suppressed.discard(current_id)
-            window._refresh_reopened_selected_documents([current_id])
+            page_ids = {
+                item.document_id for item in window.current_comparison_documents()
+            }
+            if current_id in page_ids:
+                window._refresh_reopened_selected_documents([current_id])
             return cast(str, current_id)
         registered = window._register_inputs(
             (ImageInput(candidate.path, None),), resolve_raw_profiles=False
