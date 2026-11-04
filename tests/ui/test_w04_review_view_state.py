@@ -9,7 +9,9 @@ import numpy as np
 import pytest
 
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.review_view_state import ReviewViewportV1
 from pixelscope.ui.multi_compare_view import MultiCompareView
+from pixelscope.ui.physical_zoom import ZoomApplyResult
 from pixelscope.ui.review_view_state_adapter import (
     VerifiedViewSource,
     capture_review_view_state,
@@ -194,3 +196,105 @@ def test_shutdown_revokes_pending_epoch(qtbot: object) -> None:
     assert restore_review_view_state(
         multi, state, _bindings(docs, keys), epoch=epoch, presentation_mode="originals"
     ).status == "interrupted"
+
+
+@pytest.mark.parametrize(
+    "failure", ["unachieved", "exception", "user-revoke", "new-epoch"]
+)
+def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    """First tile succeeds; a later failure must never leave mixed old/new views."""
+    multi, docs, keys = _fixture(qtbot, 2)
+    multi.set_sync_enabled(True)
+    multi.zoom_100_percent()
+    state = _capture(multi, docs, keys)
+    # Restore a different per-source view *and* flip sync to stress all flags.
+    state = replace(
+        state,
+        sync_enabled=False,
+        per_source={
+            key: ReviewViewportV1((64.0, 60.0), 1.0)
+            for key in keys
+        },
+    )
+    for viewer in multi.occupied_viewers:
+        assert viewer.set_physical_zoom(200.0, (90.0, 80.0)).achieved
+    previous = [
+        (
+            tuple(tuple(float(v) for v in axis) for axis in viewer.view_box.viewRange()),
+            viewer._physical_zoom_target,
+            viewer._screen_recalibration_target,
+            viewer._last_valid_physical_zoom,
+            viewer._fit_mode,
+        )
+        for viewer in multi.occupied_viewers
+    ]
+    prior_active = multi._active_viewer
+    prior_sync = multi.sync_enabled
+    first, second = multi.occupied_viewers
+    epoch = multi._review_restore_epoch + 1
+    assert multi.begin_review_restore(epoch)
+    calls: list[str] = []
+
+    def fail_second(
+        _percent: float, _center: tuple[float, float] | None = None,
+        *, track_target: bool = True
+    ) -> ZoomApplyResult:
+        calls.append("second")
+        assert first.zoom_percent == pytest.approx(100, rel=0.005)
+        assert not multi.sync_enabled  # target sync was staged
+        if failure == "user-revoke":
+            # User gesture signal arrives *before* Qt's actual pan action.
+            second.view_box.user_navigation_started.emit()
+        elif failure == "new-epoch":
+            assert multi.begin_review_restore(epoch + 1)
+        elif failure == "exception":
+            second.view_box.translateBy(x=4, y=3)
+            second._physical_zoom_target = 350.0
+            raise ValueError("injected second-tile failure")
+        else:
+            second.view_box.translateBy(x=4, y=3)
+            second._physical_zoom_target = 350.0
+        measurement = second.measure_physical_zoom()
+        return ZoomApplyResult(_percent, measurement, False, 0)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(second, "set_physical_zoom", fail_second)
+        result = restore_review_view_state(
+            multi, state, _bindings(docs, keys),
+            epoch=epoch, presentation_mode="originals"
+        )
+    assert calls == ["second"]
+    assert result.status == "interrupted", result
+    assert result.partial_state is False, result
+    assert multi._review_rollback_error is None
+    assert multi.sync_enabled is prior_sync
+    assert multi._active_viewer is prior_active
+    for viewer, saved in zip(multi.occupied_viewers, previous, strict=True):
+        current_range = viewer.view_box.viewRange()
+        for current_axis, original_axis in zip(current_range, saved[0], strict=True):
+            assert current_axis == pytest.approx(original_axis, abs=1e-3)
+        assert viewer._physical_zoom_target == saved[1]
+        assert viewer._screen_recalibration_target == saved[2]
+        assert viewer._last_valid_physical_zoom == pytest.approx(saved[3])
+        assert viewer._fit_mode is saved[4]
+    assert multi._review_restore_pending_epoch == (
+        epoch + 1 if failure == "new-epoch" else None
+    )
+
+
+def test_user_pan_after_revoke_is_not_clobbered(qtbot: object) -> None:
+    multi, docs, keys = _fixture(qtbot, 2)
+    state = _capture(multi, docs, keys)
+    epoch = multi._review_restore_epoch + 1
+    assert multi.begin_review_restore(epoch)
+    viewer = multi.occupied_viewers[0]
+    viewer.view_box.user_navigation_started.emit()
+    viewer.view_box.translateBy(x=11, y=7)
+    expected = _center(viewer)
+    assert restore_review_view_state(
+        multi, state, _bindings(docs, keys),
+        epoch=epoch, presentation_mode="originals"
+    ).status == "interrupted"
+    assert _center(viewer) == pytest.approx(expected)
