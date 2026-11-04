@@ -26,7 +26,11 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.core.review_analysis import capture_presented_analysis
-from pixelscope.io.analysis_bundle import AnalysisFeatureAvailabilityV1, write_analysis_bundle
+from pixelscope.io.analysis_bundle import (
+    AnalysisFeatureAvailabilityV1,
+    AvailabilityState,
+    write_analysis_bundle,
+)
 from pixelscope.io.analysis_export import (
     DifferenceMetricsExport,
     HistogramExportSeries,
@@ -135,6 +139,7 @@ class _FrozenFeatureAdapter:
         return ()
 
     def availability(self, expected: Any, current: Any) -> AnalysisFeatureAvailabilityV1:
+        state: AvailabilityState
         if expected is not None and current == expected:
             state = "captured"
         else:
