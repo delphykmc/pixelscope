@@ -62,10 +62,6 @@ def _shape(value: object) -> tuple[int, int]:
     return int(value[0]), int(value[1])
 
 
-def _center_in_shape(center: tuple[float, float], shape: tuple[int, int]) -> bool:
-    return 0 <= center[0] < shape[1] and 0 <= center[1] < shape[0]
-
-
 def _scale(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, float | int):
         raise ValueError("physical scale must be a positive finite number")
@@ -162,13 +158,6 @@ class ReviewViewStateV1:
             raise ValueError("source_shapes_ref must cover exactly the comparison page")
         if source_shapes[self.reference_source_key] != shape:
             raise ValueError("reference shape disagrees with source_shapes_ref")
-        if not _center_in_shape(self.center_ref_xy, shape):
-            raise ValueError("reference center falls outside reference coordinates")
-        if self.sync_enabled and any(
-            not _center_in_shape(self.center_ref_xy, dimensions)
-            for dimensions in source_shapes.values()
-        ):
-            raise ValueError("shared center falls outside a page source reference grid")
         object.__setattr__(self, "source_shapes_ref", MappingProxyType(source_shapes))
         if not isinstance(self.per_source, Mapping):
             raise ValueError("per_source must be a mapping")
@@ -178,9 +167,6 @@ class ReviewViewStateV1:
             if not isinstance(viewport, ReviewViewportV1):
                 raise ValueError("per_source values must be ReviewViewportV1")
             viewports[key] = viewport
-        for key, viewport in viewports.items():
-            if not _center_in_shape(viewport.center_ref_xy, source_shapes.get(key, (0, 0))):
-                raise ValueError("source center falls outside its reference coordinates")
         if self.sync_enabled and viewports:
             raise ValueError("synchronized capture must use the shared viewport")
         if not self.sync_enabled and set(viewports) != set(page):
