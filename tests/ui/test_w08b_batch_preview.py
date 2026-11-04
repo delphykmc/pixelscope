@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QDialog
-
 import numpy as np
 import pytest
+from PySide6.QtWidgets import QDialog
 
 from pixelscope.io.input_profile_batch import (
     ProfileBatchCandidate,
@@ -14,9 +13,9 @@ from pixelscope.io.input_profile_batch import (
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.input_profile_batch import (
+    BatchProfileApprovalDialog,
     BatchProfileController,
     CanonicalBatchProfileAdapter,
-    BatchProfileApprovalDialog,
     InputProfileBatchDialog,
 )
 from pixelscope.ui.native_input_preview import (
