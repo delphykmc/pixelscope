@@ -298,7 +298,8 @@ def test_multi_view_primary_survives_arrow_key_active_navigation(
     assert window.viewer.document is documents[3]
     assert window.viewer.header.badge.isHidden()
     assert window.viewer.header.navigation_layout.count() == 4
-    assert "set / image-4.png" in window.viewer.header.name.text()
+    assert window.viewer.header.name.text() == "image-4.png"
+    assert window.viewer.header.name.toolTip() == str(documents[3].source_path)
     window.close()
 
 
