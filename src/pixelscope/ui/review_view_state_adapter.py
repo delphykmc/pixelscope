@@ -79,11 +79,16 @@ def _ready(view: MultiCompareView) -> str | None:
         return "owner-closed"
     if view._setting_documents or view._layout_refit_active or not view.isVisible():
         return "layout-not-settled"
+    for viewer in view.visible_viewers:
+        if not isValid(viewer):
+            return "viewer-deleted"
+        if viewer._graphics_resources_disposed:
+            return "viewer-closed"
     if not view.occupied_viewers:
         return "no-presented-sources"
     for viewer in view.occupied_viewers:
-        if not isValid(viewer):
-            return "viewer-deleted"
+        if viewer._geometry_timer.isActive():
+            return "layout-not-settled"
         document = viewer.document
         if document is None:
             return "missing-presented-source"
@@ -240,7 +245,10 @@ def restore_review_view_state(
     if reason is not None:
         status: Literal["pending", "unavailable"] = (
             "unavailable"
-            if reason in {"owner-closed", "owner-deleted", "viewer-deleted", "source-load-failed"}
+            if reason in {
+                "owner-closed", "owner-deleted", "viewer-deleted",
+                "viewer-closed", "source-load-failed",
+            }
             else "pending"
         )
         return ReviewRestoreResult(status, epoch, reason)
