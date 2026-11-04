@@ -127,6 +127,9 @@ class RawInputCompatibilityController:
         if callable(set_source_path):
             set_source_path(image_input.path)
         dialog.set_profile(initial_profile, stride_is_auto=True)
+        set_input_origin = getattr(dialog, "set_input_origin", None)
+        if callable(set_input_origin):
+            set_input_origin(".imgprops")
         set_option_visible = getattr(
             dialog,
             "set_json_confirmation_option_visible",

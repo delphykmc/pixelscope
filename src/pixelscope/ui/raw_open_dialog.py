@@ -39,6 +39,7 @@ from pixelscope.io.raw_format import (
     storage_format_spec,
 )
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.input_profile_library import InputProfile, ProfileLibraryControls
 
 RAW_DIALOG_WIDTH = 280
 FORM_LABEL_WIDTH = 100
@@ -249,6 +250,12 @@ class RawOpenDialog(QDialog):
         file_size_layout.setSpacing(6)
         file_size_layout.addLayout(self.file_size_form)
         file_size_layout.addLayout(self.file_status_row)
+        self.native_interpretation_summary = QLabel()
+        self.native_interpretation_summary.setWordWrap(True)
+        self.native_interpretation_summary.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        file_size_layout.addWidget(self.native_interpretation_summary)
 
         self.black_gray = self._spin(0, 65535, 0)
         self.black_r = self._spin(0, 65535, 0)
@@ -339,6 +346,13 @@ class RawOpenDialog(QDialog):
         body_layout.addWidget(signal_levels_group)
         body_layout.addSpacing(2)
         body_layout.addLayout(self.json_actions_layout)
+        self.profile_library_controls = ProfileLibraryControls(
+            "raw",
+            self.profile,
+            self._apply_library_profile,
+            parent=self,
+        )
+        body_layout.addWidget(self.profile_library_controls)
         body_layout.addWidget(self.dont_show_json_profiles)
         body_layout.addStretch(1)
 
@@ -480,6 +494,11 @@ class RawOpenDialog(QDialog):
     def container_dtype(self) -> ContainerDType | None:
         return cast(ContainerDType | None, self.container.currentData())
 
+    def _apply_library_profile(self, profile: InputProfile) -> None:
+        if not isinstance(profile, RawProfile):
+            raise ValueError("Saved profile family does not match the input dialog")
+        self.set_profile(profile)
+
     def set_source_path(self, path: str | Path | None) -> None:
         self._source_path = Path(path).resolve() if path is not None else None
         self._actual_file_size = None
@@ -499,6 +518,13 @@ class RawOpenDialog(QDialog):
         self._json_option_available = visible
         self.dont_show_json_profiles.setChecked(False)
         self.dont_show_json_profiles.setVisible(visible)
+        if visible:
+            self.set_input_origin("Explicit JSON")
+
+    def set_input_origin(self, origin: str) -> None:
+        """Presentation-only sidecar provenance; not part of native profile identity."""
+        self.profile_library_controls.mark_origin(origin, self.profile())
+        self._update_interpretation_summary()
 
     def dont_show_json_profiles_requested(self) -> bool:
         return self._json_option_available and self.dont_show_json_profiles.isChecked()
@@ -853,7 +879,39 @@ class RawOpenDialog(QDialog):
             return f"Height must be even for {spec.label}."
         return None
 
+    def _update_interpretation_summary(self) -> None:
+        source = self._source_path.name if self._source_path is not None else "Not selected"
+        try:
+            profile = self.profile()
+            origin = self.profile_library_controls.effective_origin(profile)
+            storage = str(profile.storage_format)
+            if storage == "unpacked":
+                storage += f" / {profile.container_dtype}"
+            alignment = (
+                f" / {profile.bit_alignment} aligned" if profile.bit_alignment is not None else ""
+            )
+            byte_order = f" / {profile.endianness} endian" if profile.endianness is not None else ""
+            packed_order = (
+                f" / {profile.packed_bit_order} bit order"
+                if profile.packed_bit_order is not None
+                else ""
+            )
+            cfa = f" / {profile.bayer_pattern}" if profile.channel_layout == "BAYER" else ""
+            self.native_interpretation_summary.setText(
+                f"Source: {source} | Origin: {origin} | Profile: {profile.name}\n"
+                f"Native: {profile.width}×{profile.height} / "
+                f"{profile.channel_layout}{cfa} / {profile.bit_depth}-bit / "
+                f"{storage}{byte_order}{alignment}{packed_order}\n"
+                f"Stride {profile.stride_bytes:,} B / Offset {profile.offset_bytes:,} B. "
+                "Byte-size validation does not prove the interpretation."
+            )
+        except (ValueError, ValidationError):
+            self.native_interpretation_summary.setText(
+                f"Source: {source} | Unsupported or invalid interpretation"
+            )
+
     def _update_diagnostics(self, _value: object = None) -> None:
+        self._update_interpretation_summary()
         dimension_error = self._format_dimension_error()
         try:
             minimum_stride = self.minimum_stride_bytes()
@@ -952,7 +1010,8 @@ class RawOpenDialog(QDialog):
         elif actual > expected:
             self._set_status(
                 "warning",
-                f"{actual - expected:,} trailing bytes will be ignored.",
+                f"{actual - expected:,} trailing bytes will be ignored "
+                f"(byte offsets [{expected:,}, {actual:,})).",
                 QStyle.StandardPixmap.SP_MessageBoxWarning,
             )
             self.ok_button.setEnabled(True)
@@ -979,6 +1038,12 @@ class RawOpenDialog(QDialog):
                 self.file_status.text(),
             )
             return
+        library_controls = self.profile_library_controls
+        if not library_controls.library.read_only:
+            current_profile = self.profile()
+            library_controls.library.record_recent(
+                current_profile, library_controls.effective_origin(current_profile)
+            )
         self.accept()
 
     def _load(self) -> None:
@@ -991,8 +1056,10 @@ class RawOpenDialog(QDialog):
         if not path:
             return
         try:
-            self.set_profile(RawProfile.load_json(path))
-        except (OSError, ValidationError) as exc:
+            profile = RawProfile.load_json(path)
+            self.set_profile(profile)
+            self.set_input_origin("Explicit JSON")
+        except (OSError, ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Cannot load profile", str(exc))
 
     def _save(self) -> None:
