@@ -524,7 +524,7 @@ class ComparisonPresetController(QObject):
             self.target_combo,
             self.status_label,
         ) = install_comparison_preset_controls(window)
-        self.preset_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+        self.preset_combo.currentIndexChanged.connect(
             self._choose_preset
         )
         self.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
@@ -546,7 +546,7 @@ class ComparisonPresetController(QObject):
                 self._analysis_controls_changed
             )
         for spin in (panel.gain, panel.threshold):
-            spin.valueChanged.connect(  # type: ignore[attr-defined]
+            spin.valueChanged.connect(
                 self._analysis_controls_changed
             )
         panel.map_cached.connect(self._analysis_controls_changed)
