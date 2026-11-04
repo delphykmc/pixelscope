@@ -1,13 +1,14 @@
-from __future__ import annotations
-
 """Read-only RAW/YUV batch profile eligibility; no Qt or registration side effects."""
+
+from __future__ import annotations
 
 import hashlib
 import json
 import stat
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Mapping
+from typing import Literal
 
 from pixelscope.io.path_discovery import RAW_LIKE_IMAGE_SUFFIXES, raw_profile_sidecar_for_path
 from pixelscope.io.raw_profile import RawProfile
@@ -141,7 +142,7 @@ def preflight_input_profile_batch(
                     status, reason = "rejected", (
                         f"YUV requires exactly {required} bytes; got {revision.size}"
                     )
-                elif isinstance(profile, RawProfile) and require_exact_raw_size and revision.size != required:
+                elif (\n                    isinstance(profile, RawProfile)\n                    and require_exact_raw_size\n                    and revision.size != required\n                ):
                     status, reason = "rejected", (
                         f"Exact RAW size setting requires {required} bytes; got {revision.size}"
                     )
