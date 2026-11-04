@@ -18,8 +18,8 @@ from shiboken6 import isValid
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
-    ReviewViewStateV1,
     ReviewViewportV1,
+    ReviewViewStateV1,
     SUPPORTED_PRESENTATIONS,
 )
 
