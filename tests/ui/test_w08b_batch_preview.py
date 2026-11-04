@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtWidgets import QDialog
+
 import numpy as np
 import pytest
 
@@ -14,6 +16,8 @@ from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.input_profile_batch import (
     BatchProfileController,
     CanonicalBatchProfileAdapter,
+    BatchProfileApprovalDialog,
+    InputProfileBatchDialog,
 )
 from pixelscope.ui.native_input_preview import (
     NativeInputPreview,
@@ -252,3 +256,126 @@ def test_adapter_reinterpret_offpage_defers_native_decode(tmp_path: Path) -> Non
     )[0]
     assert adapter.commit_one(next_candidate) == document_id
     assert owner.refresh_calls == [document_id]
+
+
+@pytest.mark.parametrize(
+    "changed_key,new_value,before_fragment,after_fragment",
+    (
+        ("endianness", "big", "endianness=little", "endianness=big"),
+        ("bayer_pattern", "BGGR", "bayer_pattern=RGGB", "bayer_pattern=BGGR"),
+    ),
+)
+def test_dialog_discloses_full_native_before_after_and_sidecar_override(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+    changed_key: str,
+    new_value: str,
+    before_fragment: str,
+    after_fragment: str,
+) -> None:
+    from pixelscope.app.main_window import MainWindow
+
+    path = _files(tmp_path, 1)[0]
+    old = _raw().copy(update={"channel_layout": "BAYER", "bayer_pattern": "RGGB"})
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    adapter = CanonicalBatchProfileAdapter(window)
+    source_id = adapter.commit_one(preflight_input_profile_batch((path,), old)[0])
+    previous_generation = window.documents[source_id].generation
+    (tmp_path / "0.json").write_text("{}", encoding="utf-8")
+    proposed = old.copy(update={changed_key: new_value})
+    dialog = InputProfileBatchDialog(window, (path,))
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog._profiles.append(proposed)
+    dialog.profile_box.addItem("W08b changed native interpretation")
+    dialog.profile_box.setCurrentIndex(dialog.profile_box.count() - 1)
+    dialog.override_registered.setChecked(True)
+    dialog.override_sidecars.setChecked(True)
+    dialog._start_preflight()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog._batch.phase == "ready" and len(dialog._candidates) == 1,
+        timeout=10000,
+    )
+    candidate = dialog._candidates[0]
+    assert candidate.previous_profile == old
+    assert candidate.previous_profile is not old
+    assert candidate.sidecar_override
+    assert candidate.eligible
+    details = dialog.details_panel.toPlainText()
+    assert before_fragment in details and after_fragment in details
+    assert str(path) in details
+    assert str(path.with_suffix(".json")) in details
+    assert "Sidecar interpretation override: YES" in details
+    assert before_fragment in dialog.table.item(0, 1).text()
+    assert after_fragment in dialog.table.item(0, 2).text()
+    assert "OVERRIDE APPROVED" in dialog.table.item(0, 3).text()
+
+    captured: list[str] = []
+
+    def confirm(approval: BatchProfileApprovalDialog) -> QDialog.DialogCode:
+        captured.append(approval.details.toPlainText())
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(BatchProfileApprovalDialog, "exec", confirm)  # type: ignore[attr-defined]
+    dialog._approve()
+    assert len(captured) == 1
+    assert before_fragment in captured[0] and after_fragment in captured[0]
+    assert "Sidecar interpretation override: YES" in captured[0]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog._last_batch_result is not None,
+        timeout=10000,
+    )
+    assert dialog._last_batch_result is not None
+    assert dialog._last_batch_result.applied == 1
+    assert window.documents[source_id].generation == previous_generation + 1
+    assert getattr(window._raw_profiles[source_id], changed_key) == new_value
+    assert "1 applied" in dialog.status.text()
+    dialog.reject()
+
+
+def test_dialog_four_applied_remains_truthful_after_cancel_pending(
+    qtbot: object, tmp_path: Path, monkeypatch: object
+) -> None:
+    from pixelscope.app.main_window import MainWindow
+
+    paths = _files(tmp_path, 4)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    dialog = InputProfileBatchDialog(window, paths)
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog._profiles.append(_raw())
+    dialog.profile_box.addItem("W08b RAW profile")
+    dialog.profile_box.setCurrentIndex(dialog.profile_box.count() - 1)
+    dialog._start_preflight()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog._batch.phase == "ready" and len(dialog._candidates) == 4,
+        timeout=10000,
+    )
+    approvals: list[str] = []
+
+    def confirm(approval: BatchProfileApprovalDialog) -> QDialog.DialogCode:
+        approvals.append(approval.details.toPlainText())
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(BatchProfileApprovalDialog, "exec", confirm)  # type: ignore[attr-defined]
+    dialog._approve()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog._last_batch_result is not None,
+        timeout=10000,
+    )
+    assert dialog._last_batch_result is not None
+    assert dialog._last_batch_result.applied == 4
+    assert len(approvals) == 1
+    assert all(str(path) in approvals[0] for path in paths)
+    assert dialog._batch.phase == "finished"
+    assert not dialog.stop_button.isEnabled()
+    before = dialog.status.text()
+    assert "4 applied" in before
+    ids = dict(window._document_id_by_path)
+    dialog.stop_button.click()
+    dialog._cancel()
+    assert dialog.status.text() == before
+    assert dialog._last_batch_result.applied == 4
+    assert window._document_id_by_path == ids
+    dialog.reject()
