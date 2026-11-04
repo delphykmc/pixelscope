@@ -22,6 +22,27 @@ class MultiCompareViewState:
     ranges: tuple[tuple[float, float], tuple[float, float]] | None
 
 
+@dataclass(frozen=True)
+class _ReviewTileCheckpoint:
+    """Only live display geometry/flags; no source payload or worker retained."""
+
+    viewer: ImageViewer
+    document: ImageDocument
+    ranges: tuple[tuple[float, float], tuple[float, float]]
+    physical_target: float | None
+    screen_target: float | None
+    last_zoom: float | None
+    fit_mode: bool
+
+
+@dataclass(frozen=True)
+class _ReviewApplyCheckpoint:
+    epoch: int
+    tiles: tuple[_ReviewTileCheckpoint, ...]
+    sync_enabled: bool
+    active_viewer: ImageViewer | None
+
+
 class MultiCompareView(QWidget):
     """Synchronized 2/4/6-slot viewer for one comparison page."""
 
@@ -46,6 +67,8 @@ class MultiCompareView(QWidget):
         self._review_restore_applied_epoch: int | None = None
         self._review_restore_closed = False
         self._review_restoring = False
+        self._review_apply_checkpoint: _ReviewApplyCheckpoint | None = None
+        self._review_rollback_error: str | None = None
         self._layout_refit_active = False
         self._document_count = 0
         self._arranged_count = -1
@@ -375,14 +398,94 @@ class MultiCompareView(QWidget):
             or epoch <= self._review_restore_epoch
         ):
             return False
+        # A reentrant newer request revokes and unwinds the older apply
+        # before it can stage another viewport. No old rollback may touch
+        # the new epoch after this point.
+        self.cancel_review_restore()
         self._review_restore_epoch = epoch
         self._review_restore_pending_epoch = epoch
         self._review_restore_applied_epoch = None
+        self._review_rollback_error = None
         return True
 
+    def _begin_review_apply(self, epoch: int) -> bool:
+        """Snapshot every tile before the first synchronous W01 mutation."""
+        if self._review_restore_pending_epoch != epoch or self._review_apply_checkpoint:
+            return False
+        tiles: list[_ReviewTileCheckpoint] = []
+        for viewer in self.occupied_viewers:
+            document = viewer.document
+            if document is None or viewer._graphics_resources_disposed:
+                return False
+            ranges = viewer.view_box.viewRange()
+            tiles.append(
+                _ReviewTileCheckpoint(
+                    viewer=viewer,
+                    document=document,
+                    ranges=(
+                        (float(ranges[0][0]), float(ranges[0][1])),
+                        (float(ranges[1][0]), float(ranges[1][1])),
+                    ),
+                    physical_target=viewer._physical_zoom_target,
+                    screen_target=viewer._screen_recalibration_target,
+                    last_zoom=viewer._last_valid_physical_zoom,
+                    fit_mode=viewer._fit_mode,
+                )
+            )
+        self._review_apply_checkpoint = _ReviewApplyCheckpoint(
+            epoch, tuple(tiles), self.sync_enabled, self._active_viewer
+        )
+        self._review_rollback_error = None
+        return True
+
+    def _finish_review_apply(self, epoch: int) -> None:
+        checkpoint = self._review_apply_checkpoint
+        if checkpoint is not None and checkpoint.epoch == epoch:
+            self._review_apply_checkpoint = None
+
     def cancel_review_restore(self, *_args: object) -> int:
-        """Revoke an outstanding epoch, not unrelated ordinary navigation."""
+        """Undo in-flight changes *before* a new user gesture takes authority.
+
+        This slot runs synchronously at the start of mouse/wheel/focus actions.
+        A later source replacement or deletion cannot be overwritten: in that
+        case an explicit rollback error is exposed to the Review adapter.
+        """
+        checkpoint = self._review_apply_checkpoint
+        self._review_apply_checkpoint = None
         self._review_restore_pending_epoch = None
+        if checkpoint is not None:
+            prior_syncing = self._syncing_range
+            self._syncing_range = True
+            errors: list[str] = []
+            try:
+                for tile in checkpoint.tiles:
+                    viewer = tile.viewer
+                    if (
+                        viewer._graphics_resources_disposed
+                        or viewer.document is not tile.document
+                    ):
+                        errors.append("source-replaced-or-closed")
+                        continue
+                    try:
+                        viewer.view_box.setRange(
+                            xRange=tile.ranges[0], yRange=tile.ranges[1], padding=0
+                        )
+                        viewer._physical_zoom_target = tile.physical_target
+                        viewer._screen_recalibration_target = tile.screen_target
+                        viewer._last_valid_physical_zoom = tile.last_zoom
+                        viewer._fit_mode = tile.fit_mode
+                    except (RuntimeError, ValueError, TypeError) as exc:
+                        errors.append(f"range-rollback-failed:{type(exc).__name__}")
+                if not errors:
+                    self.sync_enabled = checkpoint.sync_enabled
+                    self._active_viewer = checkpoint.active_viewer
+                    for viewer in self.viewers:
+                        if not viewer._graphics_resources_disposed:
+                            viewer.set_active(viewer is checkpoint.active_viewer)
+            finally:
+                self._syncing_range = prior_syncing
+            if errors:
+                self._review_rollback_error = ";".join(errors)
         return self._review_restore_epoch
 
     def capture_view_state(self) -> MultiCompareViewState:
