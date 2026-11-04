@@ -1,11 +1,13 @@
 # PixelScope current state
 
-> **W05 comparison presets — PR #218 implementation in acceptance (2026-11-05):**
+> **W05 comparison presets — PR #218 prepared for merge (2026-11-05):**
 > runtime Original 2/4, A/B/Diff and Diff Focus now use canonical MainWindow
 > Presented/Active/residency publication and verified per-source physical-view
 > continuity with Sync Off. No Session schema or implicit Difference Calculate.
-> Merge readiness depends on exact-head independent review and owner-local full
-> validation recorded in [the W05 completion plan](exec-plans/active/issue-210-w05-completion.md).
+> Code commit `b45a28f4` passed 1,846 normal-GC Windows tests and independent review.
+> Validation limits and the W06/W09 handoff are recorded in
+> [the W05 completion plan](exec-plans/completed/issue-210-w05-completion.md).
+> This is PR preparation evidence; W05 is not yet merged into MAIN.
 
 > **Source cycling convenience validated (2026-10-20):** T rotates the last
 > page-local source to Primary in both Single and Multi View. Hold-B Blink is
