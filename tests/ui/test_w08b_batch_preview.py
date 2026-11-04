@@ -26,10 +26,18 @@ pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 def _raw() -> RawProfile:
     return RawProfile(
-        name="W08b", width=8, height=4, stride_bytes=16,
-        storage_format="unpacked", container_dtype="uint16",
-        endianness="little", bit_depth=12, bit_alignment="lsb",
-        channel_layout="GRAY", black_level=0, white_level=4095,
+        name="W08b",
+        width=8,
+        height=4,
+        stride_bytes=16,
+        storage_format="unpacked",
+        container_dtype="uint16",
+        endianness="little",
+        bit_depth=12,
+        bit_alignment="lsb",
+        channel_layout="GRAY",
+        black_level=0,
+        white_level=4095,
     )
 
 
@@ -46,9 +54,9 @@ def test_preflight_then_confirm_four_without_selection_authority(
     paths = _files(tmp_path, 4)
     changes: list[Path] = []
     results: list[object] = []
-    controller = BatchProfileController(lambda candidate: (
-        changes.append(candidate.path) or f"doc-{len(changes)}"
-    ))
+    controller = BatchProfileController(
+        lambda candidate: (changes.append(candidate.path) or f"doc-{len(changes)}")
+    )
     controller.preflight_ready.connect(lambda _epoch, _value: None)
     controller.commit_finished.connect(results.append)
     epoch = controller.preflight(paths, _raw())
@@ -65,15 +73,11 @@ def test_preflight_then_confirm_four_without_selection_authority(
     controller.shutdown()
 
 
-def test_cancel_before_approval_drops_late_preflight(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_cancel_before_approval_drops_late_preflight(qtbot: object, tmp_path: Path) -> None:
     paths = _files(tmp_path, 2)
     commits: list[str] = []
     ready: list[int] = []
-    controller = BatchProfileController(lambda _candidate: (
-        commits.append("committed") or "doc"
-    ))
+    controller = BatchProfileController(lambda _candidate: (commits.append("committed") or "doc"))
     controller.preflight_ready.connect(lambda epoch, _value: ready.append(epoch))
     epoch = controller.preflight(paths, _raw())
     controller.cancel()
@@ -85,15 +89,13 @@ def test_cancel_before_approval_drops_late_preflight(
     controller.shutdown()
 
 
-def test_cancel_after_first_commit_reports_partial(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_cancel_after_first_commit_reports_partial(qtbot: object, tmp_path: Path) -> None:
     paths = _files(tmp_path, 3)
     touched: list[Path] = []
     results: list[object] = []
-    controller = BatchProfileController(lambda row: (
-        touched.append(row.path) or f"doc{len(touched)}"
-    ))
+    controller = BatchProfileController(
+        lambda row: (touched.append(row.path) or f"doc{len(touched)}")
+    )
     controller.commit_finished.connect(results.append)
     controller.commit_progress.connect(
         lambda _epoch, _row: controller.cancel() if len(touched) == 1 else None
@@ -104,24 +106,31 @@ def test_cancel_after_first_commit_reports_partial(
     qtbot.waitUntil(lambda: bool(results), timeout=10000)  # type: ignore[attr-defined]
     assert touched == [paths[0]]
     assert results[0].interrupted
-    assert [row.status for row in results[0].outcomes] == [
-        "applied", "interrupted", "interrupted"
-    ]
+    assert [row.status for row in results[0].outcomes] == ["applied", "interrupted", "interrupted"]
     controller.shutdown()
 
 
-@pytest.mark.parametrize("packing,bit_depth,row_bytes", (
-    ("mipi_raw10", 10, 10),
-    ("mipi_raw12", 12, 12),
-    ("mipi_raw14", 14, 14),
-))
+@pytest.mark.parametrize(
+    "packing,bit_depth,row_bytes",
+    (
+        ("mipi_raw10", 10, 10),
+        ("mipi_raw12", 12, 12),
+        ("mipi_raw14", 14, 14),
+    ),
+)
 def test_packed_native_preview_preserves_decoder(
     tmp_path: Path, packing: str, bit_depth: int, row_bytes: int
 ) -> None:
     profile = RawProfile(
-        name="packed", width=8, height=4, stride_bytes=row_bytes,
-        storage_format=packing, bit_depth=bit_depth,
-        channel_layout="GRAY", black_level=0, white_level=(1 << bit_depth) - 1,
+        name="packed",
+        width=8,
+        height=4,
+        stride_bytes=row_bytes,
+        storage_format=packing,
+        bit_depth=bit_depth,
+        channel_layout="GRAY",
+        black_level=0,
+        white_level=(1 << bit_depth) - 1,
     )
     path = tmp_path / "image.raw"
     path.write_bytes(bytes(row_bytes * 4))
@@ -141,9 +150,7 @@ def test_native_yuv_preview_is_presentation_only(tmp_path: Path, layout: str) ->
     assert preview.pixels.dtype == np.uint8
 
 
-def test_preview_epoch_generation_close_and_late_callback(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_preview_epoch_generation_close_and_late_callback(qtbot: object, tmp_path: Path) -> None:
     path = _files(tmp_path, 1)[0]
     preview = NativeInputPreviewController()
     accepted: list[NativeInputPreview] = []
@@ -179,7 +186,8 @@ def test_adapter_register_and_reinterpret_preserves_existing_identity(
 
     changed = _raw().copy(update={"name": "updated", "black_level": 3})
     second = preflight_input_profile_batch(
-        (path,), changed,
+        (path,),
+        changed,
         existing=adapter.existing((path,)),
         override_registered=True,
     )[0]
