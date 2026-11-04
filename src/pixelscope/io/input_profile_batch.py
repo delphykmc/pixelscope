@@ -142,7 +142,11 @@ def preflight_input_profile_batch(
                     status, reason = "rejected", (
                         f"YUV requires exactly {required} bytes; got {revision.size}"
                     )
-                elif (\n                    isinstance(profile, RawProfile)\n                    and require_exact_raw_size\n                    and revision.size != required\n                ):
+                elif (
+                    isinstance(profile, RawProfile)
+                    and require_exact_raw_size
+                    and revision.size != required
+                ):
                     status, reason = "rejected", (
                         f"Exact RAW size setting requires {required} bytes; got {revision.size}"
                     )
