@@ -590,6 +590,7 @@ def test_missing_native_interpretation_fails_closed_for_special_layouts(layout: 
     base = _snapshot()
     with pytest.raises(ValueError, match="interpretation missing"):
         replace(
-            base.sources[0], channel_layout=layout,
+            base.sources[0],
+            channel_layout=layout,
             native_interpretation=AnalysisNativeInterpretationV1(),
         )
