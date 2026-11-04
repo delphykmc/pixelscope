@@ -406,3 +406,61 @@ def test_difference_explicit_full_roi_background_does_not_renew_permission(
     assert panel.get_current_difference_token() is None
     assert capture_presented_analysis(adapter, roi_token).snapshot is None
     panel.shutdown()
+
+
+def test_difference_delayed_explicit_preview_cannot_authorize_new_roi(
+    qtbot: object,
+    monkeypatch: object,
+) -> None:
+    """Preview identity excludes ROI; the result_ready permission must not."""
+    import numpy as np
+    from types import SimpleNamespace
+
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    first, second = _document("preview-a.png", 9), _document("preview-b.png", 20)
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+    observed: list[object] = []
+    panel.result_ready.connect(lambda *_args: observed.append(True))  # type: ignore[attr-defined]
+    panel.calculate_difference()
+    qtbot.waitUntil(
+        lambda: panel.get_current_difference_token() is not None
+        and panel._worker is None,
+        timeout=15000,
+    )  # type: ignore[attr-defined]
+    assert len(observed) == 1
+
+    cached = panel.cached_result_for_current()
+    assert cached is not None
+    selected = panel._selected_absolute(cached, panel.channel.currentText())
+    panel.gain.setValue(2)
+    panel._display_timer.stop()
+    monkeypatch.setattr(panel, "_pool", SimpleNamespace(start=lambda _worker: None))
+    metric_key = panel._metric_key()
+    request_id = panel._difference_request_id
+    panel._request_preview_render(cached, selected, publish_result=True)
+    pending = panel._preview_worker
+    assert pending is not None
+    preview_key = panel._preview_cache_key(cached)
+    serial = panel._preview_request_serial
+
+    panel.set_active_roi(RoiBounds(2, 3, 4, 5))
+    # Background metric worker is intentionally not started by the fixture.
+    assert panel._metric_key() != metric_key
+    preview = np.zeros(selected.shape[:2], dtype=np.uint8)
+    panel._preview_succeeded(
+        pending.task_id,
+        preview,
+        request_serial=serial,
+        expected_key=preview_key,
+        expected_map=cached,
+        expected_metric_key=metric_key,
+        expected_metric_request_id=request_id,
+        title="old ROI preview",
+        selected=selected,
+        snapshot=panel._build_sampling_snapshot(selected),
+        publish_result=True,
+    )
+    assert len(observed) == 1
+    assert panel.get_current_difference_token() is None
+    panel.shutdown()
