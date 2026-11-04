@@ -107,6 +107,12 @@ def test_sidecar_registration_and_explicit_override(
     assert approved.eligible
     assert approved.document_id == "doc-1" and approved.generation == 7
     assert approved.previous_interpretation == interpretation_key(changed)
+    assert approved.previous_profile == changed
+    assert approved.previous_profile is not changed
+    assert approved.sidecar_override
+    changed.black_level = 5
+    assert approved.previous_profile is not None
+    assert approved.previous_profile.black_level == 0
     assert candidate_file_is_current(approved)
     path.write_bytes(bytes(61))
     assert not candidate_file_is_current(approved)
@@ -138,3 +144,22 @@ def test_missing_nonregular_unsupported_and_mixed_size_sources(tmp_path: Path) -
         "rejected",
     ]
     assert all(not entry.eligible for entry in entries[1:])
+
+
+def test_before_after_disclosure_tracks_endian_only_change(tmp_path: Path) -> None:
+    proposed = raw_profile()
+    old = proposed.copy(deep=True)
+    old.endianness = "big"
+    path = tmp_path / "same_footprint.raw"
+    path.write_bytes(bytes(required_file_size(proposed)))
+    candidate = preflight_input_profile_batch(
+        (path,),
+        proposed,
+        existing={path: ExistingProfileBinding("existing", 9, old)},
+        override_registered=True,
+    )[0]
+    assert candidate.eligible
+    assert candidate.previous_profile is not None
+    assert candidate.previous_profile.endianness == "big"
+    assert candidate.profile.endianness == "little"
+    assert candidate.previous_interpretation != candidate.interpretation
