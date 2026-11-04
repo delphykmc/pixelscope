@@ -14,8 +14,6 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Literal
 
-from shiboken6 import isValid
-
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
     SUPPORTED_PRESENTATIONS,
@@ -24,6 +22,7 @@ from pixelscope.core.review_view_state import (
 )
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
+from shiboken6 import isValid
 
 
 @dataclass(frozen=True)
