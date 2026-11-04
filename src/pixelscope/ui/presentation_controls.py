@@ -169,7 +169,6 @@ class _ElidingMetadataLabel(QLabel):
         self.setAccessibleName(f"{self._description}: {text}" if text else self._description)
 
 
-
 class _ElidingAliasCombo(QComboBox):
     """Display abbreviated W05 aliases, but expose the exact source in accessibility/tooltip."""
 
@@ -195,12 +194,17 @@ class _ElidingAliasCombo(QComboBox):
         option.currentText = self.fontMetrics().elidedText(  # type: ignore[attr-defined]
             option.currentText,  # type: ignore[attr-defined]
             Qt.TextElideMode.ElideMiddle,
-            max(0, self.style().subControlRect(
-                QStyle.ComplexControl.CC_ComboBox,
-                option,
-                QStyle.SubControl.SC_ComboBoxEditField,
-                self,
-            ).width()),
+            max(
+                0,
+                self.style()
+                .subControlRect(
+                    QStyle.ComplexControl.CC_ComboBox,
+                    option,
+                    QStyle.SubControl.SC_ComboBoxEditField,
+                    self,
+                )
+                .width(),
+            ),
         )
         painter = QStylePainter(self)
         painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
