@@ -1053,8 +1053,9 @@ class RawOpenDialog(QDialog):
         if not path:
             return
         try:
+            profile = RawProfile.load_json(path)
             self.profile_library_controls.origin = "Explicit JSON"
-            self.set_profile(RawProfile.load_json(path))
+            self.set_profile(profile)
         except (OSError, ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Cannot load profile", str(exc))
 
