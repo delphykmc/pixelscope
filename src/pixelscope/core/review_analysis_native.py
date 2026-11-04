@@ -1,3 +1,4 @@
+# ruff: noqa: E721  # Exact JSON primitive types reject bool-as-int coercions.
 """Portable allowlisted interpretation of native source samples (W02).
 
 These fields describe numerical decoding/spatial sampling, never names, paths,
@@ -131,7 +132,9 @@ class AnalysisNativeInterpretationV1:
             "raw_endianness": self.raw_endianness,
             "raw_bit_alignment": self.raw_bit_alignment,
             "raw_packed_bit_order": self.raw_packed_bit_order,
-            "raw_black_levels": list(self.raw_black_levels) if self.raw_black_levels is not None else None,
+            "raw_black_levels": (
+                list(self.raw_black_levels) if self.raw_black_levels is not None else None
+            ),
             "raw_white_level": self.raw_white_level,
             "yuv_layout": self.yuv_layout,
             "yuv_chroma_step_xy": (
