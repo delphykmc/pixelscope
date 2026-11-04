@@ -298,6 +298,15 @@ class WorkspacePresetController(QObject):
         if not (isinstance(main, QSplitter) and isinstance(sidebar, QSplitter)
                 and isinstance(dock, QDockWidget)):
             return
+        # A new or corrupted preset must have a deterministic dock topology,
+        # regardless of the previous preset's floating/maximized Plots state.
+        # The previous preset was captured before this operation.
+        if dock.isMaximized():
+            dock.showNormal()
+        if dock.isFloating():
+            dock.hide()
+            window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+            dock.setFloating(False)
         # Ratios are layout hints, not hard minimum sizes or a second geometry authority.
         width = max(1, main.width(), window.width())
         if preset is WorkspacePreset.ANALYZE:
