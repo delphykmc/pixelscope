@@ -302,7 +302,9 @@ class ProfileLibraryControls(QWidget):
         entries = self.library.favorites(self.kind)
         if index <= len(entries):
             self.origin = "Favorite"
-            self.apply_profile(entries[index - 1].profile)
+            apply_profile = self._apply_profile()
+            if apply_profile is not None:
+                apply_profile(entries[index - 1].profile)
 
     def _selected_favorite(self) -> ProfileEntry | None:
         index = self.favorite_box.currentIndex()
@@ -318,7 +320,9 @@ class ProfileLibraryControls(QWidget):
         except (ValidationError, ValueError) as exc:
             QMessageBox.warning(self, "Invalid profile", str(exc))
             return
-        label, ok = QInputDialog.getText(\n            self, "Favorite profile", "Display name:", text=profile.name\n        )
+        label, ok = QInputDialog.getText(
+            self, "Favorite profile", "Display name:", text=profile.name
+        )
         if not ok or not label.strip():
             return
         try:
@@ -331,7 +335,9 @@ class ProfileLibraryControls(QWidget):
         entry = self._selected_favorite()
         if entry is None:
             return
-        label, ok = QInputDialog.getText(\n            self, "Rename favorite", "Display name:", text=entry.label\n        )
+        label, ok = QInputDialog.getText(
+            self, "Rename favorite", "Display name:", text=entry.label
+        )
         if ok and label.strip():
             self.library.rename_favorite(entry.id, label)
             self.refresh()
