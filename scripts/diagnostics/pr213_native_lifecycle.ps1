@@ -47,8 +47,15 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 Remove-Item Env:PYTEST_ADDOPTS -ErrorAction SilentlyContinue
 Push-Location $root
 try {
-    $versions = (& $python -c 'import sys, PySide6, pyqtgraph, pixelscope; print("Python="+sys.version.split()[0]+" PySide6="+PySide6.__version__+" pyqtgraph="+pyqtgraph.__version__+" source="+str(pixelscope.__file__))' 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) { throw "Python preflight failed: $versions" }
+    # Windows PowerShell 5.1 can remove embedded double quotes from native
+    # python -c arguments. Avoid nested quote characters altogether.
+    # Also preserve Python stderr as diagnostic output without PowerShell
+    # promoting NativeCommandError to a terminating script error.
+    $ErrorActionPreference = 'Continue'
+    $versions = (& $python -c 'import sys, PySide6, pyqtgraph, pixelscope; print(sys.version.split()[0], PySide6.__version__, pyqtgraph.__version__, pixelscope.__file__)' 2>&1 | Out-String).Trim()
+    $preflightExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($preflightExit -ne 0) { throw "Python preflight failed (exit=$preflightExit): $versions" }
     $gitStatus = (& git status --short | Out-String).Trim()
     @(
         "timestamp=$(Get-Date -Format o)"
