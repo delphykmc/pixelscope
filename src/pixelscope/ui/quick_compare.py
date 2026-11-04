@@ -582,6 +582,7 @@ class ComparisonPresetController(QObject):
         """Aliases change; data roles remain exact ImageDocument IDs."""
         page = self._page()
         ids = [document.document_id for document in page]
+        role_page = page[:4] if self._preset is ComparisonPreset.ORIGINAL_4 else page
         self._syncing = True
         try:
             if self._pair is None or not self._pair.valid_on(ids):
@@ -592,7 +593,7 @@ class ComparisonPresetController(QObject):
             ):
                 combo.blockSignals(True)
                 combo.clear()
-                for index, document in enumerate(page):
+                for index, document in enumerate(role_page):
                     combo.addItem(f"{index + 1}: {document.display_name}", document.document_id)
                 combo.setCurrentIndex(combo.findData(selected))
                 combo.setEnabled(len(page) >= 2)
@@ -801,9 +802,14 @@ class ComparisonPresetController(QObject):
             reference_id or self._pair.reference_id,
             target_id or self._pair.target_id,
         )
-        if not pair.valid_on([doc.document_id for doc in self._page()]):
+        allowed = (
+            self._page()[:4]
+            if self._preset is ComparisonPreset.ORIGINAL_4
+            else self._page()
+        )
+        if not pair.valid_on([doc.document_id for doc in allowed]):
             self.window.statusBar().showMessage(
-                "Reference and Target must be distinct page sources", 4000
+                "Reference and Target must be distinct visible preset sources", 4000
             )
             self._sync_roles()
             return
