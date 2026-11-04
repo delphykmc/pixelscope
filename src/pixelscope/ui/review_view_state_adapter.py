@@ -14,17 +14,14 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Literal
 
-# Keep the Qt-wrapper dependency in its own group for lifecycle isolation.
-# isort: split
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_view_state import (
-    SUPPORTED_PRESENTATIONS,
-    ReviewViewStateV1,
     ReviewViewportV1,
+    ReviewViewStateV1,
+    SUPPORTED_PRESENTATIONS,
 )
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
-from shiboken6 import isValid
 
 
 @dataclass(frozen=True)
@@ -58,6 +55,13 @@ class ReviewRestoreResult:
         return self.status == "applied"
 
 
+def _alive(widget: object) -> bool:
+    """Shiboken validity is checked before touching QObject-wrapped state."""
+    from shiboken6 import isValid
+
+    return isValid(widget)
+
+
 def _viewport(viewer: ImageViewer) -> ReviewViewportV1 | None:
     measured = viewer.measure_physical_zoom()
     if not measured.valid or measured.percent is None:
@@ -73,14 +77,14 @@ def _viewport(viewer: ImageViewer) -> ReviewViewportV1 | None:
 
 
 def _ready(view: MultiCompareView) -> str | None:
-    if not isValid(view):
+    if not _alive(view):
         return "owner-deleted"
     if view._review_restore_closed:
         return "owner-closed"
     if view._setting_documents or view._layout_refit_active or not view.isVisible():
         return "layout-not-settled"
     for viewer in view.visible_viewers:
-        if not isValid(viewer):
+        if not _alive(viewer):
             return "viewer-deleted"
         if viewer._graphics_resources_disposed:
             return "viewer-closed"
@@ -215,7 +219,7 @@ def restore_review_view_state(
     view.cancel_review_restore(). This routine never schedules a late mutation.
     """
     if (
-        not isValid(view)
+        not _alive(view)
         or view._review_restore_closed
         or view._review_restore_pending_epoch != epoch
     ):
