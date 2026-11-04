@@ -20,6 +20,7 @@ from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
 PREVIEW_MAX_SIDE = 256
+MAX_YUV_PREVIEW_INPUT_BYTES = 128 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,14 @@ def native_interpretation_preview(
             bayer_pattern=profile.bayer_pattern,
         )
     else:
+        # The canonical YUV reader allocates the complete input before cropping.
+        # Bound this read explicitly; reject oversized preview requests without
+        # changing supported application decode/profile formats.
+        if before.size > MAX_YUV_PREVIEW_INPUT_BYTES:
+            raise ValueError(
+                "YUV source exceeds the 128 MiB native-preview memory gate; "
+                "profile application remains available without preview"
+            )
         frame = read_yuv(path, profile)
         cancellation_checkpoint()
         scale_x, scale_y = frame.chroma_scale
