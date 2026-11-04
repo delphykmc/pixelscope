@@ -27,9 +27,9 @@ from pixelscope.core.comparison_presets import (
     plan_comparison,
 )
 from pixelscope.io.path_discovery import discover_image_inputs
-from pixelscope.ui.presentation_controls import install_comparison_preset_controls
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
+from pixelscope.ui.presentation_controls import install_comparison_preset_controls
 
 
 class QuickCompareController(QObject):
@@ -615,7 +615,10 @@ class ComparisonPresetController(QObject):
             else ""
         )
         self.status_label.setToolTip(message)
-        if message and (not plan.available or plan.difference_state in ("pending", "stale", "not-calculated")):
+        if message and (
+            not plan.available
+            or plan.difference_state in ("pending", "stale", "not-calculated")
+        ):
             self.window.statusBar().showMessage(message, 4500)
 
     def _project(self) -> None:
@@ -748,10 +751,15 @@ class ComparisonPresetController(QObject):
             return
         self.set_preset(preset)
 
-    def _change_pair(self, *, reference_id: str | None = None, target_id: str | None = None) -> None:
+    def _change_pair(
+        self, *, reference_id: str | None = None, target_id: str | None = None
+    ) -> None:
         if self._closed or self._syncing or self._pair is None:
             return
-        if self._preset is not ComparisonPreset.WORKSPACE and not self.window.multi_compare_view.sync_enabled:
+        if (
+            self._preset is not ComparisonPreset.WORKSPACE
+            and not self.window.multi_compare_view.sync_enabled
+        ):
             self.window.statusBar().showMessage(
                 "Pair change blocked with Sync Off to preserve independent view state", 4500,
             )
@@ -762,7 +770,9 @@ class ComparisonPresetController(QObject):
             target_id or self._pair.target_id,
         )
         if not pair.valid_on([doc.document_id for doc in self._page()]):
-            self.window.statusBar().showMessage("Reference and Target must be distinct page sources", 4000)
+            self.window.statusBar().showMessage(
+                "Reference and Target must be distinct page sources", 4000
+            )
             self._sync_roles()
             return
         if self.window.diff_action.isChecked():
@@ -817,7 +827,10 @@ class ComparisonPresetController(QObject):
                 4500,
             )
         self._sync_roles()
-        if self._preset is not ComparisonPreset.WORKSPACE and not self.window.diff_action.isChecked():
+        if (
+            self._preset is not ComparisonPreset.WORKSPACE
+            and not self.window.diff_action.isChecked()
+        ):
             self._project()
 
     def shutdown(self) -> None:
