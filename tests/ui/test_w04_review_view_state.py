@@ -29,9 +29,7 @@ def _fixture(
     multi.resize(1203, 701)
     multi.set_capacity(2 if count == 1 else count)
     docs = [
-        ImageDocument.from_array(
-            np.full((128, 192, 3), index, dtype=np.uint8), f"{index}.png"
-        )
+        ImageDocument.from_array(np.full((128, 192, 3), index, dtype=np.uint8), f"{index}.png")
         for index in range(count)
     ]
     multi.set_documents(docs, 0, count, None, None)
@@ -48,9 +46,7 @@ def _fixture(
     return multi, docs, keys
 
 
-def _capture(
-    multi: MultiCompareView, docs: list[ImageDocument], keys: tuple[str, ...]
-):
+def _capture(multi: MultiCompareView, docs: list[ImageDocument], keys: tuple[str, ...]):
     result = capture_review_view_state(
         multi,
         {document.document_id: key for document, key in zip(docs, keys, strict=True)},
@@ -104,10 +100,7 @@ def test_capture_pan_zoom_restore_exact_physical_scale_and_source_identity(
     assert result.applied, result
 
     for index, viewer in enumerate(multi.occupied_viewers):
-        target = (
-            state.per_source[keys[index]]
-            if not sync else state
-        )
+        target = state.per_source[keys[index]] if not sync else state
         assert viewer.measure_physical_zoom().percent == pytest.approx(
             target.physical_scale * 100, rel=0.005
         )
@@ -130,15 +123,14 @@ def test_slot_reorder_restores_by_document_identity_not_ordinal(qtbot: object) -
     assert result.applied, result
     for viewer in multi.occupied_viewers:
         assert viewer.document is not None
-        key = next(key for document, key in zip(docs, keys, strict=True)
-                   if document is viewer.document)
+        key = next(
+            key for document, key in zip(docs, keys, strict=True) if document is viewer.document
+        )
         assert _center(viewer) == pytest.approx(state.per_source[key].center_ref_xy, abs=0.5)
 
 
 @pytest.mark.parametrize("failure", ["missing", "unverified", "generation", "bounds", "replaced"])
-def test_restore_fails_closed_without_modifying_view(
-    qtbot: object, failure: str
-) -> None:
+def test_restore_fails_closed_without_modifying_view(qtbot: object, failure: str) -> None:
     multi, docs, keys = _fixture(qtbot, 2)
     multi.zoom_100_percent()
     state = _capture(multi, docs, keys)
@@ -193,14 +185,15 @@ def test_shutdown_revokes_pending_epoch(qtbot: object) -> None:
     epoch = multi._review_restore_epoch + 1
     assert multi.begin_review_restore(epoch)
     multi.shutdown()
-    assert restore_review_view_state(
-        multi, state, _bindings(docs, keys), epoch=epoch, presentation_mode="originals"
-    ).status == "interrupted"
+    assert (
+        restore_review_view_state(
+            multi, state, _bindings(docs, keys), epoch=epoch, presentation_mode="originals"
+        ).status
+        == "interrupted"
+    )
 
 
-@pytest.mark.parametrize(
-    "failure", ["unachieved", "exception", "user-revoke", "new-epoch"]
-)
+@pytest.mark.parametrize("failure", ["unachieved", "exception", "user-revoke", "new-epoch"])
 def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
     qtbot: object, monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
@@ -213,10 +206,7 @@ def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
     state = replace(
         state,
         sync_enabled=False,
-        per_source={
-            key: ReviewViewportV1((64.0, 60.0), 1.0)
-            for key in keys
-        },
+        per_source={key: ReviewViewportV1((64.0, 60.0), 1.0) for key in keys},
     )
     for viewer in multi.occupied_viewers:
         assert viewer.set_physical_zoom(200.0, (90.0, 80.0)).achieved
@@ -238,8 +228,7 @@ def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
     calls: list[str] = []
 
     def fail_second(
-        _percent: float, _center: tuple[float, float] | None = None,
-        *, track_target: bool = True
+        _percent: float, _center: tuple[float, float] | None = None, *, track_target: bool = True
     ) -> ZoomApplyResult:
         calls.append("second")
         assert first.zoom_percent == pytest.approx(100, rel=0.005)
@@ -262,8 +251,7 @@ def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
     with monkeypatch.context() as patcher:
         patcher.setattr(second, "set_physical_zoom", fail_second)
         result = restore_review_view_state(
-            multi, state, _bindings(docs, keys),
-            epoch=epoch, presentation_mode="originals"
+            multi, state, _bindings(docs, keys), epoch=epoch, presentation_mode="originals"
         )
     assert calls == ["second"]
     assert result.status == "interrupted", result
@@ -279,9 +267,7 @@ def test_two_tile_partial_restore_undo_is_exact_and_epoch_safe(
         assert viewer._screen_recalibration_target == saved[2]
         assert viewer._last_valid_physical_zoom == pytest.approx(saved[3])
         assert viewer._fit_mode is saved[4]
-    assert multi._review_restore_pending_epoch == (
-        epoch + 1 if failure == "new-epoch" else None
-    )
+    assert multi._review_restore_pending_epoch == (epoch + 1 if failure == "new-epoch" else None)
 
 
 def test_user_pan_after_revoke_is_not_clobbered(qtbot: object) -> None:
@@ -293,8 +279,10 @@ def test_user_pan_after_revoke_is_not_clobbered(qtbot: object) -> None:
     viewer.view_box.user_navigation_started.emit()
     viewer.view_box.translateBy(x=11, y=7)
     expected = _center(viewer)
-    assert restore_review_view_state(
-        multi, state, _bindings(docs, keys),
-        epoch=epoch, presentation_mode="originals"
-    ).status == "interrupted"
+    assert (
+        restore_review_view_state(
+            multi, state, _bindings(docs, keys), epoch=epoch, presentation_mode="originals"
+        ).status
+        == "interrupted"
+    )
     assert _center(viewer) == pytest.approx(expected)
