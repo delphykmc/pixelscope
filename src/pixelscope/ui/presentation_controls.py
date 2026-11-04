@@ -192,8 +192,8 @@ class _ElidingAliasCombo(QComboBox):
         option = QStyleOptionComboBox()
         self.initStyleOption(option)
         # Preserve the native combo frame/dropdown while eliding its display text.
-        option.currentText = self.fontMetrics().elidedText(
-            option.currentText,
+        option.currentText = self.fontMetrics().elidedText(  # type: ignore[attr-defined]
+            option.currentText,  # type: ignore[attr-defined]
             Qt.TextElideMode.ElideMiddle,
             max(0, self.style().subControlRect(
                 QStyle.ComplexControl.CC_ComboBox,
