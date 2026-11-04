@@ -4,10 +4,7 @@ import dataclasses
 import uuid
 
 import pytest
-# Test subjects remain separate from pytest's test-runner import.
-# isort: split
 from pixelscope.core import review_view_state
-
 
 KEYS = tuple(str(uuid.UUID(int=i + 1)) for i in range(6))
 
