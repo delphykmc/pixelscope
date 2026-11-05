@@ -576,15 +576,17 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     )
 
     if isinstance(clear_button, QAbstractButton):
-        clear_button.setText("Clear")
+        clear_button.setText("Clear Picks")
         clear_button.setAccessibleName("Clear Selection")
+        clear_button.setAccessibleDescription("Clear temporary Picks; Files Selected is unchanged")
         clear_button.setToolTip(
             "Clear Selection: clear temporary Picks; Files Selected is unchanged"
         )
         clear_button.setStatusTip(clear_button.toolTip())
     if isinstance(keep_button, QAbstractButton):
-        keep_button.setText("Keep")
+        keep_button.setText("Keep Picks")
         keep_button.setAccessibleName("Keep Selection")
+        keep_button.setAccessibleDescription("Replace Files Selected with temporary Picks")
         keep_button.setToolTip(
             "Keep Selection: replace Files Selected with temporary Picks in original source order"
         )
