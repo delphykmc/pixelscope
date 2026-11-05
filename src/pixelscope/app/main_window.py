@@ -188,6 +188,7 @@ class MainWindow(QMainWindow):
         self._normal_load_stale_drop_count = 0
         self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
+        self._review_terminal_notifying = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
         self._comparison_plan: ComparisonPlan | None = None
@@ -1600,6 +1601,7 @@ class MainWindow(QMainWindow):
         self._evict_resident_documents()
         self.structured_status.task.setText("Ready")
         self.statusBar().showMessage(f"Loaded {result.display_name}", 2500)
+        self._notify_named_review_terminal()
 
     def _load_failed(
         self,
@@ -1624,6 +1626,33 @@ class MainWindow(QMainWindow):
             self._render_selection(preserve_view=True)
         self.structured_status.task.setText("Error")
         self.statusBar().showMessage(f"Failed to load {path.name}: {error.message}", 5000)
+        self._notify_named_review_terminal()
+
+    def _notify_named_review_terminal(self, *_event: object) -> None:
+        """Retry only a pending Review epoch on an owner-observed terminal event.
+
+        Foreground load, physical-geometry settle, first paint and Display Gain
+        completion are authoritative event sources. No timer/polling loop or
+        Review-owned source/selection manager is introduced.
+        """
+        if self._closing or self._review_terminal_notifying:
+            return
+        review = self.__dict__.get("named_review_coordinator")
+        if review is None or review.restore.phase != "pending":
+            return
+        self._review_terminal_notifying = True
+        try:
+            review.on_owner_terminal(review.restore.epoch)
+        finally:
+            self._review_terminal_notifying = False
+
+    def _cancel_named_review_pending_on_navigation(self, *_event: object) -> None:
+        """A real user gesture revokes an unfinished historical view restore."""
+        if self._closing:
+            return
+        review = self.__dict__.get("named_review_coordinator")
+        if review is not None and review.restore.phase == "pending":
+            review.restore.cancel()
 
     def _selected_load_batch_complete(self) -> bool:
         """Treat one Current Comparison Page as the foreground replacement batch."""
@@ -4380,6 +4409,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
+        named_review = self.__dict__.get("named_review_coordinator")
+        if named_review is not None:
+            # Stop Review epochs/workers before disposing source viewports.
+            named_review.shutdown()
         live_views = getattr(self, "_preset_view_state", None)
         if live_views is not None:
             live_views.shutdown()

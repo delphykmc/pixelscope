@@ -81,7 +81,14 @@ class NamedReviewCoordinator:
         self.action = QAction("Named Findings", window)
         self.action.setToolTip("Historical Finding evidence (.pxreview)")
         self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
-        window.main_toolbar.addAction(self.action)
+        # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
+        view_menu = next(
+            (action.menu() for action in window.menuBar().actions() if action.text() == "&View"),
+            None,
+        )
+        if view_menu is None:
+            raise RuntimeError("Named Findings requires the canonical View menu")
+        view_menu.addAction(self.action)
 
         self.panel.add_requested.connect(self.add)
         self.panel.edit_requested.connect(self.edit)
@@ -100,6 +107,8 @@ class NamedReviewCoordinator:
         self._workspace_presets = getattr(hardening, "workspace_presets", None)
         if self._workspace_presets is not None:
             self._workspace_presets.selector.currentIndexChanged.connect(self._workspace_changed)
+            if self._workspace_presets.preset is WorkspacePreset.REVIEW:
+                self.dock.show()
 
     @property
     def window(self) -> Any:
@@ -116,12 +125,15 @@ class NamedReviewCoordinator:
 
     @Slot(int)
     def _workspace_changed(self, _index: int) -> None:
-        if (
-            not self._closed
-            and self._workspace_presets is not None
-            and self._workspace_presets.preset is WorkspacePreset.REVIEW
-        ):
+        if self._closed or self._workspace_presets is None:
+            return
+        if self._workspace_presets.preset is WorkspacePreset.REVIEW:
             self.dock.show()
+            self.window.statusBar().showMessage(
+                "Named Findings: historical evidence, not current analysis", 5000
+            )
+        else:
+            self.dock.hide()
 
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
