@@ -215,21 +215,21 @@ class ReviewPanel(QWidget):
             self._set_selection_enabled(False)
             return
         by_key = {s.source_key: s for s in self._document.sources}
-        complete = True
         for key in finding.source_keys:
             source = by_key[key]
             resolution = resolutions.get(key)
-            state = resolution.status if resolution is not None else "candidate_unverified"
-            complete = bool(
-                complete and resolution is not None and resolution.may_bind_historical_finding
-            )
+            if resolution is not None and resolution.may_bind_historical_finding:
+                continue
             label = source.display_tag or source.locator.basename
-            item = QListWidgetItem(f"{label}: {state}")
+            item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, key)
-            item.setToolTip(resolution.reason if resolution else "Candidate not yet checked")
+            item.setToolTip(
+                resolution.reason if resolution is not None else "Image has not been located"
+            )
             self.sources.addItem(item)
-        self.sources_group.setVisible(not complete and bool(resolutions))
-        self.candidate_button.setEnabled(not complete and self.sources.count() > 0)
+        missing = bool(resolutions) and self.sources.count() > 0
+        self.sources_group.setVisible(missing)
+        self.candidate_button.setEnabled(missing)
         if self.sources.count():
             self.sources.setCurrentRow(0)
 
