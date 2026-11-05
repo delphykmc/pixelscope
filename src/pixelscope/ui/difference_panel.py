@@ -1384,16 +1384,24 @@ class DifferencePanel(QWidget):
             name = name_item.text() if name_item is not None else ""
             definition = metric_definition(name, domain=domain)
             text = (
-                "+∞" if isinf(value) and value > 0
-                else "-∞" if isinf(value)
-                else "NaN" if isnan(value)
+                "+∞"
+                if isinf(value) and value > 0
+                else "-∞"
+                if isinf(value)
+                else "NaN"
+                if isnan(value)
                 else f"{value:.8g}"
             )
             item = QTableWidgetItem(text)
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             state = (
-                "NaN" if isnan(value) else "+Inf" if value == float("inf")
-                else "-Inf" if value == -float("inf") else "finite"
+                "NaN"
+                if isnan(value)
+                else "+Inf"
+                if value == float("inf")
+                else "-Inf"
+                if value == -float("inf")
+                else "finite"
             )
             item.setToolTip(
                 f"{name}: {value:.17g} {definition.unit}\n"
