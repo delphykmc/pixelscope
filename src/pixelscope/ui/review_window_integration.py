@@ -58,8 +58,7 @@ class NamedReviewCoordinator:
         self.dock.setWidget(self.panel)
         self.dock.setMinimumWidth(320)
         self.dock.setAllowedAreas(
-            Qt.DockWidgetArea.RightDockWidgetArea
-            | Qt.DockWidgetArea.LeftDockWidgetArea
+            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
         )
         window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
         window.register_contributed_dock(self.dock)
@@ -140,9 +139,12 @@ class NamedReviewCoordinator:
                 reference_id, target_id = pair[0].document_id, pair[1].document_id
                 difference = window.difference_panel
                 recipe = ReviewDifferenceIntentV1(
-                    keys[reference_id], keys[target_id],
-                    difference.channel.currentText(), difference.mode.currentText(),
-                    float(difference.threshold.value()), int(difference.gain.value()),
+                    keys[reference_id],
+                    keys[target_id],
+                    difference.channel.currentText(),
+                    difference.mode.currentText(),
+                    float(difference.threshold.value()),
+                    int(difference.gain.value()),
                     difference.region.currentText(),
                 )
             else:
@@ -152,8 +154,12 @@ class NamedReviewCoordinator:
             roi = window._shared_roi
             line = window._shared_line
             stage = stage_named_finding(
-                window.multi_compare_view, page, keys,
-                title=title, note=note, tags=tags,
+                window.multi_compare_view,
+                page,
+                keys,
+                title=title,
+                note=note,
+                tags=tags,
                 reference_document_id=reference_id,
                 primary_document_id=primary.document_id,
                 pair_target_document_id=target_id,
@@ -185,8 +191,10 @@ class NamedReviewCoordinator:
         self, task_id: str, _document: object, epoch: int, value: object
     ) -> None:
         if (
-            self._closed or epoch != self._capture_epoch
-            or task_id != self._capture_task_id or not isinstance(value, AttestedFinding)
+            self._closed
+            or epoch != self._capture_epoch
+            or task_id != self._capture_task_id
+            or not isinstance(value, AttestedFinding)
         ):
             return
         try:
@@ -240,12 +248,21 @@ class NamedReviewCoordinator:
         self.panel.set_resolutions({})
 
     def open_dialog(self) -> None:
-        if self.library.dirty and QMessageBox.question(
-            self.panel, "Unsaved Review", "Discard unsaved Finding changes?",
-        ) != QMessageBox.StandardButton.Yes:
+        if (
+            self.library.dirty
+            and QMessageBox.question(
+                self.panel,
+                "Unsaved Review",
+                "Discard unsaved Finding changes?",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
             return
         chosen, _ = QFileDialog.getOpenFileName(
-            self.panel, "Open Review", "", "Pixelscope Review (*.pxreview)",
+            self.panel,
+            "Open Review",
+            "",
+            "Pixelscope Review (*.pxreview)",
         )
         if not chosen:
             return
@@ -264,7 +281,10 @@ class NamedReviewCoordinator:
         path = self.library.path
         if path is None:
             filename, _ = QFileDialog.getSaveFileName(
-                self.panel, "Save Review", "", "Pixelscope Review (*.pxreview)",
+                self.panel,
+                "Save Review",
+                "",
+                "Pixelscope Review (*.pxreview)",
             )
             if not filename:
                 return
@@ -273,16 +293,24 @@ class NamedReviewCoordinator:
         if overwrite and self.library.path != path:
             self._error("Destination exists; open the exact Review before overwriting")
             return
-        if overwrite and QMessageBox.question(
-            self.panel, "Overwrite Review", "Replace this Review revision?",
-        ) != QMessageBox.StandardButton.Yes:
+        if (
+            overwrite
+            and QMessageBox.question(
+                self.panel,
+                "Overwrite Review",
+                "Replace this Review revision?",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
             return
         try:
             protected = tuple(
                 d.source_path for d in self.window.documents.values() if d.source_path is not None
             )
             result = self.library.save(
-                path, overwrite=overwrite, protected_paths=protected,
+                path,
+                overwrite=overwrite,
+                protected_paths=protected,
             )
             if result.committed:
                 self.panel.set_status(f"Saved {result.path.name} (atomic CAS)")
@@ -317,14 +345,18 @@ class NamedReviewCoordinator:
             profile = dialog.profile()
             saved = source.locator.local_path
             same = (
-                saved is not None
-                and str(Path(saved).resolve()).casefold() == str(path).casefold()
+                saved is not None and str(Path(saved).resolve()).casefold() == str(path).casefold()
             )
-            approved = same or QMessageBox.question(
-                self.panel, "Approve Relink",
-                f"Relink historical source {source.locator.basename} to {path.name}? "
-                "Digest and native profile will still be checked.",
-            ) == QMessageBox.StandardButton.Yes
+            approved = (
+                same
+                or QMessageBox.question(
+                    self.panel,
+                    "Approve Relink",
+                    f"Relink historical source {source.locator.basename} to {path.name}? "
+                    "Digest and native profile will still be checked.",
+                )
+                == QMessageBox.StandardButton.Yes
+            )
             if not approved:
                 self.panel.set_status("Relink not approved; source remains unverified")
                 return
