@@ -155,7 +155,7 @@ class WorkspacePresetController(QObject):
         reset = action_map.get("Reset Workspace Layout")
         if isinstance(reset, QAction):
             # MainWindow's existing reset slot was connected first.
-            reset.triggered.connect(self._reset_after_main_window)  # type: ignore[attr-defined]
+            reset.triggered.connect(self.reset_after_main_window)  # type: ignore[attr-defined]
         self._install_recent_entry(window)
         if restore_selected:
             self._apply_preset(self._preset, prefer_saved=True)
@@ -567,7 +567,8 @@ class WorkspacePresetController(QObject):
         if isinstance(dock, QDockWidget) and dock.isFloating():
             _screen_recover(dock)
 
-    def _reset_after_main_window(self, _checked: bool = False) -> None:
+    def reset_after_main_window(self, _checked: bool = False) -> None:
+        """W06 layout-only reset seam for the orchestrator-owned MainWindow path."""
         if self._quiescing:
             return
         self._capture_timer.stop()
