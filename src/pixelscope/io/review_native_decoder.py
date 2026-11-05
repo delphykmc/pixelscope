@@ -93,9 +93,9 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
     max_decode_bytes: int = MAX_NATIVE_VERIFY_BYTES
 
     def __post_init__(self) -> None:
-        if not isinstance(self.profile, (RawProfile, YuvProfile)):
+        if not isinstance(self.profile, RawProfile | YuvProfile):
             raise UnsupportedNativeCandidate("explicit RAW/YUV profile required")
-        if type(self.max_decode_bytes) is not int or self.max_decode_bytes <= 0:
+        if (\n            not isinstance(self.max_decode_bytes, int)\n            or isinstance(self.max_decode_bytes, bool)\n            or self.max_decode_bytes <= 0\n        ):
             raise UnsupportedNativeCandidate("invalid bounded decode budget")
         object.__setattr__(self, "profile", self.profile.copy(deep=True))
 
