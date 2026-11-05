@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
@@ -136,15 +136,49 @@ def test_analyze_keeps_statistics_and_plot_surfaces_accessible(
     size: tuple[int, int],
 ) -> None:
     window, workspace = _window(qtbot)
+    # A zero-source Statistics table has no numeric rows to read. Use actual
+    # multichannel results to assert three fully visible native metrics rows.
+    documents = [
+        ImageDocument.from_array(
+            np.full((48, 64, 3), 20 + index, dtype=np.uint8),
+            f"analyze_rgb_{index}.png",
+        )
+        for index in range(2)
+    ]
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.comparison_analysis_panel.last_results) == 2,
+        timeout=3000,
+    )
     window.resize(*size)
     workspace.select(WorkspacePreset.ANALYZE)
+    table = window.comparison_analysis_panel.table
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: table.rowCount() >= 3 and table.viewport().height() > 0,
+        timeout=3000,
+    )
     qtbot.wait(60)  # type: ignore[attr-defined]
 
     assert not window.bottom_dock.isHidden()
     assert window.sidebar_splitter.widget(1).isVisible()
-    assert window.comparison_analysis_panel.table.verticalScrollBar() is not None
-    assert window.comparison_analysis_panel.table.horizontalScrollBar() is not None
-    assert window.comparison_analysis_panel.table.viewport().height() >= 60
+    assert table.verticalScrollBar() is not None
+    assert table.horizontalScrollBar() is not None
+    assert table.item(2, 4) is not None  # A real native Mean cell in row 3.
+    visible_rows_height = sum(table.rowHeight(row) for row in range(3))
+    assert table.viewport().height() >= visible_rows_height, (
+        "Statistics must show three actual rows",
+        size,
+        table.viewport().size(),
+        window.sidebar_splitter.sizes(),
+        window.comparison_analysis_panel.image_summary_group.height(),
+        window.bottom_dock.height(),
+    )
+    assert (
+        window.comparison_analysis_panel.image_summary.verticalScrollBarPolicy()
+        == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
     assert window.main_splitter.widget(1).width() > window.main_splitter.widget(0).width()
     window.close()
 
@@ -216,11 +250,11 @@ def test_manual_splitters_are_restored_for_each_preset(qtbot: object) -> None:
     workspace.select(WorkspacePreset.ANALYZE)
     assert all(
         abs(a - b) <= 8 for a, b in zip(window.main_splitter.sizes(), recorded_main, strict=True)
-    )
+    ), (recorded_main, window.main_splitter.sizes())
     assert all(
         abs(a - b) <= 8
         for a, b in zip(window.sidebar_splitter.sizes(), recorded_sidebar, strict=True)
-    )
+    ), (recorded_sidebar, window.sidebar_splitter.sizes())
     window.close()
 
 
