@@ -6,7 +6,6 @@ succeeds; late worker results cannot authorize a newer Finding.
 """
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -138,7 +137,11 @@ def _verify_batch(
                 candidate.confirmed_by_user, "unavailable", "candidate revision changed",
             )
         output.append(
-            VerifiedCandidate(candidate, result, after if result.may_bind_historical_finding else None)
+            VerifiedCandidate(
+                candidate,
+                result,
+                after if result.may_bind_historical_finding else None,
+            )
         )
     if cancel.is_set():
         raise ReviewCancelled("Finding verification was superseded")
@@ -217,7 +220,10 @@ class ReviewRestoreController(QObject):
         if set(finding.source_keys) != set(approved):
             raise ValueError("each Finding source needs an explicit candidate and profile")
         candidates = tuple(approved[key] for key in finding.source_keys)
-        if any(item.source_key != key for item, key in zip(candidates, finding.source_keys, strict=True)):
+        if any(
+            item.source_key != key
+            for item, key in zip(candidates, finding.source_keys, strict=True)
+        ):
             raise ValueError("candidate source key changed")
         self._finding_id = finding_id
         self._phase = "verifying"
@@ -277,7 +283,9 @@ class ReviewRestoreController(QObject):
         try:
             finding = self.library.preflight_finding(finding_id, resolutions)
             if any(not item.still_current() for item in self._verified):
-                return RestoreReport(self._epoch, "unavailable", "source changed after verification")
+                return RestoreReport(
+                    self._epoch, "unavailable", "source changed after verification"
+                )
             if tuple(item.approved.source_key for item in self._verified) != finding.source_keys:
                 return RestoreReport(self._epoch, "unavailable", "source order changed")
             plan = RestorePlan(self._epoch, finding, self._verified)
