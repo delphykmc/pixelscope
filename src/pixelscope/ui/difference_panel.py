@@ -1378,7 +1378,11 @@ class DifferencePanel(QWidget):
             metrics.nonzero_ratio,
         )
         compatibility = self._compatibility()
-        domain = compatibility.domain if compatibility is not None else "native"
+        domain = (
+            compatibility.domain
+            if compatibility is not None and compatibility.domain in ("native", "normalized")
+            else "native"
+        )
         for row, value in enumerate(values):
             name_item = self.metrics.item(row, 0)
             name = name_item.text() if name_item is not None else ""
