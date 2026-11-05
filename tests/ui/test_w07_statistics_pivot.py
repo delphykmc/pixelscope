@@ -13,9 +13,7 @@ from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
 
 
 def _document(name: str, value: int, *, dtype: object = np.uint8) -> ImageDocument:
-    return ImageDocument.from_array(
-        np.full((8, 8, 3), value, dtype=dtype), name
-    )
+    return ImageDocument.from_array(np.full((8, 8, 3), value, dtype=dtype), name)
 
 
 def _ready(panel: ComparisonAnalysisPanel, qtbot: object) -> None:
@@ -87,9 +85,7 @@ def test_raw_pivot_switch_reference_delta_copy_and_legacy_export(
     panel.close()
 
 
-def test_pivot_reorders_sources_preserves_reference_key_and_invalidates_roi(
-    qtbot: object
-) -> None:
+def test_pivot_reorders_sources_preserves_reference_key_and_invalidates_roi(qtbot: object) -> None:
     panel = ComparisonAnalysisPanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
     panel.show()
@@ -114,9 +110,9 @@ def test_pivot_reorders_sources_preserves_reference_key_and_invalidates_roi(
     assert pivot.token.roi_ref == (1, 1, 4, 4)
     assert pivot.columns[0].alias.startswith("알고리즘 3")
     assert panel.pivot_reference.currentData() == previous
-    assert panel.pivot_table.item(_row(panel, "Mean · R"), 2).toolTip().find(
-        "Native samples: 16"
-    ) >= 0
+    assert (
+        panel.pivot_table.item(_row(panel, "Mean · R"), 2).toolTip().find("Native samples: 16") >= 0
+    )
     panel.shutdown()
     panel.close()
 
@@ -128,8 +124,7 @@ def test_six_source_horizontal_scroll_metric_filter_generation_and_gc(
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
     panel.show()
     docs = [
-        _document(f"아주긴한글소스별칭_{index}_{'검증' * 10}.png", index + 1)
-        for index in range(6)
+        _document(f"아주긴한글소스별칭_{index}_{'검증' * 10}.png", index + 1) for index in range(6)
     ]
     panel.set_documents(docs, None)
     _ready(panel, qtbot)
