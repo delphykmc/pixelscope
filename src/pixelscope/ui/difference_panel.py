@@ -624,16 +624,34 @@ class DifferencePanel(QWidget):
         self._presented_difference_token = None
         self._presented_metric_key = None
         self._presented_metric_result = None
+        # A pending/invalid ROI does not change a compatible pair's numeric
+        # domain. Never label a normalized comparison as native just because
+        # its value is currently unavailable.
+        compatibility = self._compatibility()
+        domain = (
+            compatibility.domain
+            if compatibility is not None
+            and compatibility.compatible
+            and compatibility.domain in ("native", "normalized")
+            else None
+        )
         for row in range(self.metrics.rowCount()):
             item = QTableWidgetItem("—")
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.metrics.setItem(row, 1, item)
-            name = self.metrics.item(row, 0)
-            unit = metric_definition(name.text()) if name is not None else None
-            if unit is not None:
-                unit_item = QTableWidgetItem(unit.unit)
-                unit_item.setToolTip("Re-evaluated when native/normalized domain is known")
-                self.metrics.setItem(row, 2, unit_item)
+            name_item = self.metrics.item(row, 0)
+            definition = (
+                metric_definition(name_item.text(), domain=domain)
+                if name_item is not None and domain is not None
+                else None
+            )
+            unit_item = QTableWidgetItem(definition.unit if definition is not None else "—")
+            unit_item.setToolTip(
+                f"Pending/unavailable measurement · {domain} domain"
+                if domain is not None
+                else "Unit unavailable: incompatible or missing pair/domain"
+            )
+            self.metrics.setItem(row, 2, unit_item)
 
     def _update_channels(self) -> None:
         compatibility = self._compatibility()
