@@ -289,7 +289,11 @@ class NamedReviewCoordinator:
             if primary is None:
                 raise ReviewValidationError("Primary source is not available")
             pair = window.difference_panel.selected_documents()
-            if pair is not None and all(d.document_id in keys for d in pair):
+            if (
+                pair is not None
+                and window.diff_action.isChecked()
+                and all(d.document_id in keys for d in pair)
+            ):
                 reference_id, target_id = pair[0].document_id, pair[1].document_id
                 difference = window.difference_panel
                 recipe = ReviewDifferenceIntentV1(
@@ -322,7 +326,7 @@ class NamedReviewCoordinator:
                 channel="All",
                 display_gain=display_gain_state().gain,
                 difference_intent=recipe,
-                analysis_panel=panel,
+                analysis_panel=None,  # ROI/image note, not a statistics report.
                 # Editable local Memo bookmarks need their exact source paths.
                 # Portable HTML exports must explicitly strip these private paths.
                 persist_local_paths=True,
