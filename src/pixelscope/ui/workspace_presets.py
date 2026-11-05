@@ -487,7 +487,7 @@ class WorkspacePresetController(QObject):
             (label for label in group.findChildren(QLabel) if label.text() == "Preset"),
             None,
         )
-        compact = window.width() <= 1240 or toolbar.width() <= 1120
+        compact = window.width() <= 1500 or toolbar.width() <= 1320
         self._density_updating = True
         try:
             target_style = (
