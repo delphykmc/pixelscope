@@ -326,6 +326,12 @@ class NamedReviewCoordinator:
                 # Editable local Memo bookmarks need their exact source paths.
                 # Portable HTML exports must explicitly strip these private paths.
                 persist_local_paths=True,
+                single_viewer=(
+                    window.viewer
+                    if len(page) == 1
+                    and window.central_stack.currentWidget() is window.viewer
+                    else None
+                ),
             )
             fence = capture_gui_fence(window, stage)
             epoch = self._capture_epoch

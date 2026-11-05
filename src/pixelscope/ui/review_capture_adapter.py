@@ -48,8 +48,12 @@ from pixelscope.io.review_repository import (
     verify_review_source,
 )
 from pixelscope.io.yuv_profile import YuvProfile
+from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
-from pixelscope.ui.review_view_state_adapter import capture_review_view_state
+from pixelscope.ui.review_view_state_adapter import (
+    capture_review_view_state,
+    capture_single_memo_view_state,
+)
 
 
 @dataclass(frozen=True)
@@ -113,12 +117,16 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
     analysis_panel = window.comparison_analysis_panel
     if any(analysis_panel.source_key_for_document(doc_id) != key for doc_id, key in keys.items()):
         raise ReviewValidationError("live durable Source UUID mapping changed")
-    view_result = capture_review_view_state(
-        window.multi_compare_view,
-        keys,
-        reference_source_key=expected.reference_key,
-        primary_source_key=expected.view_state.primary_source_key,
-        page_source_keys=expected.source_keys,
+    view_result = (
+        capture_single_memo_view_state(window.viewer, keys)
+        if expected.view_state.layout_kind == "Single"
+        else capture_review_view_state(
+            window.multi_compare_view,
+            keys,
+            reference_source_key=expected.reference_key,
+            primary_source_key=expected.view_state.primary_source_key,
+            page_source_keys=expected.source_keys,
+        )
     )
     if view_result.state is None:
         raise ReviewValidationError("W04 view not settled: " + str(view_result.reason))
@@ -194,6 +202,7 @@ def stage_named_finding(
     difference_intent: ReviewDifferenceIntentV1 | None,
     analysis_panel: AnalysisPanelAdapter | None = None,
     persist_local_paths: bool = False,
+    single_viewer: ImageViewer | None = None,
 ) -> StagedFinding:
     """Capture exactly presented geometry and frozen W02 token, without any IO."""
     if not 1 <= len(page) <= 6 or len({d.document_id for d in page}) != len(page):
@@ -208,12 +217,16 @@ def stage_named_finding(
     pair_key = (
         source_key_map[pair_target_document_id] if pair_target_document_id is not None else None
     )
-    capture = capture_review_view_state(
-        view,
-        source_key_map,
-        reference_source_key=reference_key,
-        primary_source_key=primary_key,
-        page_source_keys=keys,
+    capture = (
+        capture_single_memo_view_state(single_viewer, source_key_map)
+        if single_viewer is not None and len(page) == 1
+        else capture_review_view_state(
+            view,
+            source_key_map,
+            reference_source_key=reference_key,
+            primary_source_key=primary_key,
+            page_source_keys=keys,
+        )
     )
     if capture.state is None:
         raise ReviewValidationError(f"view state unavailable: {capture.reason}")
