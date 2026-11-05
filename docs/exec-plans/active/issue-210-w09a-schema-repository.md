@@ -31,7 +31,11 @@ Baseline main: 44c9e53df2b6bc074444b2291f27e2c9f38c8ecc.
   additionally confirm the exact presented request token/epoch before capture.
   Otherwise store an explicit unavailable record rather than misbind evidence.
 - All programmatically supplied record collections are normalized to immutable
-  tuples; the terminal newline is included in the Review byte budget.
+  tuples; native/reference shapes and Finding ROI/line coordinates supplied by
+  Python callers are also copied into validated immutable tuples at DTO creation.
+  This prevents mutable-list aliasing from silently changing a historical
+  source signature or Finding geometry after cross-record validation. No wire
+  schema changes are needed. The terminal newline is included in the byte budget.
 
 ## Strict JSON limits
 
