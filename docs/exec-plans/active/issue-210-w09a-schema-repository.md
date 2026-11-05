@@ -25,8 +25,10 @@ Baseline main: 44c9e53df2b6bc074444b2291f27e2c9f38c8ecc.
   geometry MUST match every ReviewSource reference_shape, not just the W04
   page-internal shapes. W02 Difference captures additionally require an exact
   ordered reference/target pair, channel, region and non-null cache identity.
-  These checks are not an independent attestation of Difference mode/threshold:
-  W09b must establish that from the exact currently presented request/token.
+  For Difference, the W02 DifferencePanel presentation fields must match
+  the saved mode, gain, threshold and ordered pair exactly; the cache digest
+  alone is insufficient (it excludes presentation parameters). W09b must
+  additionally confirm the exact presented request token/epoch before capture.
   Otherwise store an explicit unavailable record rather than misbind evidence.
 - All programmatically supplied record collections are normalized to immutable
   tuples; the terminal newline is included in the Review byte budget.
