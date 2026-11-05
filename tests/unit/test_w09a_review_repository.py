@@ -267,6 +267,24 @@ def test_w02_snapshot_to_capture_preserves_portable_wire(tmp_path):
     )
     again = ReviewAnalysisCaptureV1.from_dict(captured.to_dict())
     assert again.to_dict() == captured.to_dict()
+    explicitly_nonfinite = replace(
+        snap,
+        measurements=(
+            AnalysisMeasurementV1(
+                doc.sources[0].source_key,
+                "Gray",
+                "mean",
+                None,
+                4,
+                state="nan",
+            ),
+        ),
+    )
+    state = ReviewAnalysisCaptureV1.from_snapshot(explicitly_nonfinite).to_dict()[
+        "context"
+    ]["measurements"][0]
+    assert state["state"] == "nan"
+    assert state["value"] is None
 
 
 def test_strict_root_version_unknown_keys_and_corrupt_utf8(tmp_path):
