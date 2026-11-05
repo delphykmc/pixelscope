@@ -2478,8 +2478,6 @@ class MainWindow(QMainWindow):
         render_trace.checkpoint("comparison_page_controls")
         self._refresh_preload_plan()
         render_trace.checkpoint("preload_planning_and_end")
-        if live_views is not None and preserve_view:
-            live_views.request()
 
     def _split_display_documents(
         self,
