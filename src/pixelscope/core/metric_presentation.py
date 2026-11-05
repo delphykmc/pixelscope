@@ -246,15 +246,25 @@ def build_statistics_pivot(
                 current_measurement = values.get((source.source_key, current_channel, metric))
                 reason = (
                     _numeric_compatibility(
-                        token, source, reference, current_measurement, reference_measurement, definition
+                        token,
+                        source,
+                        reference,
+                        current_measurement,
+                        reference_measurement,
+                        definition,
                     )
                     if reference is not None
                     else "No Reference selected"
                 )
                 delta: float | None = None
                 relative: float | None = None
-                if reason is None and current_measurement is not None and reference_measurement is not None:
-                    assert current_measurement.value is not None and reference_measurement.value is not None
+                if (
+                    reason is None
+                    and current_measurement is not None
+                    and reference_measurement is not None
+                ):
+                    assert current_measurement.value is not None
+                    assert reference_measurement.value is not None
                     candidate = current_measurement.value - reference_measurement.value
                     if isfinite(candidate):
                         delta = candidate
@@ -270,7 +280,10 @@ def build_statistics_pivot(
                     else:
                         reason = "Absolute Delta overflow"
                 cells.append(
-                    PivotCell(source.source_key, current_measurement, definition.unit, delta, relative, reason)
+                    PivotCell(
+                        source.source_key, current_measurement, definition.unit,
+                        delta, relative, reason,
+                    )
                 )
             rows.append(PivotRow(current_channel, metric, definition, tuple(cells)))
     return StatisticsPivot(token, columns, tuple(rows), reference_key)
