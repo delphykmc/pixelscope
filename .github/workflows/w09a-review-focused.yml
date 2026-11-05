@@ -1,0 +1,31 @@
+name: W09a temporary focused review tests
+
+on:
+  push:
+    branches:
+      - codex/w09a-review-v1-atomic-repository-20261105
+  workflow_dispatch:
+
+jobs:
+  w09a-pure-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install focused test dependencies
+        run: python -m pip install -r requirements/runtime.txt pytest==7.4.4 pytest-qt==4.2.0
+      - name: Test W09a and W02/W04/Session pure contracts
+        run: >-
+          python -m pytest -q
+          tests/unit/test_w09a_review_repository.py
+          tests/unit/test_review_view_state.py
+          tests/unit/test_review_analysis_bundle.py
+          tests/unit/test_comparison_set.py
