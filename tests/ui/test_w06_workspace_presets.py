@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
@@ -238,6 +239,40 @@ def test_command_hierarchy_preserves_single_existing_actions(qtbot: object) -> N
     window.close()
 
 
+@pytest.mark.parametrize("width", [960, 1400])
+def test_compact_toolbar_keeps_critical_commands_and_pair_visible(
+    qtbot: object,
+    width: int,
+) -> None:
+    window, workspace = _window(qtbot)
+    window.resize(width, 880)
+    qtbot.wait(80)  # type: ignore[attr-defined]
+    toolbar = window.main_toolbar
+    w05 = window.quick_compare_controller.comparison_presets
+    assert w05.group.isVisibleTo(toolbar)
+    assert workspace.selector.isVisibleTo(toolbar)
+    assert w05.reference_combo.isVisibleTo(toolbar)
+    assert w05.target_combo.isVisibleTo(toolbar)
+    for action in (
+        window.action_map["Open Images..."],
+        window.action_map["Fit Image"],
+        window.action_map["100% Zoom"],
+        window.sync_action,
+        window.diff_action,
+    ):
+        rect = toolbar.actionGeometry(action)
+        assert not rect.isEmpty()
+        assert toolbar.rect().contains(rect), (
+            width,
+            action.text(),
+            toolbar.size(),
+            rect,
+        )
+    if width == 960:
+        assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    window.close()
+
+
 def test_manual_splitters_are_restored_for_each_preset(qtbot: object) -> None:
     window, workspace = _window(qtbot)
     workspace.select(WorkspacePreset.ANALYZE)
@@ -310,6 +345,10 @@ def test_restart_restores_preset_and_reset_clears_w06_keys(qtbot: object) -> Non
     )
     restored.action_map["Reset Workspace Layout"].trigger()
     assert owner.preset is WorkspacePreset.COMPARE
+    sizes = restored.sidebar_splitter.sizes()
+    assert sizes[0] / max(1, sum(sizes)) == pytest.approx(0.68, abs=0.08)
+    owner.select(WorkspacePreset.COMPARE)
+    assert restored.sidebar_splitter.sizes() == sizes
     assert QSettings().value("ui/workspace_preset") is None
     assert not QSettings().contains("ui/workspace_layouts/v1/review/dock_state")
     restored.close()
@@ -332,6 +371,17 @@ def test_corrupt_workspace_settings_fall_back_without_changing_sources(
     assert owner.preset is WorkspacePreset.ANALYZE
     assert _identity(window) == before
     assert window.main_splitter.widget(1).width() > 0
+    window.close()
+
+
+def test_partial_offscreen_title_region_is_recovered(qtbot: object) -> None:
+    window, workspace = _window(qtbot)
+    primary = QGuiApplication.primaryScreen()
+    assert primary is not None
+    screen = primary.availableGeometry()
+    window.move(screen.right() - 8, screen.top() + 40)
+    workspace._recover_windows()
+    assert window.frameGeometry().x() < screen.right() - 8
     window.close()
 
 
