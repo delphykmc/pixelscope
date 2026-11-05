@@ -174,6 +174,7 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
                     bit_depth=profile.bit_depth,
                     yuv_frame=frame,
                     raw_profile=profile,
+                    raw_profile=profile,
                 )
             # The same W02 producer used for live analysis. Do not construct
             # signature from the saved Review DTO or preview-cache metadata.
