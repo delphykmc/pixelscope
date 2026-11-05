@@ -649,6 +649,31 @@ class ReviewFindingV1:
                 context_sources = cast(list[dict[str, Any]], context["sources"])
                 if not {s["source_key"] for s in context_sources} <= set(self.source_keys):
                     raise ReviewValidationError("analysis source outside finding")
+                if context["channel"] != self.channel:
+                    raise ReviewValidationError("W02 analysis channel disagrees with Finding")
+                captured_roi = context["roi_ref"]
+                if (
+                    (captured_roi is None) != (self.roi_ref is None)
+                    or (captured_roi is not None
+                        and tuple(cast(list[int], captured_roi)) != self.roi_ref)
+                ):
+                    raise ReviewValidationError("W02 analysis scope/ROI disagrees with Finding")
+                if context["feature"] == "difference":
+                    if self.difference_intent is None or self.pair_target_key is None:
+                        raise ReviewValidationError("captured difference requires explicit recipe")
+                    if [s["source_key"] for s in context_sources] != [
+                        self.reference_key, self.pair_target_key
+                    ]:
+                        raise ReviewValidationError("W02 difference pair order differs")
+                    if context["difference_cache_key"] is None:
+                        raise ReviewValidationError("captured difference requires cache identity")
+                    if self.difference_intent.channel != context["channel"]:
+                        raise ReviewValidationError("W02 difference channel disagrees with recipe")
+                    if (
+                        (self.difference_intent.region == "Active ROI")
+                        != (self.roi_ref is not None)
+                    ):
+                        raise ReviewValidationError("W02 difference region disagrees with ROI")
                 # The W02 parser allows opaque snapshot IDs; Review v1 requires UUIDs.
                 snapshot_id = _uuid(context["snapshot_id"])
                 if snapshot_id in snapshot_ids:
@@ -792,7 +817,11 @@ class ReviewDocumentV1:
                 assert analysis.context_json is not None
                 context = parse_analysis_context(analysis.context_json)
                 context_roi = context["roi_ref"]
-                if context_roi is not None and tuple(cast(list[int], context_roi)) != finding.roi_ref:
+                if (
+                    (context_roi is None) != (finding.roi_ref is None)
+                    or (context_roi is not None
+                        and tuple(cast(list[int], context_roi)) != finding.roi_ref)
+                ):
                     raise ReviewValidationError("W02 analysis ROI disagrees with finding")
                 for captured in cast(list[dict[str, Any]], context["sources"]):
                     expected = source_by_key[captured["source_key"]]
