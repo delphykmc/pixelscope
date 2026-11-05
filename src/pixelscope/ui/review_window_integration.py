@@ -73,7 +73,7 @@ class NamedReviewCoordinator:
         self._closed = False
         self.action = QAction("Named Findings", window)
         self.action.setToolTip("Historical Finding evidence (.pxreview)")
-        self.action.triggered.connect(self.show)
+        self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
         window.main_toolbar.addAction(self.action)
 
         self.panel.add_requested.connect(self.add)
