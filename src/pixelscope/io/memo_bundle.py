@@ -14,9 +14,9 @@ import re
 import struct
 import tempfile
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 BUNDLE_SCHEMA = "pixelscope-memo-bundle"
 BUNDLE_VERSION = 1
@@ -194,7 +194,9 @@ def save_memo_bundle(
     if any(key not in known_keys or not isinstance(value, str) for key, value in sources.items()):
         raise ValueError("local source hints must reference captured sources")
     manifest = {"schema": BUNDLE_SCHEMA, "version": BUNDLE_VERSION, "regions": rows}
-    manifest_bytes = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    manifest_bytes = json.dumps(
+        manifest, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
     local_bytes = json.dumps({"paths": sources}, ensure_ascii=False).encode("utf-8")
     report = _render_html(rows)
     total = len(manifest_bytes) + len(local_bytes) + len(report) + sum(
@@ -209,10 +211,10 @@ def save_memo_bundle(
                 archive.writestr("manifest.json", manifest_bytes)
                 archive.writestr("sources.local.json", local_bytes)
                 archive.writestr("index.html", report)
-                for row, region in zip(rows, regions):
+                for row, region in zip(rows, regions, strict=True):
                     crop_rows = row["crops"]
                     assert isinstance(crop_rows, list)
-                    for meta, crop in zip(crop_rows, region.crops):
+                    for meta, crop in zip(crop_rows, region.crops, strict=True):
                         archive.writestr(str(meta["asset"]), crop.png_bytes)
             handle.flush()
             os.fsync(handle.fileno())
