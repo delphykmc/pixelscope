@@ -82,12 +82,9 @@ class NamedReviewCoordinator:
         self.action.setToolTip("Historical Finding evidence (.pxreview)")
         self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
         # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
-        view_menu = next(
-            (action.menu() for action in window.menuBar().actions() if action.text() == "&View"),
-            None,
-        )
-        if view_menu is None:
-            raise RuntimeError("Named Findings requires the canonical View menu")
+        view_menu = window._menu_map["View"]
+        # Use the strongly owned canonical menu; transient QMenu wrappers from
+        # QAction.menu() may have lost their native object during Qt composition.
         view_menu.addAction(self.action)
 
         self.panel.add_requested.connect(self.add)
