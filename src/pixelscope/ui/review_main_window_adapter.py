@@ -11,9 +11,9 @@ import weakref
 from dataclasses import dataclass
 from typing import Any
 
+from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.review_analysis_sources import native_profile_signature
 from pixelscope.core.review_record import ReviewDocumentV1
-from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.ui.display_gain import display_gain_state
