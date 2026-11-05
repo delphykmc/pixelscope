@@ -118,7 +118,12 @@ def test_invalid_metadata_and_same_uuid_conflict_never_mutate_library(tmp_path):
     assert lib.document.to_bytes() == before
     with pytest.raises(ReviewValidationError):
         lib.add(replace(finding, id=str(uuid4())), (
-            replace(sources[0], native_signature=replace(sources[0].native_signature, profile_signature="2" * 64)),
+            replace(
+                sources[0],
+                native_signature=replace(
+                    sources[0].native_signature, profile_signature="2" * 64
+                ),
+            ),
             sources[1],
         ))
     assert lib.document.to_bytes() == before
@@ -164,5 +169,9 @@ def test_preflight_offline_finding_requires_all_sources_verified(tmp_path):
     )
     with pytest.raises(ReviewValidationError, match="unverified"):
         lib.preflight_finding(
-            finding.id, {sources[0].source_key: verified[sources[0].source_key], sources[1].source_key: changed}
+            finding.id,
+            {
+                sources[0].source_key: verified[sources[0].source_key],
+                sources[1].source_key: changed,
+            },
         )
