@@ -129,7 +129,10 @@ class CandidateDecodeProbeV1:
     """
 
     def __init__(
-        self, handle: BinaryIO, path: Path, revision: tuple[int, int, int, int, int],
+        self,
+        handle: BinaryIO,
+        path: Path,
+        revision: tuple[int, int, int, int, int],
         cancel: CancelCheck | None,
     ) -> None:
         self._handle = handle
@@ -292,8 +295,10 @@ def verify_review_source(
             if processed != before.st_size or _identity(os.fstat(handle.fileno())) != revision:
                 raise SourceHashUnstable("candidate changed during SHA-256")
             digest = sha.hexdigest()
-            if prior_sha is not None and digest == prior_sha and isinstance(
-                native_signature, CandidateNativeDecoderV1
+            if (
+                prior_sha is not None
+                and digest == prior_sha
+                and isinstance(native_signature, CandidateNativeDecoderV1)
             ):
                 _cancel_if_requested(cancel)
                 handle.seek(0)
@@ -302,8 +307,9 @@ def verify_review_source(
                     current_signature = native_signature.decode_signature(probe)
                 except (ValueError, TypeError, UnicodeError) as exc:
                     return outcome(
-                        "unsupported_profile", "digest_match",
-                        f"native decoder rejected profile: {type(exc).__name__}"
+                        "unsupported_profile",
+                        "digest_match",
+                        f"native decoder rejected profile: {type(exc).__name__}",
                     )
                 bytes_decoded = probe.bytes_read
             if _identity(os.fstat(handle.fileno())) != revision:
@@ -315,42 +321,49 @@ def verify_review_source(
         raise
     except OSError as exc:
         return outcome(
-            "candidate_unverified", "unavailable",
-            f"cannot safely verify candidate: {type(exc).__name__}"
+            "candidate_unverified",
+            "unavailable",
+            f"cannot safely verify candidate: {type(exc).__name__}",
         )
 
     if prior_sha is None:
         return outcome(
-            "candidate_unverified", "unavailable",
-            "saved SHA-256 is absent; size/mtime cannot establish identity"
+            "candidate_unverified",
+            "unavailable",
+            "saved SHA-256 is absent; size/mtime cannot establish identity",
         )
     if digest != prior_sha:
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
     if not isinstance(native_signature, CandidateNativeDecoderV1):
         return outcome(
-            "candidate_unverified", "digest_match",
-            "verified binding requires an explicitly owned CandidateNativeDecoderV1"
+            "candidate_unverified",
+            "digest_match",
+            "verified binding requires an explicitly owned CandidateNativeDecoderV1",
         )
     if bytes_decoded <= 0:
         return outcome(
-            "candidate_unverified", "digest_match",
-            "decoder did not read candidate bytes from the verified revision"
+            "candidate_unverified",
+            "digest_match",
+            "decoder did not read candidate bytes from the verified revision",
         )
     if not isinstance(current_signature, ReviewNativeSignatureV1):
         return outcome(
-            "unsupported_profile", "digest_match",
-            "native decoder did not produce a valid signature"
+            "unsupported_profile",
+            "digest_match",
+            "native decoder did not produce a valid signature",
         )
     if current_signature != source.native_signature:
         return outcome("unsupported_profile", "digest_match", "native decode signature differs")
     if not same_saved_path and not confirmed_by_user:
         return outcome(
-            "candidate_unverified", "digest_match",
-            "matching bytes and native profile require explicit relink confirmation"
+            "candidate_unverified",
+            "digest_match",
+            "matching bytes and native profile require explicit relink confirmation",
         )
     return outcome(
-        "verified", "digest_match",
-        "same-revision SHA-256 and fresh candidate-read native signature both match"
+        "verified",
+        "digest_match",
+        "same-revision SHA-256 and fresh candidate-read native signature both match",
     )
 
 
