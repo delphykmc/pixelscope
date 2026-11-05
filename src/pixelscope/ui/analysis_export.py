@@ -58,9 +58,7 @@ def _filename_number(value: float) -> str:
     return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
-def _table_csv_text(
-    table: QTableWidget, *, columns: tuple[int, ...] | None = None
-) -> str:
+def _table_csv_text(table: QTableWidget, *, columns: tuple[int, ...] | None = None) -> str:
     """Copy visible table values without silently changing legacy CSV schemas."""
     selected_columns = columns if columns is not None else tuple(range(table.columnCount()))
     buffer = StringIO()
