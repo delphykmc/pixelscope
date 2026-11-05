@@ -576,7 +576,10 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     )
 
     if isinstance(clear_button, QAbstractButton):
-        clear_button.setText("Clear Picks")
+        # P4a keeps these intentionally compact in-row command labels. The
+        # neighboring Picked count, tooltip and accessible description disambiguate
+        # temporary Picks versus persistent Files Selected.
+        clear_button.setText("Clear")
         clear_button.setAccessibleName("Clear Selection")
         clear_button.setAccessibleDescription("Clear temporary Picks; Files Selected is unchanged")
         clear_button.setToolTip(
@@ -584,7 +587,7 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         )
         clear_button.setStatusTip(clear_button.toolTip())
     if isinstance(keep_button, QAbstractButton):
-        keep_button.setText("Keep Picks")
+        keep_button.setText("Keep")
         keep_button.setAccessibleName("Keep Selection")
         keep_button.setAccessibleDescription("Replace Files Selected with temporary Picks")
         keep_button.setToolTip(
