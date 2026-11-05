@@ -157,9 +157,7 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
     )
 
 
-def assert_same_capture_context(
-    expected: CaptureGuiFence, actual: CaptureGuiFence
-) -> None:
+def assert_same_capture_context(expected: CaptureGuiFence, actual: CaptureGuiFence) -> None:
     """No historical Finding may be committed after a GUI-context revision."""
     if actual != expected:
         raise ReviewValidationError(
