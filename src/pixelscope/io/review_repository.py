@@ -306,6 +306,7 @@ def verify_review_source(
         processed = 0
         current_signature: ReviewNativeSignatureV1 | None = None
         bytes_decoded = 0
+        decode_error: str | None = None
         digest: str
         with path.open("rb") as handle:
             if _identity(os.fstat(handle.fileno())) != revision:
@@ -335,11 +336,9 @@ def verify_review_source(
                 try:
                     current_signature = native_signature.decode_signature(probe)
                 except (ValueError, TypeError, UnicodeError) as exc:
-                    return outcome(
-                        "unsupported_profile",
-                        "digest_match",
-                        f"native decoder rejected profile: {type(exc).__name__}",
-                    )
+                    # Never classify a decoder rejection until a second read
+                    # proves that the candidate bytes stayed unchanged.
+                    decode_error = type(exc).__name__
                 bytes_decoded = probe.bytes_read
             _assert_stable_replay_digest(handle, digest, processed, cancel)
             if _identity(os.fstat(handle.fileno())) != revision:
@@ -369,6 +368,12 @@ def verify_review_source(
             "candidate_unverified",
             "digest_match",
             "verified binding requires an explicitly owned CandidateNativeDecoderV1",
+        )
+    if decode_error is not None:
+        return outcome(
+            "unsupported_profile",
+            "digest_match",
+            f"native decoder rejected profile: {decode_error}",
         )
     if bytes_decoded <= 0:
         return outcome(
