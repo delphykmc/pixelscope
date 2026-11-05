@@ -36,6 +36,21 @@ def _fixture(
     bits: int = 10,
 ) -> tuple[PresentedAnalysisTokenV1, tuple[AnalysisSourceV1, ...], tuple]:
     keys = tuple(_key(i) for i in range(n))
+    interpretation = (
+        AnalysisNativeInterpretationV1(cfa_pattern="RGGB", cfa_phase_xy=(0, 0))
+        if layout == "BAYER"
+        else AnalysisNativeInterpretationV1(
+            yuv_layout=layout,
+            yuv_chroma_step_xy=(2, 2) if layout == "YUV420" else (2, 1),
+            yuv_plane_shapes=(
+                ((8, 8), (4, 4), (4, 4))
+                if layout == "YUV420"
+                else ((8, 8), (8, 4), (8, 4))
+            ),
+        )
+        if layout in ("YUV420", "YUV422")
+        else AnalysisNativeInterpretationV1()
+    )
     sources = tuple(
         AnalysisSourceV1(
             source_key=key,
@@ -47,6 +62,7 @@ def _fixture(
             channel_layout=layout,
             effective_bits=bits,
             profile_signature="a" * 64,
+            native_interpretation=interpretation,
         )
         for index, key in enumerate(keys)
     )
