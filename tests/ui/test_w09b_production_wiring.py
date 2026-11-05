@@ -181,3 +181,97 @@ def test_memo_roi_png_export_selected_page_independent_of_review_save(
         pixels = cv2.imread(str(exported), cv2.IMREAD_UNCHANGED)
         assert pixels is not None and pixels.shape == (roi.height, roi.width, 3)
     window.close()
+
+
+def test_single_rgb_memo_click_restores_roi_after_reopening(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: object,
+) -> None:
+    """Real default Single View: note selection restores image + precise ROI."""
+    from pathlib import Path
+
+    import cv2
+    import numpy as np
+    from PySide6.QtWidgets import QFileDialog
+
+    from pixelscope.core.roi import RoiBounds
+
+    root = Path(str(tmp_path))
+    image = root / "inspection_rgb.png"
+    assert cv2.imwrite(
+        str(image), np.full((72, 96, 3), (15, 65, 155), dtype=np.uint8)
+    )
+    memo_file = root / "inspection.pxreview"
+
+    first_roi = RoiBounds(4, 5, 24, 18)
+    second_roi = RoiBounds(38, 30, 26, 20)
+    window, review = _window(qtbot)
+    window.resize(1400, 880)
+    window.show()
+    window.open_image_paths([image])
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.current_comparison_documents()) == 1
+        and window.viewer.document is not None
+        and window.viewer.document.loading_state == "ready"
+        and window.viewer.document.preview is not None
+        and window.viewer.measure_physical_zoom().valid
+        and not window.viewer._geometry_timer.isActive(),
+        timeout=10000,
+    )
+
+    for title, roi in (("Halo", first_roi), ("Texture", second_roi)):
+        assert window._apply_shared_roi(roi, allow_channel_split=False)
+        review.panel.title_edit.setText(title)
+        review.panel.note_edit.setPlainText("Measured at the exact selected ROI")
+        review.add()
+        expected = 1 if title == "Halo" else 2
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: len(review.library.document.findings) == expected,
+            timeout=15000,
+        )
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: review._capture_worker is None,
+            timeout=10000,
+        )
+    assert review.library.document.allow_local_paths
+    assert all(
+        source.locator.local_path == str(image.resolve())
+        for source in review.library.document.sources
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *_args, **_kw: (str(memo_file), "")
+    )
+    review.save_dialog()
+    assert memo_file.is_file()
+    window.close()
+
+    fresh, notes = _window(qtbot)
+    fresh.resize(1400, 880)
+    fresh.show()
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", lambda *_args, **_kw: (str(memo_file), "")
+    )
+    notes.open_dialog()
+    assert len(notes.library.document.findings) == 2
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: notes.restore.phase == "applied" and fresh._shared_roi == first_roi,
+        timeout=15000,
+    )
+    assert fresh.viewer.document is not None
+    assert fresh.viewer.document.source_path == image.resolve()
+
+    notes.panel.findings.setCurrentRow(1)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: notes.restore.phase == "applied" and fresh._shared_roi == second_roi,
+        timeout=15000,
+    )
+    assert notes.panel.title_edit.text() == "Texture"
+
+    notes.panel.findings.setCurrentRow(0)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: notes.restore.phase == "applied" and fresh._shared_roi == first_roi,
+        timeout=15000,
+    )
+    assert notes.panel.title_edit.text() == "Halo"
+    fresh.close()
