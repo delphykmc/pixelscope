@@ -31,7 +31,11 @@ from pixelscope.ui.display_gain import display_gain_state
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.review_capture_adapter import (
     AttestedFinding,
+    CaptureGuiFence,
+    StagedFinding,
+    assert_same_capture_context,
     attest_staged_finding,
+    capture_gui_fence,
     stage_named_finding,
 )
 from pixelscope.ui.review_main_window_adapter import MainWindowReviewRestoreAuthority
@@ -70,6 +74,8 @@ class NamedReviewCoordinator:
         self._capture_worker: TaskWorker | None = None
         self._capture_task_id: str | None = None
         self._capture_cancel: Event | None = None
+        self._capture_stage: StagedFinding | None = None
+        self._capture_fence: CaptureGuiFence | None = None
         self._closed = False
         self.action = QAction("Named Findings", window)
         self.action.setToolTip("Historical Finding evidence (.pxreview)")
@@ -114,6 +120,8 @@ class NamedReviewCoordinator:
         self._capture_worker = None
         self._capture_task_id = None
         self._capture_cancel = None
+        self._capture_stage = None
+        self._capture_fence = None
 
     @Slot()
     def add(self) -> None:
@@ -170,8 +178,11 @@ class NamedReviewCoordinator:
                 difference_intent=recipe,
                 analysis_panel=panel,
             )
+            fence = capture_gui_fence(window, stage)
             epoch = self._capture_epoch
             cancel = Event()
+            self._capture_stage = stage
+            self._capture_fence = fence
             worker = TaskWorker(
                 attest_staged_finding, stage, cancel=cancel.is_set, generation=epoch
             )
@@ -198,6 +209,13 @@ class NamedReviewCoordinator:
         ):
             return
         try:
+            stage = self._capture_stage
+            fence = self._capture_fence
+            if stage is None or fence is None or value.finding.id != stage.finding.id:
+                raise ReviewValidationError("capture stage or revision was superseded")
+            if value.bindings != stage.sources:
+                raise ReviewValidationError("source bindings changed during attestation")
+            assert_same_capture_context(fence, capture_gui_fence(self.window, stage))
             current = self.window.documents
             if not all(item.still_loaded_as(current) for item in value.bindings):
                 raise ReviewValidationError("source generation changed during capture")
@@ -218,6 +236,8 @@ class NamedReviewCoordinator:
             self._capture_task_id = None
             self._capture_worker = None
             self._capture_cancel = None
+            self._capture_stage = None
+            self._capture_fence = None
 
     @Slot(str, str, str, object)
     def edit(self, finding_id: str, title: str, note: str, tags: object) -> None:
