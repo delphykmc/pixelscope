@@ -278,10 +278,10 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 control.setCurrentText(value)
             finally:
                 control.blockSignals(was_blocked)
-        for control, value in numeric:
+        for control, amount in numeric:
             was_blocked = control.blockSignals(True)
             try:
-                control.setValue(value)
+                control.setValue(amount)
             finally:
                 control.blockSignals(was_blocked)
         # This intentionally clears historical live metrics. A recipe alone
