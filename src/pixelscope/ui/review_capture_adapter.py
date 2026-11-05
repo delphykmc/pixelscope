@@ -13,19 +13,23 @@ from pathlib import Path
 from uuid import uuid4
 
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.review_analysis import AnalysisPanelAdapter, capture_presented_analysis
+from pixelscope.core.review_analysis import (
+    AnalysisPanelAdapter,
+    PresentedAnalysisTokenV1,
+    capture_presented_analysis,
+)
 from pixelscope.core.review_analysis_sources import snapshot_source
 from pixelscope.core.review_record import (
     ReviewAnalysisCaptureV1,
-    ReviewDocumentV1,
     ReviewDifferenceIntentV1,
+    ReviewDocumentV1,
     ReviewFindingV1,
     ReviewFingerprintV1,
     ReviewLocatorV1,
     ReviewNativeSignatureV1,
-    ReviewWorkspaceIntentV1,
     ReviewSourceV1,
     ReviewValidationError,
+    ReviewWorkspaceIntentV1,
     canonical_json,
     utc_now,
 )
@@ -135,8 +139,7 @@ def stage_named_finding(
             ReviewLocatorV1(
                 document.source_path.name,
                 local_path=(
-                    str(document.source_path.resolve())
-                    if persist_local_paths else None
+                    str(document.source_path.resolve()) if persist_local_paths else None
                 ),
             ),
             ReviewNativeSignatureV1(
@@ -160,7 +163,6 @@ def stage_named_finding(
     # treated as numerical authority.
     analysis = ReviewAnalysisCaptureV1("unavailable", reason="uncomputed_or_stale")
     if analysis_panel is not None:
-        from pixelscope.core.review_analysis import PresentedAnalysisTokenV1
         token = analysis_panel.get_current_analysis_token()
         if isinstance(token, PresentedAnalysisTokenV1):
             result = capture_presented_analysis(analysis_panel, token)
