@@ -2973,7 +2973,7 @@ class MainWindow(QMainWindow):
         self._update_action_states()
 
     def _navigate_single_view(self, key: str) -> None:
-            split_documents = self._current_split_documents()
+        split_documents = self._current_split_documents()
         split_document = next(
             (document for document in split_documents if document.document_id == key),
             None,
