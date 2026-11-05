@@ -187,12 +187,8 @@ def test_gray_uint16_native_pivot_and_delta(qtbot: object) -> None:
 def test_difference_metric_native_and_normalized_unit_columns(qtbot: object) -> None:
     panel = DifferencePanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
-    first = ImageDocument.from_array(
-        np.full((8, 8), 100, dtype=np.uint8), "a.png", bit_depth=8
-    )
-    second = ImageDocument.from_array(
-        np.full((8, 8), 120, dtype=np.uint8), "b.png", bit_depth=8
-    )
+    first = ImageDocument.from_array(np.full((8, 8), 100, dtype=np.uint8), "a.png", bit_depth=8)
+    second = ImageDocument.from_array(np.full((8, 8), 120, dtype=np.uint8), "b.png", bit_depth=8)
     panel.set_documents([first, second], (first.document_id, second.document_id))
     panel.calculate_difference()
     qtbot.waitUntil(lambda: panel.last_result is not None, timeout=3000)  # type: ignore[attr-defined]
@@ -207,9 +203,7 @@ def test_difference_metric_native_and_normalized_unit_columns(qtbot: object) -> 
 
     normalized = DifferencePanel()
     qtbot.addWidget(normalized)  # type: ignore[attr-defined]
-    low = ImageDocument.from_array(
-        np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8
-    )
+    low = ImageDocument.from_array(np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8)
     high = ImageDocument.from_array(
         np.full((8, 8), 1000, dtype=np.uint16), "high.raw", bit_depth=10
     )
