@@ -70,7 +70,7 @@ def native_profile_signature(document: ImageDocument) -> str:
         "reference_shape": list(document.reference_shape),
         "raw_interpretation": (
             {
-                name: getattr(profile, name)
+                name: getattr(profile, name, None)
                 for name in (
                     "width",
                     "height",
