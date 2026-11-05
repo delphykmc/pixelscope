@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID, uuid4
 
 from pixelscope.core.review_analysis import (
@@ -602,7 +602,9 @@ class ReviewDocumentV1:
             raise ReviewValidationError("invalid application version")
         _time(self.created_utc)
         _time(self.updated_utc)
-        if self.created_utc > self.updated_utc:
+        created = datetime.fromisoformat(self.created_utc.replace("Z", "+00:00"))
+        updated = datetime.fromisoformat(self.updated_utc.replace("Z", "+00:00"))
+        if created > updated:
             raise ReviewValidationError("update precedes creation")
         if len(self.sources) > MAX_SOURCES or len(self.findings) > MAX_FINDINGS:
             raise ReviewValidationError("review collection exceeds resource limits")
