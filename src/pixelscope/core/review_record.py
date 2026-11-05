@@ -38,8 +38,7 @@ MAX_EXTENSIONS_BYTES = 64 * 1024
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 _LABEL = re.compile(r"^[\w .:+-]{1,96}$", re.UNICODE)
 _DTYPE = re.compile(
-    r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|"
-    r"[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$"
+    r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|" r"[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$"
 )
 _VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$")
 _STATUSES = frozenset({"available", "partial", "unavailable"})
@@ -117,9 +116,7 @@ def _number(value: object, name: str, *, minimum: float = 0.0) -> float:
 
 
 def _keys(raw: object, *, maximum: int, allow_empty: bool = False) -> tuple[str, ...]:
-    if type(raw) not in (list, tuple) or len(raw) > maximum or (
-        not allow_empty and not raw
-    ):
+    if type(raw) not in (list, tuple) or len(raw) > maximum or (not allow_empty and not raw):
         raise ReviewValidationError("invalid ordered source key collection")
     sequence = cast(list[object] | tuple[object, ...], raw)
     keys = tuple(_uuid(item) for item in sequence)
@@ -133,13 +130,15 @@ def _rect(raw: object, *, line: bool = False) -> tuple[int, int, int, int] | Non
         return None
     labels = ("x1", "y1", "x2", "y2") if line else ("x", "y", "width", "height")
     obj = _fields(raw, set(labels), "line" if line else "ROI")
-    values = tuple(_integer(obj[key], key, minimum=0 if line or key in ("x", "y") else 1)
-                   for key in labels)
+    values = tuple(
+        _integer(obj[key], key, minimum=0 if line or key in ("x", "y") else 1) for key in labels
+    )
     return cast(tuple[int, int, int, int], values)
 
 
-def _rect_wire(value: tuple[int, int, int, int] | None, *, line: bool = False
-               ) -> dict[str, int] | None:
+def _rect_wire(
+    value: tuple[int, int, int, int] | None, *, line: bool = False
+) -> dict[str, int] | None:
     if value is None:
         return None
     labels = ("x1", "y1", "x2", "y2") if line else ("x", "y", "width", "height")
@@ -183,8 +182,9 @@ def _reject_constant(value: str) -> object:
 def canonical_json(value: object, *, limit: int = MAX_REVIEW_BYTES) -> bytes:
     _json_depth(value)
     try:
-        raw = json.dumps(value, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":"), allow_nan=False).encode("utf-8")
+        raw = json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
     except (TypeError, ValueError, UnicodeError) as exc:
         raise ReviewValidationError("cannot serialize Review JSON") from exc
     if len(raw) > limit:
@@ -196,8 +196,9 @@ def parse_bounded_json(raw: bytes) -> object:
     if type(raw) is not bytes or len(raw) > MAX_REVIEW_BYTES:
         raise ReviewValidationError("Review must be bounded UTF-8 JSON bytes")
     try:
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_pairs,
-                           parse_constant=_reject_constant)
+        value = json.loads(
+            raw.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_reject_constant
+        )
     except (UnicodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise ReviewValidationError(f"invalid Review JSON: {exc}") from exc
     _json_depth(value)
@@ -216,9 +217,12 @@ class ReviewLocatorV1:
             raise ReviewValidationError("basename must not contain path components")
         if self.relative_hint is not None:
             hint = _text(self.relative_hint, "relative_hint", 1024, nonblank=True)
-            if "\\" in hint or PurePosixPath(hint).is_absolute() or (
-                any(p in (".", "..", "") for p in hint.split("/"))
-            ) or PureWindowsPath(hint).drive:
+            if (
+                "\\" in hint
+                or PurePosixPath(hint).is_absolute()
+                or (any(p in (".", "..", "") for p in hint.split("/")))
+                or PureWindowsPath(hint).drive
+            ):
                 raise ReviewValidationError("unsafe relative locator hint")
         if self.local_path is not None:
             path = _text(self.local_path, "local_path", 4096, nonblank=True)
@@ -226,8 +230,11 @@ class ReviewLocatorV1:
                 raise ReviewValidationError("local_path must be absolute")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"basename": self.basename, "relative_hint": self.relative_hint,
-                "local_path": self.local_path}
+        return {
+            "basename": self.basename,
+            "relative_hint": self.relative_hint,
+            "local_path": self.local_path,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewLocatorV1:
@@ -256,14 +263,21 @@ class ReviewFingerprintV1:
             raise ReviewValidationError("verified fingerprint requires SHA-256")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"algorithm": self.algorithm, "digest": self.digest,
-                "size_bytes": self.size_bytes, "mtime_ns": self.mtime_ns,
-                "state": self.state}
+        return {
+            "algorithm": self.algorithm,
+            "digest": self.digest,
+            "size_bytes": self.size_bytes,
+            "mtime_ns": self.mtime_ns,
+            "state": self.state,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewFingerprintV1:
-        return cls(**_fields(raw, {"algorithm", "digest", "size_bytes",
-                                  "mtime_ns", "state"}, "fingerprint"))
+        return cls(
+            **_fields(
+                raw, {"algorithm", "digest", "size_bytes", "mtime_ns", "state"}, "fingerprint"
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -302,25 +316,42 @@ class ReviewNativeSignatureV1:
             raise ReviewValidationError("Bayer CFA interpretation missing")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"profile_signature": self.profile_signature,
-                "native_shape": list(self.native_shape),
-                "reference_shape": list(self.reference_shape),
-                "native_dtype": self.native_dtype,
-                "channel_layout": self.channel_layout,
-                "effective_bits": self.effective_bits,
-                "native_interpretation": parse_bounded_json(self.native_interpretation_json)}
+        return {
+            "profile_signature": self.profile_signature,
+            "native_shape": list(self.native_shape),
+            "reference_shape": list(self.reference_shape),
+            "native_dtype": self.native_dtype,
+            "channel_layout": self.channel_layout,
+            "effective_bits": self.effective_bits,
+            "native_interpretation": parse_bounded_json(self.native_interpretation_json),
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewNativeSignatureV1:
-        d = _fields(raw, {"profile_signature", "native_shape", "reference_shape",
-                          "native_dtype", "channel_layout", "effective_bits",
-                          "native_interpretation"}, "native signature")
+        d = _fields(
+            raw,
+            {
+                "profile_signature",
+                "native_shape",
+                "reference_shape",
+                "native_dtype",
+                "channel_layout",
+                "effective_bits",
+                "native_interpretation",
+            },
+            "native signature",
+        )
         if type(d["native_shape"]) is not list or type(d["reference_shape"]) is not list:
             raise ReviewValidationError("native shapes must be JSON arrays")
-        return cls(d["profile_signature"], tuple(d["native_shape"]),
-                   tuple(d["reference_shape"]), d["native_dtype"],
-                   d["channel_layout"], d["effective_bits"],
-                   canonical_json(d["native_interpretation"], limit=16_384))
+        return cls(
+            d["profile_signature"],
+            tuple(d["native_shape"]),
+            tuple(d["reference_shape"]),
+            d["native_dtype"],
+            d["channel_layout"],
+            d["effective_bits"],
+            canonical_json(d["native_interpretation"], limit=16_384),
+        )
 
 
 @dataclass(frozen=True)
@@ -333,26 +364,38 @@ class ReviewSourceV1:
 
     def __post_init__(self) -> None:
         _uuid(self.source_key)
-        if not isinstance(self.locator, ReviewLocatorV1) or not isinstance(
-            self.native_signature, ReviewNativeSignatureV1
-        ) or not isinstance(self.fingerprint, ReviewFingerprintV1):
+        if (
+            not isinstance(self.locator, ReviewLocatorV1)
+            or not isinstance(self.native_signature, ReviewNativeSignatureV1)
+            or not isinstance(self.fingerprint, ReviewFingerprintV1)
+        ):
             raise ReviewValidationError("invalid Review source DTO")
         if self.display_tag is not None:
             _text(self.display_tag, "display_tag", 512, nonblank=True)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"source_key": self.source_key, "locator": self.locator.to_dict(),
-                "native_signature": self.native_signature.to_dict(),
-                "fingerprint": self.fingerprint.to_dict(),
-                "display_tag": self.display_tag}
+        return {
+            "source_key": self.source_key,
+            "locator": self.locator.to_dict(),
+            "native_signature": self.native_signature.to_dict(),
+            "fingerprint": self.fingerprint.to_dict(),
+            "display_tag": self.display_tag,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewSourceV1:
-        d = _fields(raw, {"source_key", "locator", "native_signature",
-                          "fingerprint", "display_tag"}, "source")
-        return cls(d["source_key"], ReviewLocatorV1.from_dict(d["locator"]),
-                   ReviewNativeSignatureV1.from_dict(d["native_signature"]),
-                   ReviewFingerprintV1.from_dict(d["fingerprint"]), d["display_tag"])
+        d = _fields(
+            raw,
+            {"source_key", "locator", "native_signature", "fingerprint", "display_tag"},
+            "source",
+        )
+        return cls(
+            d["source_key"],
+            ReviewLocatorV1.from_dict(d["locator"]),
+            ReviewNativeSignatureV1.from_dict(d["native_signature"]),
+            ReviewFingerprintV1.from_dict(d["fingerprint"]),
+            d["display_tag"],
+        )
 
 
 @dataclass(frozen=True)
@@ -381,22 +424,43 @@ class ReviewWorkspaceIntentV1:
             raise ReviewValidationError("split_channels must be bool")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"source_order": list(self.source_order),
-                "selected_keys": list(self.selected_keys),
-                "page_anchor_key": self.page_anchor_key,
-                "active_key": self.active_key, "primary_key": self.primary_key,
-                "layout_mode": self.layout_mode, "display_gain": self.display_gain,
-                "split_channels": self.split_channels}
+        return {
+            "source_order": list(self.source_order),
+            "selected_keys": list(self.selected_keys),
+            "page_anchor_key": self.page_anchor_key,
+            "active_key": self.active_key,
+            "primary_key": self.primary_key,
+            "layout_mode": self.layout_mode,
+            "display_gain": self.display_gain,
+            "split_channels": self.split_channels,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewWorkspaceIntentV1:
-        d = _fields(raw, {"source_order", "selected_keys", "page_anchor_key",
-                          "active_key", "primary_key", "layout_mode", "display_gain",
-                          "split_channels"}, "workspace intent")
-        return cls(_keys(d["source_order"], maximum=MAX_SOURCES, allow_empty=True),
-                   _keys(d["selected_keys"], maximum=MAX_SOURCES, allow_empty=True),
-                   d["page_anchor_key"], d["active_key"], d["primary_key"],
-                   d["layout_mode"], d["display_gain"], d["split_channels"])
+        d = _fields(
+            raw,
+            {
+                "source_order",
+                "selected_keys",
+                "page_anchor_key",
+                "active_key",
+                "primary_key",
+                "layout_mode",
+                "display_gain",
+                "split_channels",
+            },
+            "workspace intent",
+        )
+        return cls(
+            _keys(d["source_order"], maximum=MAX_SOURCES, allow_empty=True),
+            _keys(d["selected_keys"], maximum=MAX_SOURCES, allow_empty=True),
+            d["page_anchor_key"],
+            d["active_key"],
+            d["primary_key"],
+            d["layout_mode"],
+            d["display_gain"],
+            d["split_channels"],
+        )
 
 
 @dataclass(frozen=True)
@@ -412,10 +476,14 @@ class ReviewDifferenceIntentV1:
     def __post_init__(self) -> None:
         if _uuid(self.reference_key) == _uuid(self.target_key):
             raise ReviewValidationError("difference pair requires distinct sources")
-        if self.mode not in ("Absolute", "Mask") or (
-            self.channel not in ("All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb",
-                                 "Y", "U", "V")
-        ) or self.region not in ("Full image", "Active ROI"):
+        if (
+            self.mode not in ("Absolute", "Mask")
+            or (
+                self.channel
+                not in ("All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb", "Y", "U", "V")
+            )
+            or self.region not in ("Full image", "Active ROI")
+        ):
             raise ReviewValidationError("unsupported difference recipe")
         if _number(self.threshold, "threshold") > 65535.0:
             raise ReviewValidationError("difference threshold exceeds limit")
@@ -423,20 +491,30 @@ class ReviewDifferenceIntentV1:
             raise ReviewValidationError("difference gain exceeds limit")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"reference_key": self.reference_key, "target_key": self.target_key,
-                "channel": self.channel, "mode": self.mode,
-                "threshold": self.threshold, "gain": self.gain, "region": self.region}
+        return {
+            "reference_key": self.reference_key,
+            "target_key": self.target_key,
+            "channel": self.channel,
+            "mode": self.mode,
+            "threshold": self.threshold,
+            "gain": self.gain,
+            "region": self.region,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewDifferenceIntentV1:
-        d = _fields(raw, {"reference_key", "target_key", "channel", "mode",
-                          "threshold", "gain", "region"}, "difference intent")
+        d = _fields(
+            raw,
+            {"reference_key", "target_key", "channel", "mode", "threshold", "gain", "region"},
+            "difference intent",
+        )
         return cls(**d)
 
 
 @dataclass(frozen=True)
 class ReviewAnalysisCaptureV1:
     """A copy of W02's *portable* immutable context, or explicit unavailability."""
+
     status: str
     context_json: bytes | None = None
     reason: str | None = None
@@ -460,16 +538,22 @@ class ReviewAnalysisCaptureV1:
         return cls("captured", serialize_analysis_context(snapshot))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"status": self.status,
-                "context": (parse_bounded_json(self.context_json)
-                            if self.context_json is not None else None),
-                "reason": self.reason}
+        return {
+            "status": self.status,
+            "context": (
+                parse_bounded_json(self.context_json) if self.context_json is not None else None
+            ),
+            "reason": self.reason,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewAnalysisCaptureV1:
         d = _fields(raw, {"status", "context", "reason"}, "analysis")
-        return cls(d["status"], canonical_json(d["context"]) if d["context"] is not None
-                   else None, d["reason"])
+        return cls(
+            d["status"],
+            canonical_json(d["context"]) if d["context"] is not None else None,
+            d["reason"],
+        )
 
 
 @dataclass(frozen=True)
@@ -533,8 +617,7 @@ class ReviewFindingV1:
         if self.difference_intent is not None:
             d = self.difference_intent
             if not isinstance(d, ReviewDifferenceIntentV1) or (
-                d.reference_key != self.reference_key or
-                d.target_key != self.pair_target_key
+                d.reference_key != self.reference_key or d.target_key != self.pair_target_key
             ):
                 raise ReviewValidationError("difference recipe disagrees with pair")
         if len(self.analysis) > MAX_ANALYSIS_PER_FINDING:
@@ -557,41 +640,75 @@ class ReviewFindingV1:
             raise ReviewValidationError("unknown finding availability")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "title": self.title, "note": self.note,
-                "tags": list(self.tags), "captured_utc": self.captured_utc,
-                "source_keys": list(self.source_keys),
-                "reference_key": self.reference_key,
-                "pair_target_key": self.pair_target_key,
-                "view_state": self.view_state.to_dict(),
-                "roi_ref": _rect_wire(self.roi_ref),
-                "line_ref": _rect_wire(self.line_ref, line=True),
-                "channel": self.channel, "display_gain": self.display_gain,
-                "difference_intent": (self.difference_intent.to_dict()
-                                      if self.difference_intent else None),
-                "analysis": [item.to_dict() for item in self.analysis],
-                "availability": self.availability}
+        return {
+            "id": self.id,
+            "title": self.title,
+            "note": self.note,
+            "tags": list(self.tags),
+            "captured_utc": self.captured_utc,
+            "source_keys": list(self.source_keys),
+            "reference_key": self.reference_key,
+            "pair_target_key": self.pair_target_key,
+            "view_state": self.view_state.to_dict(),
+            "roi_ref": _rect_wire(self.roi_ref),
+            "line_ref": _rect_wire(self.line_ref, line=True),
+            "channel": self.channel,
+            "display_gain": self.display_gain,
+            "difference_intent": (
+                self.difference_intent.to_dict() if self.difference_intent else None
+            ),
+            "analysis": [item.to_dict() for item in self.analysis],
+            "availability": self.availability,
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewFindingV1:
-        d = _fields(raw, {"id", "title", "note", "tags", "captured_utc",
-                          "source_keys", "reference_key", "pair_target_key",
-                          "view_state", "roi_ref", "line_ref", "channel",
-                          "display_gain", "difference_intent", "analysis",
-                          "availability"}, "finding")
+        d = _fields(
+            raw,
+            {
+                "id",
+                "title",
+                "note",
+                "tags",
+                "captured_utc",
+                "source_keys",
+                "reference_key",
+                "pair_target_key",
+                "view_state",
+                "roi_ref",
+                "line_ref",
+                "channel",
+                "display_gain",
+                "difference_intent",
+                "analysis",
+                "availability",
+            },
+            "finding",
+        )
         if type(d["tags"]) is not list or any(type(v) is not str for v in d["tags"]):
             raise ReviewValidationError("tags must be string array")
         if type(d["analysis"]) is not list or len(d["analysis"]) > MAX_ANALYSIS_PER_FINDING:
             raise ReviewValidationError("analysis must be bounded array")
-        return cls(d["id"], d["title"], d["note"], tuple(d["tags"]),
-                   d["captured_utc"], _keys(d["source_keys"], maximum=6),
-                   d["reference_key"], d["pair_target_key"],
-                   ReviewViewStateV1.from_dict(d["view_state"]),
-                   _rect(d["roi_ref"]), _rect(d["line_ref"], line=True),
-                   d["channel"], d["display_gain"],
-                   ReviewDifferenceIntentV1.from_dict(d["difference_intent"])
-                   if d["difference_intent"] is not None else None,
-                   tuple(ReviewAnalysisCaptureV1.from_dict(item) for item in d["analysis"]),
-                   d["availability"])
+        return cls(
+            d["id"],
+            d["title"],
+            d["note"],
+            tuple(d["tags"]),
+            d["captured_utc"],
+            _keys(d["source_keys"], maximum=6),
+            d["reference_key"],
+            d["pair_target_key"],
+            ReviewViewStateV1.from_dict(d["view_state"]),
+            _rect(d["roi_ref"]),
+            _rect(d["line_ref"], line=True),
+            d["channel"],
+            d["display_gain"],
+            ReviewDifferenceIntentV1.from_dict(d["difference_intent"])
+            if d["difference_intent"] is not None
+            else None,
+            tuple(ReviewAnalysisCaptureV1.from_dict(item) for item in d["analysis"]),
+            d["availability"],
+        )
 
 
 @dataclass(frozen=True)
@@ -643,36 +760,60 @@ class ReviewDocumentV1:
             raise ReviewValidationError("invalid bounded local extensions")
 
     def to_dict(self) -> dict[str, Any]:
-        return {"kind": REVIEW_KIND, "schema_version": REVIEW_SCHEMA_VERSION,
-                "document_id": self.document_id, "app_version": self.app_version,
-                "created_utc": self.created_utc, "updated_utc": self.updated_utc,
-                "sources": [s.to_dict() for s in self.sources],
-                "workspace_intent": self.workspace_intent.to_dict(),
-                "findings": [f.to_dict() for f in self.findings],
-                "allow_local_paths": self.allow_local_paths,
-                "extensions": parse_bounded_json(self.extensions_json)}
+        return {
+            "kind": REVIEW_KIND,
+            "schema_version": REVIEW_SCHEMA_VERSION,
+            "document_id": self.document_id,
+            "app_version": self.app_version,
+            "created_utc": self.created_utc,
+            "updated_utc": self.updated_utc,
+            "sources": [s.to_dict() for s in self.sources],
+            "workspace_intent": self.workspace_intent.to_dict(),
+            "findings": [f.to_dict() for f in self.findings],
+            "allow_local_paths": self.allow_local_paths,
+            "extensions": parse_bounded_json(self.extensions_json),
+        }
 
     @classmethod
     def from_dict(cls, raw: object) -> ReviewDocumentV1:
-        d = _fields(raw, {"kind", "schema_version", "document_id", "app_version",
-                          "created_utc", "updated_utc", "sources",
-                          "workspace_intent", "findings", "allow_local_paths",
-                          "extensions"}, "Review root")
-        if d["kind"] != REVIEW_KIND or type(d["schema_version"]) is not int or (
-            d["schema_version"] != REVIEW_SCHEMA_VERSION
+        d = _fields(
+            raw,
+            {
+                "kind",
+                "schema_version",
+                "document_id",
+                "app_version",
+                "created_utc",
+                "updated_utc",
+                "sources",
+                "workspace_intent",
+                "findings",
+                "allow_local_paths",
+                "extensions",
+            },
+            "Review root",
+        )
+        if (
+            d["kind"] != REVIEW_KIND
+            or type(d["schema_version"]) is not int
+            or (d["schema_version"] != REVIEW_SCHEMA_VERSION)
         ):
             raise ReviewValidationError("unknown Review kind/future schema version")
         if type(d["sources"]) is not list or len(d["sources"]) > MAX_SOURCES:
             raise ReviewValidationError("invalid source collection")
         if type(d["findings"]) is not list or len(d["findings"]) > MAX_FINDINGS:
             raise ReviewValidationError("invalid finding collection")
-        return cls(d["document_id"], d["app_version"], d["created_utc"],
-                   d["updated_utc"],
-                   tuple(ReviewSourceV1.from_dict(s) for s in d["sources"]),
-                   ReviewWorkspaceIntentV1.from_dict(d["workspace_intent"]),
-                   tuple(ReviewFindingV1.from_dict(f) for f in d["findings"]),
-                   d["allow_local_paths"],
-                   canonical_json(d["extensions"], limit=MAX_EXTENSIONS_BYTES))
+        return cls(
+            d["document_id"],
+            d["app_version"],
+            d["created_utc"],
+            d["updated_utc"],
+            tuple(ReviewSourceV1.from_dict(s) for s in d["sources"]),
+            ReviewWorkspaceIntentV1.from_dict(d["workspace_intent"]),
+            tuple(ReviewFindingV1.from_dict(f) for f in d["findings"]),
+            d["allow_local_paths"],
+            canonical_json(d["extensions"], limit=MAX_EXTENSIONS_BYTES),
+        )
 
     def to_bytes(self) -> bytes:
         raw = canonical_json(self.to_dict())
@@ -686,15 +827,21 @@ class ReviewDocumentV1:
 
 def new_review(sources: tuple[ReviewSourceV1, ...] = ()) -> ReviewDocumentV1:
     now = utc_now()
-    return ReviewDocumentV1(str(uuid4()), __version__, now, now, sources,
-                            ReviewWorkspaceIntentV1(
-                                source_order=tuple(s.source_key for s in sources)),
-                            ())
+    return ReviewDocumentV1(
+        str(uuid4()),
+        __version__,
+        now,
+        now,
+        sources,
+        ReviewWorkspaceIntentV1(source_order=tuple(s.source_key for s in sources)),
+        (),
+    )
 
 
 @dataclass(frozen=True)
 class PortableReviewProjectionV1:
     """Fixed positive allowlist; never passes local dicts or arbitrary extensions."""
+
     payload_json: bytes
 
     def to_bytes(self) -> bytes:
@@ -707,8 +854,11 @@ def _snapshot_id(capture: ReviewAnalysisCaptureV1) -> str:
 
 
 def project_portable_review(
-    document: ReviewDocumentV1, *, disclose_titles: bool = False,
-    disclose_notes_and_tags: bool = False, disclose_source_names: bool = False,
+    document: ReviewDocumentV1,
+    *,
+    disclose_titles: bool = False,
+    disclose_notes_and_tags: bool = False,
+    disclose_source_names: bool = False,
 ) -> PortableReviewProjectionV1:
     """W10 can consume this safe base; free-text disclosure requires explicit UI review.
 
@@ -716,35 +866,46 @@ def project_portable_review(
     """
     names = {s.source_key: f"Source {i}" for i, s in enumerate(document.sources, 1)}
     source_rows = [
-        {"source_id": names[s.source_key],
-         "name": s.locator.basename if disclose_source_names else names[s.source_key],
-         "native_shape": list(s.native_signature.native_shape),
-         "reference_shape": list(s.native_signature.reference_shape),
-         "native_dtype": s.native_signature.native_dtype,
-         "channel_layout": s.native_signature.channel_layout,
-         "effective_bits": s.native_signature.effective_bits,
-         "fingerprint_state": s.fingerprint.state}
+        {
+            "source_id": names[s.source_key],
+            "name": s.locator.basename if disclose_source_names else names[s.source_key],
+            "native_shape": list(s.native_signature.native_shape),
+            "reference_shape": list(s.native_signature.reference_shape),
+            "native_dtype": s.native_signature.native_dtype,
+            "channel_layout": s.native_signature.channel_layout,
+            "effective_bits": s.native_signature.effective_bits,
+            "fingerprint_state": s.fingerprint.state,
+        }
         for s in document.sources
     ]
     finding_rows = []
     for index, finding in enumerate(document.findings, 1):
-        finding_rows.append({
-            "id": finding.id,
-            "title": finding.title if disclose_titles else f"Finding {index}",
-            "note": finding.note if disclose_notes_and_tags else "",
-            "tags": list(finding.tags) if disclose_notes_and_tags else [],
-            "source_ids": [names[key] for key in finding.source_keys],
-            "reference_source_id": names[finding.reference_key],
-            "pair_target_source_id": (names[finding.pair_target_key]
-                                      if finding.pair_target_key else None),
-            "roi_ref": _rect_wire(finding.roi_ref),
-            "line_ref": _rect_wire(finding.line_ref, line=True),
-            "channel": finding.channel, "availability": finding.availability,
-            "snapshot_ids": [_snapshot_id(a) for a in finding.analysis
-                             if a.status == "captured"],
-        })
-    payload = {"kind": PORTABLE_KIND, "schema_version": 1,
-               "sources": source_rows, "findings": finding_rows,
-               "user_text_included": bool(disclose_titles or disclose_notes_and_tags),
-               "source_names_included": disclose_source_names}
+        finding_rows.append(
+            {
+                "id": finding.id,
+                "title": finding.title if disclose_titles else f"Finding {index}",
+                "note": finding.note if disclose_notes_and_tags else "",
+                "tags": list(finding.tags) if disclose_notes_and_tags else [],
+                "source_ids": [names[key] for key in finding.source_keys],
+                "reference_source_id": names[finding.reference_key],
+                "pair_target_source_id": (
+                    names[finding.pair_target_key] if finding.pair_target_key else None
+                ),
+                "roi_ref": _rect_wire(finding.roi_ref),
+                "line_ref": _rect_wire(finding.line_ref, line=True),
+                "channel": finding.channel,
+                "availability": finding.availability,
+                "snapshot_ids": [
+                    _snapshot_id(a) for a in finding.analysis if a.status == "captured"
+                ],
+            }
+        )
+    payload = {
+        "kind": PORTABLE_KIND,
+        "schema_version": 1,
+        "sources": source_rows,
+        "findings": finding_rows,
+        "user_text_included": bool(disclose_titles or disclose_notes_and_tags),
+        "source_names_included": disclose_source_names,
+    }
     return PortableReviewProjectionV1(canonical_json(payload))
