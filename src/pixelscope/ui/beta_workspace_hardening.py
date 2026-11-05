@@ -166,7 +166,7 @@ class BetaWorkspaceHardeningController(QObject):
             settings.remove("ui/workspace_preset")
         self._recover_timer = QTimer(self)
         self._recover_timer.setSingleShot(True)
-        self._recover_timer.timeout.connect(self._recover_windows)
+        self._recover_timer.timeout.connect(self._recover_windows)  # type: ignore[attr-defined]
         self._recover_timer.start(0)
 
     @property
