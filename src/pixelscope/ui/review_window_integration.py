@@ -48,7 +48,6 @@ from pixelscope.ui.review_restore_controller import (
     RestoreReport,
     ReviewRestoreController,
 )
-from pixelscope.ui.workspace_presets import WorkspacePreset
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool

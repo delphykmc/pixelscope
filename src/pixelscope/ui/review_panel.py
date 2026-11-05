@@ -178,7 +178,6 @@ class ReviewPanel(QWidget):
         self.findings.clear()
         for finding in document.findings:
             source_count = len(finding.source_keys)
-            captures = sum(a.status == "captured" for a in finding.analysis)
             label = f"{finding.title}  ·  {source_count} image(s)"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, finding.id)
