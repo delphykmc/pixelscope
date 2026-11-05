@@ -932,3 +932,23 @@ Arbitrary-angle Line Profile is also deferred. Line Profile is an observation/
 sampling tool, so a future arbitrary-angle design requires an explicit discrete
 pixel-sampling/path and coordinate-display contract rather than implicitly adopting
 interpolation.
+
+## Named Findings integration (W09b)
+
+**View > Named Findings** and the Review workspace expose an immutable historical
+Finding library separate from Session v1. Add records the settled comparison page,
+Reference/Target recipe, ROI/Line, physical view, Sync and display gain; analysis is
+captured only with matching presented/current evidence. Uncomputed or stale analysis
+remains unavailable. Save/reopen uses the typed `.pxreview` CAS repository.
+
+Activation requires explicit per-source candidate/profile and relocation approval,
+SHA/native verification and canonical MainWindow staging. The current implementation
+supports profiled RAW/YUV within the 128 MiB decode-input budget; general PNG/JPEG
+Findings are unsupported. Loading and layout may remain Pending; failures after
+registration report partial state. User navigation cancels pending restoration.
+An applied restore includes the Sync button state, existing `Side by Side`/grid
+layouts and physical viewport intent. It restores a Difference recipe without
+Calculate or publication of past measurements as live results. Mixed-family analysis
+compatibility rules remain authoritative. Windows synthetic restart/full validation
+and its environment limits are recorded in the
+[W09b acceptance plan](exec-plans/active/issue-210-w09b-owner-acceptance.md).
