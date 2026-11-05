@@ -63,39 +63,46 @@ def _stored_source(path: Path, profile: RawProfile | YuvProfile) -> ReviewSource
         ReviewLocatorV1(path.name, local_path=str(path.resolve())),
         signature,
         ReviewFingerprintV1(
-            "sha256", hashlib.sha256(payload).hexdigest(), len(payload),
-            path.stat().st_mtime_ns, "verified",
+            "sha256",
+            hashlib.sha256(payload).hexdigest(),
+            len(payload),
+            path.stat().st_mtime_ns,
+            "verified",
         ),
     )
 
 
-@pytest.mark.parametrize("basename", [
-    "01_gray_10bit_u16le_lsb",
-    "01_gray_12bit_u16le_lsb",
-    "01_gray_14bit_u16le_lsb",
-    "02_bayer_10bit_01_rggb_u16le_lsb",
-    "02_bayer_10bit_02_rggb_mipi_raw10",
-    "02_bayer_10bit_03_rggb_packed_stream_msb",
-    "02_bayer_12bit_01_rggb_u16le_msb",
-    "02_bayer_12bit_02_rggb_mipi_raw12",
-    "02_bayer_14bit_01_rggb_mipi_raw14",
-])
+@pytest.mark.parametrize(
+    "basename",
+    [
+        "01_gray_10bit_u16le_lsb",
+        "01_gray_12bit_u16le_lsb",
+        "01_gray_14bit_u16le_lsb",
+        "02_bayer_10bit_01_rggb_u16le_lsb",
+        "02_bayer_10bit_02_rggb_mipi_raw10",
+        "02_bayer_10bit_03_rggb_packed_stream_msb",
+        "02_bayer_12bit_01_rggb_u16le_msb",
+        "02_bayer_12bit_02_rggb_mipi_raw12",
+        "02_bayer_14bit_01_rggb_mipi_raw14",
+    ],
+)
 def test_verified_raw_matches_production_reader_signature(basename):
     path = RAW / (basename + ".raw")
     profile = RawProfile.load_json(RAW / (basename + ".json"))
     source = _stored_source(path, profile)
-    outcome = verify_review_source(
-        source, path, ProductionNativeCandidateDecoder(profile)
-    )
+    outcome = verify_review_source(source, path, ProductionNativeCandidateDecoder(profile))
     assert outcome.status == "verified", outcome.reason
     assert outcome.may_bind_historical_finding
 
 
-@pytest.mark.parametrize("filename,layout", [
-    ("01_yuv444_16x12.yuv", "YUV444"),
-    ("02_yuv422_16x12.yuv", "YUV422"),
-    ("03_yuv420_16x12.yuv", "YUV420"),
-])
+@pytest.mark.parametrize(
+    "filename,layout",
+    [
+        ("01_yuv444_16x12.yuv", "YUV444"),
+        ("02_yuv422_16x12.yuv", "YUV422"),
+        ("03_yuv420_16x12.yuv", "YUV420"),
+    ],
+)
 def test_verified_yuv_matches_production_reader_signature(filename, layout):
     path = YUV / filename
     profile = YuvProfile(width=16, height=12, channel_layout=layout)
