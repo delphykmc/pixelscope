@@ -306,7 +306,21 @@ def test_reject_w02_channel_and_scope_mismatch(tmp_path):
     second = copy.deepcopy(context_sources[0])
     second["source_key"] = doc.sources[1].source_key
     complete_difference["findings"][0]["analysis"][0]["context"]["sources"].append(second)
+    complete_context = complete_difference["findings"][0]["analysis"][0]["context"]
+    complete_context["presentation"] = {
+        "mode": "Absolute",
+        "gain": "1",
+        "threshold": "10",
+        "pair_a": doc.sources[0].source_key,
+        "pair_b": doc.sources[1].source_key,
+    }
     ReviewDocumentV1.from_dict(complete_difference)
+
+    for field, value in (("mode", "Mask"), ("gain", "2"), ("threshold", "11")):
+        altered = copy.deepcopy(complete_difference)
+        altered["findings"][0]["analysis"][0]["context"]["presentation"][field] = value
+        with pytest.raises(ReviewValidationError, match="presentation recipe"):
+            ReviewDocumentV1.from_dict(altered)
 
     swapped = copy.deepcopy(complete_difference)
     swapped["findings"][0]["analysis"][0]["context"]["sources"].reverse()
