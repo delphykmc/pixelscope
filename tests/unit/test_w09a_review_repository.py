@@ -280,9 +280,9 @@ def test_w02_snapshot_to_capture_preserves_portable_wire(tmp_path):
             ),
         ),
     )
-    state = ReviewAnalysisCaptureV1.from_snapshot(explicitly_nonfinite).to_dict()[
-        "context"
-    ]["measurements"][0]
+    state = ReviewAnalysisCaptureV1.from_snapshot(explicitly_nonfinite).to_dict()["context"][
+        "measurements"
+    ][0]
     assert state["state"] == "nan"
     assert state["value"] is None
 
