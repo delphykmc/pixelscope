@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QSizePolicy, QSp
 from pixelscope.ui.design_tokens import WORKSPACE_CHROME_HEIGHT, panel_heading_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+from pixelscope.ui.workspace_presets import WorkspacePresetController
 
 
 def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
@@ -131,6 +132,7 @@ class BetaWorkspaceHardeningController(QObject):
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
         self._install_workspace_windows()
+        self.workspace_presets = WorkspacePresetController(window)
 
     @property
     def window(self) -> QMainWindow:
@@ -301,6 +303,7 @@ class BetaWorkspaceHardeningController(QObject):
     def quiesce_pending_callbacks(self) -> None:
         """Quiesce every managed dock's queued native-window adjustment."""
 
+        self.workspace_presets.quiesce_pending_callbacks()
         for controller in self._dock_controllers:
             controller.quiesce_pending_callbacks()
 

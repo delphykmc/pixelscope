@@ -11,6 +11,10 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
+    QStyle,
+    QStyleOptionComboBox,
+    QStylePainter,
+    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -163,6 +167,48 @@ class _ElidingMetadataLabel(QLabel):
     def _sync_metadata(self, text: str) -> None:
         self.setToolTip(text)
         self.setAccessibleName(f"{self._description}: {text}" if text else self._description)
+
+
+class _ElidingAliasCombo(QComboBox):
+    """Display abbreviated W05 aliases, but expose the exact source in accessibility/tooltip."""
+
+    def __init__(self, role: str, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._role = role
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802 - Qt API override
+        super().setCurrentIndex(index)
+        self._sync_full_alias()
+
+    def _sync_full_alias(self) -> None:
+        alias = self.currentText()
+        prefix = f"{self._role}: "
+        full = prefix + alias if alias else prefix.rstrip()
+        self.setToolTip(full)
+        self.setAccessibleDescription(full)
+
+    def paintEvent(self, _event: object) -> None:  # noqa: N802 - Qt API override
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        # Preserve the native combo frame/dropdown while eliding its display text.
+        option.currentText = self.fontMetrics().elidedText(  # type: ignore[attr-defined]
+            option.currentText,  # type: ignore[attr-defined]
+            Qt.TextElideMode.ElideMiddle,
+            max(
+                0,
+                self.style()
+                .subControlRect(
+                    QStyle.ComplexControl.CC_ComboBox,
+                    option,
+                    QStyle.SubControl.SC_ComboBoxEditField,
+                    self,
+                )
+                .width(),
+            ),
+        )
+        painter = QStylePainter(self)
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
+        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, option)
 
 
 def _replace_page_label(
@@ -530,17 +576,24 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     )
 
     if isinstance(clear_button, QAbstractButton):
+        # P4a keeps these intentionally compact in-row command labels. The
+        # neighboring Picked count, tooltip and accessible description disambiguate
+        # temporary Picks versus persistent Files Selected.
         clear_button.setText("Clear")
         clear_button.setAccessibleName("Clear Selection")
+        clear_button.setAccessibleDescription("Clear temporary Picks; Files Selected is unchanged")
         clear_button.setToolTip(
-            "Clear Selection: clear temporary Picks without changing Files Selected"
+            "Clear Selection: clear temporary Picks; Files Selected is unchanged"
         )
+        clear_button.setStatusTip(clear_button.toolTip())
     if isinstance(keep_button, QAbstractButton):
         keep_button.setText("Keep")
         keep_button.setAccessibleName("Keep Selection")
+        keep_button.setAccessibleDescription("Replace Files Selected with temporary Picks")
         keep_button.setToolTip(
-            "Keep Selection: replace Files Selected with temporary Picks in original order"
+            "Keep Selection: replace Files Selected with temporary Picks in original source order"
         )
+        keep_button.setStatusTip(keep_button.toolTip())
 
     gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     _install_command_row_metric_refresh(
@@ -779,9 +832,10 @@ def install_comparison_preset_controls(
     """
     from pixelscope.core.comparison_presets import ComparisonPreset
 
-    parent = window.presentation_controls
-    layout = window.presentation_controls_layout
-    group = QWidget(parent)
+    toolbar = window.main_toolbar
+    if not isinstance(toolbar, QToolBar):
+        raise RuntimeError("Comparison preset requires the existing main toolbar")
+    group = QWidget(toolbar)
     group.setObjectName("comparisonPresetControl")
     row = QHBoxLayout(group)
     row.setContentsMargins(0, 0, 0, 0)
@@ -796,19 +850,19 @@ def install_comparison_preset_controls(
     preset.setMinimumWidth(108)
     preset.setMaximumWidth(126)
 
-    reference = QComboBox(group)
+    reference = _ElidingAliasCombo("Reference A", group)
     reference.setObjectName("comparisonReferenceCombo")
     reference.setAccessibleName("Reference A source")
     reference.setToolTip("Reference A (independent of Primary, Active, and Picked)")
     reference.setMinimumWidth(70)
     reference.setMaximumWidth(124)
-    target = QComboBox(group)
+    target = _ElidingAliasCombo("Target B", group)
     target.setObjectName("comparisonTargetCombo")
     target.setAccessibleName("Target B source")
     target.setToolTip("Target B (pair change does not calculate Difference)")
     target.setMinimumWidth(70)
     target.setMaximumWidth(124)
-    status = QLabel("", group)
+    status = _ElidingMetadataLabel("", "Comparison preset Difference status", 145, group)
     status.setObjectName("comparisonPresetStatus")
     status.setAccessibleName("Comparison preset Difference status")
     status.setMaximumWidth(145)
@@ -820,15 +874,12 @@ def install_comparison_preset_controls(
     row.addWidget(status)
     group.setVisible(True)
 
-    insert_at = layout.count()
-    for index in range(layout.count()):
-        item = layout.itemAt(index)
-        if item is not None and item.spacerItem() is not None:
-            insert_at = index
-            break
-    layout.insertWidget(insert_at, group)
-    refresh_owner = getattr(window, "_command_row_metric_refresh", None)
-    refresh = getattr(refresh_owner, "refresh", None)
-    if callable(refresh):
-        refresh()
+    # The Main toolbar spans the window, unlike the Image row inside the
+    # horizontal splitter. Keep W05 controls before zoom/difference without
+    # consuming the available source viewer width.
+    before = getattr(window, "split_channels_action", None)
+    if before is not None and before in toolbar.actions():
+        toolbar.insertWidget(before, group)
+    else:
+        toolbar.addWidget(group)
     return group, preset, reference, target, status
