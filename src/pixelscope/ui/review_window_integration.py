@@ -61,7 +61,7 @@ class NamedReviewCoordinator:
         self._window_ref = weakref.ref(window)
         self.library = ReviewLibrary()
         self.panel = ReviewPanel()
-        self.dock = QDockWidget("Named Findings", window)
+        self.dock = QDockWidget("Memo", window)
         self.dock.setObjectName("namedReviewDock")
         self.dock.setWidget(self.panel)
         self.dock.setMinimumWidth(320)
@@ -74,6 +74,8 @@ class NamedReviewCoordinator:
         self.authority = MainWindowReviewRestoreAuthority(window, self.library.document)
         self.restore = ReviewRestoreController(self.library, self.authority, self.panel)
         self._approved: dict[str, ApprovedCandidate] = {}
+        self._auto_restore_id: str | None = None
+        self._skip_next_selection_restore = False
         self._capture_epoch = 0
         self._capture_worker: TaskWorker | None = None
         self._capture_task_id: str | None = None
@@ -85,8 +87,8 @@ class NamedReviewCoordinator:
         self._export_worker: TaskWorker | None = None
         self._export_cancel: Event | None = None
         self._closed = False
-        self.action = QAction("Named Findings", window)
-        self.action.setToolTip("Show or hide the Finding notes panel")
+        self.action = QAction("Memo", window)
+        self.action.setToolTip("Show or hide image inspection notes")
         self.action.setCheckable(True)
         self.action.triggered.connect(self._toggle_visibility)  # type: ignore[attr-defined]
         self.dock.visibilityChanged.connect(self._dock_visibility_changed)  # type: ignore[attr-defined]
@@ -110,12 +112,8 @@ class NamedReviewCoordinator:
         self.restore.verification_failed.connect(self._verification_failed)
         self.restore.restore_completed.connect(self._restored)
         self.panel.set_document(self.library.document)
-        hardening = getattr(window, "beta_workspace_hardening_controller", None)
-        self._workspace_presets = getattr(hardening, "workspace_presets", None)
-        if self._workspace_presets is not None:
-            self._workspace_presets.selector.currentIndexChanged.connect(self._workspace_changed)
-            if self._workspace_presets.preset is WorkspacePreset.REVIEW:
-                self.dock.show()
+        # Memo is an optional View dock, not a second workspace layout mode.
+        self._workspace_presets = None
 
     @property
     def window(self) -> Any:
@@ -154,10 +152,8 @@ class NamedReviewCoordinator:
 
     @Slot(int)
     def _workspace_changed(self, _index: int) -> None:
-        if self._closed or self._workspace_presets is None:
-            return
-        if self._workspace_presets.preset is WorkspacePreset.REVIEW:
-            self.show()
+        # Deprecated W06 layout integration: Memo is solely View-controlled.
+        return
 
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
@@ -328,6 +324,9 @@ class NamedReviewCoordinator:
                 display_gain=display_gain_state().gain,
                 difference_intent=recipe,
                 analysis_panel=panel,
+                # Editable local Memo bookmarks need their exact source paths.
+                # Portable HTML exports must explicitly strip these private paths.
+                persist_local_paths=True,
             )
             fence = capture_gui_fence(window, stage)
             epoch = self._capture_epoch
@@ -371,8 +370,9 @@ class NamedReviewCoordinator:
             if not all(item.still_loaded_as(current) for item in value.bindings):
                 raise ReviewValidationError("source generation changed during capture")
             self.library.add(value.finding, value.sources)
+            self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=value.finding.id)
-            self.panel.set_status("Captured immutable historical Finding (not current analysis)")
+            self.panel.set_status("Memo added. Select it later to revisit this ROI.")
         except (ValueError, KeyError, RuntimeError) as exc:
             self._error(f"Finding commit refused: {exc}")
 
@@ -396,8 +396,9 @@ class NamedReviewCoordinator:
             if not isinstance(tags, tuple):
                 raise ReviewValidationError("tags are not a tuple")
             self.library.edit(finding_id, title=title, note=note, tags=tags)
+            self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=finding_id)
-            self.panel.set_status("Edited metadata; immutable evidence unchanged")
+            self.panel.set_status("Memo updated")
         except (ValueError, KeyError) as exc:
             self._error(str(exc))
 
@@ -408,15 +409,76 @@ class NamedReviewCoordinator:
         try:
             self.library.delete(finding_id)
             self.panel.set_document(self.library.document)
+            self.panel.set_status("Memo deleted")
         except KeyError as exc:
             self._error(str(exc))
 
     @Slot(str)
     def select_finding(self, finding_id: str) -> None:
+        """Selecting a Memo is the one-click navigate/restore command.
+
+        Original saved paths are used only as candidates. Every source is
+        verified in the existing W09a worker before mutating the workspace.
+        Missing or ambiguous files are left for explicit user correction.
+        """
+        if self._closed:
+            return
+        if self._skip_next_selection_restore:
+            self._skip_next_selection_restore = False
+            return
         self.cancel_capture()
         self.restore.change_finding(finding_id)
+        self._auto_restore_id = None
         self._approved.clear()
         self.panel.set_resolutions({})
+        try:
+            finding = self.library.get(finding_id)
+            by_key = {source.source_key: source for source in self.library.document.sources}
+            missing: list[str] = []
+            for key in finding.source_keys:
+                source = by_key[key]
+                saved = source.locator.local_path
+                if saved is None:
+                    missing.append(key)
+                    continue
+                path = Path(saved)
+                if not path.is_file():
+                    missing.append(key)
+                    continue
+                suffix = path.suffix.lower()
+                profile: RawProfile | YuvProfile | None = None
+                if suffix in (".raw", ".yuv"):
+                    # A native profile must originate from a currently approved
+                    # loaded source, not from historical untrusted JSON.
+                    loaded = next(
+                        (
+                            document for document in self.window.documents.values()
+                            if document.source_path is not None
+                            and document.source_path.resolve() == path.resolve()
+                            and isinstance(document.raw_profile, RawProfile | YuvProfile)
+                        ),
+                        None,
+                    )
+                    if loaded is None:
+                        missing.append(key)
+                        continue
+                    profile = loaded.raw_profile
+                elif suffix not in ENCODED_IMAGE_EXTENSIONS:
+                    missing.append(key)
+                    continue
+                self._approved[key] = ApprovedCandidate(key, path, profile, False)
+            if missing:
+                self.panel.show_missing_images(tuple(missing))
+                self.panel.set_status(
+                    "Some images need locating. Choose Locate image to reconnect; "
+                    "your note remains available."
+                )
+                return
+            self._auto_restore_id = finding_id
+            self.verify()
+            self.panel.set_status("Opening saved memo and ROI…")
+        except (OSError, ValueError, KeyError) as exc:
+            self.panel.set_status(f"Memo cannot be reopened: {exc}")
 
     def open_dialog(self) -> None:
         if (
@@ -443,8 +505,10 @@ class NamedReviewCoordinator:
             self.library.open(chosen)
             self.authority.review = self.library.document
             self._approved.clear()
-            self.panel.set_document(self.library.document)
-            self.panel.set_status("Opened offline historical evidence; no Workspace was changed")
+            first = self.library.document.findings[0].id if self.library.document.findings else None
+            self.panel.set_document(self.library.document, selected_id=first)
+            if first is None:
+                self.panel.set_status("Memo opened. No saved notes yet.")
         except (OSError, ValueError) as exc:
             self._error(f"Open failed; existing Review retained: {exc}")
 
@@ -534,9 +598,17 @@ class NamedReviewCoordinator:
                 self.panel.set_status("Relink not approved; source remains unverified")
                 return
             self._approved[key] = ApprovedCandidate(key, path, profile, not same)
-            self.panel.set_status(
-                f"Candidate recorded for {source.locator.basename}; not verified yet"
-            )
+            selected = self.panel.selected_finding_id
+            if selected is not None:
+                finding = self.library.get(selected)
+                if all(key in self._approved for key in finding.source_keys):
+                    self._auto_restore_id = selected
+                    self.verify()
+                    self.panel.set_status("Reconnecting image and opening saved ROI…")
+                else:
+                    self.panel.show_missing_images(
+                        tuple(key for key in finding.source_keys if key not in self._approved)
+                    )
         except (ValueError, TypeError) as exc:
             self._error(f"Native profile invalid: {exc}")
 
@@ -554,12 +626,27 @@ class NamedReviewCoordinator:
     def _verified(self, epoch: int, results: object) -> None:
         if not self._closed and isinstance(results, dict) and epoch == self.restore.epoch:
             self.panel.set_resolutions(results)
-            self.panel.set_status("Verification complete; only fully Verified sources can activate")
+            selected = self.panel.selected_finding_id
+            if selected is not None and selected == self._auto_restore_id:
+                finding = self.library.get(selected)
+                if all(
+                    results.get(key) is not None
+                    and results[key].may_bind_historical_finding
+                    for key in finding.source_keys
+                ):
+                    self._auto_restore_id = None
+                    self.activate(selected)
+                    return
+                self.panel.set_status(
+                    "Saved image differs or is unavailable. Locate the correct image."
+                )
+            self._auto_restore_id = None
 
     @Slot(int, str)
     def _verification_failed(self, epoch: int, reason: str) -> None:
         if not self._closed and epoch == self.restore.epoch:
-            self.panel.set_status(f"Verification unavailable: {reason}")
+            self._auto_restore_id = None
+            self.panel.set_status(f"Memo image could not be opened: {reason}")
 
     def activate(self, finding_id: str) -> None:
         self.restore.activate(finding_id)
@@ -583,6 +670,7 @@ class NamedReviewCoordinator:
         self.cancel_capture()
         self.cancel_export()
         self.restore.shutdown()
+        self._auto_restore_id = None
         self._closed = True
         self.action.setEnabled(False)
 
