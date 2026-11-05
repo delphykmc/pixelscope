@@ -17,7 +17,7 @@ from pixelscope.core.review_analysis import (
     AnalysisSnapshotV1,
     AnalysisSourceV1,
     PresentedAnalysisTokenV1,
-     serialize_analysis_context,
+    serialize_analysis_context,
 )
 from pixelscope.core.review_analysis_native import AnalysisNativeInterpretationV1
 from pixelscope.core.review_record import (
@@ -55,20 +55,25 @@ def _key() -> str:
 
 
 def _native(digest: str = "1" * 64) -> ReviewNativeSignatureV1:
-    return ReviewNativeSignatureV1.from_dict({
-        "profile_signature": digest,
-        "native_shape": [4, 5],
-        "reference_shape": [4, 5],
-        "native_dtype": "uint8",
-        "channel_layout": "GRAY",
-        "effective_bits": 8,
-        "native_interpretation": AnalysisNativeInterpretationV1().to_portable(),
-    })
+    return ReviewNativeSignatureV1.from_dict(
+        {
+            "profile_signature": digest,
+            "native_shape": [4, 5],
+            "reference_shape": [4, 5],
+            "native_dtype": "uint8",
+            "channel_layout": "GRAY",
+            "effective_bits": 8,
+            "native_interpretation": AnalysisNativeInterpretationV1().to_portable(),
+        }
+    )
 
 
 def _source(
-    path: Path, *, source_key: str | None = None,
-    sha: str | None = None, local: bool = False,
+    path: Path,
+    *,
+    source_key: str | None = None,
+    sha: str | None = None,
+    local: bool = False,
     signature: ReviewNativeSignatureV1 | None = None,
 ) -> ReviewSourceV1:
     payload = path.read_bytes()
@@ -78,7 +83,10 @@ def _source(
         ReviewLocatorV1(path.name, local_path=str(path.resolve()) if local else None),
         signature or _native(),
         ReviewFingerprintV1(
-            "sha256", digest, len(payload), path.stat().st_mtime_ns,
+            "sha256",
+            digest,
+            len(payload),
+            path.stat().st_mtime_ns,
             "verified" if digest is not None else "unverified",
         ),
     )
@@ -131,14 +139,22 @@ def _snapshot(source_key: str) -> AnalysisSnapshotV1:
         captured_utc=utc_now(),
         token=token,
         sources=(source,),
-        measurements=(AnalysisMeasurementV1(
-            source_key, "Gray", "mean", 10.25, 4,
-        ),),
+        measurements=(
+            AnalysisMeasurementV1(
+                source_key,
+                "Gray",
+                "mean",
+                10.25,
+                4,
+            ),
+        ),
     )
 
 
 def _finding(
-    keys: tuple[str, ...], *, title: str = "색 번짐 / halo",
+    keys: tuple[str, ...],
+    *,
+    title: str = "색 번짐 / halo",
     analysis: tuple[ReviewAnalysisCaptureV1, ...] = (),
     finding_id: str | None = None,
 ) -> ReviewFindingV1:
@@ -157,12 +173,13 @@ def _finding(
         channel="All",
         display_gain=1.0,
         difference_intent=(
-            ReviewDifferenceIntentV1(keys[0], keys[1], "All", "Absolute",
-                                     10.0, 1, "Active ROI")
-            if len(keys) > 1 else None
+            ReviewDifferenceIntentV1(keys[0], keys[1], "All", "Absolute", 10.0, 1, "Active ROI")
+            if len(keys) > 1
+            else None
         ),
         analysis=analysis,
-        availability="available" if any(x.status == "captured" for x in analysis)
+        availability="available"
+        if any(x.status == "captured" for x in analysis)
         else "unavailable",
     )
 
@@ -173,19 +190,29 @@ def _review(tmp_path: Path, *, with_analysis: bool = False) -> ReviewDocumentV1:
     b.write_bytes(b"source-b-content")
     sources = (_source(a, sha="auto"), _source(b, sha="auto"))
     keys = tuple(s.source_key for s in sources)
-    analysis = (ReviewAnalysisCaptureV1.from_snapshot(_snapshot(keys[0])),) if (
-        with_analysis
-    ) else (ReviewAnalysisCaptureV1("unavailable", reason="not calculated"),)
+    analysis = (
+        (ReviewAnalysisCaptureV1.from_snapshot(_snapshot(keys[0])),)
+        if (with_analysis)
+        else (ReviewAnalysisCaptureV1("unavailable", reason="not calculated"),)
+    )
     finding = _finding(keys, analysis=analysis)
     return replace(
         new_review(sources),
         workspace_intent=ReviewWorkspaceIntentV1(
-            source_order=keys, selected_keys=keys, page_anchor_key=keys[0],
-            active_key=keys[1], primary_key=keys[0], layout_mode="Multi View",
+            source_order=keys,
+            selected_keys=keys,
+            page_anchor_key=keys[0],
+            active_key=keys[1],
+            primary_key=keys[0],
+            layout_mode="Multi View",
             display_gain=2.0,
         ),
-        findings=(finding, replace(_finding(keys, title="Texture loss 粒子"),
-                                   analysis=(), availability="unavailable")),
+        findings=(
+            finding,
+            replace(
+                _finding(keys, title="Texture loss 粒子"), analysis=(), availability="unavailable"
+            ),
+        ),
     )
 
 
@@ -209,8 +236,7 @@ def test_roundtrip_multiple_findings_unicode_w02_w04_and_session_unchanged(tmp_p
 
     # Session v1 continues to use its original repository and exact kind.
     local_path = str((tmp_path / "a.raw").resolve())
-    session = Session(registered_sources=(SessionSource(local_path),),
-                      selected_paths=(local_path,))
+    session = Session(registered_sources=(SessionSource(local_path),), selected_paths=(local_path,))
     old_repo = ComparisonSetRepository()
     legacy = old_repo.to_payload(session)
     assert legacy["kind"] == "pixelscope-session"
@@ -307,21 +333,27 @@ def test_resource_limits_duplicate_nested_keys_and_text_budget(tmp_path):
         ReviewDocumentV1.from_bytes(b" " * (MAX_REVIEW_BYTES + 1))
     with pytest.raises(ReviewValidationError, match="duplicate"):
         ReviewDocumentV1.from_bytes(
-            doc.to_bytes().replace(b'"schema_version":1,',
-                                   b'"schema_version":1,"schema_version":1,')
+            doc.to_bytes().replace(
+                b'"schema_version":1,', b'"schema_version":1,"schema_version":1,'
+            )
         )
 
 
 def test_local_path_opt_in_and_portable_projection_excludes_sensitive_data(tmp_path):
     doc = _review(tmp_path)
     sensitive = str((tmp_path / "PrivateUser" / "secrets" / "sample.raw").resolve())
-    sources = (replace(doc.sources[0],
-                       locator=ReviewLocatorV1("private.raw", local_path=sensitive)),
-               doc.sources[1])
+    sources = (
+        replace(doc.sources[0], locator=ReviewLocatorV1("private.raw", local_path=sensitive)),
+        doc.sources[1],
+    )
     with pytest.raises(ReviewValidationError, match="opt-in"):
         replace(doc, sources=sources)
-    local = replace(doc, sources=sources, allow_local_paths=True,
-                    extensions_json=canonical_json({"private": sensitive}))
+    local = replace(
+        doc,
+        sources=sources,
+        allow_local_paths=True,
+        extensions_json=canonical_json({"private": sensitive}),
+    )
     local_bytes = local.to_bytes()
     assert sensitive.encode() in local_bytes
     portable = project_portable_review(local).to_bytes()
@@ -345,8 +377,9 @@ def test_atomic_create_extension_collision_and_update_cas(tmp_path):
     with pytest.raises(ReviewConflictError):
         repo.save(target, doc)
     assert first.path.read_bytes() == original
-    changed = replace(doc, updated_utc=utc_now(),
-                      findings=(replace(doc.findings[0], title="new finding"),))
+    changed = replace(
+        doc, updated_utc=utc_now(), findings=(replace(doc.findings[0], title="new finding"),)
+    )
     with pytest.raises(ReviewConflictError):
         repo.save(target, changed, overwrite=True, expected_revision="0" * 64)
     result = repo.save(target, changed, overwrite=True, expected_revision=first.revision_sha256)
@@ -367,8 +400,9 @@ def test_overwrite_rejects_unrelated_and_session_and_source(tmp_path):
     bad = tmp_path / "old.pxreview"
     bad.write_text('{"kind":"pixelscope-session","schema_version":1}', encoding="utf-8")
     with pytest.raises(ReviewConflictError):
-        repo.save(bad, doc, overwrite=True,
-                  expected_revision=hashlib.sha256(bad.read_bytes()).hexdigest())
+        repo.save(
+            bad, doc, overwrite=True, expected_revision=hashlib.sha256(bad.read_bytes()).hexdigest()
+        )
     protected = tmp_path / "protected.pxreview"
     protected.write_bytes(b"ORIGINAL SOURCE")
     with pytest.raises(ReviewConflictError):
@@ -388,6 +422,7 @@ def test_atomic_cancel_partial_write_and_permission_errors(tmp_path, monkeypatch
 
     def fail_link(source, destination):
         raise PermissionError("denied/locked")
+
     with monkeypatch.context() as patch:
         patch.setattr(module.os, "link", fail_link)
         with pytest.raises(PermissionError):
@@ -397,8 +432,10 @@ def test_atomic_cancel_partial_write_and_permission_errors(tmp_path, monkeypatch
 
     with monkeypatch.context() as patch:
         original_fsync = module.os.fsync
+
         def fail_fsync(fd):
             raise OSError("disk full")
+
         patch.setattr(module.os, "fsync", fail_fsync)
         with pytest.raises(OSError):
             repo.save(target, doc)
@@ -421,15 +458,13 @@ def test_existing_read_only_and_locked_destination(tmp_path):
     os.chmod(saved.path, 0o444)
     try:
         with pytest.raises(ReviewConflictError):
-            repo.save(saved.path, doc, overwrite=True,
-                      expected_revision=saved.revision_sha256)
+            repo.save(saved.path, doc, overwrite=True, expected_revision=saved.revision_sha256)
     finally:
         os.chmod(saved.path, 0o644)
     locked = tmp_path / ".readonly.pxreview.lock"
     locked.write_bytes(b"locked")
     with pytest.raises(ReviewConflictError):
-        repo.save(saved.path, doc, overwrite=True,
-                  expected_revision=saved.revision_sha256)
+        repo.save(saved.path, doc, overwrite=True, expected_revision=saved.revision_sha256)
     assert locked.read_bytes() == b"locked"
 
 
@@ -493,21 +528,20 @@ def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
     source = _source(path, sha="auto")
     assert verify_review_source(source, None, _native()).status == "missing"
     assert verify_review_source(source, path.with_name("absent.bin"), _native()).status == "missing"
-    mismatch = verify_review_source(source, path, lambda: _native("2" * 64),
-                                    confirmed_by_user=True)
+    mismatch = verify_review_source(source, path, lambda: _native("2" * 64), confirmed_by_user=True)
     assert mismatch.status == "unsupported_profile"
     assert mismatch.verification == "digest_match"
-    unverified = replace(source, fingerprint=replace(
-        source.fingerprint, digest=None, state="unverified"
-    ))
+    unverified = replace(
+        source, fingerprint=replace(source.fingerprint, digest=None, state="unverified")
+    )
     result = verify_review_source(unverified, path, lambda: _native(), confirmed_by_user=True)
     assert result.status == "candidate_unverified"
     with pytest.raises(ReviewCancelled):
         stream_source_sha256(path, cancel=lambda: True)
     events = []
-    probe = stream_source_sha256(path, progress=lambda completed, total: events.append(
-        (completed, total)
-    ))
+    probe = stream_source_sha256(
+        path, progress=lambda completed, total: events.append((completed, total))
+    )
     assert probe.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
     assert events[-1] == (len(path.read_bytes()), len(path.read_bytes()))
 
@@ -516,12 +550,15 @@ def test_hash_revision_changed_during_progress_is_not_verified(tmp_path):
     path = tmp_path / "unstable.raw"
     path.write_bytes(b"a" * 10000)
     source = _source(path, sha="auto")
+
     def mutation(completed, total):
         path.write_bytes(b"b" * 10000)
+
     with pytest.raises(SourceHashUnstable):
         stream_source_sha256(path, progress=mutation)
     path.write_bytes(b"a" * 10000)
-    result = verify_review_source(source, path, lambda: _native(), confirmed_by_user=True,
-                                  progress=mutation)
+    result = verify_review_source(
+        source, path, lambda: _native(), confirmed_by_user=True, progress=mutation
+    )
     assert result.status == "candidate_unverified"
     assert not result.may_bind_historical_finding
