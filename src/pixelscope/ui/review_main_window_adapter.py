@@ -24,6 +24,7 @@ from pixelscope.ui.review_restore_controller import (
     RestoreReport,
 )
 from pixelscope.ui.review_view_state_adapter import (
+    ReviewRestoreResult,
     VerifiedViewSource,
     restore_review_view_state,
 )
@@ -52,6 +53,7 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         self._committed_epoch: int | None = None
         self._overlay_epoch: int | None = None
         self._recipe_epoch: int | None = None
+        self._single_applied_epoch: int | None = None
 
     @property
     def window(self) -> Any:
@@ -126,6 +128,7 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         self._committed_epoch = plan.epoch
         self._overlay_epoch = None
         self._recipe_epoch = None
+        self._single_applied_epoch = None
         self._binding.clear()
         # The registration phase is the irreversible commit point. Failures
         # after this point must be reported as partial; never claim rollback.
@@ -165,14 +168,18 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                     current.generation,
                 )
             window._select_document_ids(selected_ids)
-            if window._layout_mode != "Multi View":
-                window.set_layout_mode("Multi View")
+            desired_layout = (
+                "Single View" if plan.finding.view_state.layout_kind == "Single" else "Multi View"
+            )
+            if window._layout_mode != desired_layout:
+                window.set_layout_mode(desired_layout)
             primary_id = self._binding[plan.finding.view_state.primary_source_key][0]
             window._set_focus_document(primary_id)
             window.comparison_analysis_panel.bind_review_source_keys(
                 {doc_id: key for key, (doc_id, _) in self._binding.items()}
             )
-            window.multi_compare_view.begin_review_restore(plan.epoch)
+            if plan.finding.view_state.layout_kind != "Single":
+                window.multi_compare_view.begin_review_restore(plan.epoch)
             display_gain_state().set_gain(plan.finding.display_gain)
             # Reused/resident sources can settle synchronously: apply immediately.
             return self.retry(plan)
@@ -239,12 +246,16 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             if recipe_reason is not None:
                 return RestoreReport(plan.epoch, "unavailable", recipe_reason, True)
             self._recipe_epoch = plan.epoch
-        state = restore_review_view_state(
-            window.multi_compare_view,
-            plan.finding.view_state,
-            bound,
-            epoch=plan.epoch,
-            presentation_mode="originals",
+        state = (
+            self._restore_single_view(plan, bound)
+            if plan.finding.view_state.layout_kind == "Single"
+            else restore_review_view_state(
+                window.multi_compare_view,
+                plan.finding.view_state,
+                bound,
+                epoch=plan.epoch,
+                presentation_mode="originals",
+            )
         )
         if state.status == "applied":
             # W04 restores the viewport owner. Mirror its committed Sync state
@@ -276,6 +287,51 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             state.reason or state.status,
             state.partial_state or state.status == "unavailable",
         )
+
+    def _restore_single_view(
+        self,
+        plan: RestorePlan,
+        bound: dict[str, VerifiedViewSource],
+    ) -> ReviewRestoreResult:
+        """Apply a one-image Memo through the actual Single View owner.
+
+        W04 multi-view restore is intentionally not invoked on its hidden
+        viewer. Controller epoch and actual display readiness still gate all
+        asynchronous transitions.
+        """
+        epoch = plan.epoch
+        window = self.window
+        state = plan.finding.view_state
+        if self._committed_epoch != epoch:
+            return ReviewRestoreResult("interrupted", epoch, "single-epoch-revoked")
+        if self._single_applied_epoch == epoch:
+            return ReviewRestoreResult("interrupted", epoch, "single-already-applied")
+        key = state.page_source_keys[0]
+        viewer = window.viewer
+        expected = bound[key].document
+        if (
+            window.central_stack.currentWidget() is not viewer
+            or viewer.document is not expected
+            or viewer.presented_document is not expected
+            or viewer._geometry_timer.isActive()
+            or viewer._display_preview_worker is not None
+            or viewer._graphics_resources_disposed
+        ):
+            return ReviewRestoreResult("pending", epoch, "single-view-not-settled")
+        target = state.per_source.get(key)
+        if target is None:
+            return ReviewRestoreResult("unavailable", epoch, "single-viewport-not-recorded")
+        measurement = viewer.measure_physical_zoom()
+        if not measurement.valid:
+            return ReviewRestoreResult("pending", epoch, "physical-zoom-not-ready")
+        result = viewer.set_physical_zoom(
+            target.physical_scale * 100.0,
+            target.center_ref_xy,
+        )
+        if not result.achieved:
+            return ReviewRestoreResult("pending", epoch, "single-physical-zoom-pending")
+        self._single_applied_epoch = epoch
+        return ReviewRestoreResult("applied", epoch, "single memo ROI and viewport restored")
 
     def _difference_recipe_matches(self, plan: RestorePlan) -> bool:
         intent = plan.finding.difference_intent
@@ -365,4 +421,5 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             self._committed_epoch = None
             self._overlay_epoch = None
             self._recipe_epoch = None
+            self._single_applied_epoch = None
             self._binding.clear()
