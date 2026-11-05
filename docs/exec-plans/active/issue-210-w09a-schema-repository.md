@@ -19,6 +19,17 @@ Baseline main: 44c9e53df2b6bc074444b2291f27e2c9f38c8ecc.
   Size, basename and mtime are NOT source identity.
 - W02 context serializer/parser and W04 DTO serializer/parser are reused.
   W02 ephemeral runtime document identities are never persisted.
+- Strict captured-evidence policy: W02 ROI/scope and channel MUST match the
+  named Finding; the complete W02 source native interpretation and any present
+  digest MUST match the saved ReviewSource for the same UUID. W04 reference
+  geometry MUST match every ReviewSource reference_shape, not just the W04
+  page-internal shapes. W02 Difference captures additionally require an exact
+  ordered reference/target pair, channel, region and non-null cache identity.
+  These checks are not an independent attestation of Difference mode/threshold:
+  W09b must establish that from the exact currently presented request/token.
+  Otherwise store an explicit unavailable record rather than misbind evidence.
+- All programmatically supplied record collections are normalized to immutable
+  tuples; the terminal newline is included in the Review byte budget.
 
 ## Strict JSON limits
 
@@ -81,13 +92,27 @@ Statuses: verified; candidate_unverified; changed; missing; unsupported_profile.
 Only verified permits binding of old source identity, requiring exact SHA-256
 AND exact native interpretation. User consent is mandatory for every relocated
 candidate, even if hash matches; it is never sufficient without a hash.
-Stat descriptor/path stability is checked around SHA-256 and the native
-decoder signature. To return Verified, the signature argument MUST be a
-callable that evaluates the current candidate during this revision check; an
-already-cached signature DTO is intentionally insufficient and yields
-candidate_unverified. The W09b caller is responsible for producing the
-decode signature against the actual candidate file revision in a bounded
-worker, without auto-search, auto-relink or silent source replacement.
+The Source Verification trust boundary is now an explicit abstract
+CandidateNativeDecoderV1 adapter, NOT an arbitrary callable. Its
+`decode_signature(probe: CandidateDecodeProbeV1)` method receives the exact
+candidate absolute path, immutable opened-file revision and a restricted
+read/seek stream tied to the same file handle used for SHA-256. Returning a
+cached DTO, a lambda, or an adapter that reads ZERO bytes never results in
+Verified; mismatched actual signatures are unsupported_profile and a changing
+source revision is candidate_unverified. Hashing uses 1 MiB streaming chunks
+and checks descriptor/path identity before/after decoder reads. Verified
+requires both SHA-256 and the native signature to match, plus relocation
+consent when appropriate.
+
+**Trusted adapter caveat:** byte consumption is a necessary but not a sufficient
+proof of semantic decoding. Python cannot establish that an arbitrary decoder
+actually derived every native profile field from those bytes. W09b MUST supply
+an independently reviewed, application-owned native decoder adapter that uses
+the selected RAW/YUV/profile interpretation of the candidate, not a cached
+Review/Document signature. W09a's synthetic byte-dependent test adapter is
+NOT production authorization. Until that W09b integration and review gate,
+no Qt workflow may claim historical source verification. No auto-search,
+auto-relink or silent replacement is implemented here.
 
 W09b restore must activate a finding only when ALL referenced source keys,
 including Reference/Primary, are verified. Unverified/missing/changed findings
