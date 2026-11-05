@@ -7,11 +7,11 @@ the repository never searches, relinks, imports or restores UI sources itself.
 from __future__ import annotations
 
 import hashlib
-from abc import ABC, abstractmethod
 import os
 import stat
 import tempfile
 import threading
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
