@@ -7,6 +7,7 @@ the repository never searches, relinks, imports or restores UI sources itself.
 from __future__ import annotations
 
 import hashlib
+from abc import ABC, abstractmethod
 import os
 import stat
 import tempfile
@@ -30,9 +31,8 @@ REVIEW_SUFFIX = ".pxreview"
 HASH_CHUNK_BYTES = 1024 * 1024
 CancelCheck = Callable[[], bool]
 ProgressCallback = Callable[[int, int], None]
-# A trusted W09b decoder must derive a signature by reading the supplied
-# already-open candidate stream. Returning a saved/cached DTO alone never verifies.
-SignatureProvider = Callable[["CandidateDecodeProbeV1"], ReviewNativeSignatureV1]
+# Native identity may be asserted only by an explicitly owned decoder adapter,
+# never by a duck-typed lambda wrapping a cached profile or stale DTO.
 
 
 class ReviewRepositoryError(OSError):
@@ -153,6 +153,22 @@ class CandidateDecodeProbeV1:
         return self._handle.tell()
 
 
+class CandidateNativeDecoderV1(ABC):
+    """Trust boundary: W09b supplies an audited candidate-native decoder.
+
+    Implementations MUST derive the profile and native interpretation from the
+    supplied candidate stream and a separately selected input profile; they
+    must never return a prior Review/Document signature or use a preview cache.
+    The repository verifies actual stream consumption, SHA-256 and same-file
+    revision. Native decoding semantics remain the responsibility of this
+    application-owned, independently reviewed adapter.
+    """
+
+    @abstractmethod
+    def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+        """Decode/probe candidate data and return its actual native interpretation."""
+
+
 def stream_source_sha256(
     path: str | Path,
     *,
@@ -204,7 +220,7 @@ def stream_source_sha256(
 def verify_review_source(
     source: ReviewSourceV1,
     candidate_path: str | Path | None,
-    native_signature: ReviewNativeSignatureV1 | SignatureProvider | None,
+    native_signature: ReviewNativeSignatureV1 | CandidateNativeDecoderV1 | None,
     *,
     confirmed_by_user: bool = False,
     cancel: CancelCheck | None = None,
@@ -276,12 +292,14 @@ def verify_review_source(
             if processed != before.st_size or _identity(os.fstat(handle.fileno())) != revision:
                 raise SourceHashUnstable("candidate changed during SHA-256")
             digest = sha.hexdigest()
-            if prior_sha is not None and digest == prior_sha and callable(native_signature):
+            if prior_sha is not None and digest == prior_sha and isinstance(
+                native_signature, CandidateNativeDecoderV1
+            ):
                 _cancel_if_requested(cancel)
                 handle.seek(0)
                 probe = CandidateDecodeProbeV1(handle, path.absolute(), revision, cancel)
                 try:
-                    current_signature = native_signature(probe)
+                    current_signature = native_signature.decode_signature(probe)
                 except (ValueError, TypeError, UnicodeError) as exc:
                     return outcome(
                         "unsupported_profile", "digest_match",
@@ -308,10 +326,10 @@ def verify_review_source(
         )
     if digest != prior_sha:
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
-    if not callable(native_signature):
+    if not isinstance(native_signature, CandidateNativeDecoderV1):
         return outcome(
             "candidate_unverified", "digest_match",
-            "a precomputed native signature is not fresh decoder evidence"
+            "verified binding requires an explicitly owned CandidateNativeDecoderV1"
         )
     if bytes_decoded <= 0:
         return outcome(
