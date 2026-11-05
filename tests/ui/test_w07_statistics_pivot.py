@@ -217,3 +217,33 @@ def test_difference_metric_native_and_normalized_unit_columns(qtbot: object) -> 
     assert normalized.metrics.item(3, 2).text() == "dB"
     normalized.shutdown()
     normalized.close()
+
+
+def test_same_size_different_roi_coordinates_republish_native_statistics(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.show()
+    gray = np.arange(64, dtype=np.uint8).reshape(8, 8)
+    source = np.stack((gray, gray, gray), axis=-1)
+    doc = ImageDocument.from_array(source, "gradient.png")
+    first_roi = RoiBounds(0, 0, 2, 2)
+    second_roi = RoiBounds(3, 3, 2, 2)
+    panel.set_documents([doc], first_roi, "Active ROI")
+    _ready(panel, qtbot)
+    first = panel.get_current_statistics_pivot()
+    assert first is not None and first.token.roi_ref == (0, 0, 2, 2)
+    first_mean = next(row for row in first.rows if row.metric == "Mean" and row.channel == "R")
+    assert first_mean.cells[0].sample_count == 4
+
+    panel.set_documents([doc], second_roi, "Active ROI")
+    assert panel.get_current_statistics_pivot() is None
+    _ready(panel, qtbot)
+    second = panel.get_current_statistics_pivot()
+    assert second is not None and second.token.roi_ref == (3, 3, 2, 2)
+    second_mean = next(row for row in second.rows if row.metric == "Mean" and row.channel == "R")
+    assert second_mean.cells[0].sample_count == 4
+    assert second_mean.cells[0].value != first_mean.cells[0].value
+    panel.shutdown()
+    panel.close()
