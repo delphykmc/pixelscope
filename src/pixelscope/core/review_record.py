@@ -412,8 +412,13 @@ class ReviewWorkspaceIntentV1:
     split_channels: bool = False
 
     def __post_init__(self) -> None:
-        _keys(self.source_order, maximum=MAX_SOURCES, allow_empty=True)
-        _keys(self.selected_keys, maximum=MAX_SOURCES, allow_empty=True)
+        # Frozen DTOs must not retain mutable lists from programmatic callers.
+        object.__setattr__(
+            self, "source_order", _keys(self.source_order, maximum=MAX_SOURCES, allow_empty=True)
+        )
+        object.__setattr__(
+            self, "selected_keys", _keys(self.selected_keys, maximum=MAX_SOURCES, allow_empty=True)
+        )
         if not set(self.selected_keys) <= set(self.source_order):
             raise ReviewValidationError("selection outside source order")
         for value in (self.page_anchor_key, self.active_key, self.primary_key):
@@ -581,12 +586,15 @@ class ReviewFindingV1:
         _uuid(self.id)
         _text(self.title, "title", 256, nonblank=True)
         _text(self.note, "note", MAX_NOTE_BYTES)
+        if type(self.tags) not in (tuple, list):
+            raise ReviewValidationError("finding tags must be a sequence")
+        object.__setattr__(self, "tags", tuple(self.tags))
         if len(self.tags) > 32 or len(set(self.tags)) != len(self.tags):
             raise ReviewValidationError("invalid/duplicate finding tags")
         for tag in self.tags:
             _text(tag, "tag", 256, nonblank=True)
         _time(self.captured_utc)
-        _keys(self.source_keys, maximum=6)
+        object.__setattr__(self, "source_keys", _keys(self.source_keys, maximum=6))
         if _uuid(self.reference_key) not in self.source_keys:
             raise ReviewValidationError("reference is not part of finding")
         if self.pair_target_key is not None and (
@@ -622,6 +630,9 @@ class ReviewFindingV1:
                 d.reference_key != self.reference_key or d.target_key != self.pair_target_key
             ):
                 raise ReviewValidationError("difference recipe disagrees with pair")
+        if type(self.analysis) not in (tuple, list):
+            raise ReviewValidationError("analysis captures must be a sequence")
+        object.__setattr__(self, "analysis", tuple(self.analysis))
         if len(self.analysis) > MAX_ANALYSIS_PER_FINDING:
             raise ReviewValidationError("too many analysis captures")
         snapshot_ids: set[str] = set()
@@ -634,7 +645,8 @@ class ReviewFindingV1:
                 context_sources = cast(list[dict[str, Any]], context["sources"])
                 if not {s["source_key"] for s in context_sources} <= set(self.source_keys):
                     raise ReviewValidationError("analysis source outside finding")
-                snapshot_id = cast(str, context["snapshot_id"])
+                # The W02 parser allows opaque snapshot IDs; Review v1 requires UUIDs.
+                snapshot_id = _uuid(context["snapshot_id"])
                 if snapshot_id in snapshot_ids:
                     raise ReviewValidationError("duplicate analysis snapshot id")
                 snapshot_ids.add(snapshot_id)
@@ -735,8 +747,14 @@ class ReviewDocumentV1:
         updated = datetime.fromisoformat(self.updated_utc.replace("Z", "+00:00"))
         if created > updated:
             raise ReviewValidationError("update precedes creation")
+        if type(self.sources) not in (tuple, list) or type(self.findings) not in (tuple, list):
+            raise ReviewValidationError("Review collections must be sequences")
         if len(self.sources) > MAX_SOURCES or len(self.findings) > MAX_FINDINGS:
             raise ReviewValidationError("review collection exceeds resource limits")
+        object.__setattr__(self, "sources", tuple(self.sources))
+        object.__setattr__(self, "findings", tuple(self.findings))
+        if any(not isinstance(source, ReviewSourceV1) for source in self.sources):
+            raise ReviewValidationError("invalid Review source collection")
         source_keys = tuple(item.source_key for item in self.sources)
         if len(set(source_keys)) != len(source_keys):
             raise ReviewValidationError("duplicate Review source UUID")
@@ -749,6 +767,7 @@ class ReviewDocumentV1:
         if not self.allow_local_paths and any(s.locator.local_path for s in self.sources):
             raise ReviewValidationError("local path requires explicit Review opt-in")
         ids: set[str] = set()
+        source_by_key = {source.source_key: source for source in self.sources}
         for finding in self.findings:
             if not isinstance(finding, ReviewFindingV1):
                 raise ReviewValidationError("invalid finding object")
@@ -757,6 +776,38 @@ class ReviewDocumentV1:
             ids.add(finding.id)
             if not set(finding.source_keys) <= set(source_keys):
                 raise ReviewValidationError("finding references missing source")
+            # Reject counterfeit W02 context and W04 reference geometry before
+            # a historical source key can ever be rebound to loaded content.
+            for key in finding.source_keys:
+                expected_shape = source_by_key[key].native_signature.reference_shape
+                if finding.view_state.source_shapes_ref[key] != expected_shape:
+                    raise ReviewValidationError("finding W04 shape disagrees with source signature")
+            for analysis in finding.analysis:
+                if analysis.status != "captured":
+                    continue
+                assert analysis.context_json is not None
+                context = parse_analysis_context(analysis.context_json)
+                context_roi = context["roi_ref"]
+                if context_roi is not None and tuple(context_roi) != finding.roi_ref:
+                    raise ReviewValidationError("W02 analysis ROI disagrees with finding")
+                for captured in cast(list[dict[str, Any]], context["sources"]):
+                    expected = source_by_key[captured["source_key"]]
+                    signature = expected.native_signature
+                    if (
+                        captured["profile_signature"] != signature.profile_signature
+                        or tuple(captured["native_shape"]) != signature.native_shape
+                        or tuple(captured["reference_shape"]) != signature.reference_shape
+                        or captured["native_dtype"] != signature.native_dtype
+                        or captured["channel_layout"] != signature.channel_layout
+                        or captured["effective_bits"] != signature.effective_bits
+                        or captured["native_interpretation"] != signature.to_dict()["native_interpretation"]
+                    ):
+                        raise ReviewValidationError("W02 source interpretation conflicts with Review")
+                    captured_digest = captured["sha256"]
+                    if captured_digest is not None and (
+                        captured_digest != expected.fingerprint.digest
+                    ):
+                        raise ReviewValidationError("W02 source fingerprint conflicts with Review")
         extensions = parse_bounded_json(self.extensions_json)
         if type(extensions) is not dict or len(self.extensions_json) > MAX_EXTENSIONS_BYTES:
             raise ReviewValidationError("invalid bounded local extensions")
@@ -818,7 +869,8 @@ class ReviewDocumentV1:
         )
 
     def to_bytes(self) -> bytes:
-        raw = canonical_json(self.to_dict())
+        # Reserve the trailing newline inside the same 16 MiB read/write budget.
+        raw = canonical_json(self.to_dict(), limit=MAX_REVIEW_BYTES - 1)
         ReviewDocumentV1.from_dict(parse_bounded_json(raw))
         return raw + b"\n"
 
