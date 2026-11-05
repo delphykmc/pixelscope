@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 from uuid import UUID
 
 from pixelscope.core.review_record import (
@@ -29,7 +30,9 @@ REVIEW_SUFFIX = ".pxreview"
 HASH_CHUNK_BYTES = 1024 * 1024
 CancelCheck = Callable[[], bool]
 ProgressCallback = Callable[[int, int], None]
-SignatureProvider = Callable[[Path], ReviewNativeSignatureV1]
+# A trusted W09b decoder must derive a signature by reading the supplied
+# already-open candidate stream. Returning a saved/cached DTO alone never verifies.
+SignatureProvider = Callable[["CandidateDecodeProbeV1"], ReviewNativeSignatureV1]
 
 
 class ReviewRepositoryError(OSError):
@@ -115,6 +118,39 @@ def _cancel_if_requested(cancel: CancelCheck | None) -> None:
 
 def _identity(st: os.stat_result) -> tuple[int, int, int, int, int]:
     return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+class CandidateDecodeProbeV1:
+    """Read-only, cancellation-aware candidate stream bound to one file revision.
+
+    The trusted W09b profile/decoder adapter receives the candidate path and
+    revision, but must obtain input bytes through read() on THIS open handle.
+    No historical signature or profile is supplied as a shortcut.
+    """
+
+    def __init__(
+        self, handle: BinaryIO, path: Path, revision: tuple[int, int, int, int, int],
+        cancel: CancelCheck | None,
+    ) -> None:
+        self._handle = handle
+        self._cancel = cancel
+        self.path = path
+        self.revision = revision
+        self.bytes_read = 0
+
+    def read(self, size: int = -1) -> bytes:
+        _cancel_if_requested(self._cancel)
+        data = self._handle.read(size)
+        self.bytes_read += len(data)
+        _cancel_if_requested(self._cancel)
+        return data
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        _cancel_if_requested(self._cancel)
+        return self._handle.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self._handle.tell()
 
 
 def stream_source_sha256(
@@ -210,69 +246,93 @@ def verify_review_source(
     same_saved_path = saved_path is not None and os.path.normcase(
         os.path.realpath(path)
     ) == os.path.normcase(os.path.realpath(saved_path))
+    prior_sha = source.fingerprint.digest
     try:
-        initial_revision = _identity(path.stat())
-        probe = stream_source_sha256(path, cancel=cancel, progress=progress, max_bytes=max_bytes)
+        before = path.stat()
+        revision = _identity(before)
+        if not stat.S_ISREG(before.st_mode):
+            return outcome("candidate_unverified", "unavailable", "not a regular candidate file")
+        if max_bytes is not None and before.st_size > max_bytes:
+            return outcome("candidate_unverified", "unavailable", "hash budget exceeded")
+        sha = hashlib.sha256()
+        processed = 0
+        current_signature: ReviewNativeSignatureV1 | None = None
+        bytes_decoded = 0
+        digest: str
+        with path.open("rb") as handle:
+            if _identity(os.fstat(handle.fileno())) != revision:
+                raise SourceHashUnstable("candidate changed before opening")
+            while True:
+                _cancel_if_requested(cancel)
+                data = handle.read(HASH_CHUNK_BYTES)
+                if not data:
+                    break
+                processed += len(data)
+                if max_bytes is not None and processed > max_bytes:
+                    raise ReviewRepositoryError("hash budget exceeded")
+                sha.update(data)
+                if progress is not None:
+                    progress(processed, before.st_size)
+            if processed != before.st_size or _identity(os.fstat(handle.fileno())) != revision:
+                raise SourceHashUnstable("candidate changed during SHA-256")
+            digest = sha.hexdigest()
+            if prior_sha is not None and digest == prior_sha and callable(native_signature):
+                _cancel_if_requested(cancel)
+                handle.seek(0)
+                probe = CandidateDecodeProbeV1(handle, path.absolute(), revision, cancel)
+                try:
+                    current_signature = native_signature(probe)
+                except (ValueError, TypeError, UnicodeError) as exc:
+                    return outcome(
+                        "unsupported_profile", "digest_match",
+                        f"native decoder rejected profile: {type(exc).__name__}"
+                    )
+                bytes_decoded = probe.bytes_read
+            if _identity(os.fstat(handle.fileno())) != revision:
+                raise SourceHashUnstable("candidate changed during native decoding")
+        _cancel_if_requested(cancel)
+        if _identity(path.stat()) != revision:
+            raise SourceHashUnstable("candidate changed after native decoding")
     except (ReviewCancelled, KeyboardInterrupt):
         raise
     except OSError as exc:
         return outcome(
-            "candidate_unverified",
-            "unavailable",
-            f"cannot safely hash candidate: {type(exc).__name__}",
+            "candidate_unverified", "unavailable",
+            f"cannot safely verify candidate: {type(exc).__name__}"
         )
 
-    prior_sha = source.fingerprint.digest
     if prior_sha is None:
         return outcome(
-            "candidate_unverified",
-            "unavailable",
-            "saved SHA-256 is absent; metadata cannot prove identity",
+            "candidate_unverified", "unavailable",
+            "saved SHA-256 is absent; size/mtime cannot establish identity"
         )
-    if probe.sha256 != prior_sha:
+    if digest != prior_sha:
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
-    # A signature object computed outside this stat window is not sufficient
-    # evidence that the decoder interpretation describes the hashed revision.
-    # Pass the *specific candidate path* into the provider to prevent accidental
-    # use of the current runtime source or a stale captured interpretation.
     if not callable(native_signature):
         return outcome(
-            "candidate_unverified",
-            "digest_match",
-            "native decoder signature requires revision-bound provider",
+            "candidate_unverified", "digest_match",
+            "a precomputed native signature is not fresh decoder evidence"
         )
-    try:
-        _cancel_if_requested(cancel)
-        current_signature = native_signature(path)
-        _cancel_if_requested(cancel)
-        if _identity(path.stat()) != initial_revision:
-            raise SourceHashUnstable("file changed during decoder signature evaluation")
-    except (ReviewCancelled, KeyboardInterrupt):
-        raise
-    except (ValueError, TypeError) as exc:
+    if bytes_decoded <= 0:
         return outcome(
-            "unsupported_profile", "digest_match", f"decoder rejected profile: {type(exc).__name__}"
-        )
-    except OSError as exc:
-        return outcome(
-            "candidate_unverified",
-            "digest_match",
-            f"cannot verify stable decoder revision: {type(exc).__name__}",
+            "candidate_unverified", "digest_match",
+            "decoder did not read candidate bytes from the verified revision"
         )
     if not isinstance(current_signature, ReviewNativeSignatureV1):
         return outcome(
-            "unsupported_profile", "digest_match", "native decoder signature is unavailable"
+            "unsupported_profile", "digest_match",
+            "native decoder did not produce a valid signature"
         )
     if current_signature != source.native_signature:
         return outcome("unsupported_profile", "digest_match", "native decode signature differs")
     if not same_saved_path and not confirmed_by_user:
         return outcome(
-            "candidate_unverified",
-            "digest_match",
-            "verified bytes require explicit relocation confirmation",
+            "candidate_unverified", "digest_match",
+            "matching bytes and native profile require explicit relink confirmation"
         )
     return outcome(
-        "verified", "digest_match", "SHA-256 and revision-bound native decoder signature both match"
+        "verified", "digest_match",
+        "same-revision SHA-256 and fresh candidate-read native signature both match"
     )
 
 
