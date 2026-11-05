@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QSizePolicy,
     QSplitter,
+    QTableWidget,
     QToolBar,
     QWidget,
 )
@@ -78,6 +80,17 @@ class WorkspacePresetController(QObject):
         self._settings = getattr(window, "settings", QSettings())
         self._saving = False
         self._applying = False
+        self._summary_original: tuple[QSizePolicy, QSizePolicy, Qt.ScrollBarPolicy, int] | None = None
+        analysis = getattr(window, "comparison_analysis_panel", None)
+        summary_group = getattr(analysis, "image_summary_group", None)
+        summary = getattr(analysis, "image_summary", None)
+        if isinstance(summary_group, QWidget) and isinstance(summary, QTableWidget):
+            self._summary_original = (
+                QSizePolicy(summary_group.sizePolicy()),
+                QSizePolicy(summary.sizePolicy()),
+                summary.verticalScrollBarPolicy(),
+                summary_group.maximumHeight(),
+            )
         self._quiescing = False
         self._capture_timer = QTimer(self)
         self._capture_timer.setSingleShot(True)
@@ -249,6 +262,10 @@ class WorkspacePresetController(QObject):
             self._settings.setValue(f"{root}/dock_state", window.saveState())
             self._settings.setValue(f"{root}/main_splitter", main.saveState())
             self._settings.setValue(f"{root}/sidebar_splitter", sidebar.saveState())
+            # Qt dock visibility can reallocate the splitters after restoreState.
+            # Preserve the user's sizes as an additional presentation-only hint.
+            self._settings.setValue(f"{root}/main_sizes", main.sizes())
+            self._settings.setValue(f"{root}/sidebar_sizes", sidebar.sizes())
             self._settings.setValue(f"{root}/plots_visible", not dock.isHidden())
             if dock.isFloating() and not dock.isHidden():
                 self._settings.setValue(f"{root}/floating_geometry", dock.saveGeometry())
@@ -263,7 +280,61 @@ class WorkspacePresetController(QObject):
                 self._apply_default(preset)
         finally:
             self._applying = False
+        self._configure_statistics_space(preset is WorkspacePreset.ANALYZE)
         self._recover_timer.start(0)
+
+    @staticmethod
+    def _splitter_sizes(settings: QSettings, key: str, count: int) -> list[int] | None:
+        """Accept only nonnegative, bounded Qt splitter sizes from settings."""
+
+        value = settings.value(key)
+        if not isinstance(value, (list, tuple)) or len(value) != count:
+            return None
+        result: list[int] = []
+        for item in value:
+            if isinstance(item, bool) or not (
+                isinstance(item, int) or (isinstance(item, str) and item.isdecimal())
+            ):
+                return None
+            number = int(item)
+            if number < 0 or number > 100_000:
+                return None
+            result.append(number)
+        return result if any(result) else None
+
+    def _configure_statistics_space(self, analyze: bool) -> None:
+        """Reserve real Statistics rows instead of an oversized Images summary.
+
+        No metric, analysis snapshot or source state is changed. W07 still owns
+        the entire Statistics data/model pipeline.
+        """
+
+        panel = getattr(self.window, "comparison_analysis_panel", None)
+        group = getattr(panel, "image_summary_group", None)
+        summary = getattr(panel, "image_summary", None)
+        original = self._summary_original
+        if not (
+            isinstance(group, QWidget)
+            and isinstance(summary, QTableWidget)
+            and original is not None
+        ):
+            return
+        if not analyze:
+            group.setMaximumHeight(original[3])
+            group.setSizePolicy(original[0])
+            summary.setSizePolicy(original[1])
+            summary.setVerticalScrollBarPolicy(original[2])
+            return
+
+        summary.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        summary.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        row_height = summary.verticalHeader().defaultSectionSize()
+        header_height = summary.horizontalHeader().sizeHint().height()
+        chrome = group.fontMetrics().height() + 4 * TOKENS.spacing_sm + 2 * summary.frameWidth()
+        # Keep two summary rows visible; additional sources remain scrollable.
+        readable_height = header_height + 2 * row_height + chrome
+        group.setMaximumHeight(max(group.minimumSizeHint().height(), readable_height))
 
     def _restore_saved(self, preset: WorkspacePreset) -> bool:
         root = self._prefix(preset)
@@ -297,6 +368,16 @@ class WorkspacePresetController(QObject):
             saved_geometry = _stored_bytes(self._settings, f"{root}/floating_geometry")
             if saved_geometry is not None:
                 dock.restoreGeometry(saved_geometry)
+        # Qt can resize the central widget when restoring dock visibility.
+        # Reapply user-defined splitter sizes *after* the dock settles.
+        main_sizes = self._splitter_sizes(self._settings, f"{root}/main_sizes", main.count())
+        sidebar_sizes = self._splitter_sizes(
+            self._settings, f"{root}/sidebar_sizes", sidebar.count()
+        )
+        if main_sizes is not None:
+            main.setSizes(main_sizes)
+        if sidebar_sizes is not None:
+            sidebar.setSizes(sidebar_sizes)
         return True
 
     def _apply_default(self, preset: WorkspacePreset) -> None:
@@ -322,7 +403,7 @@ class WorkspacePresetController(QObject):
         # Ratios are layout hints, not hard minimum sizes or a second geometry authority.
         width = max(1, main.width(), window.width())
         if preset is WorkspacePreset.ANALYZE:
-            sidebar_ratio, files_ratio, plots = 0.34, 0.30, True
+            sidebar_ratio, files_ratio, plots = 0.35, 0.16, True
         elif preset is WorkspacePreset.REVIEW:
             sidebar_ratio, files_ratio, plots = 0.29, 0.52, False
         else:
@@ -334,9 +415,16 @@ class WorkspacePresetController(QObject):
         if plots and not dock.isFloating():
             window.resizeDocks(
                 [dock],
-                [max(180, round(window.height() * 0.29))],
+                [max(180, round(window.height() * 0.24))],
                 Qt.Orientation.Vertical,
             )
+        # Apply the Files/Statistics ratio against the actual central height,
+        # not the pre-dock height used for the initial layout request.
+        available_height = max(1, sidebar.height())
+        sidebar.setSizes([
+            round(available_height * files_ratio),
+            round(available_height * (1 - files_ratio)),
+        ])
 
     def _layout_changed(self, *_args: object) -> None:
         if not self._applying and not self._quiescing:
