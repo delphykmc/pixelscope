@@ -833,9 +833,12 @@ class ReviewDocumentV1:
                         or captured["native_dtype"] != signature.native_dtype
                         or captured["channel_layout"] != signature.channel_layout
                         or captured["effective_bits"] != signature.effective_bits
-                        or captured["native_interpretation"] != signature.to_dict()["native_interpretation"]
+                        or captured["native_interpretation"]
+                        != signature.to_dict()["native_interpretation"]
                     ):
-                        raise ReviewValidationError("W02 source interpretation conflicts with Review")
+                        raise ReviewValidationError(
+                            "W02 source interpretation conflicts with Review"
+                        )
                     captured_digest = captured["sha256"]
                     if captured_digest is not None and (
                         captured_digest != expected.fingerprint.digest
