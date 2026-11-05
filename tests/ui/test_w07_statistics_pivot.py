@@ -333,11 +333,12 @@ def test_difference_normalized_units_survive_clear_roi_invalid_and_recompute(
     assert panel.metrics.item(1, 2).text() == "normalized²"
     assert "Pending/unavailable" in panel.metrics.item(0, 2).toolTip()
 
-    # Off-image ROI is not calculable, but must not be labelled native.
-    panel.set_active_roi(RoiBounds(20, 20, 4, 4))
-    assert not panel.calculate.isEnabled()
+    # Changing ROI while the previous metrics are unavailable must not
+    # default to a native unit before the next explicit Calculate.
+    panel.set_active_roi(RoiBounds(2, 2, 4, 4))
     assert panel.metrics.item(0, 1).text() == "—"
     assert panel.metrics.item(0, 2).text() == "normalized [0,1]"
+    assert panel.calculate.isEnabled()
 
     panel.set_active_roi(RoiBounds(1, 1, 4, 4))
     assert panel.calculate.isEnabled()
