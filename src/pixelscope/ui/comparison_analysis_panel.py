@@ -397,12 +397,8 @@ class ComparisonAnalysisPanel(QWidget):
         self.pivot_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.pivot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.pivot_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.pivot_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Interactive
-        )
-        self.pivot_table.setSizePolicy(
-            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
-        )
+        self.pivot_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.pivot_table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.pivot_export_button.setEnabled(False)
         pivot_copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.pivot_table)
         pivot_copy_shortcut.activated.connect(self.copy_selection)  # type: ignore[attr-defined]
@@ -430,7 +426,10 @@ class ComparisonAnalysisPanel(QWidget):
         statistics_layout.addWidget(self.statistics_stack, 1)
         self.statistics_view.currentIndexChanged.connect(self._statistics_view_changed)  # type: ignore[attr-defined]
         for combo in (
-            self.pivot_channel, self.pivot_metrics, self.pivot_reference, self.pivot_delta
+            self.pivot_channel,
+            self.pivot_metrics,
+            self.pivot_reference,
+            self.pivot_delta,
         ):
             combo.currentIndexChanged.connect(self._refresh_pivot)  # type: ignore[attr-defined]
         self.pivot_export_button.clicked.connect(self._prompt_pivot_export)  # type: ignore[attr-defined]
@@ -1554,8 +1553,7 @@ class ComparisonAnalysisPanel(QWidget):
             return
         try:
             if len(self._documents) != len(token.source_documents) or any(
-                document.document_id != document_id
-                or document.generation != generation
+                document.document_id != document_id or document.generation != generation
                 for document, (document_id, generation) in zip(
                     self._documents, token.source_documents, strict=True
                 )
@@ -1576,14 +1574,14 @@ class ComparisonAnalysisPanel(QWidget):
                 for document, key in zip(self._documents, token.source_keys, strict=True)
             }
             selected_channel = self.pivot_channel.currentText()
-            channels = list(dict.fromkeys(
-                item.channel for item in measurements
-                if item.metric in STATISTICS_METRICS
-            ))
+            channels = list(
+                dict.fromkeys(
+                    item.channel for item in measurements if item.metric in STATISTICS_METRICS
+                )
+            )
             channel_options = ["All", *channels]
             if [
-                self.pivot_channel.itemText(i)
-                for i in range(self.pivot_channel.count())
+                self.pivot_channel.itemText(i) for i in range(self.pivot_channel.count())
             ] != channel_options:
                 self.pivot_channel.blockSignals(True)
                 self.pivot_channel.clear()
@@ -1596,17 +1594,12 @@ class ComparisonAnalysisPanel(QWidget):
             old_ref = self.pivot_reference.currentData()
             reference_keys = list(token.source_keys)
             old_keys = [
-                self.pivot_reference.itemData(i)
-                for i in range(1, self.pivot_reference.count())
+                self.pivot_reference.itemData(i) for i in range(1, self.pivot_reference.count())
             ]
             old_labels = [
-                self.pivot_reference.itemText(i)
-                for i in range(1, self.pivot_reference.count())
+                self.pivot_reference.itemText(i) for i in range(1, self.pivot_reference.count())
             ]
-            new_labels = [
-                f"{index} · {labels[key]}"
-                for index, key in enumerate(reference_keys, 1)
-            ]
+            new_labels = [f"{index} · {labels[key]}" for index, key in enumerate(reference_keys, 1)]
             if old_keys != reference_keys or old_labels != new_labels:
                 self.pivot_reference.blockSignals(True)
                 self.pivot_reference.clear()
@@ -1624,7 +1617,10 @@ class ComparisonAnalysisPanel(QWidget):
             }
             metric_filter = metric_options[self.pivot_metrics.currentText()]
             pivot = build_statistics_pivot(
-                token, sources, measurements, labels,
+                token,
+                sources,
+                measurements,
+                labels,
                 channel=self.pivot_channel.currentText(),
                 metrics=metric_filter,
                 reference_key=self.pivot_reference.currentData(),
@@ -1645,14 +1641,17 @@ class ComparisonAnalysisPanel(QWidget):
             table.clear()
             table.setRowCount(len(pivot.rows))
             table.setColumnCount(len(pivot.columns) + 2)
-            table.setHorizontalHeaderLabels([
-                "Metric", "Unit",
-                *[
-                    f"{index} · {column.alias}"
-                    + (" [Pivot Ref]" if column.source_key == pivot.reference_key else "")
-                    for index, column in enumerate(pivot.columns, 1)
-                ],
-            ])
+            table.setHorizontalHeaderLabels(
+                [
+                    "Metric",
+                    "Unit",
+                    *[
+                        f"{index} · {column.alias}"
+                        + (" [Pivot Ref]" if column.source_key == pivot.reference_key else "")
+                        for index, column in enumerate(pivot.columns, 1)
+                    ],
+                ]
+            )
             header = table.horizontalHeader()
             header.resizeSection(0, 125)
             header.resizeSection(1, 110)
@@ -1669,9 +1668,7 @@ class ComparisonAnalysisPanel(QWidget):
                     )
             mode = self.pivot_delta.currentText()
             for row_index, row in enumerate(pivot.rows):
-                table.setItem(row_index, 0, QTableWidgetItem(
-                    f"{row.metric} · {row.channel}"
-                ))
+                table.setItem(row_index, 0, QTableWidgetItem(f"{row.metric} · {row.channel}"))
                 table.setItem(row_index, 1, QTableWidgetItem(row.definition.unit))
                 for column_index, cell in enumerate(row.cells, 2):
                     display = cell.formatted_value()
@@ -1745,22 +1742,30 @@ class ComparisonAnalysisPanel(QWidget):
             header = ["Metric", "Channel", "Unit"]
             for column in pivot.columns:
                 prefix = f"{column.alias} [{column.source_key}]"
-                header.extend((
-                    f"{prefix} value", f"{prefix} state", f"{prefix} samples",
-                    f"{prefix} Delta", f"{prefix} Delta (%)", f"{prefix} Delta reason",
-                ))
+                header.extend(
+                    (
+                        f"{prefix} value",
+                        f"{prefix} state",
+                        f"{prefix} samples",
+                        f"{prefix} Delta",
+                        f"{prefix} Delta (%)",
+                        f"{prefix} Delta reason",
+                    )
+                )
             writer.writerow(header)
             for row in pivot.rows:
                 values = [row.metric, row.channel, row.definition.unit]
                 for cell in row.cells:
-                    values.extend((
-                        cell.formatted_value(precision=17),
-                        cell.state,
-                        str(cell.sample_count) if cell.sample_count is not None else "",
-                        cell.formatted_delta(precision=17),
-                        cell.formatted_delta(relative=True, precision=17),
-                        cell.delta_reason or "",
-                    ))
+                    values.extend(
+                        (
+                            cell.formatted_value(precision=17),
+                            cell.state,
+                            str(cell.sample_count) if cell.sample_count is not None else "",
+                            cell.formatted_delta(precision=17),
+                            cell.formatted_delta(relative=True, precision=17),
+                            cell.delta_reason or "",
+                        )
+                    )
                 writer.writerow(values)
 
     def _copy_pivot_selection(self) -> None:
@@ -1772,7 +1777,8 @@ class ComparisonAnalysisPanel(QWidget):
             return
         selected = selections[0]
         source_indices = [
-            index for index in range(len(pivot.columns))
+            index
+            for index in range(len(pivot.columns))
             if selected.leftColumn() <= index + 2 <= selected.rightColumn()
         ]
         if not source_indices:
@@ -1790,9 +1796,11 @@ class ComparisonAnalysisPanel(QWidget):
                 text = cell.formatted_value(precision=17)
                 if mode != "Values" and pivot.reference_key is not None:
                     relative = mode == "Relative Δ (%)"
-                    text += " | Delta " + cell.formatted_delta(
-                        relative=relative, precision=17
-                    ) + (" %" if relative else f" {row.definition.unit}")
+                    text += (
+                        " | Delta "
+                        + cell.formatted_delta(relative=relative, precision=17)
+                        + (" %" if relative else f" {row.definition.unit}")
+                    )
                 fields.append(text)
             lines.append("\t".join(fields))
         QApplication.clipboard().setText("\n".join(lines))
