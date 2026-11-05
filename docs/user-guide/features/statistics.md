@@ -24,7 +24,7 @@ Native statistics use **native code values**, not normalized [0,1] presentation 
 
 ## Export
 
-The existing Statistics action continues to export the **unchanged legacy Raw CSV** even when Pivot is visible. The separate **Export Pivot CSV…** action writes typed Pivot values with 17 significant digits, native unit, state, sample count, absolute Delta and relative Delta (%) in separate columns. Ctrl+C in Pivot also copies typed, high-precision values with channel and unit labels. Neither action requests recalculation, and Pivot export is unavailable without a valid current Statistics token.
+The existing Statistics action continues to export the **unchanged legacy Raw CSV** even when Pivot is visible. The separate **Export Pivot CSV…** action writes typed Pivot values with 17 significant digits, native unit, state, sample count, absolute Delta and relative Delta (%) in separate columns. Ctrl+C in Pivot copies **only selected cells/columns**; noncontiguous selections leave unselected intersections blank. Source values retain 17-digit precision, and Metric/Unit columns are included only when selected. To export every Source with explicit units, channel, count and numerical state, use **Export Pivot CSV…**. Neither action requests recalculation, and Pivot export is unavailable without a valid current Statistics token.
 
 ## Related topics
 
