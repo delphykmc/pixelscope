@@ -66,9 +66,8 @@ def _screen_recover(widget: QWidget) -> bool:
     caption = QRect(frame.x(), frame.y(), frame.width(), caption_height)
     for screen_rect in available:
         visible = caption.intersected(screen_rect)
-        if (
-            visible.width() >= min(96, caption.width())
-            and visible.height() >= min(16, caption.height())
+        if visible.width() >= min(96, caption.width()) and visible.height() >= min(
+            16, caption.height()
         ):
             return False
     primary = QGuiApplication.primaryScreen()
