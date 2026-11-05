@@ -99,9 +99,7 @@ class NamedReviewCoordinator:
         hardening = getattr(window, "beta_workspace_hardening_controller", None)
         self._workspace_presets = getattr(hardening, "workspace_presets", None)
         if self._workspace_presets is not None:
-            self._workspace_presets.selector.currentIndexChanged.connect(
-                self._workspace_changed
-            )
+            self._workspace_presets.selector.currentIndexChanged.connect(self._workspace_changed)
 
     @property
     def window(self) -> Any:
