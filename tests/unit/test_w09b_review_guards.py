@@ -175,6 +175,7 @@ def make_plan(paths):
         sources=tuple(NS(source_key=k, native_signature=source_shape) for k in keys),
     )
     view = NS(
+        layout_kind="Side by Side",
         presentation_mode="originals",
         primary_source_key=keys[0],
         sync_enabled=False,
