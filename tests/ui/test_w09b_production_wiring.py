@@ -227,7 +227,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
         review.add()
         expected = 1 if title == "Halo" else 2
         qtbot.waitUntil(  # type: ignore[attr-defined]
-            lambda: len(review.library.document.findings) == expected,
+            lambda expected=expected: len(review.library.document.findings) == expected,
             timeout=15000,
         )
         qtbot.waitUntil(  # type: ignore[attr-defined]
