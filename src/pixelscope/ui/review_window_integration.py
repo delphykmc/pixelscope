@@ -10,7 +10,6 @@ import weakref
 from pathlib import Path
 from threading import Event
 from typing import Any
-from uuid import uuid4
 
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QAction
@@ -18,7 +17,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QMessageBox,
-    QWidget,
 )
 
 from pixelscope.core.review_record import (
@@ -40,8 +38,8 @@ from pixelscope.ui.review_main_window_adapter import MainWindowReviewRestoreAuth
 from pixelscope.ui.review_panel import ReviewPanel
 from pixelscope.ui.review_restore_controller import (
     ApprovedCandidate,
-    ReviewRestoreController,
     RestoreReport,
+    ReviewRestoreController,
 )
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
@@ -168,7 +166,9 @@ class NamedReviewCoordinator:
             )
             epoch = self._capture_epoch
             cancel = Event()
-            worker = TaskWorker(attest_staged_finding, stage, cancel=cancel.is_set, generation=epoch)
+            worker = TaskWorker(
+                attest_staged_finding, stage, cancel=cancel.is_set, generation=epoch
+            )
             self._capture_cancel = cancel
             self._capture_worker = worker
             self._capture_task_id = worker.task_id
@@ -181,7 +181,9 @@ class NamedReviewCoordinator:
             self._error(f"Finding capture unavailable: {exc}")
 
     @Slot(str, object, int, object)
-    def _capture_succeeded(self, task_id: str, _document: object, epoch: int, value: object) -> None:
+    def _capture_succeeded(
+        self, task_id: str, _document: object, epoch: int, value: object
+    ) -> None:
         if (
             self._closed or epoch != self._capture_epoch
             or task_id != self._capture_task_id or not isinstance(value, AttestedFinding)
@@ -314,7 +316,10 @@ class NamedReviewCoordinator:
         try:
             profile = dialog.profile()
             saved = source.locator.local_path
-            same = saved is not None and str(Path(saved).resolve()).casefold() == str(path).casefold()
+            same = (
+                saved is not None
+                and str(Path(saved).resolve()).casefold() == str(path).casefold()
+            )
             approved = same or QMessageBox.question(
                 self.panel, "Approve Relink",
                 f"Relink historical source {source.locator.basename} to {path.name}? "
@@ -324,7 +329,9 @@ class NamedReviewCoordinator:
                 self.panel.set_status("Relink not approved; source remains unverified")
                 return
             self._approved[key] = ApprovedCandidate(key, path, profile, not same)
-            self.panel.set_status(f"Candidate recorded for {source.locator.basename}; not verified yet")
+            self.panel.set_status(
+                f"Candidate recorded for {source.locator.basename}; not verified yet"
+            )
         except (ValueError, TypeError) as exc:
             self._error(f"Native profile invalid: {exc}")
 
@@ -360,10 +367,10 @@ class NamedReviewCoordinator:
                 + (" (PARTIAL POST-COMMIT)" if report.partial_state else "")
             )
 
-    def on_owner_terminal(self) -> None:
-        """Called exclusively after owner foreground-load/layout settled signals."""
-        if not self._closed:
-            self.restore.owner_terminal_notification(self.restore.epoch)
+    def on_owner_terminal(self, epoch: int) -> None:
+        """Only an epoch-tagged, authoritative foreground/load/layout completion."""
+        if not self._closed and epoch == self.restore.epoch:
+            self.restore.owner_terminal_notification(epoch)
 
     def shutdown(self) -> None:
         if self._closed:
