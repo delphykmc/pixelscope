@@ -35,6 +35,7 @@ class ReviewPanel(QWidget):
     activate_requested = Signal(str)
     open_requested = Signal()
     save_requested = Signal()
+    export_roi_requested = Signal()
     candidate_requested = Signal(str)
     verify_requested = Signal()
     finding_changed = Signal(str)
@@ -78,6 +79,15 @@ class ReviewPanel(QWidget):
             row.addWidget(button)
         layout.addLayout(row)
 
+        self.export_roi_button = QPushButton("Export ROI PNGs…", self)
+        self.export_roi_button.setObjectName("memoExportRoiPngs")
+        self.export_roi_button.setToolTip(
+            "Save one PNG per loaded source on the current comparison page, "
+            "using the same ROI in reference pixel coordinates. "
+            "Exports the canonical 8-bit preview, without drawn overlays."
+        )
+        layout.addWidget(self.export_roi_button)
+
         self.evidence_label = QLabel("No Finding selected", self)
         self.evidence_label.setWordWrap(True)
         self.evidence_label.setObjectName("findingEvidenceStatus")
@@ -118,6 +128,7 @@ class ReviewPanel(QWidget):
         self.restore_button.clicked.connect(self._request_activate)  # type: ignore[attr-defined]
         self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
+        self.export_roi_button.clicked.connect(self.export_roi_requested.emit)  # type: ignore[attr-defined]
         self.candidate_button.clicked.connect(self._request_candidate)  # type: ignore[attr-defined]
         self.verify_button.clicked.connect(self.verify_requested.emit)  # type: ignore[attr-defined]
         self._set_selection_enabled(False)

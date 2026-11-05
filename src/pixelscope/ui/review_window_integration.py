@@ -9,6 +9,8 @@ from __future__ import annotations
 import weakref
 from pathlib import Path
 from threading import Event
+
+import numpy as np
 from typing import Any
 
 from PySide6.QtCore import Qt, Slot
@@ -24,6 +26,7 @@ from pixelscope.core.review_record import (
     ReviewValidationError,
 )
 from pixelscope.core.review_workflow import ReviewLibrary
+from pixelscope.io.memo_roi_export import export_roi_pngs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.io.review_repository import ReviewConflictError, normalize_review_path
@@ -78,6 +81,10 @@ class NamedReviewCoordinator:
         self._capture_cancel: Event | None = None
         self._capture_stage: StagedFinding | None = None
         self._capture_fence: CaptureGuiFence | None = None
+        self._export_epoch = 0
+        self._export_task_id: str | None = None
+        self._export_worker: TaskWorker | None = None
+        self._export_cancel: Event | None = None
         self._closed = False
         self.action = QAction("Named Findings", window)
         self.action.setToolTip("Show or hide the Finding notes panel")
@@ -96,6 +103,7 @@ class NamedReviewCoordinator:
         self.panel.activate_requested.connect(self.activate)
         self.panel.open_requested.connect(self.open_dialog)
         self.panel.save_requested.connect(self.save_dialog)
+        self.panel.export_roi_requested.connect(self.export_roi_dialog)
         self.panel.candidate_requested.connect(self.choose_candidate)
         self.panel.verify_requested.connect(self.verify)
         self.panel.finding_changed.connect(self.select_finding)
@@ -155,6 +163,98 @@ class NamedReviewCoordinator:
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
         QMessageBox.warning(self.panel, "Named Finding", message)
+
+    @Slot()
+    def export_roi_dialog(self) -> None:
+        """Export the *working page* ROI with no Review save/capture prerequisite."""
+        if self._closed:
+            return
+        try:
+            window = self.window
+            roi = window._shared_roi
+            if roi is None:
+                raise ValueError("Draw an ROI before exporting PNG crops")
+            page = tuple(window.current_comparison_documents())
+            if not page:
+                raise ValueError("Select images before exporting an ROI")
+            images = []
+            for document in page:
+                preview = document.preview
+                if (
+                    document.loading_state != "ready"
+                    or not isinstance(preview, np.ndarray)
+                    or preview.dtype != np.uint8
+                    or document.source is None
+                ):
+                    raise ValueError(
+                        f"Wait for {document.display_name} to finish loading before export"
+                    )
+                images.append((document.display_name, preview))
+            directory = QFileDialog.getExistingDirectory(
+                self.panel,
+                "Export selected ROI PNGs (current comparison page)",
+            )
+            if not directory:
+                return
+            # Freeze ROI and preview references at the user's click. Encoding and
+            # file writes run in the bounded worker, never the GUI event loop.
+            self.cancel_export()
+            epoch = self._export_epoch
+            cancel = Event()
+            worker = TaskWorker(
+                export_roi_pngs,
+                Path(directory),
+                tuple(images),
+                roi,
+                cancel=cancel.is_set,
+                generation=epoch,
+            )
+            self._export_cancel = cancel
+            self._export_worker = worker
+            self._export_task_id = worker.task_id
+            worker.signals.succeeded.connect(self._export_succeeded)
+            worker.signals.failed.connect(self._export_failed)
+            worker.signals.finished.connect(self._export_finished)
+            analysis_thread_pool().start(worker)
+            self.panel.set_status(
+                f"Exporting ROI {roi.width}×{roi.height} for {len(images)} page image(s)…"
+            )
+        except (OSError, ValueError, RuntimeError) as exc:
+            self._error(f"ROI PNG export unavailable: {exc}")
+
+    @Slot(str, object, int, object)
+    def _export_succeeded(
+        self, task_id: str, _document: object, epoch: int, value: object
+    ) -> None:
+        if (
+            self._closed or task_id != self._export_task_id
+            or epoch != self._export_epoch
+        ):
+            return
+        if isinstance(value, tuple):
+            self.panel.set_status(f"Exported {len(value)} ROI PNG(s) to {value[0].parent}" if value else "No ROI crops exported")
+
+    @Slot(str, object, int, object)
+    def _export_failed(self, task_id: str, _document: object, epoch: int, error: object) -> None:
+        if not self._closed and epoch == self._export_epoch and task_id == self._export_task_id:
+            self._error(f"ROI PNG export failed: {getattr(error, 'message', error)}")
+
+    @Slot(str)
+    def _export_finished(self, task_id: str) -> None:
+        if task_id == self._export_task_id:
+            self._export_worker = None
+            self._export_task_id = None
+            self._export_cancel = None
+
+    def cancel_export(self) -> None:
+        self._export_epoch += 1
+        if self._export_cancel is not None:
+            self._export_cancel.set()
+        if self._export_worker is not None:
+            self._export_worker.cancel()
+        self._export_worker = None
+        self._export_task_id = None
+        self._export_cancel = None
 
     def cancel_capture(self) -> None:
         self._capture_epoch += 1
@@ -475,6 +575,7 @@ class NamedReviewCoordinator:
         if self._closed:
             return
         self.cancel_capture()
+        self.cancel_export()
         self.restore.shutdown()
         self._closed = True
         self.action.setEnabled(False)
