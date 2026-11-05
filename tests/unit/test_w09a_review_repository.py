@@ -74,9 +74,7 @@ def _native(digest: str = "1" * 64) -> ReviewNativeSignatureV1:
 class _FixtureNativeDecoder(CandidateNativeDecoderV1):
     """Only test fixtures implement this decoder; W09b must supply real native IO."""
 
-    def __init__(
-        self, expected: bytes, signature: ReviewNativeSignatureV1 | None = None
-    ) -> None:
+    def __init__(self, expected: bytes, signature: ReviewNativeSignatureV1 | None = None) -> None:
         self.expected = expected
         self.signature = signature
 
@@ -91,7 +89,6 @@ def _decode_fixture_bytes(
     expected: bytes, signature: ReviewNativeSignatureV1 | None = None
 ) -> CandidateNativeDecoderV1:
     return _FixtureNativeDecoder(expected, signature)
-
 
 
 def _source(
@@ -242,7 +239,6 @@ def _review(tmp_path: Path, *, with_analysis: bool = False) -> ReviewDocumentV1:
     )
 
 
-
 def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
     doc = _review(tmp_path, with_analysis=True)
     ref, target = (source.source_key for source in doc.sources)
@@ -264,9 +260,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
         ReviewDocumentV1.from_dict(mismatched_roi)
 
     mismatched_sha = copy.deepcopy(original)
-    mismatched_sha["findings"][0]["analysis"][0]["context"]["sources"][0][
-        "sha256"
-    ] = "f" * 64
+    mismatched_sha["findings"][0]["analysis"][0]["context"]["sources"][0]["sha256"] = "f" * 64
     with pytest.raises(ReviewValidationError, match="fingerprint"):
         ReviewDocumentV1.from_dict(mismatched_sha)
 
@@ -341,8 +335,7 @@ def test_review_records_do_not_retain_mutable_caller_sequences(tmp_path):
     tags = ["edge", "banding"]
     finding_sources = list(doc.findings[0].source_keys)
     analyses = list(doc.findings[0].analysis)
-    finding = replace(doc.findings[0], tags=tags,
-                      source_keys=finding_sources, analysis=analyses)
+    finding = replace(doc.findings[0], tags=tags, source_keys=finding_sources, analysis=analyses)
     tags.append("mutation")
     finding_sources.clear()
     analyses.clear()
@@ -767,7 +760,9 @@ def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
     assert verify_review_source(source, None, _native()).status == "missing"
     assert verify_review_source(source, path.with_name("absent.bin"), _native()).status == "missing"
     mismatch = verify_review_source(
-        source, path, _decode_fixture_bytes(path.read_bytes(), _native("2" * 64)),
+        source,
+        path,
+        _decode_fixture_bytes(path.read_bytes(), _native("2" * 64)),
         confirmed_by_user=True,
     )
     assert mismatch.status == "unsupported_profile"
@@ -801,8 +796,11 @@ def test_hash_revision_changed_during_progress_is_not_verified(tmp_path):
         stream_source_sha256(path, progress=mutation)
     path.write_bytes(b"a" * 10000)
     result = verify_review_source(
-        source, path, _decode_fixture_bytes(path.read_bytes()),
-        confirmed_by_user=True, progress=mutation
+        source,
+        path,
+        _decode_fixture_bytes(path.read_bytes()),
+        confirmed_by_user=True,
+        progress=mutation,
     )
     assert result.status == "candidate_unverified"
     assert not result.may_bind_historical_finding
