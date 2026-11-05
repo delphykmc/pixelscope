@@ -773,5 +773,3 @@ def polish_presentation_controls(window: Any) -> None:
     # the new buttons receive the same endpoint state as actions and shortcuts.
     window._comparison_page_controls_state = None
     window._update_comparison_page_controls()
-
-
