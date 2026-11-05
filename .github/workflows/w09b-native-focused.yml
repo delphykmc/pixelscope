@@ -21,7 +21,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libegl1
       - name: Install native test dependencies
-        run: python -m pip install -r requirements/runtime.txt pytest==7.4.4 ruff==0.1.15
+        run: python -m pip install -r requirements/runtime.txt pytest==7.4.4 pytest-qt==4.4.0 ruff==0.1.15
       - name: Enforce Ruff quality gates
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -38,3 +38,4 @@ jobs:
           tests/unit/test_w09b_review_workflow.py
           tests/unit/test_w09b_review_guards.py
           tests/unit/test_w09a_review_repository.py
+          tests/ui/test_w09b_production_wiring.py
