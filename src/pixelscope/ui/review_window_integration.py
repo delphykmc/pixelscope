@@ -1,0 +1,383 @@
+"""W09b opt-in GUI composition. Installer is called by the Base orchestrator.
+
+No runtime method monkey-patching, alternative source registry or Session
+handler. Terminal foreground/layout events must be forwarded by the owner
+through on_owner_terminal; never retry via sleeps or polling.
+"""
+from __future__ import annotations
+
+import weakref
+from pathlib import Path
+from threading import Event
+from typing import Any
+from uuid import uuid4
+
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QDockWidget,
+    QFileDialog,
+    QMessageBox,
+    QWidget,
+)
+
+from pixelscope.core.review_record import (
+    ReviewDifferenceIntentV1,
+    ReviewValidationError,
+)
+from pixelscope.core.review_workflow import ReviewLibrary
+from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.review_repository import ReviewConflictError, normalize_review_path
+from pixelscope.io.yuv_profile import YuvProfile
+from pixelscope.ui.display_gain import display_gain_state
+from pixelscope.ui.raw_open_dialog import RawOpenDialog
+from pixelscope.ui.review_capture_adapter import (
+    AttestedFinding,
+    attest_staged_finding,
+    stage_named_finding,
+)
+from pixelscope.ui.review_main_window_adapter import MainWindowReviewRestoreAuthority
+from pixelscope.ui.review_panel import ReviewPanel
+from pixelscope.ui.review_restore_controller import (
+    ApprovedCandidate,
+    ReviewRestoreController,
+    RestoreReport,
+)
+from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
+from pixelscope.workers.task_worker import TaskWorker
+from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+class NamedReviewCoordinator:
+    """Presentation glue and explicit profile/relink UI; MainWindow owns commits."""
+
+    def __init__(self, window: Any) -> None:
+        self._window_ref = weakref.ref(window)
+        self.library = ReviewLibrary()
+        self.panel = ReviewPanel()
+        self.dock = QDockWidget("Named Findings", window)
+        self.dock.setObjectName("namedReviewDock")
+        self.dock.setWidget(self.panel)
+        self.dock.setMinimumWidth(320)
+        self.dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+        window.register_contributed_dock(self.dock)
+        self.dock.hide()
+        self.authority = MainWindowReviewRestoreAuthority(window, self.library.document)
+        self.restore = ReviewRestoreController(self.library, self.authority, self.panel)
+        self._approved: dict[str, ApprovedCandidate] = {}
+        self._capture_epoch = 0
+        self._capture_worker: TaskWorker | None = None
+        self._capture_task_id: str | None = None
+        self._capture_cancel: Event | None = None
+        self._closed = False
+        self.action = QAction("Named Findings", window)
+        self.action.setToolTip("Historical Finding evidence (.pxreview)")
+        self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
+        window.main_toolbar.addAction(self.action)
+
+        self.panel.add_requested.connect(self.add)  # type: ignore[attr-defined]
+        self.panel.edit_requested.connect(self.edit)  # type: ignore[attr-defined]
+        self.panel.delete_requested.connect(self.delete)  # type: ignore[attr-defined]
+        self.panel.activate_requested.connect(self.activate)  # type: ignore[attr-defined]
+        self.panel.open_requested.connect(self.open_dialog)  # type: ignore[attr-defined]
+        self.panel.save_requested.connect(self.save_dialog)  # type: ignore[attr-defined]
+        self.panel.candidate_requested.connect(self.choose_candidate)  # type: ignore[attr-defined]
+        self.panel.verify_requested.connect(self.verify)  # type: ignore[attr-defined]
+        self.panel.finding_changed.connect(self.select_finding)  # type: ignore[attr-defined]
+        self.restore.verification_completed.connect(self._verified)  # type: ignore[attr-defined]
+        self.restore.verification_failed.connect(self._verification_failed)  # type: ignore[attr-defined]
+        self.restore.restore_completed.connect(self._restored)  # type: ignore[attr-defined]
+        self.panel.set_document(self.library.document)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None or window._closing or self._closed:
+            raise RuntimeError("Named Finding owner closed")
+        return window
+
+    def show(self) -> None:
+        self.dock.show()
+        self.dock.raise_()
+
+    def _error(self, message: str) -> None:
+        self.panel.set_status(message)
+        QMessageBox.warning(self.panel, "Named Finding", message)
+
+    def cancel_capture(self) -> None:
+        self._capture_epoch += 1
+        if self._capture_cancel is not None:
+            self._capture_cancel.set()
+        if self._capture_worker is not None:
+            self._capture_worker.cancel()
+        self._capture_worker = None
+        self._capture_task_id = None
+        self._capture_cancel = None
+
+    @Slot()
+    def add(self) -> None:
+        if self._closed:
+            return
+        self.cancel_capture()
+        try:
+            window = self.window
+            title, note, tags = self.panel.metadata()
+            if not title:
+                title = f"Finding {len(self.library.document.findings) + 1}"
+            page = tuple(window.current_comparison_documents())
+            if not page:
+                raise ReviewValidationError("No comparison sources are selected")
+            panel = window.comparison_analysis_panel
+            keys = {d.document_id: panel.source_key_for_document(d.document_id) for d in page}
+            panel.bind_review_source_keys(keys)
+            primary = window._primary_document_for_page(list(page))
+            if primary is None:
+                raise ReviewValidationError("Primary source is not available")
+            pair = window.difference_panel.selected_documents()
+            if pair is not None and all(d.document_id in keys for d in pair):
+                reference_id, target_id = pair[0].document_id, pair[1].document_id
+                difference = window.difference_panel
+                recipe = ReviewDifferenceIntentV1(
+                    keys[reference_id], keys[target_id],
+                    difference.channel.currentText(), difference.mode.currentText(),
+                    float(difference.threshold.value()), int(difference.gain.value()),
+                    difference.region.currentText(),
+                )
+            else:
+                reference_id = primary.document_id
+                target_id = None
+                recipe = None
+            roi = window._shared_roi
+            line = window._shared_line
+            stage = stage_named_finding(
+                window.multi_compare_view, page, keys,
+                title=title, note=note, tags=tags,
+                reference_document_id=reference_id,
+                primary_document_id=primary.document_id,
+                pair_target_document_id=target_id,
+                roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+                line_ref=None if line is None else (line.x1, line.y1, line.x2, line.y2),
+                channel="All",
+                display_gain=display_gain_state().gain,
+                difference_intent=recipe,
+                analysis_panel=panel,
+            )
+            epoch = self._capture_epoch
+            cancel = Event()
+            worker = TaskWorker(attest_staged_finding, stage, cancel=cancel.is_set, generation=epoch)
+            self._capture_cancel = cancel
+            self._capture_worker = worker
+            self._capture_task_id = worker.task_id
+            worker.signals.succeeded.connect(self._capture_succeeded)
+            worker.signals.failed.connect(self._capture_failed)
+            worker.signals.finished.connect(self._capture_finished)
+            analysis_thread_pool().start(worker)
+            self.panel.set_status("Verifying candidate bytes and loaded native samples…")
+        except (ValueError, KeyError, RuntimeError, AttributeError) as exc:
+            self._error(f"Finding capture unavailable: {exc}")
+
+    @Slot(str, object, int, object)
+    def _capture_succeeded(self, task_id: str, _document: object, epoch: int, value: object) -> None:
+        if (
+            self._closed or epoch != self._capture_epoch
+            or task_id != self._capture_task_id or not isinstance(value, AttestedFinding)
+        ):
+            return
+        try:
+            current = self.window.documents
+            if not all(item.still_loaded_as(current) for item in value.bindings):
+                raise ReviewValidationError("source generation changed during capture")
+            self.library.add(value.finding, value.sources)
+            self.panel.set_document(self.library.document, selected_id=value.finding.id)
+            self.panel.set_status("Captured immutable historical Finding (not current analysis)")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            self._error(f"Finding commit refused: {exc}")
+
+    @Slot(str, object, int, object)
+    def _capture_failed(self, task_id: str, _doc: object, epoch: int, err: object) -> None:
+        if not self._closed and task_id == self._capture_task_id and epoch == self._capture_epoch:
+            self._error(f"Source attestation unavailable: {getattr(err, 'message', err)}")
+
+    @Slot(str)
+    def _capture_finished(self, task_id: str) -> None:
+        if task_id == self._capture_task_id:
+            self._capture_task_id = None
+            self._capture_worker = None
+            self._capture_cancel = None
+
+    @Slot(str, str, str, object)
+    def edit(self, finding_id: str, title: str, note: str, tags: object) -> None:
+        try:
+            if not isinstance(tags, tuple):
+                raise ReviewValidationError("tags are not a tuple")
+            self.library.edit(finding_id, title=title, note=note, tags=tags)
+            self.panel.set_document(self.library.document, selected_id=finding_id)
+            self.panel.set_status("Edited metadata; immutable evidence unchanged")
+        except (ValueError, KeyError) as exc:
+            self._error(str(exc))
+
+    @Slot(str)
+    def delete(self, finding_id: str) -> None:
+        self.cancel_capture()
+        self.restore.cancel()
+        try:
+            self.library.delete(finding_id)
+            self.panel.set_document(self.library.document)
+        except KeyError as exc:
+            self._error(str(exc))
+
+    @Slot(str)
+    def select_finding(self, finding_id: str) -> None:
+        self.cancel_capture()
+        self.restore.change_finding(finding_id)
+        self._approved.clear()
+        self.panel.set_resolutions({})
+
+    def open_dialog(self) -> None:
+        if self.library.dirty and QMessageBox.question(
+            self.panel, "Unsaved Review", "Discard unsaved Finding changes?",
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        chosen, _ = QFileDialog.getOpenFileName(
+            self.panel, "Open Review", "", "Pixelscope Review (*.pxreview)",
+        )
+        if not chosen:
+            return
+        self.cancel_capture()
+        self.restore.cancel()
+        try:
+            self.library.open(chosen)
+            self.authority.review = self.library.document
+            self._approved.clear()
+            self.panel.set_document(self.library.document)
+            self.panel.set_status("Opened offline historical evidence; no Workspace was changed")
+        except (OSError, ValueError) as exc:
+            self._error(f"Open failed; existing Review retained: {exc}")
+
+    def save_dialog(self) -> None:
+        path = self.library.path
+        if path is None:
+            filename, _ = QFileDialog.getSaveFileName(
+                self.panel, "Save Review", "", "Pixelscope Review (*.pxreview)",
+            )
+            if not filename:
+                return
+            path = normalize_review_path(filename)
+        overwrite = path.is_file()
+        if overwrite and self.library.path != path:
+            self._error("Destination exists; open the exact Review before overwriting")
+            return
+        if overwrite and QMessageBox.question(
+            self.panel, "Overwrite Review", "Replace this Review revision?",
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            protected = tuple(
+                d.source_path for d in self.window.documents.values() if d.source_path is not None
+            )
+            result = self.library.save(
+                path, overwrite=overwrite, protected_paths=protected,
+            )
+            if result.committed:
+                self.panel.set_status(f"Saved {result.path.name} (atomic CAS)")
+        except (ReviewConflictError, OSError, ValueError) as exc:
+            self._error(f"Review save failed, existing destination retained: {exc}")
+
+    @Slot(str)
+    def choose_candidate(self, key: str) -> None:
+        source = next((s for s in self.library.document.sources if s.source_key == key), None)
+        if source is None:
+            return
+        filename, _ = QFileDialog.getOpenFileName(self.panel, "Choose Review source candidate")
+        if not filename:
+            return
+        path = Path(filename).resolve()
+        if not path.is_file():
+            self._error("Candidate file is missing")
+            return
+        profile: RawProfile | YuvProfile
+        if path.suffix.casefold() == ".raw":
+            dialog = RawOpenDialog(self.panel)
+            dialog.set_source_path(path)
+        elif path.suffix.casefold() == ".yuv":
+            dialog = YuvOpenDialog(self.panel)
+            dialog.set_source_path(path)
+        else:
+            self._error("Only explicitly profiled RAW/YUV candidates are supported")
+            return
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        try:
+            profile = dialog.profile()
+            saved = source.locator.local_path
+            same = saved is not None and str(Path(saved).resolve()).casefold() == str(path).casefold()
+            approved = same or QMessageBox.question(
+                self.panel, "Approve Relink",
+                f"Relink historical source {source.locator.basename} to {path.name}? "
+                "Digest and native profile will still be checked.",
+            ) == QMessageBox.StandardButton.Yes
+            if not approved:
+                self.panel.set_status("Relink not approved; source remains unverified")
+                return
+            self._approved[key] = ApprovedCandidate(key, path, profile, not same)
+            self.panel.set_status(f"Candidate recorded for {source.locator.basename}; not verified yet")
+        except (ValueError, TypeError) as exc:
+            self._error(f"Native profile invalid: {exc}")
+
+    def verify(self) -> None:
+        finding_id = self.panel.selected_finding_id
+        if finding_id is None:
+            return
+        try:
+            epoch = self.restore.verify(finding_id, dict(self._approved))
+            self.panel.set_status(f"Verifying Finding epoch {epoch} (background SHA/native decode)")
+        except (ValueError, RuntimeError, KeyError) as exc:
+            self._error(f"Cannot verify Finding: {exc}")
+
+    @Slot(int, object)
+    def _verified(self, epoch: int, results: object) -> None:
+        if not self._closed and isinstance(results, dict) and epoch == self.restore.epoch:
+            self.panel.set_resolutions(results)
+            self.panel.set_status("Verification complete; only fully Verified sources can activate")
+
+    @Slot(int, str)
+    def _verification_failed(self, epoch: int, reason: str) -> None:
+        if not self._closed and epoch == self.restore.epoch:
+            self.panel.set_status(f"Verification unavailable: {reason}")
+
+    def activate(self, finding_id: str) -> None:
+        self.restore.activate(finding_id)
+
+    @Slot(object)
+    def _restored(self, report: object) -> None:
+        if isinstance(report, RestoreReport) and not self._closed:
+            self.panel.set_status(
+                f"Restore {report.status}: {report.reason}"
+                + (" (PARTIAL POST-COMMIT)" if report.partial_state else "")
+            )
+
+    def on_owner_terminal(self) -> None:
+        """Called exclusively after owner foreground-load/layout settled signals."""
+        if not self._closed:
+            self.restore.owner_terminal_notification(self.restore.epoch)
+
+    def shutdown(self) -> None:
+        if self._closed:
+            return
+        self.cancel_capture()
+        self.restore.shutdown()
+        self._closed = True
+        self.action.setEnabled(False)
+
+
+def install_named_review(window: Any) -> NamedReviewCoordinator:
+    existing = getattr(window, "named_review_coordinator", None)
+    if isinstance(existing, NamedReviewCoordinator):
+        return existing
+    controller = NamedReviewCoordinator(window)
+    window.named_review_coordinator = controller
+    return controller
