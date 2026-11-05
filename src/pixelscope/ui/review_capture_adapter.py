@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from pixelscope.core.image_document import ImageDocument
@@ -73,6 +74,97 @@ class CaptureSource:
 class StagedFinding:
     finding: ReviewFindingV1
     sources: tuple[CaptureSource, ...]
+
+
+@dataclass(frozen=True)
+class CaptureGuiFence:
+    """Exact GUI/presentation state at Add; every field is compared at commit."""
+
+    finding_id: str
+    source_ids: tuple[str, ...]
+    selection_ids: tuple[str, ...]
+    generations: tuple[int, ...]
+    page_start: int
+    current_index: int
+    focus_document_id: str | None
+    primary_id: str
+    active_document_id: str | None
+    roi: tuple[int, int, int, int] | None
+    line: tuple[int, int, int, int] | None
+    w04: object
+    pair_ids: tuple[str, ...]
+    difference_controls: tuple[object, ...]
+    display_gain: float
+    w02_presented: object
+    w02_current: object
+
+
+def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
+    """Read-only GUI-thread revision oracle; fail closed if a view is unsettled."""
+    from pixelscope.ui.display_gain import display_gain_state
+
+    page = tuple(window.current_comparison_documents())
+    expected = stage.finding
+    doc_ids = tuple(document.document_id for document in page)
+    keys = dict(zip(doc_ids, expected.source_keys, strict=True))
+    if doc_ids != tuple(item.document.document_id for item in stage.sources):
+        raise ReviewValidationError("comparison page/order changed during capture")
+    view_result = capture_review_view_state(
+        window.multi_compare_view,
+        keys,
+        reference_source_key=expected.reference_key,
+        primary_source_key=expected.view_state.primary_source_key,
+        page_source_keys=expected.source_keys,
+    )
+    if view_result.state is None:
+        raise ReviewValidationError("W04 view not settled: " + str(view_result.reason))
+    reference_primary_id = next(
+        (doc_id for doc_id, key in keys.items() if key == expected.view_state.primary_source_key),
+        None,
+    )
+    primary = window._primary_document_for_page(list(page))
+    if primary is None or primary.document_id != reference_primary_id:
+        raise ReviewValidationError("Primary changed during capture")
+    roi = window._shared_roi
+    line = window._shared_line
+    panel = window.difference_panel
+    pair = panel.selected_documents()
+    analysis = window.comparison_analysis_panel
+    return CaptureGuiFence(
+        finding_id=expected.id,
+        source_ids=doc_ids,
+        selection_ids=tuple(window._selection_order),
+        generations=tuple(document.generation for document in page),
+        page_start=window._page_start,
+        current_index=window._current_index,
+        focus_document_id=window._focus_document_id,
+        primary_id=primary.document_id,
+        active_document_id=window._active_document_id,
+        roi=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+        line=None if line is None else (line.x1, line.y1, line.x2, line.y2),
+        w04=view_result.state,
+        pair_ids=tuple(d.document_id for d in pair) if pair is not None else (),
+        difference_controls=(
+            panel.channel.currentText(),
+            panel.mode.currentText(),
+            panel.gain.value(),
+            panel.threshold.value(),
+            panel.region.currentText(),
+        ),
+        display_gain=display_gain_state().gain,
+        w02_presented=analysis.get_presented_analysis_token(),
+        w02_current=analysis.get_current_analysis_token(),
+    )
+
+
+def assert_same_capture_context(
+    expected: CaptureGuiFence, actual: CaptureGuiFence
+) -> None:
+    """No historical Finding may be committed after a GUI-context revision."""
+    if actual != expected:
+        raise ReviewValidationError(
+            "comparison/ROI/Line/Pair/View/W02 context changed during source attestation"
+        )
 
 
 @dataclass(frozen=True)
