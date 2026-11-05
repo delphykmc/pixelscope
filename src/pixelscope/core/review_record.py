@@ -127,6 +127,16 @@ def _keys(raw: object, *, maximum: int, allow_empty: bool = False) -> tuple[str,
     return keys
 
 
+def _positive_shape(raw: object, name: str, *, lengths: tuple[int, ...]) -> tuple[int, ...]:
+    """Normalize caller-owned shape lists into validated immutable tuples."""
+    if type(raw) not in (list, tuple):
+        raise ReviewValidationError(f"invalid {name} shape")
+    values = cast(list[object] | tuple[object, ...], raw)
+    if len(values) not in lengths or any(type(v) is not int or v <= 0 for v in values):
+        raise ReviewValidationError(f"invalid {name} shape")
+    return cast(tuple[int, ...], tuple(values))
+
+
 def _rect(raw: object, *, line: bool = False) -> tuple[int, int, int, int] | None:
     if raw is None:
         return None
@@ -142,10 +152,13 @@ def _geometry_tuple(raw: object, *, line: bool = False) -> tuple[int, int, int, 
     """Copy caller-owned geometry into a validated immutable value."""
     if raw is None:
         return None
-    if type(raw) not in (list, tuple) or len(raw) != 4:
+    if type(raw) not in (list, tuple):
+        raise ReviewValidationError("invalid line" if line else "invalid ROI")
+    values = cast(list[object] | tuple[object, ...], raw)
+    if len(values) != 4:
         raise ReviewValidationError("invalid line" if line else "invalid ROI")
     labels = ("x1", "y1", "x2", "y2") if line else ("x", "y", "width", "height")
-    return _rect(dict(zip(labels, raw, strict=True)), line=line)
+    return _rect(dict(zip(labels, values, strict=True)), line=line)
 
 
 def _rect_wire(
@@ -304,20 +317,14 @@ class ReviewNativeSignatureV1:
 
     def __post_init__(self) -> None:
         _digest(self.profile_signature)
-        if (
-            type(self.native_shape) not in (tuple, list)
-            or len(self.native_shape) not in (2, 3)
-            or any(type(v) is not int or v <= 0 for v in self.native_shape)
-        ):
-            raise ReviewValidationError("invalid native shape")
-        if (
-            type(self.reference_shape) not in (tuple, list)
-            or len(self.reference_shape) != 2
-            or any(type(v) is not int or v <= 0 for v in self.reference_shape)
-        ):
-            raise ReviewValidationError("invalid reference shape")
-        object.__setattr__(self, "native_shape", tuple(self.native_shape))
-        object.__setattr__(self, "reference_shape", tuple(self.reference_shape))
+        object.__setattr__(
+            self, "native_shape", _positive_shape(self.native_shape, "native", lengths=(2, 3))
+        )
+        object.__setattr__(
+            self,
+            "reference_shape",
+            cast(tuple[int, int], _positive_shape(self.reference_shape, "reference", lengths=(2,))),
+        )
         _integer(self.effective_bits, "effective_bits", minimum=1)
         if self.effective_bits > 64:
             raise ReviewValidationError("effective_bits exceeds 64")
