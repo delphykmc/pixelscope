@@ -73,21 +73,21 @@ class NamedReviewCoordinator:
         self._closed = False
         self.action = QAction("Named Findings", window)
         self.action.setToolTip("Historical Finding evidence (.pxreview)")
-        self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
+        self.action.triggered.connect(self.show)
         window.main_toolbar.addAction(self.action)
 
-        self.panel.add_requested.connect(self.add)  # type: ignore[attr-defined]
-        self.panel.edit_requested.connect(self.edit)  # type: ignore[attr-defined]
-        self.panel.delete_requested.connect(self.delete)  # type: ignore[attr-defined]
-        self.panel.activate_requested.connect(self.activate)  # type: ignore[attr-defined]
-        self.panel.open_requested.connect(self.open_dialog)  # type: ignore[attr-defined]
-        self.panel.save_requested.connect(self.save_dialog)  # type: ignore[attr-defined]
-        self.panel.candidate_requested.connect(self.choose_candidate)  # type: ignore[attr-defined]
-        self.panel.verify_requested.connect(self.verify)  # type: ignore[attr-defined]
-        self.panel.finding_changed.connect(self.select_finding)  # type: ignore[attr-defined]
-        self.restore.verification_completed.connect(self._verified)  # type: ignore[attr-defined]
-        self.restore.verification_failed.connect(self._verification_failed)  # type: ignore[attr-defined]
-        self.restore.restore_completed.connect(self._restored)  # type: ignore[attr-defined]
+        self.panel.add_requested.connect(self.add)
+        self.panel.edit_requested.connect(self.edit)
+        self.panel.delete_requested.connect(self.delete)
+        self.panel.activate_requested.connect(self.activate)
+        self.panel.open_requested.connect(self.open_dialog)
+        self.panel.save_requested.connect(self.save_dialog)
+        self.panel.candidate_requested.connect(self.choose_candidate)
+        self.panel.verify_requested.connect(self.verify)
+        self.panel.finding_changed.connect(self.select_finding)
+        self.restore.verification_completed.connect(self._verified)
+        self.restore.verification_failed.connect(self._verification_failed)
+        self.restore.restore_completed.connect(self._restored)
         self.panel.set_document(self.library.document)
 
     @property
@@ -330,6 +330,7 @@ class NamedReviewCoordinator:
             self._error("Candidate file is missing")
             return
         profile: RawProfile | YuvProfile
+        dialog: RawOpenDialog | YuvOpenDialog
         if path.suffix.casefold() == ".raw":
             dialog = RawOpenDialog(self.panel)
             dialog.set_source_path(path)
