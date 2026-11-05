@@ -170,9 +170,7 @@ class ReviewPanel(QWidget):
         if key is not None:
             self.candidate_requested.emit(key)
 
-    def set_document(
-        self, document: ReviewDocumentV1, *, selected_id: str | None = None
-    ) -> None:
+    def set_document(self, document: ReviewDocumentV1, *, selected_id: str | None = None) -> None:
         self._document = document
         self.findings.blockSignals(True)
         self.findings.clear()
@@ -235,9 +233,7 @@ class ReviewPanel(QWidget):
         }
         reference = source_names[finding.reference_key]
         target = (
-            source_names[finding.pair_target_key]
-            if finding.pair_target_key is not None
-            else "none"
+            source_names[finding.pair_target_key] if finding.pair_target_key is not None else "none"
         )
         captures = sum(item.status == "captured" for item in finding.analysis)
         self.evidence_label.setText(
