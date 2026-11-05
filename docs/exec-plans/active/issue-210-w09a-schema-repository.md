@@ -102,9 +102,13 @@ read/seek stream tied to the same file handle used for SHA-256. Returning a
 cached DTO, a lambda, or an adapter that reads ZERO bytes never results in
 Verified; mismatched actual signatures are unsupported_profile and a changing
 source revision is candidate_unverified. Hashing uses 1 MiB streaming chunks
-and checks descriptor/path identity before/after decoder reads. Verified
-requires both SHA-256 and the native signature to match, plus relocation
-consent when appropriate.
+and checks descriptor/path identity before/after decoder reads. An
+additional SHA-256 replay from the same open file descriptor catches
+same-size concurrent writes even where Windows/SMB timestamps do not advance;
+verification therefore intentionally performs two bounded sequential reads
+on the worker rather than trusting metadata alone. Verified requires both
+SHA-256 and the native signature to match, plus relocation consent when
+appropriate.
 
 **Trusted adapter caveat:** byte consumption is a necessary but not a sufficient
 proof of semantic decoding. Python cannot establish that an arbitrary decoder
