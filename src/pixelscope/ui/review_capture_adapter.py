@@ -110,10 +110,7 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
     if doc_ids != tuple(item.document.document_id for item in stage.sources):
         raise ReviewValidationError("comparison page/order changed during capture")
     analysis_panel = window.comparison_analysis_panel
-    if any(
-        analysis_panel.source_key_for_document(doc_id) != key
-        for doc_id, key in keys.items()
-    ):
+    if any(analysis_panel.source_key_for_document(doc_id) != key for doc_id, key in keys.items()):
         raise ReviewValidationError("live durable Source UUID mapping changed")
     view_result = capture_review_view_state(
         window.multi_compare_view,
