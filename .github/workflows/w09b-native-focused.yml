@@ -22,7 +22,8 @@ jobs:
       - name: Enforce Ruff quality gates
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m ruff check --select I001 --fix --diff tests/unit/test_w09b_native_decoder.py || true
+          python -m ruff check --fix --diff . || true
+          python -m ruff format --diff . || true
           python -m ruff check .
           python -m ruff format --check .
       - name: Run native verification and W09a regression
