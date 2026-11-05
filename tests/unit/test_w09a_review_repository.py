@@ -1,6 +1,7 @@
 """W09a strict Review v1, atomic persistence and source identity regression tests."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -247,9 +248,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
     ref, target = (source.source_key for source in doc.sources)
     original = doc.to_dict()
 
-    import copy
-
-    mismatched_profile = copy.deepcopy(original)
+     mismatched_profile = copy.deepcopy(original)
     mismatched_profile["sources"][0]["native_signature"]["profile_signature"] = "f" * 64
     with pytest.raises(ReviewValidationError, match="W02 source interpretation"):
         ReviewDocumentV1.from_dict(mismatched_profile)
@@ -278,9 +277,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
 
 
 def test_reject_w02_channel_and_scope_mismatch(tmp_path):
-    import copy
-
-    doc = _review(tmp_path, with_analysis=True)
+     doc = _review(tmp_path, with_analysis=True)
     original = doc.to_dict()
 
     wrong_channel = copy.deepcopy(original)
@@ -305,7 +302,8 @@ def test_reject_w02_channel_and_scope_mismatch(tmp_path):
         ReviewDocumentV1.from_dict(incomplete_difference)
 
     complete_difference = copy.deepcopy(incomplete_difference)
-    second = copy.deepcopy(complete_difference["findings"][0]["analysis"][0]["context"]["sources"][0])
+    context_sources = complete_difference["findings"][0]["analysis"][0]["context"]["sources"]
+    second = copy.deepcopy(context_sources[0])
     second["source_key"] = doc.sources[1].source_key
     complete_difference["findings"][0]["analysis"][0]["context"]["sources"].append(second)
     ReviewDocumentV1.from_dict(complete_difference)
@@ -713,14 +711,18 @@ def test_hash_match_and_relink_consent_never_uses_basename(tmp_path):
     direct = verify_review_source(source, first, _decode_fixture_bytes(first.read_bytes(), sig))
     assert direct.status == "verified"
     assert direct.may_bind_historical_finding
-    changed = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True)
+    changed = verify_review_source(
+        source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True
+    )
     assert changed.status == "changed"
     assert changed.verification == "digest_mismatch"
     second.write_bytes(first.read_bytes())
     pending = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig))
     assert pending.status == "candidate_unverified"
     assert pending.verification == "digest_match"
-    approved = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True)
+    approved = verify_review_source(
+        source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True
+    )
     assert approved.status == "verified"
     assert approved.candidate_path == str(second)
     assert approved.source_key == source.source_key
@@ -750,13 +752,18 @@ def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
     source = _source(path, sha="auto")
     assert verify_review_source(source, None, _native()).status == "missing"
     assert verify_review_source(source, path.with_name("absent.bin"), _native()).status == "missing"
-    mismatch = verify_review_source(source, path, _decode_fixture_bytes(path.read_bytes(), _native("2" * 64)), confirmed_by_user=True)
+    mismatch = verify_review_source(
+        source, path, _decode_fixture_bytes(path.read_bytes(), _native("2" * 64)),
+        confirmed_by_user=True,
+    )
     assert mismatch.status == "unsupported_profile"
     assert mismatch.verification == "digest_match"
     unverified = replace(
         source, fingerprint=replace(source.fingerprint, digest=None, state="unverified")
     )
-    result = verify_review_source(unverified, path, _decode_fixture_bytes(path.read_bytes()), confirmed_by_user=True)
+    result = verify_review_source(
+        unverified, path, _decode_fixture_bytes(path.read_bytes()), confirmed_by_user=True
+    )
     assert result.status == "candidate_unverified"
     with pytest.raises(ReviewCancelled):
         stream_source_sha256(path, cancel=lambda: True)
@@ -780,7 +787,8 @@ def test_hash_revision_changed_during_progress_is_not_verified(tmp_path):
         stream_source_sha256(path, progress=mutation)
     path.write_bytes(b"a" * 10000)
     result = verify_review_source(
-        source, path, _decode_fixture_bytes(path.read_bytes()), confirmed_by_user=True, progress=mutation
+        source, path, _decode_fixture_bytes(path.read_bytes()),
+        confirmed_by_user=True, progress=mutation
     )
     assert result.status == "candidate_unverified"
     assert not result.may_bind_historical_finding
