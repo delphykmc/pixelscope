@@ -343,12 +343,81 @@ def test_review_records_do_not_retain_mutable_caller_sequences(tmp_path):
     assert len(finding.source_keys) == 2
     assert len(finding.analysis) == 1
 
+    # A frozen DTO must copy mutable Python sequences supplied directly by W09b,
+    # not merely freeze the assignment of the list reference.
+    native_shape = [4, 5]
+    reference_shape = [4, 5]
+    original_signature = doc.sources[0].native_signature
+    signature = replace(
+        original_signature,
+        native_shape=native_shape,
+        reference_shape=reference_shape,
+    )
+    source = replace(doc.sources[0], native_signature=signature)
+    signature_doc = replace(doc, sources=(source, doc.sources[1]))
+    signature_bytes = signature_doc.to_bytes()
+    native_shape[0] = 400
+    reference_shape[1] = 500
+    assert type(signature.native_shape) is tuple
+    assert type(signature.reference_shape) is tuple
+    assert signature.native_shape == original_signature.native_shape == (4, 5)
+    assert signature.reference_shape == original_signature.reference_shape == (4, 5)
+    assert signature_doc.to_bytes() == signature_bytes
+
+    roi = [1, 1, 2, 2]
+    line = [0, 0, 4, 3]
+    geometry = replace(doc.findings[0], roi_ref=roi, line_ref=line)
+    geometry_doc = replace(doc, findings=(geometry,))
+    geometry_bytes = geometry_doc.to_bytes()
+    roi[0] = 9999
+    line[2] = 9999
+    assert type(geometry.roi_ref) is tuple
+    assert type(geometry.line_ref) is tuple
+    assert geometry.roi_ref == (1, 1, 2, 2)
+    assert geometry.line_ref == (0, 0, 4, 3)
+    assert geometry_doc.to_bytes() == geometry_bytes
+    assert ReviewDocumentV1.from_bytes(geometry_bytes).to_bytes() == geometry_bytes
+
     sources, findings = list(doc.sources), list(doc.findings)
     durable = replace(doc, sources=sources, findings=findings)
     sources.clear()
     findings.clear()
     assert len(durable.sources) == 2
     assert len(durable.findings) == 2
+
+
+
+def test_direct_native_geometry_rejects_invalid_mutable_sequences(tmp_path):
+    doc = _review(tmp_path)
+    signature = doc.sources[0].native_signature
+    finding = doc.findings[0]
+
+    for name, invalid in (
+        ("native_shape", [4, 5, 0]),
+        ("native_shape", [4, True]),
+        ("native_shape", [4]),
+        ("reference_shape", [4, 5, 6]),
+        ("reference_shape", [False, 5]),
+        ("reference_shape", "4,5"),
+    ):
+        with pytest.raises(ReviewValidationError, match="shape"):
+            replace(signature, **{name: invalid})
+
+    for name, invalid in (
+        ("roi_ref", [0, 0, 0, 3]),
+        ("roi_ref", [1, 1, 2]),
+        ("roi_ref", [True, 1, 2, 2]),
+        ("line_ref", [0, -1, 4, 3]),
+        ("line_ref", [0, 0, 4]),
+        ("line_ref", [0, 0, 4, False]),
+    ):
+        with pytest.raises(ReviewValidationError, match="ROI|line|integer"):
+            replace(finding, **{name: invalid})
+
+    # Explicitly preserve an absent ROI/line as None, not a shared sentinel.
+    no_geometry = replace(finding, roi_ref=None, line_ref=None)
+    assert no_geometry.roi_ref is None
+    assert no_geometry.line_ref is None
 
 
 def test_source_resolution_requires_canonical_id_and_candidate_bound_callback(tmp_path):
