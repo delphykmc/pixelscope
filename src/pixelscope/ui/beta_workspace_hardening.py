@@ -3,14 +3,41 @@ from __future__ import annotations
 import weakref
 from typing import Any, cast
 
-from PySide6.QtCore import QObject, Qt, QTimer
-from PySide6.QtGui import QWindow
+from PySide6.QtCore import QObject, QRect, Qt, QTimer
+from PySide6.QtGui import QGuiApplication, QWindow
 from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QSizePolicy, QSplitter, QWidget
 
 from pixelscope.ui.design_tokens import WORKSPACE_CHROME_HEIGHT, panel_heading_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
-from pixelscope.ui.workspace_presets import WorkspacePresetController
+
+
+def _recover_native_window(widget: QWidget) -> bool:
+    """Keep a usable title-bar region on a remaining monitor after hot-unplug."""
+    available = [
+        screen.availableGeometry()
+        for screen in QGuiApplication.screens()
+        if screen.availableGeometry().isValid()
+    ]
+    if not available:
+        return False
+    frame = widget.frameGeometry()
+    caption_height = min(frame.height(), max(24, widget.fontMetrics().height() + 10))
+    caption = QRect(frame.x(), frame.y(), frame.width(), caption_height)
+    for screen_rect in available:
+        visible = caption.intersected(screen_rect)
+        if visible.width() >= min(96, caption.width()) and visible.height() >= min(
+            16, caption.height()
+        ):
+            return False
+    primary = QGuiApplication.primaryScreen()
+    target = primary.availableGeometry() if primary is not None else available[0]
+    width = min(max(1, frame.width()), target.width())
+    height = min(max(1, frame.height()), target.height())
+    x = target.x() + max(0, (target.width() - width) // 2)
+    y = target.y() + max(0, (target.height() - height) // 2)
+    widget.setGeometry(QRect(x, y, width, height))
+    return True
 
 
 def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
@@ -132,7 +159,15 @@ class BetaWorkspaceHardeningController(QObject):
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
         self._install_workspace_windows()
-        self.workspace_presets = WorkspacePresetController(window)
+        # Retire W06-specific snapshots; canonical native dock/splitter settings survive.
+        settings = getattr(window, "settings", None)
+        if settings is not None:
+            settings.remove("ui/workspace_layouts/v1")
+            settings.remove("ui/workspace_preset")
+        self._recover_timer = QTimer(self)
+        self._recover_timer.setSingleShot(True)
+        self._recover_timer.timeout.connect(self._recover_windows)
+        self._recover_timer.start(0)
 
     @property
     def window(self) -> QMainWindow:
@@ -300,10 +335,17 @@ class BetaWorkspaceHardeningController(QObject):
             if isinstance(dock, QDockWidget) and dock is not plots:
                 self._dock_controllers.append(_WorkspaceDockTopLevelController(dock))
 
+    def _recover_windows(self) -> None:
+        if self.window.isVisible():
+            _recover_native_window(self.window)
+        for dock in self.window.findChildren(QDockWidget):
+            if dock.isFloating():
+                _recover_native_window(dock)
+
     def quiesce_pending_callbacks(self) -> None:
         """Quiesce every managed dock's queued native-window adjustment."""
+        self._recover_timer.stop()
 
-        self.workspace_presets.quiesce_pending_callbacks()
         for controller in self._dock_controllers:
             controller.quiesce_pending_callbacks()
 
