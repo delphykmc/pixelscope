@@ -1,0 +1,30 @@
+name: W05 W06 retirement focused (temporary)
+on:
+  push:
+    branches:
+      - codex/issue210-retire-w05-w06-presets-20261106
+jobs:
+  retired-presets-qt:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install native Qt and pytest-qt
+        run: python -m pip install -r requirements/runtime.txt pytest==7.4.4 pytest-qt==4.4.0
+      - name: Exercise canonical comparison and workspace regression
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src
+        run: >-
+          python -m pytest -q
+          tests/ui/test_retired_w05_w06.py
+          tests/ui/test_ui_workspace_contracts.py
+          tests/ui/test_difference_workspace_contracts.py
+          tests/ui/test_beta_workspace_hardening.py
+          tests/ui/test_p1e_plots_workspace.py
