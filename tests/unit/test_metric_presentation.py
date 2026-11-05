@@ -291,6 +291,11 @@ def test_typed_unit_catalog_precision_and_validation() -> None:
     assert not metric_definition("PSNR").delta_allowed
     assert metric_definition("MSE").unit == "native code²"
     assert metric_definition("Non-zero ratio").unit == "ratio [0,1]"
+    assert metric_definition("MAE", domain="normalized").unit == "normalized [0,1]"
+    assert metric_definition("MSE", domain="normalized").unit == "normalized²"
+    assert metric_definition("PSNR", domain="normalized").unit == "dB"
+    with pytest.raises(ValueError, match="domain"):
+        metric_definition("Mean", domain="unknown")
     assert format_metric_number(0.123456789987, "finite", precision=6) == "0.123457"
     assert format_metric_number(0.123456789987, "finite", precision=17) == "0.123456789987"
     assert format_metric_number(None, "unavailable") == "N/A"
