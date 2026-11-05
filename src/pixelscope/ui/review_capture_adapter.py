@@ -171,7 +171,7 @@ def stage_named_finding(
                     captured = ReviewAnalysisCaptureV1.from_snapshot(result.snapshot)
                     # Enforce exact W02 scope/channel and source interpretation
                     # via Finding and W09a document validation downstream.
-                    temporary_finding = ReviewFindingV1(
+                    ReviewFindingV1(
                         str(uuid4()), title, note, tags, utc_now(), keys,
                         reference_key, pair_key, capture.state, roi_ref, line_ref,
                         channel, display_gain, difference_intent, (captured,), "available",
