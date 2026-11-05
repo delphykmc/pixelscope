@@ -258,8 +258,7 @@ def test_pivot_copy_respects_exact_columns_and_sparse_ranges(
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
     panel.show()
     documents = [
-        _document(f"원본_{index}_동일패턴.png", (index + 1) * 10)
-        for index in range(source_count)
+        _document(f"원본_{index}_동일패턴.png", (index + 1) * 10) for index in range(source_count)
     ]
     panel.set_documents(documents, None)
     _ready(panel, qtbot)
@@ -273,9 +272,7 @@ def test_pivot_copy_respects_exact_columns_and_sparse_ranges(
     def copy(*rectangles: tuple[int, int, int, int]) -> str:
         table.clearSelection()
         for top, left, bottom, right in rectangles:
-            table.setRangeSelected(
-                QTableWidgetSelectionRange(top, left, bottom, right), True
-            )
+            table.setRangeSelected(QTableWidgetSelectionRange(top, left, bottom, right), True)
         panel.copy_selection()
         return QApplication.clipboard().text()
 
@@ -293,11 +290,7 @@ def test_pivot_copy_respects_exact_columns_and_sparse_ranges(
     # Noncontiguous ranges retain only selected columns, preserve coordinates,
     # and leave unselected cell intersections empty rather than exporting data.
     sparse = copy((mean_r, 0, mean_r, 0), (mean_r + 1, source_col, mean_r + 1, source_col))
-    assert sparse == (
-        f"Metric\t{source_header}\n"
-        "Mean · R\t\n"
-        "\t20 | Delta 10 native code"
-    )
+    assert sparse == (f"Metric\t{source_header}\n" "Mean · R\t\n" "\t20 | Delta 10 native code")
     assert sparse.splitlines()[0].count("\t") == 1
     # Multiple separated source columns are not silently filled in.
     multi = copy(
@@ -320,9 +313,7 @@ def test_difference_normalized_units_survive_clear_roi_invalid_and_recompute(
 ) -> None:
     panel = DifferencePanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
-    low = ImageDocument.from_array(
-        np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8
-    )
+    low = ImageDocument.from_array(np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8)
     high = ImageDocument.from_array(
         np.full((8, 8), 1000, dtype=np.uint16), "high.raw", bit_depth=10
     )
@@ -359,9 +350,7 @@ def test_difference_normalized_units_survive_clear_roi_invalid_and_recompute(
     assert panel.metrics.item(1, 2).text() == "normalized²"
 
     # Unknown/incompatible pair: do not invent a numeric-domain unit.
-    rgb = ImageDocument.from_array(
-        np.full((8, 8, 3), 10, dtype=np.uint8), "rgb.png"
-    )
+    rgb = ImageDocument.from_array(np.full((8, 8, 3), 10, dtype=np.uint8), "rgb.png")
     panel.set_documents([low, rgb], (low.document_id, rgb.document_id))
     assert panel.metrics.item(0, 1).text() == "—"
     assert panel.metrics.item(0, 2).text() == "—"
