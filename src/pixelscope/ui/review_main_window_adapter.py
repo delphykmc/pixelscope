@@ -49,6 +49,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         self.review = review
         self._binding: dict[str, tuple[str, int]] = {}
         self._committed_epoch: int | None = None
+        self._overlay_epoch: int | None = None
+        self._recipe_epoch: int | None = None
 
     @property
     def window(self) -> Any:
@@ -112,6 +114,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             return RestoreReport(plan.epoch, "unavailable", "file changed after preflight")
         window = self.window
         self._committed_epoch = plan.epoch
+        self._overlay_epoch = None
+        self._recipe_epoch = None
         self._binding.clear()
         # The registration phase is the irreversible commit point. Failures
         # after this point must be reported as partial; never claim rollback.
@@ -195,17 +199,31 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             self._binding[key][0] for key in plan.finding.source_keys
         ):
             return RestoreReport(plan.epoch, "unavailable", "canonical page changed", True)
-        # Overlay and presentation restoration happen only after foreground
-        # source completion. This does not calculate Difference metrics/maps.
-        if plan.finding.roi_ref is not None:
-            roi = RoiBounds(*plan.finding.roi_ref)
-            if not window._apply_shared_roi(roi, allow_channel_split=False):
-                return RestoreReport(plan.epoch, "unavailable", "ROI rejected", True)
-        else:
-            window.clear_roi()
-        recipe_reason = self._restore_difference_recipe(plan)
-        if recipe_reason is not None:
-            return RestoreReport(plan.epoch, "unavailable", recipe_reason, True)
+        # Apply canonical overlays once, before W04's geometry preflight.
+        # Revealing the Line panel changes viewport size; avoid repeated
+        # layout churn during pending W04 retries.
+        if self._overlay_epoch != plan.epoch:
+            if plan.finding.roi_ref is not None:
+                roi = RoiBounds(*plan.finding.roi_ref)
+                if not window._apply_shared_roi(roi, allow_channel_split=False):
+                    return RestoreReport(plan.epoch, "unavailable", "ROI rejected", True)
+            else:
+                window.clear_roi()
+            if plan.finding.line_ref is not None:
+                line = LineSelection(*plan.finding.line_ref)
+                window._shared_line_changed(line)
+                if window._shared_line != line:
+                    return RestoreReport(plan.epoch, "unavailable", "Line restore rejected", True)
+            elif window._shared_line is not None:
+                window.clear_line()
+                if window._shared_line is not None:
+                    return RestoreReport(plan.epoch, "unavailable", "Line not cleared", True)
+            self._overlay_epoch = plan.epoch
+        if self._recipe_epoch != plan.epoch:
+            recipe_reason = self._restore_difference_recipe(plan)
+            if recipe_reason is not None:
+                return RestoreReport(plan.epoch, "unavailable", recipe_reason, True)
+            self._recipe_epoch = plan.epoch
         state = restore_review_view_state(
             window.multi_compare_view,
             plan.finding.view_state,
@@ -214,19 +232,16 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             presentation_mode="originals",
         )
         if state.status == "applied":
-            # W04 has restored the viewport. Reapply Line only once geometry
-            # is settled, then assert the canonical owner accepted it.
             if plan.finding.line_ref is not None:
-                line = LineSelection(*plan.finding.line_ref)
-                window._shared_line_changed(line)
-                if window._shared_line != line:
-                    return RestoreReport(plan.epoch, "unavailable", "Line restore rejected", True)
+                line = window._shared_line
+                if line is None or (line.x1, line.y1, line.x2, line.y2) != plan.finding.line_ref:
+                    return RestoreReport(plan.epoch, "unavailable", "Line changed after W04", True)
             elif window._shared_line is not None:
-                return RestoreReport(plan.epoch, "unavailable", "Stale Line is still active", True)
+                return RestoreReport(plan.epoch, "unavailable", "Stale Line still active", True)
             if plan.finding.roi_ref is not None:
                 roi = window._shared_roi
                 if roi is None or (roi.x, roi.y, roi.width, roi.height) != plan.finding.roi_ref:
-                    return RestoreReport(plan.epoch, "unavailable", "ROI restore diverged", True)
+                    return RestoreReport(plan.epoch, "unavailable", "ROI changed after W04", True)
             elif window._shared_roi is not None:
                 return RestoreReport(plan.epoch, "unavailable", "ROI not cleared", True)
         return RestoreReport(
@@ -302,4 +317,6 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         if window is not None and self._committed_epoch == epoch:
             window.multi_compare_view.cancel_review_restore()
             self._committed_epoch = None
+            self._overlay_epoch = None
+            self._recipe_epoch = None
             self._binding.clear()
