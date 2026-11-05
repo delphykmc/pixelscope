@@ -111,3 +111,78 @@ def test_review_shutdown_precedes_viewer_teardown(
     window.close()
     assert observed == [True]
     assert review._closed
+
+
+def test_memo_roi_png_export_no_roi_is_nonblocking(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from PySide6.QtWidgets import QFileDialog
+
+    window, review = _window(qtbot)
+    window.show()
+
+    def forbid_dialog(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("No folder picker without an ROI")
+
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", forbid_dialog)
+    assert review.panel.export_roi_button.text() == "Export ROI PNGs…"
+    review.panel.export_roi_button.click()
+    assert "ROI" in review.panel.status.text()
+    window.close()
+
+
+def test_memo_roi_png_export_selected_page_independent_of_review_save(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: object,
+) -> None:
+    from pathlib import Path
+
+    import cv2
+    import numpy as np
+    from PySide6.QtWidgets import QFileDialog
+
+    from pixelscope.core.roi import RoiBounds
+
+    root = Path(str(tmp_path))
+    target = root / "export"
+    target.mkdir()
+    images: list[Path] = []
+    for index in (0, 1):
+        path = root / f"rgb_{index}.png"
+        source = np.full((12, 15, 3), (25 + index * 35, 80, 120), dtype=np.uint8)
+        assert cv2.imwrite(str(path), source)
+        images.append(path)
+    window, review = _window(qtbot)
+    window.resize(1400, 880)
+    window.show()
+    window.open_image_paths(images)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.current_comparison_documents()) == 2
+        and all(
+            document.loading_state == "ready" and document.preview is not None
+            for document in window.current_comparison_documents()
+        ),
+        timeout=10000,
+    )
+    roi = RoiBounds(3, 4, 6, 5)
+    assert window._apply_shared_roi(roi, allow_channel_split=False)
+    monkeypatch.setattr(
+        QFileDialog,
+        "getExistingDirectory",
+        lambda *_args, **_kwargs: str(target),
+    )
+    assert len(review.library.document.findings) == 0
+    review.panel.export_roi_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(list(target.glob("*.png"))) == 2
+        or review.panel.status.text().startswith("ROI PNG export failed"),
+        timeout=10000,
+    )
+    assert review.panel.status.text().startswith("Exported 2 ROI PNG")
+    assert len(review.library.document.findings) == 0
+    for exported in target.glob("*.png"):
+        pixels = cv2.imread(str(exported), cv2.IMREAD_UNCHANGED)
+        assert pixels is not None and pixels.shape == (roi.height, roi.width, 3)
+    window.close()
