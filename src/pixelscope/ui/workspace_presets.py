@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QSizePolicy,
-    QStyle,
     QSplitter,
+    QStyle,
     QTableWidget,
     QToolBar,
     QWidget,
@@ -538,14 +538,13 @@ class WorkspacePresetController(QObject):
             toolbar = getattr(window, "main_toolbar", None)
             if watched is window and event.type() == QEvent.Type.Show:
                 self._recover_timer.start(0)
-            if watched is window or watched is toolbar:
-                if event.type() in (
-                    QEvent.Type.Show,
-                    QEvent.Type.Resize,
-                    QEvent.Type.FontChange,
-                    QEvent.Type.StyleChange,
-                ):
-                    self._density_timer.start(0)
+            if (watched is window or watched is toolbar) and event.type() in (
+                QEvent.Type.Show,
+                QEvent.Type.Resize,
+                QEvent.Type.FontChange,
+                QEvent.Type.StyleChange,
+            ):
+                self._density_timer.start(0)
             dock = getattr(window, "bottom_dock", None)
             if watched is dock:
                 if event.type() in (
