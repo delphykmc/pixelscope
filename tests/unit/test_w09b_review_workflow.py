@@ -20,7 +20,11 @@ from pixelscope.core.review_record import (
 )
 from pixelscope.core.review_view_state import ReviewViewStateV1
 from pixelscope.core.review_workflow import ReviewLibrary
-from pixelscope.io.review_repository import ReviewConflictError, SourceResolutionV1
+from pixelscope.io.review_repository import (
+    ReviewConflictError,
+    ReviewRepositoryError,
+    SourceResolutionV1,
+)
 
 
 def _sources(tmp_path):
@@ -166,12 +170,12 @@ def test_corrupt_load_and_future_schema_leave_active_library_unchanged(tmp_path)
     initial = lib.document.to_bytes()
     corrupt = tmp_path / "corrupt.pxreview"
     corrupt.write_bytes(b"{")
-    with pytest.raises(ReviewValidationError):
+    with pytest.raises(ReviewRepositoryError):
         lib.open(corrupt)
     assert lib.document.to_bytes() == initial
     future = tmp_path / "future.pxreview"
     future.write_bytes(initial.replace(b'"schema_version":1', b'"schema_version":999'))
-    with pytest.raises(ReviewValidationError):
+    with pytest.raises(ReviewRepositoryError):
         lib.open(future)
     assert lib.document.to_bytes() == initial
 
