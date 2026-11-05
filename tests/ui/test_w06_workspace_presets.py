@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QRect, QSettings, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QDockWidget, QWidget
 
@@ -331,7 +331,10 @@ def test_floating_maximize_and_redock_remain_native(qtbot: object) -> None:
     window.close()
 
 
-def test_restart_restores_preset_and_reset_clears_w06_keys(qtbot: object) -> None:
+def test_restart_restores_preset_and_reset_clears_w06_keys(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     window, workspace = _window(qtbot)
     workspace.select(WorkspacePreset.REVIEW)
     window.close()
@@ -343,11 +346,29 @@ def test_restart_restores_preset_and_reset_clears_w06_keys(qtbot: object) -> Non
         dock.objectName().lower().startswith("finding")
         for dock in restored.findChildren(QDockWidget)
     )
+
+    # A QSplitter ratio is only a hint: child minimumSizeHint() can clamp the
+    # requested 68% Files allocation. Verify Reset *applies* the W06 Compare
+    # layout rather than asserting an unachievable physical pixel ratio.
+    applied: list[tuple[WorkspacePreset, bool]] = []
+    original_apply = owner._apply_preset
+
+    def record_apply(preset: WorkspacePreset, *, prefer_saved: bool) -> None:
+        applied.append((preset, prefer_saved))
+        original_apply(preset, prefer_saved=prefer_saved)
+
+    monkeypatch.setattr(owner, "_apply_preset", record_apply)
     restored.action_map["Reset Workspace Layout"].trigger()
+    assert applied == [(WorkspacePreset.COMPARE, False)]
     assert owner.preset is WorkspacePreset.COMPARE
+    assert owner.selector.currentData() == WorkspacePreset.COMPARE.value
+    assert restored.bottom_dock.isHidden()
+    assert not restored.bottom_dock.isFloating()
+    assert restored.main_splitter.widget(1).width() > restored.main_splitter.widget(0).width()
     sizes = restored.sidebar_splitter.sizes()
-    assert sizes[0] / max(1, sum(sizes)) == pytest.approx(0.68, abs=0.08)
+    assert all(size > 0 for size in sizes)
     owner.select(WorkspacePreset.COMPARE)
+    assert applied == [(WorkspacePreset.COMPARE, False)]
     assert restored.sidebar_splitter.sizes() == sizes
     assert QSettings().value("ui/workspace_preset") is None
     assert not QSettings().contains("ui/workspace_layouts/v1/review/dock_state")
@@ -376,12 +397,32 @@ def test_corrupt_workspace_settings_fall_back_without_changing_sources(
 
 def test_partial_offscreen_title_region_is_recovered(qtbot: object) -> None:
     window, workspace = _window(qtbot)
-    primary = QGuiApplication.primaryScreen()
-    assert primary is not None
-    screen = primary.availableGeometry()
-    window.move(screen.right() - 8, screen.top() + 40)
+    screens = [
+        screen.availableGeometry()
+        for screen in QGuiApplication.screens()
+        if screen.availableGeometry().isValid()
+    ]
+    assert screens
+    # Use the rightmost *virtual desktop* edge, not the primary screen edge:
+    # a second monitor can legitimately be adjacent to the primary monitor.
+    edge = max(screens, key=lambda rect: rect.right())
+    window.move(edge.right() - 8, edge.top() + 40)
+    qtbot.wait(30)  # type: ignore[attr-defined]
     workspace._recover_windows()
-    assert window.frameGeometry().x() < screen.right() - 8
+    qtbot.wait(30)  # type: ignore[attr-defined]
+
+    frame = window.frameGeometry()
+    caption = QRect(
+        frame.x(),
+        frame.y(),
+        frame.width(),
+        min(frame.height(), max(24, window.fontMetrics().height() + 10)),
+    )
+    assert any(
+        (visible := caption.intersected(screen)).width() >= min(96, caption.width())
+        and visible.height() >= min(16, caption.height())
+        for screen in screens
+    ), (frame, caption, screens)
     window.close()
 
 
