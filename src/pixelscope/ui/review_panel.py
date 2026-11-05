@@ -111,15 +111,15 @@ class ReviewPanel(QWidget):
         self.status.setObjectName("reviewStatusLabel")
         layout.addWidget(self.status)
 
-        self.findings.currentItemChanged.connect(self._selection_changed)
-        self.add_button.clicked.connect(self.add_requested.emit)
-        self.edit_button.clicked.connect(self._request_edit)
-        self.delete_button.clicked.connect(self._request_delete)
-        self.restore_button.clicked.connect(self._request_activate)
-        self.open_button.clicked.connect(self.open_requested.emit)
-        self.save_button.clicked.connect(self.save_requested.emit)
-        self.candidate_button.clicked.connect(self._request_candidate)
-        self.verify_button.clicked.connect(self.verify_requested.emit)
+        self.findings.currentItemChanged.connect(self._selection_changed)  # type: ignore[attr-defined]
+        self.add_button.clicked.connect(self.add_requested.emit)  # type: ignore[attr-defined]
+        self.edit_button.clicked.connect(self._request_edit)  # type: ignore[attr-defined]
+        self.delete_button.clicked.connect(self._request_delete)  # type: ignore[attr-defined]
+        self.restore_button.clicked.connect(self._request_activate)  # type: ignore[attr-defined]
+        self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
+        self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
+        self.candidate_button.clicked.connect(self._request_candidate)  # type: ignore[attr-defined]
+        self.verify_button.clicked.connect(self.verify_requested.emit)  # type: ignore[attr-defined]
         self._set_selection_enabled(False)
 
     def _set_selection_enabled(self, has_finding: bool) -> None:
@@ -234,7 +234,11 @@ class ReviewPanel(QWidget):
             for source in self._document.sources
         }
         reference = source_names[finding.reference_key]
-        target = source_names.get(finding.pair_target_key, "none")
+        target = (
+            source_names[finding.pair_target_key]
+            if finding.pair_target_key is not None
+            else "none"
+        )
         captures = sum(item.status == "captured" for item in finding.analysis)
         self.evidence_label.setText(
             f"Captured: {finding.captured_utc}\n"
