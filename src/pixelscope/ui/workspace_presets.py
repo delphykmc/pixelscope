@@ -59,8 +59,17 @@ def _screen_recover(widget: QWidget) -> bool:
     if not available:
         return False
     frame = widget.frameGeometry()
-    if any(frame.intersects(rect) for rect in available):
-        return False
+    # A sliver of the *content* is not enough: the native title/drag region
+    # must remain accessible after a monitor is unplugged or DPI changes.
+    caption_height = min(frame.height(), max(24, widget.fontMetrics().height() + 10))
+    caption = QRect(frame.x(), frame.y(), frame.width(), caption_height)
+    for screen_rect in available:
+        visible = caption.intersected(screen_rect)
+        if (
+            visible.width() >= min(96, caption.width())
+            and visible.height() >= min(16, caption.height())
+        ):
+            return False
     primary = QGuiApplication.primaryScreen()
     target = primary.availableGeometry() if primary is not None else available[0]
     width = min(max(1, frame.width()), target.width())
@@ -484,6 +493,9 @@ class WorkspacePresetController(QObject):
         self.selector.blockSignals(True)
         self.selector.setCurrentIndex(self.selector.findData(self._preset.value))
         self.selector.blockSignals(False)
+        # The canonical MainWindow Reset action applies its legacy geometry
+        # first. Reapply Compare's actual dock/splitter layout, not just its name.
+        self._apply_preset(WorkspacePreset.COMPARE, prefer_saved=False)
 
     def quiesce_pending_callbacks(self) -> None:
         if self._quiescing:
