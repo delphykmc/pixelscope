@@ -43,9 +43,7 @@ def _fixture(
             yuv_layout=layout,
             yuv_chroma_step_xy=(2, 2) if layout == "YUV420" else (2, 1),
             yuv_plane_shapes=(
-                ((8, 8), (4, 4), (4, 4))
-                if layout == "YUV420"
-                else ((8, 8), (8, 4), (8, 4))
+                ((8, 8), (4, 4), (4, 4)) if layout == "YUV420" else ((8, 8), (8, 4), (8, 4))
             ),
         )
         if layout in ("YUV420", "YUV422")
@@ -90,13 +88,13 @@ def _fixture(
 def test_ordered_pivot_channels_metrics_identity_and_duplicate_aliases(count: int) -> None:
     token, sources, values = _fixture(count)
     aliases = {key: "동일 파일.png" for key in token.source_keys}
-    pivot = build_statistics_pivot(
-        token, sources, values, aliases, metrics=FOCUSED_METRICS
-    )
+    pivot = build_statistics_pivot(token, sources, values, aliases, metrics=FOCUSED_METRICS)
     assert [col.source_key for col in pivot.columns] == list(token.source_keys)
     assert [col.alias for col in pivot.columns] == ["동일 파일.png"] * count
     assert [(row.metric, row.channel) for row in pivot.rows] == [
-        ("Mean", "R"), ("Std", "R"), ("P99", "R")
+        ("Mean", "R"),
+        ("Std", "R"),
+        ("P99", "R"),
     ]
     assert pivot.rows[0].cells[-1].value == pytest.approx(20.000000001 + count - 1)
     # Same labels never act as the source identity; source reordering is explicit.
@@ -142,9 +140,13 @@ def test_reference_zero_preserves_absolute_delta_but_rejects_relative() -> None:
         measurement(token.source_keys[0], "R", "Mean", 0, 64),
         measurement(token.source_keys[1], "R", "Mean", 17, 64),
     )
-    cells = build_statistics_pivot(
-        token, sources, values, {}, metrics=("Mean",), reference_key=token.source_keys[0]
-    ).rows[0].cells
+    cells = (
+        build_statistics_pivot(
+            token, sources, values, {}, metrics=("Mean",), reference_key=token.source_keys[0]
+        )
+        .rows[0]
+        .cells
+    )
     assert cells[1].absolute_delta == 17.0
     assert cells[1].relative_delta_percent is None
     assert "zero" in (cells[1].delta_reason or "")
@@ -162,9 +164,13 @@ def test_reference_zero_preserves_absolute_delta_but_rejects_relative() -> None:
 def test_native_delta_mismatch_fails_closed(alter: dict, expected: str) -> None:
     token, sources, values = _fixture(2)
     changed = (sources[0], replace(sources[1], **alter))
-    cell = build_statistics_pivot(
-        token, changed, values, {}, metrics=("Mean",), reference_key=token.source_keys[0]
-    ).rows[0].cells[1]
+    cell = (
+        build_statistics_pivot(
+            token, changed, values, {}, metrics=("Mean",), reference_key=token.source_keys[0]
+        )
+        .rows[0]
+        .cells[1]
+    )
     assert cell.absolute_delta is None
     assert expected.lower() in (cell.delta_reason or "").lower()
 
@@ -195,9 +201,10 @@ def test_sample_count_channel_and_revision_are_comparability_gates() -> None:
     assert "sample counts" in (red.cells[1].delta_reason or "")
     assert green.cells[1].absolute_delta is None
     assert "definition" in (green.cells[1].delta_reason or "")
-    assert len(build_statistics_pivot(
-        token, sources, values, {}, channel="G", metrics=("Mean",)
-    ).rows) == 1
+    assert (
+        len(build_statistics_pivot(token, sources, values, {}, channel="G", metrics=("Mean",)).rows)
+        == 1
+    )
 
 
 def test_bayer_cfa_and_yuv_chroma_footprint_are_not_interchangeable() -> None:
@@ -207,8 +214,12 @@ def test_bayer_cfa_and_yuv_chroma_footprint_are_not_interchangeable() -> None:
     source_a = replace(sources[0], native_interpretation=rggb)
     source_b = replace(sources[1], native_interpretation=bggr)
     pivot = build_statistics_pivot(
-        token, (source_a, source_b), values, {},
-        metrics=("Mean",), reference_key=token.source_keys[0]
+        token,
+        (source_a, source_b),
+        values,
+        {},
+        metrics=("Mean",),
+        reference_key=token.source_keys[0],
     )
     assert pivot.rows[0].cells[1].absolute_delta is None
     assert "CFA phase" in (pivot.rows[0].cells[1].delta_reason or "")
@@ -221,8 +232,7 @@ def test_bayer_cfa_and_yuv_chroma_footprint_are_not_interchangeable() -> None:
     )
     yuv_sources = tuple(replace(source, native_interpretation=native) for source in sources)
     compatible = build_statistics_pivot(
-        token, yuv_sources, values, {},
-        metrics=("Mean",), reference_key=token.source_keys[0]
+        token, yuv_sources, values, {}, metrics=("Mean",), reference_key=token.source_keys[0]
     )
     assert compatible.rows[0].cells[1].absolute_delta == 1.0
     # A different native footprint is not a valid code-domain comparison.
@@ -236,8 +246,12 @@ def test_bayer_cfa_and_yuv_chroma_footprint_are_not_interchangeable() -> None:
         channel_layout="YUV422",
     )
     mismatched = build_statistics_pivot(
-        token, (yuv_sources[0], changed), values, {},
-        metrics=("Mean",), reference_key=token.source_keys[0]
+        token,
+        (yuv_sources[0], changed),
+        values,
+        {},
+        metrics=("Mean",),
+        reference_key=token.source_keys[0],
     )
     assert mismatched.rows[0].cells[1].absolute_delta is None
 
@@ -259,9 +273,13 @@ def test_nonfinite_native_measurements_keep_explicit_state(
         measurement(token.source_keys[0], "R", "Mean", 5, 64),
         measurement(token.source_keys[1], "R", "Mean", input_value, 64),
     )
-    cell = build_statistics_pivot(
-        token, sources, data, {}, metrics=("Mean",), reference_key=token.source_keys[0]
-    ).rows[0].cells[1]
+    cell = (
+        build_statistics_pivot(
+            token, sources, data, {}, metrics=("Mean",), reference_key=token.source_keys[0]
+        )
+        .rows[0]
+        .cells[1]
+    )
     assert cell.state == state
     assert cell.formatted_value() == text
     assert cell.absolute_delta is None
@@ -288,14 +306,10 @@ def test_reject_stale_generation_profile_and_duplicate_measurement() -> None:
         {"sources": tuple(reversed(sources))},
     ):
         with pytest.raises(ValueError):
-            build_statistics_pivot(
-                token, kwargs["sources"], values, {}, metrics=FOCUSED_METRICS
-            )
+            build_statistics_pivot(token, kwargs["sources"], values, {}, metrics=FOCUSED_METRICS)
     with pytest.raises(ValueError):
         build_statistics_pivot(token, sources, values, {}, reference_key=_key(99))
     with pytest.raises(ValueError):
         build_statistics_pivot(token, sources, values, {}, metrics=("unknown",))
     with pytest.raises(ValueError):
-        build_statistics_pivot(
-            token, sources, (*values, values[0]), {}, metrics=STATISTICS_METRICS
-        )
+        build_statistics_pivot(token, sources, (*values, values[0]), {}, metrics=STATISTICS_METRICS)
