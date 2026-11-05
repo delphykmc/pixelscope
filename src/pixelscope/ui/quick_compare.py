@@ -486,4 +486,3 @@ class QuickCompareController(QObject):
         )
         self.three_view_group.setVisible(visible)
         self._sync_three_view_buttons(self._effective_three_view_variant())
-
