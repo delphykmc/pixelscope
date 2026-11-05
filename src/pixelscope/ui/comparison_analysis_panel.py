@@ -370,8 +370,10 @@ class ComparisonAnalysisPanel(QWidget):
 
         self.statistics_group = QGroupBox("3. Channel statistics")
         statistics_layout = QVBoxLayout(self.statistics_group)
-        statistics_layout.setContentsMargins(6, 6, 6, 6)
-        statistics_layout.setSpacing(4)
+        # Keep the baseline compact Analyze minimum: three complete native
+        # rows, even after a header View switch is installed (W06).
+        statistics_layout.setContentsMargins(6, 2, 6, 2)
+        statistics_layout.setSpacing(2)
         self.statistics_view = QComboBox()
         self.statistics_view.addItems(("Raw", "Pivot"))
         self.pivot_channel = QComboBox()
