@@ -589,7 +589,11 @@ class ReviewFindingV1:
         if type(self.tags) not in (tuple, list):
             raise ReviewValidationError("finding tags must be a sequence")
         object.__setattr__(self, "tags", tuple(self.tags))
-        if len(self.tags) > 32 or len(set(self.tags)) != len(self.tags):
+        if (
+            len(self.tags) > 32
+            or any(type(tag) is not str for tag in self.tags)
+            or len(set(self.tags)) != len(self.tags)
+        ):
             raise ReviewValidationError("invalid/duplicate finding tags")
         for tag in self.tags:
             _text(tag, "tag", 256, nonblank=True)
@@ -788,7 +792,7 @@ class ReviewDocumentV1:
                 assert analysis.context_json is not None
                 context = parse_analysis_context(analysis.context_json)
                 context_roi = context["roi_ref"]
-                if context_roi is not None and tuple(context_roi) != finding.roi_ref:
+                if context_roi is not None and tuple(cast(list[int], context_roi)) != finding.roi_ref:
                     raise ReviewValidationError("W02 analysis ROI disagrees with finding")
                 for captured in cast(list[dict[str, Any]], context["sources"]):
                     expected = source_by_key[captured["source_key"]]
