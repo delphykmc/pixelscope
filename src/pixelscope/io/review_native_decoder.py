@@ -8,7 +8,8 @@ are reused so no independent interpretation/signature dialect is introduced.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
@@ -42,6 +43,33 @@ MAX_NATIVE_VERIFY_BYTES = 128 * 1024 * 1024
 
 class UnsupportedNativeCandidate(ValueError):
     """Unsupported or incompatible approved profile/source combination."""
+
+
+def native_sample_sha256(document: ImageDocument) -> str:
+    """Content digest of native samples (including all YUV planes), not preview.
+
+    A candidate fingerprint is not enough to prove that a previously loaded
+    ImageDocument still represents the same bytes. W09b capture uses this
+    native digest as a second independent equality check after W09a SHA/
+    interpretation verification, off the GUI thread.
+    """
+    arrays = (
+        document.yuv_frame.planes
+        if document.yuv_frame is not None
+        else (document.source,)
+    )
+    if not arrays or any(plane is None for plane in arrays):
+        raise UnsupportedNativeCandidate("unloaded native samples")
+    hasher = hashlib.sha256()
+    hasher.update(document.channel_layout.encode("utf-8"))
+    for array in arrays:
+        if array is None:
+            raise UnsupportedNativeCandidate("unloaded native plane")
+        contiguous = np.ascontiguousarray(array)
+        hasher.update(str(contiguous.shape).encode("ascii"))
+        hasher.update(str(contiguous.dtype).encode("ascii"))
+        hasher.update(contiguous.tobytes(order="C"))
+    return hasher.hexdigest()
 
 
 def _raw_samples(data: bytes, profile: RawProfile) -> NDArray[np.generic]:
@@ -91,6 +119,7 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
 
     profile: RawProfile | YuvProfile
     max_decode_bytes: int = MAX_NATIVE_VERIFY_BYTES
+    native_sample_digest: str | None = field(init=False, default=None, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile, RawProfile | YuvProfile):
@@ -104,6 +133,7 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
         object.__setattr__(self, "profile", self.profile.copy(deep=True))
 
     def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+        object.__setattr__(self, "native_sample_digest", None)
         profile = self.profile
         expected = (
             required_file_size(profile)
@@ -147,6 +177,7 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
             # The same W02 producer used for live analysis. Do not construct
             # signature from the saved Review DTO or preview-cache metadata.
             source = snapshot_source(document, str(uuid4()))
+            object.__setattr__(self, "native_sample_digest", native_sample_sha256(document))
             return ReviewNativeSignatureV1(
                 profile_signature=source.profile_signature,
                 native_shape=source.native_shape,
