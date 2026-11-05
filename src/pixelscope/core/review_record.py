@@ -116,9 +116,11 @@ def _number(value: object, name: str, *, minimum: float = 0.0) -> float:
 
 
 def _keys(raw: object, *, maximum: int, allow_empty: bool = False) -> tuple[str, ...]:
-    if type(raw) not in (list, tuple) or len(raw) > maximum or (not allow_empty and not raw):
+    if type(raw) not in (list, tuple):
         raise ReviewValidationError("invalid ordered source key collection")
     sequence = cast(list[object] | tuple[object, ...], raw)
+    if len(sequence) > maximum or (not allow_empty and not sequence):
+        raise ReviewValidationError("invalid ordered source key collection")
     keys = tuple(_uuid(item) for item in sequence)
     if len(set(keys)) != len(keys):
         raise ReviewValidationError("duplicate source keys")
