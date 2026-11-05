@@ -564,9 +564,12 @@ def test_local_path_opt_in_and_portable_projection_excludes_sensitive_data(tmp_p
         extensions_json=canonical_json({"private": sensitive}),
     )
     local_bytes = local.to_bytes()
-    assert sensitive.encode() in local_bytes
+    local_payload = json.loads(local_bytes.decode("utf-8"))
+    assert local_payload["sources"][0]["locator"]["local_path"] == sensitive
     portable = project_portable_review(local).to_bytes()
-    assert sensitive.encode() not in portable
+    portable_payload = json.loads(portable.decode("utf-8"))
+    assert "local_path" not in str(portable_payload)
+    assert "extensions" not in portable_payload
     assert b"private.raw" not in portable
     assert "고주파" not in portable.decode("utf-8")
     projected = json.loads(portable)
