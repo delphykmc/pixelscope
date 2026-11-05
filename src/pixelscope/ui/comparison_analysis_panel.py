@@ -1769,39 +1769,51 @@ class ComparisonAnalysisPanel(QWidget):
                 writer.writerow(values)
 
     def _copy_pivot_selection(self) -> None:
+        """Copy exactly the selected Pivot cells, without implicit source expansion.
+
+        Preserve multi-range selection using empty TSV fields for unselected
+        intersections. Screen rounding never becomes clipboard precision.
+        """
         pivot = self.get_current_statistics_pivot()
         if pivot is None:
             return
-        selections = self.pivot_table.selectedRanges()
-        if not selections:
+        coordinates = {
+            (index.row(), index.column())
+            for index in self.pivot_table.selectedIndexes()
+            if 0 <= index.row() < len(pivot.rows)
+            and 0 <= index.column() < len(pivot.columns) + 2
+        }
+        if not coordinates:
             return
-        selected = selections[0]
-        source_indices = [
-            index
-            for index in range(len(pivot.columns))
-            if selected.leftColumn() <= index + 2 <= selected.rightColumn()
-        ]
-        if not source_indices:
-            source_indices = list(range(len(pivot.columns)))
-        header = ["Metric", "Channel", "Unit"] + [
-            pivot.columns[index].alias for index in source_indices
+        rows = sorted({row for row, _column in coordinates})
+        columns = sorted({column for _row, column in coordinates})
+        header = [
+            self.pivot_table.horizontalHeaderItem(column).text()
+            for column in columns
         ]
         lines = ["\t".join(header)]
         mode = self.pivot_delta.currentText()
-        for row_index in range(selected.topRow(), selected.bottomRow() + 1):
+        for row_index in rows:
             row = pivot.rows[row_index]
-            fields = [row.metric, row.channel, row.definition.unit]
-            for source_index in source_indices:
-                cell = row.cells[source_index]
-                text = cell.formatted_value(precision=17)
-                if mode != "Values":
-                    relative = mode == "Relative Δ (%)"
-                    text += (
-                        " | Delta "
-                        + cell.formatted_delta(relative=relative, precision=17)
-                        + (" %" if relative else f" {row.definition.unit}")
-                    )
-                fields.append(text)
+            fields: list[str] = []
+            for column in columns:
+                if (row_index, column) not in coordinates:
+                    fields.append("")
+                elif column == 0:
+                    fields.append(f"{row.metric} · {row.channel}")
+                elif column == 1:
+                    fields.append(row.definition.unit)
+                else:
+                    cell = row.cells[column - 2]
+                    text = cell.formatted_value(precision=17)
+                    if mode != "Values":
+                        relative = mode == "Relative Δ (%)"
+                        text += (
+                            " | Delta "
+                            + cell.formatted_delta(relative=relative, precision=17)
+                            + (" %" if relative else f" {row.definition.unit}")
+                        )
+                    fields.append(text)
             lines.append("\t".join(fields))
         QApplication.clipboard().setText("\n".join(lines))
 
