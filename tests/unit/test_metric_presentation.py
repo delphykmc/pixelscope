@@ -280,7 +280,7 @@ def test_typed_unit_catalog_precision_and_validation() -> None:
         format_metric_number(1.0, "finite", precision=18)
 
 
-def test_reject_stale_generation_profile_membership_unknown_filter_and_duplicate_measurement() -> None:
+def test_reject_stale_generation_profile_and_duplicate_measurement() -> None:
     token, sources, values = _fixture(2)
     for kwargs in (
         {"sources": (sources[0], replace(sources[1], generation=3))},
