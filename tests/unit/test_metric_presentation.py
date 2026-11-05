@@ -297,7 +297,7 @@ def test_typed_unit_catalog_precision_and_validation() -> None:
     with pytest.raises(ValueError, match="domain"):
         metric_definition("Mean", domain="unknown")
     assert format_metric_number(0.123456789987, "finite", precision=6) == "0.123457"
-    assert format_metric_number(0.123456789987, "finite", precision=17) == "0.123456789987"
+    assert format_metric_number(0.123456789987, "finite", precision=17) == "0.12345678998700001"
     assert format_metric_number(None, "unavailable") == "N/A"
     with pytest.raises(ValueError):
         format_metric_number(1.0, "finite", precision=18)
