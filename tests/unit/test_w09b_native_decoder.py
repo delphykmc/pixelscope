@@ -31,7 +31,7 @@ from pixelscope.io.review_native_decoder import (
 from pixelscope.io.review_repository import ReviewCancelled, verify_review_source
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.io.yuv_reader import read_yuv
-from pixelscope.ui.review_restore_controller import _verify_batch, ApprovedCandidate
+from pixelscope.ui.review_restore_controller import ApprovedCandidate, _verify_batch
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "test_data" / "manual" / "raw_chart_set"
