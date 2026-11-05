@@ -58,7 +58,11 @@ def _filename_number(value: float) -> str:
     return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
-def _table_csv_text(table: QTableWidget) -> str:
+def _table_csv_text(
+    table: QTableWidget, *, columns: tuple[int, ...] | None = None
+) -> str:
+    """Copy visible table values without silently changing legacy CSV schemas."""
+    selected_columns = columns if columns is not None else tuple(range(table.columnCount()))
     buffer = StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(
@@ -66,14 +70,14 @@ def _table_csv_text(table: QTableWidget) -> str:
             table.horizontalHeaderItem(column).text()
             if table.horizontalHeaderItem(column) is not None
             else ""
-            for column in range(table.columnCount())
+            for column in selected_columns
         ]
     )
     for row in range(table.rowCount()):
         writer.writerow(
             [
                 table.item(row, column).text() if table.item(row, column) is not None else ""
-                for column in range(table.columnCount())
+                for column in selected_columns
             ]
         )
     return buffer.getvalue()
@@ -672,7 +676,10 @@ class AnalysisExportController(QObject):
             self.refresh_actions()
             return
         table = self.window.difference_panel.metrics
-        set_clipboard_text(_table_csv_text(table))
+        # W07 exposes a third presentation-only Unit column. Keep the P4e
+        # clipboard export contract (Metric, Value); the typed unit remains
+        # visible in the panel and Difference CSV has its own domain metadata.
+        set_clipboard_text(_table_csv_text(table, columns=(0, 1)))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
 
     def _bundle_adapters(self) -> tuple[_FrozenFeatureAdapter, ...]:
