@@ -9,12 +9,11 @@ are reused so no independent interpretation/signature dialect is introduced.
 from __future__ import annotations
 
 import hashlib
-
-import cv2
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 
@@ -204,7 +203,11 @@ class ProductionEncodedCandidateDecoder(CandidateNativeDecoderV1):
     native_sample_digest: str | None = field(init=False, default=None, compare=False)
 
     def __post_init__(self) -> None:
-        if type(self.max_decode_bytes) is not int or self.max_decode_bytes <= 0:
+        if (
+            not isinstance(self.max_decode_bytes, int)
+            or isinstance(self.max_decode_bytes, bool)
+            or self.max_decode_bytes <= 0
+        ):
             raise UnsupportedNativeCandidate("invalid encoded-image decode budget")
 
     def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:

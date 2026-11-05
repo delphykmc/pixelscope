@@ -21,7 +21,7 @@ def test_two_selected_rgb_roi_outputs_exact_crops(tmp_path: Path) -> None:
     )
     assert len(files) == 2
     assert files[0].name != files[1].name
-    for path, expected in zip(files, (first, second)):
+    for path, expected in zip(files, (first, second), strict=True):
         decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
         assert decoded is not None
         rgb = cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)

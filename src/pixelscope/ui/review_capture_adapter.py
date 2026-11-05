@@ -36,8 +36,8 @@ from pixelscope.core.review_record import (
 )
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
-    MAX_NATIVE_VERIFY_BYTES,
     ENCODED_IMAGE_EXTENSIONS,
+    MAX_NATIVE_VERIFY_BYTES,
     native_sample_sha256,
     review_candidate_decoder,
 )

@@ -18,8 +18,8 @@ from pixelscope.core.review_record import ReviewFindingV1, ReviewSourceV1
 from pixelscope.core.review_workflow import ReviewLibrary
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
-    MAX_NATIVE_VERIFY_BYTES,
     ENCODED_IMAGE_EXTENSIONS,
+    MAX_NATIVE_VERIFY_BYTES,
     review_candidate_decoder,
 )
 from pixelscope.io.review_repository import (

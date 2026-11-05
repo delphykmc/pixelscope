@@ -9,10 +9,9 @@ from __future__ import annotations
 import weakref
 from pathlib import Path
 from threading import Event
-
-import numpy as np
 from typing import Any
 
+import numpy as np
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -234,7 +233,12 @@ class NamedReviewCoordinator:
         ):
             return
         if isinstance(value, tuple):
-            self.panel.set_status(f"Exported {len(value)} ROI PNG(s) to {value[0].parent}" if value else "No ROI crops exported")
+            message = (
+                f"Exported {len(value)} ROI PNG(s) to {value[0].parent}"
+                if value
+                else "No ROI crops exported"
+            )
+            self.panel.set_status(message)
 
     @Slot(str, object, int, object)
     def _export_failed(self, task_id: str, _document: object, epoch: int, error: object) -> None:
