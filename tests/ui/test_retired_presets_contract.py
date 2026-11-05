@@ -32,9 +32,7 @@ def test_no_hidden_w05_or_w06_selector_or_duplicate_state_owner(qtbot: object) -
 
 
 @pytest.mark.parametrize("count", [2, 4, 6, 8])
-def test_canonical_current_page_survives_removal(
-    qtbot: object, tmp_path: Path, count: int
-) -> None:
+def test_canonical_current_page_survives_removal(qtbot: object, tmp_path: Path, count: int) -> None:
     window = _window(qtbot)
     documents = [
         ImageDocument.from_array(
