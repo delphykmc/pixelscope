@@ -1,0 +1,23 @@
+name: Memo v2 archive focused (temporary)
+on:
+  push:
+    branches:
+      - codex/issue210-memo-multi-roi-bundle-iqa-dock-20261106
+jobs:
+  memo-archive:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install focused dependencies
+        run: python -m pip install pytest==7.4.4
+      - name: Exercise real Memo ZIP and HTML roundtrip
+        env:
+          PYTHONPATH: src
+        run: python -m pytest -q tests/unit/test_memo_bundle.py
