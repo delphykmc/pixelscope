@@ -674,6 +674,25 @@ class ReviewFindingV1:
                         != (self.roi_ref is not None)
                     ):
                         raise ReviewValidationError("W02 difference region disagrees with ROI")
+                    # W02's DifferencePanel presents these exact immutable
+                    # recipe fields with its native metrics. The cache digest
+                    # alone does NOT bind mode/gain/threshold, which are
+                    # presentation parameters rather than map identity.
+                    presented = cast(dict[str, str], context["presentation"])
+                    expected_presentation = {
+                        "pair_a": self.reference_key,
+                        "pair_b": self.pair_target_key,
+                        "mode": self.difference_intent.mode,
+                        "gain": str(self.difference_intent.gain),
+                        "threshold": f"{self.difference_intent.threshold:g}",
+                    }
+                    if any(
+                        presented.get(name) != expected_value
+                        for name, expected_value in expected_presentation.items()
+                    ):
+                        raise ReviewValidationError(
+                            "W02 difference presentation recipe disagrees with Finding"
+                        )
                 # The W02 parser allows opaque snapshot IDs; Review v1 requires UUIDs.
                 snapshot_id = _uuid(context["snapshot_id"])
                 if snapshot_id in snapshot_ids:
