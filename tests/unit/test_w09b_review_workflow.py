@@ -30,18 +30,31 @@ def _sources(tmp_path):
         payload = b"pixel-source:" + name.encode("ascii")
         path.write_bytes(payload)
         signature = ReviewNativeSignatureV1(
-            "1" * 64, (4, 5), (4, 5), "uint8", "GRAY", 8,
-            __import__("json").dumps(
-                AnalysisNativeInterpretationV1().to_portable(), sort_keys=True,
+            "1" * 64,
+            (4, 5),
+            (4, 5),
+            "uint8",
+            "GRAY",
+            8,
+            __import__("json")
+            .dumps(
+                AnalysisNativeInterpretationV1().to_portable(),
+                sort_keys=True,
                 separators=(",", ":"),
-            ).encode("utf-8"),
+            )
+            .encode("utf-8"),
         )
         result.append(
             ReviewSourceV1(
-                str(uuid4()), ReviewLocatorV1(path.name), signature,
+                str(uuid4()),
+                ReviewLocatorV1(path.name),
+                signature,
                 ReviewFingerprintV1(
-                    "sha256", hashlib.sha256(payload).hexdigest(), len(payload),
-                    path.stat().st_mtime_ns, "verified",
+                    "sha256",
+                    hashlib.sha256(payload).hexdigest(),
+                    len(payload),
+                    path.stat().st_mtime_ns,
+                    "verified",
                 ),
             )
         )
@@ -65,11 +78,20 @@ def _finding(sources, roi, *, title="halo"):
         per_source={},
     )
     return ReviewFindingV1(
-        id=str(uuid4()), title=title, note="한글 메모", tags=("halo",),
+        id=str(uuid4()),
+        title=title,
+        note="한글 메모",
+        tags=("halo",),
         captured_utc=utc_now(),
-        source_keys=keys, reference_key=keys[0], pair_target_key=keys[1],
-        view_state=state, roi_ref=roi, line_ref=(0, 0, 4, 3),
-        channel="All", display_gain=1.0, difference_intent=None,
+        source_keys=keys,
+        reference_key=keys[0],
+        pair_target_key=keys[1],
+        view_state=state,
+        roi_ref=roi,
+        line_ref=(0, 0, 4, 3),
+        channel="All",
+        display_gain=1.0,
+        difference_intent=None,
         analysis=(ReviewAnalysisCaptureV1("unavailable", reason="not calculated"),),
         availability="unavailable",
     )
@@ -83,7 +105,9 @@ def test_three_named_findings_edit_delete_save_restart_and_cas(tmp_path):
     assert tuple(f.roi_ref for f in library.document.findings) == tuple(rois)
 
     library.edit(
-        findings[1].id, title="Texture loss / 紋理", note="기록 Δ has metadata",
+        findings[1].id,
+        title="Texture loss / 紋理",
+        note="기록 Δ has metadata",
         tags=("edge", "Δ"),
     )
     assert library.get(findings[1].id).roi_ref == rois[1]
@@ -117,15 +141,18 @@ def test_invalid_metadata_and_same_uuid_conflict_never_mutate_library(tmp_path):
         lib.edit(finding.id, title="", note="", tags=())
     assert lib.document.to_bytes() == before
     with pytest.raises(ReviewValidationError):
-        lib.add(replace(finding, id=str(uuid4())), (
-            replace(
-                sources[0],
-                native_signature=replace(
-                    sources[0].native_signature, profile_signature="2" * 64
+        lib.add(
+            replace(finding, id=str(uuid4())),
+            (
+                replace(
+                    sources[0],
+                    native_signature=replace(
+                        sources[0].native_signature, profile_signature="2" * 64
+                    ),
                 ),
+                sources[1],
             ),
-            sources[1],
-        ))
+        )
     assert lib.document.to_bytes() == before
     with pytest.raises(KeyError):
         lib.delete(str(uuid4()))
@@ -155,8 +182,12 @@ def test_preflight_offline_finding_requires_all_sources_verified(tmp_path):
     finding = lib.add(_finding(sources, (1, 1, 2, 2)), sources)
     verified = {
         item.source_key: SourceResolutionV1(
-            item.source_key, "verified", str((tmp_path / item.locator.basename).resolve()),
-            True, "digest_match", "native interpretation matched",
+            item.source_key,
+            "verified",
+            str((tmp_path / item.locator.basename).resolve()),
+            True,
+            "digest_match",
+            "native interpretation matched",
         )
         for item in sources
     }
@@ -164,8 +195,12 @@ def test_preflight_offline_finding_requires_all_sources_verified(tmp_path):
     with pytest.raises(ReviewValidationError, match="unverified"):
         lib.preflight_finding(finding.id, {sources[0].source_key: verified[sources[0].source_key]})
     changed = SourceResolutionV1(
-        sources[1].source_key, "changed", verified[sources[1].source_key].candidate_path,
-        True, "digest_mismatch", "changed source",
+        sources[1].source_key,
+        "changed",
+        verified[sources[1].source_key].candidate_path,
+        True,
+        "digest_mismatch",
+        "changed source",
     )
     with pytest.raises(ReviewValidationError, match="unverified"):
         lib.preflight_finding(
