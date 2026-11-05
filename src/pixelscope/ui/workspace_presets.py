@@ -159,12 +159,15 @@ class WorkspacePresetController(QObject):
         if restore_selected:
             self._apply_preset(self._preset, prefer_saved=True)
         elif not (
-            self._settings.contains("ui/main_splitter")
+            window.isVisible()
+            or (isinstance(dock, QDockWidget) and dock.isFloating())
+            or self._settings.contains("ui/main_splitter")
             or self._settings.contains("ui/sidebar_splitter")
             or self._settings.contains("ui/dock_state")
         ):
-            # Fresh install: establish Compare's Files/Viewer ratio. Existing
-            # pre-W06 users keep their legacy layout until an explicit switch.
+            # Only an unshown, unconfigured window is a fresh workspace.
+            # Late installation must preserve live floating/hidden Plots and
+            # user-managed dock state, even without legacy QSettings keys.
             self._apply_preset(WorkspacePreset.COMPARE, prefer_saved=False)
         self._recover_timer.start(0)
         self._density_timer.start(0)
