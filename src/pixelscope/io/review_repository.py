@@ -182,18 +182,11 @@ def verify_review_source(
         initial_revision = _identity(path.stat())
         probe = stream_source_sha256(path, cancel=cancel, progress=progress,
                                      max_bytes=max_bytes)
-        _cancel_if_requested(cancel)
-        if callable(native_signature):
-            current_signature = native_signature()
-        else:
-            current_signature = native_signature
-        if _identity(path.stat()) != initial_revision:
-            raise SourceHashUnstable("source changed during decode signature validation")
     except (ReviewCancelled, KeyboardInterrupt):
         raise
-    except (OSError, SourceHashUnstable, ReviewRepositoryError) as exc:
+    except OSError as exc:
         return outcome("candidate_unverified", "unavailable",
-                       f"cannot safely verify candidate: {type(exc).__name__}")
+                       f"cannot safely hash candidate: {type(exc).__name__}")
 
     prior_sha = source.fingerprint.digest
     if prior_sha is None:
@@ -201,6 +194,25 @@ def verify_review_source(
                        "saved SHA-256 is absent; metadata cannot prove identity")
     if probe.sha256 != prior_sha:
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
+    # A signature object computed outside this stat window is not sufficient
+    # evidence that the decoder interpretation describes the hashed revision.
+    if not callable(native_signature):
+        return outcome("candidate_unverified", "digest_match",
+                       "native decoder signature requires revision-bound provider")
+    try:
+        _cancel_if_requested(cancel)
+        current_signature = native_signature()
+        _cancel_if_requested(cancel)
+        if _identity(path.stat()) != initial_revision:
+            raise SourceHashUnstable("file changed during decoder signature evaluation")
+    except (ReviewCancelled, KeyboardInterrupt):
+        raise
+    except (ValueError, TypeError) as exc:
+        return outcome("unsupported_profile", "digest_match",
+                       f"decoder rejected profile: {type(exc).__name__}")
+    except OSError as exc:
+        return outcome("candidate_unverified", "digest_match",
+                       f"cannot verify stable decoder revision: {type(exc).__name__}")
     if not isinstance(current_signature, ReviewNativeSignatureV1):
         return outcome("unsupported_profile", "digest_match",
                        "native decoder signature is unavailable")
@@ -211,7 +223,7 @@ def verify_review_source(
         return outcome("candidate_unverified", "digest_match",
                        "verified bytes require explicit relocation confirmation")
     return outcome("verified", "digest_match",
-                   "SHA-256 and native decoder signature both match")
+                   "SHA-256 and revision-bound native decoder signature both match")
 
 
 def normalize_review_path(path: str | Path) -> Path:
@@ -314,6 +326,7 @@ class ReviewRepository:
         elif expected_revision is not None:
             raise ReviewConflictError("expected_revision applies only to explicit overwrite")
         target = normalize_review_path(path)
+        protected_paths = tuple(protected_paths)
         _cancel_if_requested(cancel)
         if not target.parent.is_dir():
             raise ReviewRepositoryError("Review destination directory does not exist")
@@ -392,7 +405,10 @@ class ReviewRepository:
                     except OSError:
                         pass
                 if lock_fd is not None:
-                    os.close(lock_fd)
+                    try:
+                        os.close(lock_fd)
+                    except OSError:
+                        pass
                     try:
                         lock_path.unlink(missing_ok=True)
                     except OSError:
