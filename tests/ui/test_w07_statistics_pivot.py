@@ -6,6 +6,8 @@ import gc
 from pathlib import Path
 
 import numpy as np
+import pytest
+from PySide6.QtWidgets import QApplication, QTableWidgetSelectionRange
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
@@ -65,10 +67,9 @@ def test_raw_pivot_switch_reference_delta_copy_and_legacy_export(
 
     panel.pivot_table.selectRow(mean_r)
     panel.copy_selection()
-    from PySide6.QtWidgets import QApplication
-
     copied = QApplication.clipboard().text()
-    assert "Mean\tR\tnative code" in copied
+    assert copied.splitlines()[0].split("\t")[:2] == ["Metric", "Unit"]
+    assert "Mean · R\tnative code" in copied
     assert "Delta 7 native code" in copied
 
     pivot_path = tmp_path / "pivot.csv"
@@ -245,5 +246,126 @@ def test_same_size_different_roi_coordinates_republish_native_statistics(
     second_mean = next(row for row in second.rows if row.metric == "Mean" and row.channel == "R")
     assert second_mean.cells[0].sample_count == 4
     assert second_mean.cells[0].value != first_mean.cells[0].value
+    panel.shutdown()
+    panel.close()
+
+
+@pytest.mark.parametrize("source_count", (2, 4, 6))
+def test_pivot_copy_respects_exact_columns_and_sparse_ranges(
+    qtbot: object, source_count: int
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.show()
+    documents = [
+        _document(f"원본_{index}_동일패턴.png", (index + 1) * 10)
+        for index in range(source_count)
+    ]
+    panel.set_documents(documents, None)
+    _ready(panel, qtbot)
+    panel.statistics_view.setCurrentText("Pivot")
+    panel.pivot_reference.setCurrentIndex(1)
+    panel.pivot_delta.setCurrentText("Absolute Δ")
+    table = panel.pivot_table
+    mean_r = _row(panel, "Mean · R")
+    source_col = 3  # second source; first two columns are Metric and Unit
+
+    def copy(*rectangles: tuple[int, int, int, int]) -> str:
+        table.clearSelection()
+        for top, left, bottom, right in rectangles:
+            table.setRangeSelected(
+                QTableWidgetSelectionRange(top, left, bottom, right), True
+            )
+        panel.copy_selection()
+        return QApplication.clipboard().text()
+
+    # No source values or hidden channels may be added to metadata-only copies.
+    assert copy((mean_r, 0, mean_r, 0)) == "Metric\nMean · R"
+    assert copy((mean_r, 1, mean_r, 1)) == "Unit\nnative code"
+    assert copy((mean_r, 0, mean_r, 1)) == "Metric\tUnit\nMean · R\tnative code"
+
+    source_header = table.horizontalHeaderItem(source_col).text()
+    single = copy((mean_r, source_col, mean_r, source_col))
+    assert single == f"{source_header}\n20 | Delta 10 native code"
+    assert single.count("\t") == 0
+    assert "원본_2" not in single
+
+    # Noncontiguous ranges retain only selected columns, preserve coordinates,
+    # and leave unselected cell intersections empty rather than exporting data.
+    sparse = copy((mean_r, 0, mean_r, 0), (mean_r + 1, source_col, mean_r + 1, source_col))
+    assert sparse == (
+        f"Metric\t{source_header}\n"
+        "Mean · R\t\n"
+        "\t20 | Delta 10 native code"
+    )
+    assert sparse.splitlines()[0].count("\t") == 1
+    # Multiple separated source columns are not silently filled in.
+    multi = copy(
+        (mean_r, 2, mean_r, 2),
+        (mean_r + 1, source_col, mean_r + 1, source_col),
+    )
+    source_a_header = table.horizontalHeaderItem(2).text()
+    assert multi == (
+        f"{source_a_header}\t{source_header}\n"
+        "10 | Delta 0 native code\t\n"
+        "\t20 | Delta 10 native code"
+    )
+
+    panel.shutdown()
+    panel.close()
+
+
+def test_difference_normalized_units_survive_clear_roi_invalid_and_recompute(
+    qtbot: object,
+) -> None:
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    low = ImageDocument.from_array(
+        np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8
+    )
+    high = ImageDocument.from_array(
+        np.full((8, 8), 1000, dtype=np.uint16), "high.raw", bit_depth=10
+    )
+    panel.set_documents([low, high], (low.document_id, high.document_id))
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None, timeout=3000
+    )
+    assert panel.metrics.item(0, 2).text() == "normalized [0,1]"
+    assert panel.metrics.item(1, 2).text() == "normalized²"
+
+    # A new valid ROI invalidates the metric without changing the domain.
+    panel.set_active_roi(RoiBounds(1, 1, 4, 4))
+    assert panel.last_result is None
+    assert panel.metrics.item(0, 1).text() == "—"
+    assert panel.metrics.item(0, 2).text() == "normalized [0,1]"
+    assert panel.metrics.item(1, 2).text() == "normalized²"
+    assert "Pending/unavailable" in panel.metrics.item(0, 2).toolTip()
+
+    # Off-image ROI is not calculable, but must not be labelled native.
+    panel.set_active_roi(RoiBounds(20, 20, 4, 4))
+    assert not panel.calculate.isEnabled()
+    assert panel.metrics.item(0, 1).text() == "—"
+    assert panel.metrics.item(0, 2).text() == "normalized [0,1]"
+
+    panel.set_active_roi(RoiBounds(1, 1, 4, 4))
+    assert panel.calculate.isEnabled()
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None, timeout=3000
+    )
+    assert panel.metrics.item(0, 1).text() != "—"
+    assert panel.metrics.item(0, 2).text() == "normalized [0,1]"
+    assert panel.metrics.item(1, 2).text() == "normalized²"
+
+    # Unknown/incompatible pair: do not invent a numeric-domain unit.
+    rgb = ImageDocument.from_array(
+        np.full((8, 8, 3), 10, dtype=np.uint8), "rgb.png"
+    )
+    panel.set_documents([low, rgb], (low.document_id, rgb.document_id))
+    assert panel.metrics.item(0, 1).text() == "—"
+    assert panel.metrics.item(0, 2).text() == "—"
+    assert panel.metrics.item(1, 2).text() == "—"
+    assert not panel.calculate.isEnabled()
     panel.shutdown()
     panel.close()
