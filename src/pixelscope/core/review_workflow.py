@@ -83,7 +83,9 @@ class ReviewLibrary:
             source_order=tuple(s.source_key for s in ordered),
         )
         updated = replace(
-            old, sources=tuple(ordered), workspace_intent=intent,
+            old,
+            sources=tuple(ordered),
+            workspace_intent=intent,
             findings=old.findings + (finding,),
         )
         self._replace(updated)
@@ -125,7 +127,9 @@ class ReviewLibrary:
             )
         # Commit can change only after the repository's exclusive/CAS barrier.
         result = self.repository.save(
-            target, self.document, overwrite=overwrite,
+            target,
+            self.document,
+            overwrite=overwrite,
             expected_revision=self.revision if overwrite else None,
             protected_paths=protected_paths,
         )
@@ -144,11 +148,7 @@ class ReviewLibrary:
         finding = self.get(finding_id)
         for key in finding.source_keys:
             result = verified.get(key)
-            if (
-                result is None
-                or result.source_key != key
-                or not result.may_bind_historical_finding
-            ):
+            if result is None or result.source_key != key or not result.may_bind_historical_finding:
                 raise ReviewValidationError(f"cannot activate unverified source: {key}")
         return finding
 
