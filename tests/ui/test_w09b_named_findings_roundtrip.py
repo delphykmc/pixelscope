@@ -216,25 +216,12 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
             dialog_class = RawOpenDialog if path.suffix == ".raw" else YuvOpenDialog
             monkeypatch.setattr(dialog_class, "exec", lambda _self: QDialog.DialogCode.Accepted)
             monkeypatch.setattr(dialog_class, "profile", lambda _self, _p=path: profiles[_p])
-            if finding_index == 0 and key == finding.source_keys[0]:
-                monkeypatch.setattr(
-                    QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.No
-                )
-                fresh.choose_candidate(key)
-                assert key not in fresh._approved
-                assert restored.current_comparison_documents() == []
             monkeypatch.setattr(
                 QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.Yes
             )
+            # The final missing native source selection triggers automatic
+            # verification and ROI restoration. No Verify/Activate button.
             fresh.choose_candidate(key)
-        fresh.verify()
-        qtbot.waitUntil(
-            lambda: fresh.restore.phase in ("verified", "unavailable") or bool(errors),
-            timeout=10000,
-        )  # type: ignore[attr-defined]
-        assert not errors
-        assert fresh.restore.phase == "verified"
-        fresh.activate(finding.id)
         qtbot.waitUntil(
             lambda: fresh.restore.phase in ("applied", "unavailable", "interrupted")
             or bool(errors),
