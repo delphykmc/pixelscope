@@ -1,3 +1,4 @@
+# ruff: noqa: E721  # Strict JSON primitive checks must reject bool-as-int.
 """Strict Qt-free local Review v1 DTOs and portable projection (Issue #210 W09a).
 
 A Review is captured evidence, never an instruction to mutate live workspace.
@@ -36,7 +37,10 @@ MAX_NOTE_BYTES = 32 * 1024
 MAX_EXTENSIONS_BYTES = 64 * 1024
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 _LABEL = re.compile(r"^[\w .:+-]{1,96}$", re.UNICODE)
-_DTYPE = re.compile(r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$")
+_DTYPE = re.compile(
+    r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|"
+    r"[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$"
+)
 _VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$")
 _STATUSES = frozenset({"available", "partial", "unavailable"})
 _ANALYSIS_STATUSES = frozenset({"captured", "unavailable"})
@@ -138,7 +142,7 @@ def _rect_wire(value: tuple[int, int, int, int] | None, *, line: bool = False
     if value is None:
         return None
     labels = ("x1", "y1", "x2", "y2") if line else ("x", "y", "width", "height")
-    return dict(zip(labels, value))
+    return dict(zip(labels, value, strict=True))
 
 
 def _json_depth(value: object, depth: int = 0) -> None:
