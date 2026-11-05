@@ -29,8 +29,10 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
@@ -38,6 +40,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QStackedWidget,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -50,6 +53,13 @@ from PySide6.QtWidgets import (
 from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.metric_presentation import (
+    FOCUSED_METRICS,
+    PERCENTILE_METRICS,
+    STATISTICS_METRICS,
+    StatisticsPivot,
+    build_statistics_pivot,
+)
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSeriesV1,
@@ -199,6 +209,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._analysis_source_keys: dict[str, str] = {}
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
+        self._pivot: StatisticsPivot | None = None
         self._pool = analysis_thread_pool()
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -359,8 +370,89 @@ class ComparisonAnalysisPanel(QWidget):
 
         self.statistics_group = QGroupBox("3. Channel statistics")
         statistics_layout = QVBoxLayout(self.statistics_group)
-        statistics_layout.setContentsMargins(6, 6, 6, 6)
-        statistics_layout.addWidget(self.table)
+        # Keep the baseline compact Analyze minimum: three complete native
+        # rows, even after a header View switch is installed (W06).
+        statistics_layout.setContentsMargins(6, 2, 6, 2)
+        statistics_layout.setSpacing(2)
+        self.statistics_view = QComboBox()
+        self.statistics_view.addItems(("Raw", "Pivot"))
+        self.pivot_channel = QComboBox()
+        self.pivot_channel.addItem("All")
+        self.pivot_metrics = QComboBox()
+        self.pivot_metrics.addItems(("Mean / Std / P99", "All metrics", "Percentiles"))
+        self.pivot_reference = QComboBox()
+        self.pivot_reference.addItem("No reference", None)
+        self.pivot_reference.setToolTip(
+            "Statistics-only Reference. Independent of W05 Primary and Difference A/B roles."
+        )
+        self.pivot_delta = QComboBox()
+        self.pivot_delta.addItems(("Values", "Absolute Δ", "Relative Δ (%)"))
+        self.pivot_delta.setToolTip("Delta = Target - Reference; relative = Δ / |Reference| × 100")
+        self.pivot_export_button = QPushButton("Export Pivot CSV…")
+        self.pivot_export_button.setToolTip(
+            "High-precision typed Pivot CSV; existing Raw Statistics CSV is unchanged"
+        )
+        self.pivot_table = QTableWidget(0, 0)
+        self.pivot_table.verticalHeader().hide()
+        self.pivot_table.setWordWrap(False)
+        self.pivot_table.setAlternatingRowColors(True)
+        self.pivot_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.pivot_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        self.pivot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.pivot_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.pivot_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.pivot_table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        self.pivot_export_button.setEnabled(False)
+        pivot_copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.pivot_table)
+        pivot_copy_shortcut.activated.connect(self.copy_selection)  # type: ignore[attr-defined]
+
+        # W06 compact Analyze workspace reserves three readable Raw statistics
+        # rows at 1400×880. The W07 Pivot options must not occupy those rows
+        # when the default legacy Raw view is selected.
+        # Standalone panel: keep a local View selector. The composed
+        # MainWindow relocates it into the already-present Statistics header,
+        # avoiding an extra row in the height-constrained W06 Analyze preset.
+        self.statistics_view_row = QWidget()
+        statistics_view_layout = QHBoxLayout(self.statistics_view_row)
+        statistics_view_layout.setContentsMargins(0, 0, 0, 0)
+        statistics_view_layout.setSpacing(TOKENS.spacing_xs)
+        self.statistics_view_label = QLabel("View")
+        statistics_view_layout.addWidget(self.statistics_view_label)
+        self.statistics_view.setMaximumWidth(130)
+        statistics_view_layout.addWidget(self.statistics_view)
+        statistics_view_layout.addStretch(1)
+        statistics_layout.addWidget(self.statistics_view_row)
+
+        self.pivot_controls_widget = QWidget()
+        pivot_controls = ResponsiveControlLayout(
+            self.pivot_controls_widget, spacing=TOKENS.spacing_xs
+        )
+        for row_index, title, combo in (
+            (0, "Channel", self.pivot_channel),
+            (0, "Metrics", self.pivot_metrics),
+            (1, "Pivot reference", self.pivot_reference),
+            (1, "Delta", self.pivot_delta),
+        ):
+            pivot_controls.add_control(QLabel(title), compact_row=row_index)
+            pivot_controls.add_control(combo, compact_row=row_index)
+            combo.setMinimumWidth(0)
+            combo.setMaximumWidth(170)
+        pivot_controls.add_control(self.pivot_export_button, compact_row=1)
+        statistics_layout.addWidget(self.pivot_controls_widget)
+        self.pivot_controls_widget.hide()
+        self.statistics_stack = QStackedWidget()
+        self.statistics_stack.addWidget(self.table)
+        self.statistics_stack.addWidget(self.pivot_table)
+        statistics_layout.addWidget(self.statistics_stack, 1)
+        self.statistics_view.currentIndexChanged.connect(self._statistics_view_changed)  # type: ignore[attr-defined]
+        for combo in (
+            self.pivot_channel,
+            self.pivot_metrics,
+            self.pivot_reference,
+            self.pivot_delta,
+        ):
+            combo.currentIndexChanged.connect(self._refresh_pivot)  # type: ignore[attr-defined]
+        self.pivot_export_button.clicked.connect(self._prompt_pivot_export)  # type: ignore[attr-defined]
 
         self.histogram_grid = QWidget()
         self.histogram_layout = QGridLayout(self.histogram_grid)
@@ -496,6 +588,7 @@ class ComparisonAnalysisPanel(QWidget):
         # Explicit rebind affects identity only, not native data or requests.
         self._presented_analysis_token = self._analysis_render_token()
         self._presented_histogram_token = self._histogram_live_token()
+        self._refresh_pivot()
 
     def source_key_for_document(self, document_id: str) -> str:
         return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
@@ -803,6 +896,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.last_results = ()
         self.image_summary.setRowCount(0)
         self.table.setRowCount(0)
+        self._clear_pivot()
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
@@ -985,6 +1079,7 @@ class ComparisonAnalysisPanel(QWidget):
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
+            self._refresh_pivot()
 
     def _channels_changed(self, _checked: bool) -> None:
         if self.last_results and self._histogram_specs:
@@ -1110,6 +1205,7 @@ class ComparisonAnalysisPanel(QWidget):
         # until the new analysis has finished. Clearing here causes a blank
         # frame and a scrollbar/layout jump while the worker is running.
         self.last_results = ()
+        self._clear_pivot()
         if self.histogram_context.text() and not self.histogram_context.text().startswith(
             "Previous result · "
         ):
@@ -1353,6 +1449,7 @@ class ComparisonAnalysisPanel(QWidget):
             if stats is not None and any(self._histogram_series)
             else None
         )
+        self._refresh_pivot()
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
@@ -1454,7 +1551,293 @@ class ComparisonAnalysisPanel(QWidget):
             plot.hide()
         self._histogram_series = [[] for _index in range(6)]
 
+    def _statistics_view_changed(self, index: int) -> None:
+        self.statistics_stack.setCurrentIndex(index)
+        self.pivot_controls_widget.setVisible(index == 1)
+        self._refresh_pivot()
+
+    def _clear_pivot(self) -> None:
+        """Never leave old numbers visible when W02's live token is invalid."""
+        self._pivot = None
+        self.pivot_table.clear()
+        self.pivot_table.setRowCount(0)
+        self.pivot_table.setColumnCount(0)
+        self.pivot_export_button.setEnabled(False)
+
+    def _refresh_pivot(self, _index: int = -1) -> None:
+        """Presentation-only operation: never requests analysis or changes selection."""
+        if self._histogram_resources_disposed:
+            return
+        token = self.get_presented_analysis_token()
+        if token is None or token != self.get_current_analysis_token():
+            self._clear_pivot()
+            return
+        try:
+            if len(self._documents) != len(token.source_documents) or any(
+                document.document_id != document_id or document.generation != generation
+                for document, (document_id, generation) in zip(
+                    self._documents, token.source_documents, strict=True
+                )
+            ):
+                raise ValueError("changed current comparison source")
+            sources, measurements, _presentation = self.read_presented_analysis()
+            if (
+                self.get_presented_analysis_token() != token
+                or self.get_current_analysis_token() != token
+            ):
+                raise ValueError("changed Statistics presentation during read")
+
+            # W03's document.display_name is already the canonical qualified
+            # alias; re-resolving with a separate folder/identity store would
+            # override persistent tag edits.
+            labels = {
+                key: document.display_name
+                for document, key in zip(self._documents, token.source_keys, strict=True)
+            }
+            selected_channel = self.pivot_channel.currentText()
+            channels = list(
+                dict.fromkeys(
+                    item.channel for item in measurements if item.metric in STATISTICS_METRICS
+                )
+            )
+            channel_options = ["All", *channels]
+            if [
+                self.pivot_channel.itemText(i) for i in range(self.pivot_channel.count())
+            ] != channel_options:
+                self.pivot_channel.blockSignals(True)
+                self.pivot_channel.clear()
+                self.pivot_channel.addItems(channel_options)
+                self.pivot_channel.setCurrentText(
+                    selected_channel if selected_channel in channel_options else "All"
+                )
+                self.pivot_channel.blockSignals(False)
+
+            old_ref = self.pivot_reference.currentData()
+            reference_keys = list(token.source_keys)
+            old_keys = [
+                self.pivot_reference.itemData(i) for i in range(1, self.pivot_reference.count())
+            ]
+            old_labels = [
+                self.pivot_reference.itemText(i) for i in range(1, self.pivot_reference.count())
+            ]
+            new_labels = [f"{index} · {labels[key]}" for index, key in enumerate(reference_keys, 1)]
+            if old_keys != reference_keys or old_labels != new_labels:
+                self.pivot_reference.blockSignals(True)
+                self.pivot_reference.clear()
+                self.pivot_reference.addItem("No reference", None)
+                for key, display in zip(reference_keys, new_labels, strict=True):
+                    self.pivot_reference.addItem(display, key)
+                selected = self.pivot_reference.findData(old_ref)
+                self.pivot_reference.setCurrentIndex(max(0, selected))
+                self.pivot_reference.blockSignals(False)
+
+            metric_options = {
+                "Mean / Std / P99": FOCUSED_METRICS,
+                "All metrics": STATISTICS_METRICS,
+                "Percentiles": PERCENTILE_METRICS,
+            }
+            metric_filter = metric_options[self.pivot_metrics.currentText()]
+            pivot = build_statistics_pivot(
+                token,
+                sources,
+                measurements,
+                labels,
+                channel=self.pivot_channel.currentText(),
+                metrics=metric_filter,
+                reference_key=self.pivot_reference.currentData(),
+            )
+        except (ValueError, RuntimeError, TypeError, KeyError, IndexError):
+            self._clear_pivot()
+            return
+
+        self._pivot = pivot
+        self._render_pivot(pivot)
+        self.pivot_export_button.setEnabled(bool(pivot.rows))
+
+    def _render_pivot(self, pivot: StatisticsPivot) -> None:
+        """One row per metric/channel, one source column; horizontal scroll at 6."""
+        table = self.pivot_table
+        table.setUpdatesEnabled(False)
+        try:
+            table.clear()
+            table.setRowCount(len(pivot.rows))
+            table.setColumnCount(len(pivot.columns) + 2)
+            table.setHorizontalHeaderLabels(
+                [
+                    "Metric",
+                    "Unit",
+                    *[
+                        f"{index} · {column.alias}"
+                        + (" [Pivot Ref]" if column.source_key == pivot.reference_key else "")
+                        for index, column in enumerate(pivot.columns, 1)
+                    ],
+                ]
+            )
+            header = table.horizontalHeader()
+            header.resizeSection(0, 125)
+            header.resizeSection(1, 110)
+            for index, column in enumerate(pivot.columns, 2):
+                header.resizeSection(index, 215)
+                header_item = table.horizontalHeaderItem(index)
+                if header_item is not None:
+                    header_item.setToolTip(
+                        f"Alias: {column.alias}\n"
+                        f"Native layout: {column.source.channel_layout}\n"
+                        f"Dtype: {column.source.native_dtype}\n"
+                        f"Effective bits: {column.source.effective_bits}\n"
+                        f"Source generation: {column.source.generation}"
+                    )
+            mode = self.pivot_delta.currentText()
+            for row_index, row in enumerate(pivot.rows):
+                table.setItem(row_index, 0, QTableWidgetItem(f"{row.metric} · {row.channel}"))
+                table.setItem(row_index, 1, QTableWidgetItem(row.definition.unit))
+                for column_index, cell in enumerate(row.cells, 2):
+                    display = cell.formatted_value()
+                    if mode != "Values":
+                        is_relative = mode == "Relative Δ (%)"
+                        delta_text = cell.formatted_delta(relative=is_relative)
+                        delta_unit = "%" if is_relative else row.definition.unit
+                        display = f"{display}  |  Δ {delta_text} {delta_unit}"
+                    item = QTableWidgetItem(display)
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
+                    native_count = (
+                        f"{cell.sample_count:,}" if cell.sample_count is not None else "N/A"
+                    )
+                    full_value = cell.formatted_value(precision=17)
+                    tooltip = (
+                        f"{pivot.columns[column_index - 2].alias}\n"
+                        f"Metric: {row.metric} · {row.channel}\n"
+                        f"Value (17 digits): {full_value} {row.definition.unit}\n"
+                        f"State: {cell.state}\n"
+                        f"Native samples: {native_count}\n"
+                        f"Reference ROI: {pivot.token.roi_ref or 'Full image'}"
+                    )
+                    if pivot.reference_key is not None or mode != "Values":
+                        tooltip += (
+                            f"\nAbsolute Δ: {cell.formatted_delta(precision=17)} "
+                            f"{row.definition.unit}"
+                            f"\nRelative Δ: {cell.formatted_delta(relative=True, precision=17)} %"
+                        )
+                        if cell.delta_reason is not None:
+                            tooltip += f"\nDelta limitation: {cell.delta_reason}"
+                    item.setToolTip(tooltip)
+                    table.setItem(row_index, column_index, item)
+        finally:
+            table.setUpdatesEnabled(True)
+
+    def get_current_statistics_pivot(self) -> StatisticsPivot | None:
+        """W09 read-only interface; None means pending, stale or not presented."""
+        if (
+            self._pivot is None
+            or self.get_presented_analysis_token() != self._pivot.token
+            or self.get_current_analysis_token() != self._pivot.token
+        ):
+            return None
+        return self._pivot
+
+    def _prompt_pivot_export(self) -> None:
+        if self.get_current_statistics_pivot() is None:
+            self._refresh_pivot()
+        if self.get_current_statistics_pivot() is None:
+            return
+        filename, _filter = QFileDialog.getSaveFileName(
+            self, "Export Pivot Statistics", "statistics-pivot.csv", "CSV Files (*.csv)"
+        )
+        if not filename:
+            return
+        try:
+            self.export_pivot_csv(Path(filename))
+        except (OSError, ValueError) as exc:
+            self.status.setText(f"Pivot export unavailable: {exc}")
+
+    def export_pivot_csv(self, path: Path) -> None:
+        """Separate typed, full-precision CSV; legacy export_csv is untouched."""
+        self._refresh_pivot()
+        pivot = self.get_current_statistics_pivot()
+        if pivot is None:
+            raise ValueError("current Statistics pivot is pending or stale")
+        with path.open("w", newline="", encoding="utf-8-sig") as stream:
+            writer = csv.writer(stream)
+            header = ["Metric", "Channel", "Unit"]
+            for column in pivot.columns:
+                prefix = f"{column.alias} [{column.source_key}]"
+                header.extend(
+                    (
+                        f"{prefix} value",
+                        f"{prefix} state",
+                        f"{prefix} samples",
+                        f"{prefix} Delta",
+                        f"{prefix} Delta (%)",
+                        f"{prefix} Delta reason",
+                    )
+                )
+            writer.writerow(header)
+            for row in pivot.rows:
+                values = [row.metric, row.channel, row.definition.unit]
+                for cell in row.cells:
+                    values.extend(
+                        (
+                            cell.formatted_value(precision=17),
+                            cell.state,
+                            str(cell.sample_count) if cell.sample_count is not None else "",
+                            cell.formatted_delta(precision=17),
+                            cell.formatted_delta(relative=True, precision=17),
+                            cell.delta_reason or "",
+                        )
+                    )
+                writer.writerow(values)
+
+    def _copy_pivot_selection(self) -> None:
+        """Copy exactly the selected Pivot cells, without implicit source expansion.
+
+        Preserve multi-range selection using empty TSV fields for unselected
+        intersections. Screen rounding never becomes clipboard precision.
+        """
+        pivot = self.get_current_statistics_pivot()
+        if pivot is None:
+            return
+        coordinates = {
+            (index.row(), index.column())
+            for index in self.pivot_table.selectedIndexes()
+            if 0 <= index.row() < len(pivot.rows) and 0 <= index.column() < len(pivot.columns) + 2
+        }
+        if not coordinates:
+            return
+        rows = sorted({row for row, _column in coordinates})
+        columns = sorted({column for _row, column in coordinates})
+        header = [self.pivot_table.horizontalHeaderItem(column).text() for column in columns]
+        lines = ["\t".join(header)]
+        mode = self.pivot_delta.currentText()
+        for row_index in rows:
+            row = pivot.rows[row_index]
+            fields: list[str] = []
+            for column in columns:
+                if (row_index, column) not in coordinates:
+                    fields.append("")
+                elif column == 0:
+                    fields.append(f"{row.metric} · {row.channel}")
+                elif column == 1:
+                    fields.append(row.definition.unit)
+                else:
+                    cell = row.cells[column - 2]
+                    text = cell.formatted_value(precision=17)
+                    if mode != "Values":
+                        relative = mode == "Relative Δ (%)"
+                        text += (
+                            " | Delta "
+                            + cell.formatted_delta(relative=relative, precision=17)
+                            + (" %" if relative else f" {row.definition.unit}")
+                        )
+                    fields.append(text)
+            lines.append("\t".join(fields))
+        QApplication.clipboard().setText("\n".join(lines))
+
     def copy_selection(self) -> None:
+        if self.statistics_view.currentText() == "Pivot":
+            self._copy_pivot_selection()
+            return
         ranges = self.table.selectedRanges()
         if not ranges:
             return

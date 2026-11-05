@@ -58,7 +58,9 @@ def _filename_number(value: float) -> str:
     return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
-def _table_csv_text(table: QTableWidget) -> str:
+def _table_csv_text(table: QTableWidget, *, columns: tuple[int, ...] | None = None) -> str:
+    """Copy visible table values without silently changing legacy CSV schemas."""
+    selected_columns = columns if columns is not None else tuple(range(table.columnCount()))
     buffer = StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(
@@ -66,14 +68,14 @@ def _table_csv_text(table: QTableWidget) -> str:
             table.horizontalHeaderItem(column).text()
             if table.horizontalHeaderItem(column) is not None
             else ""
-            for column in range(table.columnCount())
+            for column in selected_columns
         ]
     )
     for row in range(table.rowCount()):
         writer.writerow(
             [
                 table.item(row, column).text() if table.item(row, column) is not None else ""
-                for column in range(table.columnCount())
+                for column in selected_columns
             ]
         )
     return buffer.getvalue()
@@ -275,7 +277,16 @@ class AnalysisExportController(QObject):
             copy_row.setContentsMargins(0, 0, 0, 0)
             copy_row.addStretch(1)
             copy_row.addWidget(self.statistics_copy_button)
+            # W07's Raw/Pivot switch must not steal one or more table rows
+            # from W06's 1400×880 compact Analyze layout. Reuse the
+            # production Statistics command header; standalone panels still
+            # present the switch in their own row.
+            statistics.statistics_view_row.hide()
+            copy_row.addWidget(statistics.statistics_view_label)
+            copy_row.addWidget(statistics.statistics_view)
             statistics_layout.insertLayout(0, copy_row)
+            statistics.statistics_view_label.show()
+            statistics.statistics_view.show()
         self.statistics_copy_button.clicked.connect(  # type: ignore[attr-defined]
             self.copy_statistics_csv
         )
@@ -672,7 +683,10 @@ class AnalysisExportController(QObject):
             self.refresh_actions()
             return
         table = self.window.difference_panel.metrics
-        set_clipboard_text(_table_csv_text(table))
+        # W07 exposes a third presentation-only Unit column. Keep the P4e
+        # clipboard export contract (Metric, Value); the typed unit remains
+        # visible in the panel and Difference CSV has its own domain metadata.
+        set_clipboard_text(_table_csv_text(table, columns=(0, 1)))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
 
     def _bundle_adapters(self) -> tuple[_FrozenFeatureAdapter, ...]:

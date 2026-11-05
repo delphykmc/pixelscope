@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from math import isinf
+from math import isinf, isnan
 from uuid import uuid4
 
 import numpy as np
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -44,6 +45,7 @@ from pixelscope.core.display_transform import (
     render_threshold_mask,
 )
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.metric_presentation import metric_definition
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
@@ -262,12 +264,16 @@ class DifferencePanel(QWidget):
             "Max difference",
             "Non-zero ratio",
         )
-        self.metrics = QTableWidget(len(metric_names), 2)
-        self.metrics.setHorizontalHeaderLabels(("Metric", "Value"))
+        self.metrics = QTableWidget(len(metric_names), 3)
+        self.metrics.setHorizontalHeaderLabels(("Metric", "Value", "Unit"))
         self.metrics.verticalHeader().hide()
-        self.metrics.horizontalHeader().setStretchLastSection(True)
+        metric_header = self.metrics.horizontalHeader()
+        metric_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        metric_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        metric_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         for row, name in enumerate(metric_names):
             self.metrics.setItem(row, 0, QTableWidgetItem(name))
+            self.metrics.setItem(row, 2, QTableWidgetItem(metric_definition(name).unit))
 
         action_row = QHBoxLayout()
         action_row.addWidget(self.calculate)
@@ -618,10 +624,34 @@ class DifferencePanel(QWidget):
         self._presented_difference_token = None
         self._presented_metric_key = None
         self._presented_metric_result = None
+        # A pending/invalid ROI does not change a compatible pair's numeric
+        # domain. Never label a normalized comparison as native just because
+        # its value is currently unavailable.
+        compatibility = self._compatibility()
+        domain = (
+            compatibility.domain
+            if compatibility is not None
+            and compatibility.compatible
+            and compatibility.domain in ("native", "normalized")
+            else None
+        )
         for row in range(self.metrics.rowCount()):
             item = QTableWidgetItem("—")
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.metrics.setItem(row, 1, item)
+            name_item = self.metrics.item(row, 0)
+            definition = (
+                metric_definition(name_item.text(), domain=domain)
+                if name_item is not None and domain is not None
+                else None
+            )
+            unit_item = QTableWidgetItem(definition.unit if definition is not None else "—")
+            unit_item.setToolTip(
+                f"Pending/unavailable measurement · {domain} domain"
+                if domain is not None
+                else "Unit unavailable: incompatible or missing pair/domain"
+            )
+            self.metrics.setItem(row, 2, unit_item)
 
     def _update_channels(self) -> None:
         compatibility = self._compatibility()
@@ -1365,11 +1395,46 @@ class DifferencePanel(QWidget):
             metrics.maximum_absolute,
             metrics.nonzero_ratio,
         )
+        compatibility = self._compatibility()
+        domain = (
+            compatibility.domain
+            if compatibility is not None and compatibility.domain in ("native", "normalized")
+            else "native"
+        )
         for row, value in enumerate(values):
-            text = "∞" if isinf(value) else f"{value:.8g}"
+            name_item = self.metrics.item(row, 0)
+            name = name_item.text() if name_item is not None else ""
+            definition = metric_definition(name, domain=domain)
+            text = (
+                "+∞"
+                if isinf(value) and value > 0
+                else "-∞"
+                if isinf(value)
+                else "NaN"
+                if isnan(value)
+                else f"{value:.8g}"
+            )
             item = QTableWidgetItem(text)
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            state = (
+                "NaN"
+                if isnan(value)
+                else "+Inf"
+                if value == float("inf")
+                else "-Inf"
+                if value == -float("inf")
+                else "finite"
+            )
+            item.setToolTip(
+                f"{name}: {value:.17g} {definition.unit}\n"
+                f"Numeric domain: {domain}\n"
+                f"State: {state}\n"
+                "Displayed precision: 8 significant digits; W02 capture retains original value"
+            )
             self.metrics.setItem(row, 1, item)
+            unit_item = QTableWidgetItem(definition.unit)
+            unit_item.setToolTip(f"Typed metric unit · {definition.semantic}")
+            self.metrics.setItem(row, 2, unit_item)
 
     def _title(self) -> str:
         pair = self.selected_documents()
