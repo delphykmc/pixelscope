@@ -157,7 +157,9 @@ def _render_html(rows: list[dict[str, object]]) -> bytes:
     document = (
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39;; style-src &#39;unsafe-inline&#39;">'
+        '<meta http-equiv="Content-Security-Policy" content="'
+        'default-src &#39;none&#39;; img-src &#39;self&#39;; '
+        'style-src &#39;unsafe-inline&#39;">'
         '<title>PixelScope Memo</title><style>'
         'body{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem}'
         'article{border-top:1px solid #aaa;padding:1rem 0}.note{white-space:pre-wrap}'
