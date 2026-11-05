@@ -490,31 +490,38 @@ class WorkspacePresetController(QObject):
         compact = window.width() <= 1240 or toolbar.width() <= 1120
         self._density_updating = True
         try:
-            toolbar.setToolButtonStyle(
+            target_style = (
                 Qt.ToolButtonStyle.ToolButtonIconOnly
                 if compact
                 else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
             )
-            if compact:
-                # Reorder existing QAction instances, never recreate shortcuts or
-                # status ownership. Zoom +/- and Plots may use the native overflow;
-                # Fit, 100%, Sync and Diff must precede those secondary controls.
-                zoom_in = getattr(window, "zoom_in_action", None)
-                sync = getattr(window, "sync_action", None)
-                diff = getattr(window, "diff_action", None)
-                if isinstance(zoom_in, QAction):
-                    for action in (sync, diff):
-                        if isinstance(action, QAction):
-                            toolbar.insertAction(zoom_in, action)
-            else:
-                # Restore the native wide-screen action order.
-                plots = getattr(window, "plots_action", None)
-                sync = getattr(window, "sync_action", None)
-                diff = getattr(window, "diff_action", None)
-                if isinstance(plots, QAction):
-                    for action in (sync, diff):
-                        if isinstance(action, QAction):
-                            toolbar.insertAction(plots, action)
+            if toolbar.toolButtonStyle() != target_style:
+                toolbar.setToolButtonStyle(target_style)
+            # Idempotent reorder of existing actions; never recreate shortcut or
+            # state owners and never churn QToolBar on each Resize event.
+            sync = getattr(window, "sync_action", None)
+            diff = getattr(window, "diff_action", None)
+            zoom_in = getattr(window, "zoom_in_action", None)
+            zoom_out = getattr(window, "zoom_out_action", None)
+            plots = getattr(window, "plots_action", None)
+            if compact and isinstance(zoom_in, QAction):
+                for action in (sync, diff):
+                    actions = toolbar.actions()
+                    if (
+                        isinstance(action, QAction)
+                        and action in actions
+                        and actions.index(action) > actions.index(zoom_in)
+                    ):
+                        toolbar.insertAction(zoom_in, action)
+            elif isinstance(plots, QAction) and isinstance(zoom_out, QAction):
+                for action in (sync, diff):
+                    actions = toolbar.actions()
+                    if (
+                        isinstance(action, QAction)
+                        and action in actions
+                        and actions.index(action) < actions.index(zoom_out)
+                    ):
+                        toolbar.insertAction(plots, action)
             if isinstance(caption, QLabel):
                 caption.setVisible(not compact)
             if isinstance(status, QLabel):
