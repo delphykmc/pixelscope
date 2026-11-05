@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 from pixelscope.core.review_record import (
     MAX_REVIEW_BYTES,
@@ -28,7 +29,7 @@ REVIEW_SUFFIX = ".pxreview"
 HASH_CHUNK_BYTES = 1024 * 1024
 CancelCheck = Callable[[], bool]
 ProgressCallback = Callable[[int, int], None]
-SignatureProvider = Callable[[], ReviewNativeSignatureV1]
+SignatureProvider = Callable[[Path], ReviewNativeSignatureV1]
 
 
 class ReviewRepositoryError(OSError):
@@ -71,6 +72,17 @@ class SourceResolutionV1:
     reason: str
 
     def __post_init__(self) -> None:
+        try:
+            if type(self.source_key) is not str or str(UUID(self.source_key)) != self.source_key:
+                raise ValueError("noncanonical source UUID")
+        except (ValueError, AttributeError) as exc:
+            raise ReviewValidationError("invalid source resolution UUID") from exc
+        if type(self.reason) is not str or not self.reason.strip() or len(self.reason) > 1024:
+            raise ReviewValidationError("source resolution requires a bounded reason")
+        if self.candidate_path is not None and (
+            type(self.candidate_path) is not str or not Path(self.candidate_path).is_absolute()
+        ):
+            raise ReviewValidationError("candidate_path must be an absolute path")
         if self.status not in (
             "verified",
             "candidate_unverified",
@@ -86,6 +98,10 @@ class SourceResolutionV1:
             and (self.verification != "digest_match" or self.candidate_path is None)
         ):
             raise ReviewValidationError("verified source requires digest and candidate")
+        if self.status == "changed" and self.verification != "digest_mismatch":
+            raise ReviewValidationError("changed source requires digest mismatch evidence")
+        if self.status == "missing" and self.verification != "unavailable":
+            raise ReviewValidationError("missing source cannot claim digest verification")
 
     @property
     def may_bind_historical_finding(self) -> bool:
@@ -165,6 +181,7 @@ def verify_review_source(
     Every other candidate, including one with a matching digest, requires consent.
     User approval is NOT sufficient when the digest is absent or mismatched.
     """
+    _cancel_if_requested(cancel)
     if not isinstance(source, ReviewSourceV1):
         raise ReviewValidationError("ReviewSourceV1 expected")
     if type(confirmed_by_user) is not bool:
@@ -174,7 +191,7 @@ def verify_review_source(
         return SourceResolutionV1(
             source.source_key,
             status,
-            str(candidate_path) if candidate_path is not None else None,
+            str(Path(candidate_path).absolute()) if candidate_path is not None else None,
             confirmed_by_user,
             verification,
             reason,
@@ -183,7 +200,11 @@ def verify_review_source(
     if candidate_path is None:
         return outcome("missing", "unavailable", "no candidate supplied")
     path = Path(candidate_path)
-    if not path.is_file():
+    try:
+        is_file = path.is_file()
+    except OSError:
+        is_file = False
+    if not is_file:
         return outcome("missing", "unavailable", "candidate file is missing")
     saved_path = source.locator.local_path
     same_saved_path = saved_path is not None and os.path.normcase(
@@ -212,6 +233,8 @@ def verify_review_source(
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
     # A signature object computed outside this stat window is not sufficient
     # evidence that the decoder interpretation describes the hashed revision.
+    # Pass the *specific candidate path* into the provider to prevent accidental
+    # use of the current runtime source or a stale captured interpretation.
     if not callable(native_signature):
         return outcome(
             "candidate_unverified",
@@ -220,7 +243,7 @@ def verify_review_source(
         )
     try:
         _cancel_if_requested(cancel)
-        current_signature = native_signature()
+        current_signature = native_signature(path)
         _cancel_if_requested(cancel)
         if _identity(path.stat()) != initial_revision:
             raise SourceHashUnstable("file changed during decoder signature evaluation")
