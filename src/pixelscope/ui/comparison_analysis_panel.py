@@ -403,23 +403,36 @@ class ComparisonAnalysisPanel(QWidget):
         pivot_copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.pivot_table)
         pivot_copy_shortcut.activated.connect(self.copy_selection)  # type: ignore[attr-defined]
 
-        statistics_controls_widget = QWidget()
-        statistics_controls = ResponsiveControlLayout(
-            statistics_controls_widget, spacing=TOKENS.spacing_xs
+        # W06 compact Analyze workspace reserves three readable Raw statistics
+        # rows at 1400×880. The W07 Pivot options must not occupy those rows
+        # when the default legacy Raw view is selected.
+        statistics_view_row = QWidget()
+        statistics_view_layout = QHBoxLayout(statistics_view_row)
+        statistics_view_layout.setContentsMargins(0, 0, 0, 0)
+        statistics_view_layout.setSpacing(TOKENS.spacing_xs)
+        statistics_view_layout.addWidget(QLabel("View"))
+        self.statistics_view.setMaximumWidth(130)
+        statistics_view_layout.addWidget(self.statistics_view)
+        statistics_view_layout.addStretch(1)
+        statistics_layout.addWidget(statistics_view_row)
+
+        self.pivot_controls_widget = QWidget()
+        pivot_controls = ResponsiveControlLayout(
+            self.pivot_controls_widget, spacing=TOKENS.spacing_xs
         )
         for row_index, title, combo in (
-            (0, "View", self.statistics_view),
             (0, "Channel", self.pivot_channel),
             (0, "Metrics", self.pivot_metrics),
             (1, "Pivot reference", self.pivot_reference),
             (1, "Delta", self.pivot_delta),
         ):
-            statistics_controls.add_control(QLabel(title), compact_row=row_index)
-            statistics_controls.add_control(combo, compact_row=row_index)
+            pivot_controls.add_control(QLabel(title), compact_row=row_index)
+            pivot_controls.add_control(combo, compact_row=row_index)
             combo.setMinimumWidth(0)
             combo.setMaximumWidth(170)
-        statistics_controls.add_control(self.pivot_export_button, compact_row=1)
-        statistics_layout.addWidget(statistics_controls_widget)
+        pivot_controls.add_control(self.pivot_export_button, compact_row=1)
+        statistics_layout.addWidget(self.pivot_controls_widget)
+        self.pivot_controls_widget.hide()
         self.statistics_stack = QStackedWidget()
         self.statistics_stack.addWidget(self.table)
         self.statistics_stack.addWidget(self.pivot_table)
@@ -1533,6 +1546,7 @@ class ComparisonAnalysisPanel(QWidget):
 
     def _statistics_view_changed(self, index: int) -> None:
         self.statistics_stack.setCurrentIndex(index)
+        self.pivot_controls_widget.setVisible(index == 1)
         self._refresh_pivot()
 
     def _clear_pivot(self) -> None:
