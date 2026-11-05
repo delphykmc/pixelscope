@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import replace
+from threading import Event
 from pathlib import Path
 from uuid import uuid4
 
@@ -27,7 +28,8 @@ from pixelscope.io.review_native_decoder import (
     ProductionNativeCandidateDecoder,
     UnsupportedNativeCandidate,
 )
-from pixelscope.io.review_repository import verify_review_source
+from pixelscope.io.review_repository import ReviewCancelled, verify_review_source
+from pixelscope.ui.review_restore_controller import ApprovedCandidate, _verify_batch
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.io.yuv_reader import read_yuv
 
@@ -174,3 +176,33 @@ def test_native_profile_variants_do_not_rebind_incorrect_geometry():
     )
     missing_digest = verify_review_source(modified, path, ProductionNativeCandidateDecoder(profile))
     assert missing_digest.status == "candidate_unverified"
+
+
+def test_bounded_restore_batch_requires_explicit_candidate_and_relink(tmp_path):
+    path = RAW / "02_bayer_10bit_02_rggb_mipi_raw10.raw"
+    profile = RawProfile.load_json(path.with_suffix(".json"))
+    source = _stored_source(path, profile)
+    original = ApprovedCandidate(source.source_key, path.resolve(), profile, False)
+    verified = _verify_batch((source,), (original,), Event())
+    assert len(verified) == 1
+    assert verified[0].verified
+    assert verified[0].still_current()
+
+    relocated = tmp_path / path.name
+    relocated.write_bytes(path.read_bytes())
+    denied = ApprovedCandidate(source.source_key, relocated.resolve(), profile, False)
+    unapproved = _verify_batch((source,), (denied,), Event())
+    assert not unapproved[0].verified
+    assert unapproved[0].resolution.status == "candidate_unverified"
+
+    accepted = ApprovedCandidate(source.source_key, relocated.resolve(), profile, True)
+    approved = _verify_batch((source,), (accepted,), Event())
+    assert approved[0].verified
+    assert approved[0].resolution.status == "verified"
+    relocated.write_bytes(relocated.read_bytes() + b"changed")
+    assert not approved[0].still_current()
+
+    cancelled = Event()
+    cancelled.set()
+    with pytest.raises(ReviewCancelled):
+        _verify_batch((source,), (original,), cancelled)
