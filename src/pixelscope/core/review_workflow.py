@@ -5,9 +5,9 @@ are deliberately not stored here; this model never opens or restores images.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable
 
 from pixelscope.core.review_record import (
     ReviewDocumentV1,
