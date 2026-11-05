@@ -112,8 +112,13 @@ class Window:
             identity = self._path_key(path)
             document_id = "doc-" + str(idx)
             self._document_id_by_path[identity] = document_id
-            doc = NS(document_id=document_id, generation=0, source=object(),
-                     loading_state="ready", reference_shape=(4, 5))
+            doc = NS(
+                document_id=document_id,
+                generation=0,
+                source=object(),
+                loading_state="ready",
+                reference_shape=(4, 5),
+            )
             self.documents[document_id] = doc
             self.sources.append(doc)
         self.difference_panel = Difference(self.sources)
@@ -167,17 +172,26 @@ def make_plan(paths):
         document_id=str(uuid4()),
         sources=tuple(NS(source_key=k, native_signature=source_shape) for k in keys),
     )
-    view = NS(presentation_mode="originals", primary_source_key=keys[0],
-              source_shapes_ref={key: (4, 5) for key in keys})
+    view = NS(
+        presentation_mode="originals",
+        primary_source_key=keys[0],
+        source_shapes_ref={key: (4, 5) for key in keys},
+    )
     finding = NS(
-        source_keys=keys, view_state=view, channel="All",
-        difference_intent=None, roi_ref=None, line_ref=None,
+        source_keys=keys,
+        view_state=view,
+        channel="All",
+        difference_intent=None,
+        roi_ref=None,
+        line_ref=None,
         display_gain=1.0,
     )
     candidates = tuple(
-        NS(approved=NS(source_key=key, path=path,
-                       profile=NS(copy=lambda deep: None)),
-           verified=True, still_current=lambda: True)
+        NS(
+            approved=NS(source_key=key, path=path, profile=NS(copy=lambda deep: None)),
+            verified=True,
+            still_current=lambda: True,
+        )
         for key, path in zip(keys, paths, strict=True)
     )
     return review, RestorePlan(11, finding, candidates)
@@ -198,24 +212,36 @@ def test_already_resident_restore_applies_complete_pair_and_line_without_timer(t
     review, plan = make_plan(paths)
     keys = plan.finding.source_keys
     intent = NS(
-        reference_key=keys[1], target_key=keys[0], channel="Gray",
-        mode="Mask", gain=4, threshold=12, region="Active ROI",
+        reference_key=keys[1],
+        target_key=keys[0],
+        channel="Gray",
+        mode="Mask",
+        gain=4,
+        threshold=12,
+        region="Active ROI",
     )
-    plan = replace(plan, finding=NS(
-        **{**vars(plan.finding), "difference_intent": intent,
-           "roi_ref": (1, 1, 2, 2), "line_ref": (0, 0, 4, 3)}
-    ))
+    plan = replace(
+        plan,
+        finding=NS(
+            **{
+                **vars(plan.finding),
+                "difference_intent": intent,
+                "roi_ref": (1, 1, 2, 2),
+                "line_ref": (0, 0, 4, 3),
+            }
+        ),
+    )
     window = Window(paths, keys)
     authority = MainWindowReviewRestoreAuthority(window, review)
     prepared = authority.prepare(plan)
     w04 = NS(status="applied", reason=None, partial_state=False)
-    with patch("pixelscope.ui.review_main_window_adapter.native_profile_signature",
-               return_value="s"), patch(
-        "pixelscope.ui.review_main_window_adapter.restore_review_view_state",
-        return_value=w04
+    with patch(
+        "pixelscope.ui.review_main_window_adapter.native_profile_signature", return_value="s"
+    ), patch(
+        "pixelscope.ui.review_main_window_adapter.restore_review_view_state", return_value=w04
     ), patch(
         "pixelscope.ui.review_main_window_adapter.display_gain_state",
-        return_value=NS(set_gain=lambda _: None)
+        return_value=NS(set_gain=lambda _: None),
     ):
         report = authority.commit(prepared, plan)
     assert report.status == "applied", report
@@ -227,8 +253,12 @@ def test_already_resident_restore_applies_complete_pair_and_line_without_timer(t
     assert window.difference_panel.region.currentText() == "Active ROI"
     assert window.difference_panel.gain.value() == 4
     assert window.difference_panel.threshold.value() == 12
-    assert (window._shared_line.x1, window._shared_line.y1,
-            window._shared_line.x2, window._shared_line.y2) == (0, 0, 4, 3)
+    assert (
+        window._shared_line.x1,
+        window._shared_line.y1,
+        window._shared_line.x2,
+        window._shared_line.y2,
+    ) == (0, 0, 4, 3)
     window.difference_panel.calculate_difference.assert_not_called()
     window.multi_compare_view.begin_review_restore.assert_called_once_with(11)
 
@@ -241,13 +271,13 @@ def test_new_foreground_load_is_pending_until_owner_terminal(tmp_path):
     authority = MainWindowReviewRestoreAuthority(window, review)
     prepared = authority.prepare(plan)
     w04 = NS(status="applied", reason=None, partial_state=False)
-    with patch("pixelscope.ui.review_main_window_adapter.native_profile_signature",
-               return_value="s"), patch(
-        "pixelscope.ui.review_main_window_adapter.restore_review_view_state",
-        return_value=w04
+    with patch(
+        "pixelscope.ui.review_main_window_adapter.native_profile_signature", return_value="s"
+    ), patch(
+        "pixelscope.ui.review_main_window_adapter.restore_review_view_state", return_value=w04
     ), patch(
         "pixelscope.ui.review_main_window_adapter.display_gain_state",
-        return_value=NS(set_gain=lambda _: None)
+        return_value=NS(set_gain=lambda _: None),
     ):
         first = authority.commit(prepared, plan)
         assert first.status == "pending"
@@ -260,13 +290,23 @@ def test_new_foreground_load_is_pending_until_owner_terminal(tmp_path):
 
 def test_finding_capture_refuses_roi_page_primary_and_w04_revisions():
     fixed = CaptureGuiFence(
-        finding_id="f", source_ids=("a", "b"),
-        selection_ids=("a", "b"), generations=(1, 2),
-        page_start=0, current_index=0, focus_document_id="a",
-        primary_id="a", active_document_id="b", roi=(0, 0, 2, 2),
-        line=(0, 0, 4, 3), w04="saved", pair_ids=("a", "b"),
+        finding_id="f",
+        source_ids=("a", "b"),
+        selection_ids=("a", "b"),
+        generations=(1, 2),
+        page_start=0,
+        current_index=0,
+        focus_document_id="a",
+        primary_id="a",
+        active_document_id="b",
+        roi=(0, 0, 2, 2),
+        line=(0, 0, 4, 3),
+        w04="saved",
+        pair_ids=("a", "b"),
         difference_controls=("Gray", "Mask", 3, 12, "Active ROI"),
-        display_gain=1.0, w02_presented="token", w02_current="token",
+        display_gain=1.0,
+        w02_presented="token",
+        w02_current="token",
     )
     for changes in (
         {"roi": (1, 1, 2, 2)},
@@ -281,12 +321,23 @@ def test_finding_capture_refuses_roi_page_primary_and_w04_revisions():
 
 def test_late_gui_capture_callback_does_not_persist_changed_roi():
     fence = CaptureGuiFence(
-        finding_id="id", source_ids=("a",), selection_ids=("a",),
-        generations=(1,), page_start=0, current_index=0,
-        focus_document_id="a", primary_id="a", active_document_id="a",
-        roi=(0, 0, 2, 2), line=None, w04="old",
-        pair_ids=(), difference_controls=(), display_gain=1.0,
-        w02_presented=None, w02_current=None,
+        finding_id="id",
+        source_ids=("a",),
+        selection_ids=("a",),
+        generations=(1,),
+        page_start=0,
+        current_index=0,
+        focus_document_id="a",
+        primary_id="a",
+        active_document_id="a",
+        roi=(0, 0, 2, 2),
+        line=None,
+        w04="old",
+        pair_ids=(),
+        difference_controls=(),
+        display_gain=1.0,
+        w02_presented=None,
+        w02_current=None,
     )
     finding = NS(id="id")
     binding = NS()
