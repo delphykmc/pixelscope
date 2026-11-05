@@ -33,11 +33,36 @@ def test_production_composition_exposes_named_review_without_toolbar_overflow(
     assert review.panel.findings.count() == 0
 
     window.show()
+    original_workspace = window.beta_workspace_hardening_controller.workspace_presets.preset
+    assert review.action.isCheckable()
+    assert not review.action.isChecked()
     review.action.trigger()
-    assert window.beta_workspace_hardening_controller.workspace_presets.preset is (
-        WorkspacePreset.REVIEW
-    )
     assert not review.dock.isHidden()
+    assert review.action.isChecked()
+    # Opening notes is an explicit visibility action, not a layout preset switch.
+    assert window.beta_workspace_hardening_controller.workspace_presets.preset is original_workspace
+
+    review.action.trigger()
+    assert review.dock.isHidden()
+    assert not review.action.isChecked()
+
+    # The native titlebar close action must also clear the View menu checkmark.
+    review.action.trigger()
+    assert review.action.isChecked()
+    review.dock.close()
+    assert not review.action.isChecked()
+    assert review.dock.isHidden()
+
+    # The W06 Review layout remains a supported alternate entry until retired.
+    selector = window.beta_workspace_hardening_controller.workspace_presets
+    selector.select(WorkspacePreset.REVIEW)
+    review._workspace_changed(0)
+    assert review.action.isChecked()
+    selector.select(WorkspacePreset.COMPARE)
+    review._workspace_changed(0)
+    assert review.action.isChecked()
+    review.action.trigger()
+    assert review.dock.isHidden()
     window.close()
     assert review._closed
 
