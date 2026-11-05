@@ -17,11 +17,13 @@ from pixelscope.core.review_analysis import AnalysisPanelAdapter, capture_presen
 from pixelscope.core.review_analysis_sources import snapshot_source
 from pixelscope.core.review_record import (
     ReviewAnalysisCaptureV1,
+    ReviewDocumentV1,
     ReviewDifferenceIntentV1,
     ReviewFindingV1,
     ReviewFingerprintV1,
     ReviewLocatorV1,
     ReviewNativeSignatureV1,
+    ReviewWorkspaceIntentV1,
     ReviewSourceV1,
     ReviewValidationError,
     canonical_json,
@@ -40,8 +42,8 @@ from pixelscope.io.review_repository import (
     verify_review_source,
 )
 from pixelscope.io.yuv_profile import YuvProfile
-from pixelscope.ui.review_view_state_adapter import capture_review_view_state
 from pixelscope.ui.multi_compare_view import MultiCompareView
+from pixelscope.ui.review_view_state_adapter import capture_review_view_state
 
 
 @dataclass(frozen=True)
@@ -172,7 +174,6 @@ def stage_named_finding(
                         reference_key, pair_key, capture.state, roi_ref, line_ref,
                         channel, display_gain, difference_intent, (captured,), "available",
                     )
-                    from pixelscope.core.review_record import ReviewDocumentV1, ReviewWorkspaceIntentV1
                     # No persistence, just the same document-level evidence
                     # signature checks that a real .pxreview load will enforce.
                     ReviewDocumentV1(
