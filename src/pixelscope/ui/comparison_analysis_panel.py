@@ -38,8 +38,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QStackedWidget,
     QSpinBox,
+    QStackedWidget,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -58,7 +58,6 @@ from pixelscope.core.metric_presentation import (
     STATISTICS_METRICS,
     StatisticsPivot,
     build_statistics_pivot,
-    format_metric_number,
 )
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
@@ -429,18 +428,12 @@ class ComparisonAnalysisPanel(QWidget):
         self.statistics_stack.addWidget(self.table)
         self.statistics_stack.addWidget(self.pivot_table)
         statistics_layout.addWidget(self.statistics_stack, 1)
-        self.statistics_view.currentIndexChanged.connect(
-            self._statistics_view_changed
-        )  # type: ignore[attr-defined]
+        self.statistics_view.currentIndexChanged.connect(self._statistics_view_changed)  # type: ignore[attr-defined]
         for combo in (
             self.pivot_channel, self.pivot_metrics, self.pivot_reference, self.pivot_delta
         ):
-            combo.currentIndexChanged.connect(
-                self._refresh_pivot
-            )  # type: ignore[attr-defined]
-        self.pivot_export_button.clicked.connect(
-            self._prompt_pivot_export
-        )  # type: ignore[attr-defined]
+            combo.currentIndexChanged.connect(self._refresh_pivot)  # type: ignore[attr-defined]
+        self.pivot_export_button.clicked.connect(self._prompt_pivot_export)  # type: ignore[attr-defined]
 
         self.histogram_grid = QWidget()
         self.histogram_layout = QGridLayout(self.histogram_grid)
@@ -1763,7 +1756,7 @@ class ComparisonAnalysisPanel(QWidget):
                     values.extend((
                         cell.formatted_value(precision=17),
                         cell.state,
-                        cell.sample_count if cell.sample_count is not None else "",
+                        str(cell.sample_count) if cell.sample_count is not None else "",
                         cell.formatted_delta(precision=17),
                         cell.formatted_delta(relative=True, precision=17),
                         cell.delta_reason or "",
