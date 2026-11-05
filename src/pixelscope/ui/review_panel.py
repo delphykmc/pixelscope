@@ -205,7 +205,9 @@ class ReviewPanel(QWidget):
             source = by_key[key]
             resolution = resolutions.get(key)
             state = resolution.status if resolution is not None else "candidate_unverified"
-            complete = complete and resolution is not None and resolution.may_bind_historical_finding
+            complete = bool(
+                complete and resolution is not None and resolution.may_bind_historical_finding
+            )
             label = source.display_tag or source.locator.basename
             item = QListWidgetItem(f"{label}: {state}")
             item.setData(Qt.ItemDataRole.UserRole, key)
