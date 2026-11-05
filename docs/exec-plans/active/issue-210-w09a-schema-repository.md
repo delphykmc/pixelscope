@@ -81,10 +81,13 @@ Statuses: verified; candidate_unverified; changed; missing; unsupported_profile.
 Only verified permits binding of old source identity, requiring exact SHA-256
 AND exact native interpretation. User consent is mandatory for every relocated
 candidate, even if hash matches; it is never sufficient without a hash.
-Stat descriptor/path stability is checked around SHA-256 and the supplied
-native decoder signature. The caller is responsible for producing decode
-signature against a stable file revision in a bounded worker, without auto
-search, auto relink or silent source replacement.
+Stat descriptor/path stability is checked around SHA-256 and the native
+decoder signature. To return Verified, the signature argument MUST be a
+callable that evaluates the current candidate during this revision check; an
+already-cached signature DTO is intentionally insufficient and yields
+candidate_unverified. The W09b caller is responsible for producing the
+decode signature against the actual candidate file revision in a bounded
+worker, without auto-search, auto-relink or silent source replacement.
 
 W09b restore must activate a finding only when ALL referenced source keys,
 including Reference/Primary, are verified. Unverified/missing/changed findings
