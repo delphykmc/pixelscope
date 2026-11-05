@@ -172,6 +172,34 @@ class CandidateNativeDecoderV1(ABC):
         """Decode/probe candidate data and return its actual native interpretation."""
 
 
+def _assert_stable_replay_digest(
+    handle: BinaryIO,
+    expected_sha256: str,
+    expected_bytes: int,
+    cancel: CancelCheck | None,
+) -> None:
+    """Catch in-place same-size writes on filesystems with coarse stat timestamps.
+
+    A second full read of the SAME open descriptor is required: Windows/SMB
+    metadata alone is not a reliable revision oracle for concurrent writes.
+    The replay is bounded by the originally observed file length.
+    """
+    handle.seek(0)
+    replay = hashlib.sha256()
+    processed = 0
+    while True:
+        _cancel_if_requested(cancel)
+        chunk = handle.read(HASH_CHUNK_BYTES)
+        if not chunk:
+            break
+        processed += len(chunk)
+        if processed > expected_bytes:
+            raise SourceHashUnstable("candidate grew during digest replay")
+        replay.update(chunk)
+    if processed != expected_bytes or replay.hexdigest() != expected_sha256:
+        raise SourceHashUnstable("candidate bytes changed across digest passes")
+
+
 def stream_source_sha256(
     path: str | Path,
     *,
@@ -208,6 +236,7 @@ def stream_source_sha256(
             sha.update(chunk)
             if progress is not None:
                 progress(processed, before.st_size)
+        _assert_stable_replay_digest(handle, sha.hexdigest(), processed, cancel)
         at_end = os.fstat(handle.fileno())
     _cancel_if_requested(cancel)
     after = source.stat()
@@ -312,6 +341,7 @@ def verify_review_source(
                         f"native decoder rejected profile: {type(exc).__name__}",
                     )
                 bytes_decoded = probe.bytes_read
+            _assert_stable_replay_digest(handle, digest, processed, cancel)
             if _identity(os.fstat(handle.fileno())) != revision:
                 raise SourceHashUnstable("candidate changed during native decoding")
         _cancel_if_requested(cancel)
