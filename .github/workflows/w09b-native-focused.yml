@@ -19,11 +19,11 @@ jobs:
           python-version: '3.10'
       - name: Install native test dependencies
         run: python -m pip install -r requirements/runtime.txt pytest==7.4.4 ruff==0.1.15
-      - name: Show Ruff source and test formatting patches
+      - name: Enforce Ruff quality gates
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m ruff check --select I001 --fix --diff tests/unit/test_w09b_native_decoder.py
-          python -m ruff format --diff src/pixelscope/io/review_native_decoder.py src/pixelscope/core/review_workflow.py src/pixelscope/ui/review_panel.py src/pixelscope/ui/review_restore_controller.py tests/unit/test_w09b_native_decoder.py tests/unit/test_w09b_review_workflow.py
+          python -m ruff check .
+          python -m ruff format --check .
       - name: Run native verification and W09a regression
         run: >-
           python -m pytest -q
