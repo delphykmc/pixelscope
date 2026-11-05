@@ -240,6 +240,67 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             state.partial_state or state.status == "unavailable",
         )
 
+    def _restore_difference_recipe(self, plan: RestorePlan) -> str | None:
+        """Restore canonical Difference controls without calculating any map."""
+        intent = plan.finding.difference_intent
+        if intent is None:
+            return None
+        panel = self.window.difference_panel
+        first = self._binding.get(intent.reference_key)
+        second = self._binding.get(intent.target_key)
+        if first is None or second is None or first[0] == second[0]:
+            return "Difference pair has no two distinct canonical bindings"
+        selectors = (
+            (panel.a_selector, first[0]),
+            (panel.b_selector, second[0]),
+        )
+        if any(selector.findData(document_id) < 0 for selector, document_id in selectors):
+            return "Historical Difference pair not present in canonical selectors"
+        panel._cancel_worker()
+        panel._cancel_preview_worker()
+        panel._display_timer.stop()
+        for selector, document_id in selectors:
+            was_blocked = selector.blockSignals(True)
+            try:
+                selector.setCurrentIndex(selector.findData(document_id))
+            finally:
+                selector.blockSignals(was_blocked)
+        panel._update_channels()
+        values = (
+            (panel.channel, intent.channel),
+            (panel.mode, intent.mode),
+            (panel.region, intent.region),
+        )
+        if any(control.findText(value) < 0 for control, value in values):
+            return "Saved Difference channel/mode/region unsupported by live controls"
+        numeric = ((panel.gain, intent.gain), (panel.threshold, intent.threshold))
+        if any(not control.minimum() <= value <= control.maximum() for control, value in numeric):
+            return "Saved Difference gain/threshold outside current range"
+        for control, value in values:
+            was_blocked = control.blockSignals(True)
+            try:
+                control.setCurrentText(value)
+            finally:
+                control.blockSignals(was_blocked)
+        for control, value in numeric:
+            was_blocked = control.blockSignals(True)
+            try:
+                control.setValue(value)
+            finally:
+                control.blockSignals(was_blocked)
+        # This intentionally clears historical live metrics. A recipe alone
+        # never authorizes Calculate, cached Difference, or W02 current results.
+        panel.last_result = None
+        panel._clear_metrics()
+        pair = panel.selected_documents()
+        if pair is None or tuple(doc.document_id for doc in pair) != (first[0], second[0]):
+            return "Historical Difference pair was not retained"
+        if any(control.currentText() != value for control, value in values):
+            return "Difference presentation controls diverged"
+        if any(control.value() != value for control, value in numeric):
+            return "Saved Difference numeric controls were clamped"
+        return None
+
     def cancel(self, epoch: int) -> None:
         window = self._window_ref()
         if window is not None and self._committed_epoch == epoch:
