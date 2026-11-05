@@ -30,15 +30,20 @@ class MetricDefinition:
     delta_allowed: bool = True
 
 
-def metric_definition(name: str) -> MetricDefinition:
+def metric_definition(name: str, *, domain: str = "native") -> MetricDefinition:
     """Conservative unit catalog shared by Statistics, Difference and Review.
 
     Unknown metrics are displayed without unit claims or Reference Delta.
+    Native code values are never mixed with the Difference normalized [0,1] domain.
     """
+    if domain not in ("native", "normalized"):
+        raise ValueError("unsupported metric domain")
+    amplitude_unit = "native code" if domain == "native" else "normalized [0,1]"
+    squared_unit = "native code²" if domain == "native" else "normalized²"
     if name in STATISTICS_METRICS or name in ("MAE", "RMSE", "P95", "Max difference"):
-        return MetricDefinition(name, "native code", "native_code")
+        return MetricDefinition(name, amplitude_unit, domain)
     if name == "MSE":
-        return MetricDefinition(name, "native code²", "native_code_squared")
+        return MetricDefinition(name, squared_unit, f"{domain}_squared")
     if name == "PSNR":
         return MetricDefinition(name, "dB", "decibel", delta_allowed=False)
     if name == "Non-zero ratio":
