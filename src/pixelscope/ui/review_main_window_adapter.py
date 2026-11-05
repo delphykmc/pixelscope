@@ -207,6 +207,9 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 return RestoreReport(plan.epoch, "unavailable", "ROI rejected", True)
         else:
             window.clear_roi()
+        recipe_reason = self._restore_difference_recipe(plan)
+        if recipe_reason is not None:
+            return RestoreReport(plan.epoch, "unavailable", recipe_reason, True)
         state = restore_review_view_state(
             window.multi_compare_view,
             plan.finding.view_state,
@@ -214,6 +217,22 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             epoch=plan.epoch,
             presentation_mode="originals",
         )
+        if state.status == "applied":
+            # W04 has restored the viewport. Reapply Line only once geometry
+            # is settled, then assert the canonical owner accepted it.
+            if plan.finding.line_ref is not None:
+                line = LineSelection(*plan.finding.line_ref)
+                window._shared_line_changed(line)
+                if window._shared_line != line:
+                    return RestoreReport(plan.epoch, "unavailable", "Line restore rejected", True)
+            elif window._shared_line is not None:
+                return RestoreReport(plan.epoch, "unavailable", "Stale Line is still active", True)
+            if plan.finding.roi_ref is not None:
+                roi = window._shared_roi
+                if roi is None or (roi.x, roi.y, roi.width, roi.height) != plan.finding.roi_ref:
+                    return RestoreReport(plan.epoch, "unavailable", "ROI restore diverged", True)
+            elif window._shared_roi is not None:
+                return RestoreReport(plan.epoch, "unavailable", "ROI not cleared", True)
         return RestoreReport(
             plan.epoch,
             state.status,
