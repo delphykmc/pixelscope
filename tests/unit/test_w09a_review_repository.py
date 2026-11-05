@@ -266,6 +266,45 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
         ReviewDocumentV1.from_dict(invalid_snapshot_id)
 
 
+def test_reject_w02_channel_and_scope_mismatch(tmp_path):
+    import copy
+
+    doc = _review(tmp_path, with_analysis=True)
+    original = doc.to_dict()
+
+    wrong_channel = copy.deepcopy(original)
+    wrong_channel["findings"][0]["analysis"][0]["context"]["channel"] = "R"
+    with pytest.raises(ReviewValidationError, match="channel"):
+        ReviewDocumentV1.from_dict(wrong_channel)
+
+    wrong_scope = copy.deepcopy(original)
+    context = wrong_scope["findings"][0]["analysis"][0]["context"]
+    context["roi_ref"] = None
+    context["scope"] = "full"
+    with pytest.raises(ReviewValidationError, match="scope/ROI"):
+        ReviewDocumentV1.from_dict(wrong_scope)
+
+    # W02 contexts do not carry enough trusted recipe detail to silently
+    # attach a Difference snapshot without explicit pair/cache/region checks.
+    incomplete_difference = copy.deepcopy(original)
+    diff_context = incomplete_difference["findings"][0]["analysis"][0]["context"]
+    diff_context["feature"] = "difference"
+    diff_context["difference_cache_key"] = "a" * 64
+    with pytest.raises(ReviewValidationError, match="pair order"):
+        ReviewDocumentV1.from_dict(incomplete_difference)
+
+    complete_difference = copy.deepcopy(incomplete_difference)
+    second = copy.deepcopy(complete_difference["findings"][0]["analysis"][0]["context"]["sources"][0])
+    second["source_key"] = doc.sources[1].source_key
+    complete_difference["findings"][0]["analysis"][0]["context"]["sources"].append(second)
+    ReviewDocumentV1.from_dict(complete_difference)
+
+    swapped = copy.deepcopy(complete_difference)
+    swapped["findings"][0]["analysis"][0]["context"]["sources"].reverse()
+    with pytest.raises(ReviewValidationError, match="pair order"):
+        ReviewDocumentV1.from_dict(swapped)
+
+
 def test_review_records_do_not_retain_mutable_caller_sequences(tmp_path):
     doc = _review(tmp_path)
     keys = [s.source_key for s in doc.sources]
@@ -673,6 +712,23 @@ def test_hash_match_and_relink_consent_never_uses_basename(tmp_path):
     assert approved.status == "verified"
     assert approved.candidate_path == str(second)
     assert approved.source_key == source.source_key
+
+
+def test_native_decoder_changes_file_revision_never_verifies(tmp_path):
+    path = tmp_path / "decode-toc-tou.raw"
+    original = b"stable-native-bytes"
+    path.write_bytes(original)
+    source = _source(path, sha="auto", local=True)
+
+    def mutating_decoder(probe):
+        assert probe.read() == original
+        path.write_bytes(b"replacement-native")
+        return _native()
+
+    resolution = verify_review_source(source, path, mutating_decoder)
+    assert resolution.status == "candidate_unverified"
+    assert not resolution.may_bind_historical_finding
+    assert resolution.verification == "unavailable"
 
 
 def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
