@@ -166,12 +166,12 @@ def test_corrupt_load_and_future_schema_leave_active_library_unchanged(tmp_path)
     initial = lib.document.to_bytes()
     corrupt = tmp_path / "corrupt.pxreview"
     corrupt.write_bytes(b"{")
-    with pytest.raises(Exception):
+    with pytest.raises(ReviewValidationError):
         lib.open(corrupt)
     assert lib.document.to_bytes() == initial
     future = tmp_path / "future.pxreview"
     future.write_bytes(initial.replace(b'"schema_version":1', b'"schema_version":999'))
-    with pytest.raises(Exception):
+    with pytest.raises(ReviewValidationError):
         lib.open(future)
     assert lib.document.to_bytes() == initial
 
