@@ -261,7 +261,7 @@ class ProductionEncodedCandidateDecoder(CandidateNativeDecoderV1):
 
 def review_candidate_decoder(
     path: Path, profile: RawProfile | YuvProfile | None
-) -> CandidateNativeDecoderV1:
+) -> ProductionNativeCandidateDecoder | ProductionEncodedCandidateDecoder:
     """Native profile required only for RAW/YUV; ordinary images need none."""
     suffix = path.suffix.lower()
     if suffix in ENCODED_IMAGE_EXTENSIONS and profile is None:

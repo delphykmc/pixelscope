@@ -87,6 +87,10 @@ class ReviewLibrary:
             sources=tuple(ordered),
             workspace_intent=intent,
             findings=old.findings + (finding,),
+            # A local editable Memo may retain its original file locations.
+            # Portable reports must never inherit these private paths.
+            allow_local_paths=old.allow_local_paths
+            or any(source.locator.local_path is not None for source in ordered),
         )
         self._replace(updated)
         return finding
