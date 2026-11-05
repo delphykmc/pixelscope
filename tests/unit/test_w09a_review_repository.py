@@ -68,6 +68,20 @@ def _native(digest: str = "1" * 64) -> ReviewNativeSignatureV1:
     )
 
 
+def _decode_fixture_bytes(
+    expected: bytes, signature: ReviewNativeSignatureV1 | None = None
+):
+    """Test-only decoder; reads candidate content rather than returning a cache."""
+
+    def decoder(probe):
+        actual = probe.read()
+        if actual != expected:
+            raise ValueError("unexpected decoded fixture input")
+        return signature if signature is not None else _native()
+
+    return decoder
+
+
 def _source(
     path: Path,
     *,
@@ -290,9 +304,10 @@ def test_source_resolution_requires_canonical_id_and_candidate_bound_callback(tm
     source = _source(file, sha="auto", local=True)
     paths = []
 
-    def signature_for_candidate(candidate: Path) -> ReviewNativeSignatureV1:
-        paths.append(candidate)
-        assert candidate == file
+    def signature_for_candidate(probe) -> ReviewNativeSignatureV1:
+        paths.append(probe.path)
+        assert probe.path == file
+        assert probe.read() == file.read_bytes()
         return _native()
 
     result = verify_review_source(source, file, signature_for_candidate)
@@ -303,6 +318,10 @@ def test_source_resolution_requires_canonical_id_and_candidate_bound_callback(tm
     untrusted_dto = verify_review_source(source, file, _native())
     assert untrusted_dto.status == "candidate_unverified"
     assert not untrusted_dto.may_bind_historical_finding
+    # Merely wrapping cached data in a callable must never authorize binding.
+    cached_callback = verify_review_source(source, file, lambda probe: _native())
+    assert cached_callback.status == "candidate_unverified"
+    assert not cached_callback.may_bind_historical_finding
     with pytest.raises(ReviewValidationError, match="UUID"):
         SourceResolutionV1("not-uuid", "verified", str(file), True, "digest_match", "reason")
 
@@ -640,17 +659,17 @@ def test_hash_match_and_relink_consent_never_uses_basename(tmp_path):
     second.write_bytes(b"pixel-2")
     source = _source(first, sha="auto", local=True)
     sig = _native()
-    direct = verify_review_source(source, first, lambda candidate: sig)
+    direct = verify_review_source(source, first, _decode_fixture_bytes(first.read_bytes(), sig))
     assert direct.status == "verified"
     assert direct.may_bind_historical_finding
-    changed = verify_review_source(source, second, lambda candidate: sig, confirmed_by_user=True)
+    changed = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True)
     assert changed.status == "changed"
     assert changed.verification == "digest_mismatch"
     second.write_bytes(first.read_bytes())
-    pending = verify_review_source(source, second, lambda candidate: sig)
+    pending = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig))
     assert pending.status == "candidate_unverified"
     assert pending.verification == "digest_match"
-    approved = verify_review_source(source, second, lambda candidate: sig, confirmed_by_user=True)
+    approved = verify_review_source(source, second, _decode_fixture_bytes(first.read_bytes(), sig), confirmed_by_user=True)
     assert approved.status == "verified"
     assert approved.candidate_path == str(second)
     assert approved.source_key == source.source_key
@@ -662,13 +681,13 @@ def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
     source = _source(path, sha="auto")
     assert verify_review_source(source, None, _native()).status == "missing"
     assert verify_review_source(source, path.with_name("absent.bin"), _native()).status == "missing"
-    mismatch = verify_review_source(source, path, lambda candidate: _native("2" * 64), confirmed_by_user=True)
+    mismatch = verify_review_source(source, path, _decode_fixture_bytes(path.read_bytes(), _native("2" * 64)), confirmed_by_user=True)
     assert mismatch.status == "unsupported_profile"
     assert mismatch.verification == "digest_match"
     unverified = replace(
         source, fingerprint=replace(source.fingerprint, digest=None, state="unverified")
     )
-    result = verify_review_source(unverified, path, lambda candidate: _native(), confirmed_by_user=True)
+    result = verify_review_source(unverified, path, _decode_fixture_bytes(path.read_bytes()), confirmed_by_user=True)
     assert result.status == "candidate_unverified"
     with pytest.raises(ReviewCancelled):
         stream_source_sha256(path, cancel=lambda: True)
@@ -692,7 +711,7 @@ def test_hash_revision_changed_during_progress_is_not_verified(tmp_path):
         stream_source_sha256(path, progress=mutation)
     path.write_bytes(b"a" * 10000)
     result = verify_review_source(
-        source, path, lambda candidate: _native(), confirmed_by_user=True, progress=mutation
+        source, path, _decode_fixture_bytes(path.read_bytes()), confirmed_by_user=True, progress=mutation
     )
     assert result.status == "candidate_unverified"
     assert not result.may_bind_historical_finding
