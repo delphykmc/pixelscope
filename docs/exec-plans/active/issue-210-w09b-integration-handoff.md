@@ -1,6 +1,6 @@
 # Issue #210 W09b — Draft integration / verification handoff
 
-> **Status: DRAFT, not a completed W09b product.** Source files on branch `codex/w09b-named-finding-native-restore-20261105`. Baseline MAIN `98d2a603d879b7989d21207c7615e5b246d10a4b`. PR #222 must not be merged until end-to-end review/owner acceptance.
+> **Status update (2026-11-06): production integration and Windows acceptance complete; final independent review pending.** Source/test commit `1536689f839765dd135b20a8024e694524d26d33` passed 1,951 Windows normal-GC tests. The earlier Draft checkpoints below are retained as historical handoff records, not current missing-wiring claims. See [the final acceptance record](issue-210-w09b-owner-acceptance.md). PR #222 remains unmerged and requires independent review before merge. Baseline MAIN `98d2a603d879b7989d21207c7615e5b246d10a4b`.
 
 ## Implemented slices and canonical contracts
 

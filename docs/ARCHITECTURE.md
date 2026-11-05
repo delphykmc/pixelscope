@@ -1155,3 +1155,21 @@ identity is established before QApplication creation. PyInstaller executable ico
 binding, shortcuts, installer identity, signing, updater, and final distribution
 remain P7. Remote REST/client boundaries remain independent of widgets. All APIs
 target CPython 3.10.
+
+## Named Review production ownership
+
+Bootstrap installs the window-owned Named Review coordinator after W05/W06.
+`MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
+selection/page, profile, ROI/Line and physical-view owners; it does not create a
+parallel Session manager. Source attestation and verification run in bounded
+workers. Historical DTOs contain no QWidget, live source array or worker ownership.
+
+MainWindow forwards foreground success/error and viewer first-paint, physical
+geometry and display-preview completion only to the current pending restore epoch,
+with reentrancy/close guards. Navigation revokes that epoch. Coordinator shutdown
+precedes viewer disposal. W04 applies settled physical view intent; only after
+Applied does the adapter mirror Sync into the QAction with signals blocked and
+refresh action states, avoiding a second range mutation. Source/recipe restoration
+does not authorize Difference Calculate or live historical metrics. See the
+[W09b integration acceptance](exec-plans/active/issue-210-w09b-owner-acceptance.md)
+for concrete native Windows evidence and remaining independent-review limits.

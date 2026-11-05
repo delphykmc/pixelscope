@@ -1,6 +1,7 @@
 # W09b production integration acceptance
 
-Status: Active; PR #222 remains unmerged.
+Status: Implementation and Windows integration acceptance complete; independent
+final-head review remains open. PR #222 remains unmerged.
 Date: 2026-11-06. Baseline: `44242e54fdb3b4842d072cae42892498867ad668`.
 Main: `98d2a603d879b7989d21207c7615e5b246d10a4b`.
 
@@ -73,5 +74,63 @@ that test instrumentation was removed, not suppressed by disabling GC or tests.
 
 The temporary PR-only native workflow is removed after the recorded baseline run
 42057223477 (Ubuntu 53 passed, Windows 53 passed). The permanent change-scoped CI
-policy is unchanged; no full-suite CI job is added. Full-suite and final static
-results will be recorded after the committed source checkpoint.
+policy is unchanged; no full-suite CI job is added.
+
+## Final validation checkpoint
+
+Source/test commit: `1536689f839765dd135b20a8024e694524d26d33`. Later acceptance
+documentation changes do not change `src/`, `tests/` or runtime configuration.
+Commands below used the repository's existing `.venv/Scripts/python.exe` from
+the isolated PR checkout, with its `src` on `PYTHONPATH` for application launch.
+
+| Command | Observed result |
+| --- | --- |
+| `python -m pytest -q --basetemp=C:/Users/Public/Documents/ESTsoft/CreatorTemp/pixelscope-w09b-full-20261106` | **1,951 passed, 1 warning in 479.22s**, exit 0; normal automatic GC, actual Windows |
+| Focused command above | **80 passed in 16.94s**, exit 0 |
+| `python scripts/check_docs.py` | Documentation contract passed, exit 0 |
+| `python -m ruff check .` | No diagnostics, exit 0 |
+| `python -m ruff format --check .` | 400 files already formatted, exit 0 |
+| `python -m mypy src` | Success: no issues found in 133 source files, exit 0 |
+| `python -m pip check` | No broken requirements found, exit 0 |
+| `git diff --check` | No whitespace errors, exit 0 |
+
+The one full-suite warning is the expected duplicate `data/measurements.csv` ZIP
+entry created by `test_reject_manifest_tamper`. No test was skipped or disabled to
+obtain this result. Logs: ignored `full-1536689f.log` and `focused6.log` under the
+evidence directory. The owner-reported earlier full PASS remains separate.
+
+An additional ignored cache diagnostic (`python -m pytest
+temp/cache-probe/test_cached.py -q`, outside-Git basetemp ending
+`pixelscope-w09b-cache-probe3-20261106`) passed **1 test in 11.88s**, exit 0.
+It explicitly computes a Difference map after the first activation, confirms its
+cache, resets the call observer, then restores later Findings: still no implicit
+Calculate or live historical result republication. This diagnostic is supplemental
+to, not part of, the committed full-suite count.
+
+Exact-source CI is successful: change-scoped validation run **42061286090**,
+User Guide **42061286187**, pinned Windows screenshot comparison **42061286141**.
+Hosted Focused Windows pytest was intentionally skipped by the permanent selector;
+the local native Windows tests above provide the applicable GUI/full evidence.
+Rendered two/four/six-source restored views were inspected for the Finding list,
+source verification, applied status, physical zoom and ROI/Line overlays.
+
+## Readiness, constraints and attribution
+
+The four requested integration gates are implemented and tested. Review preparation
+does not supply an independent final-head code approval: the earlier independent
+review only covered `4750f8b...`; the integrated production callbacks and these fixes
+still require final independent review before merge. No merge is performed.
+SMB/Windows locked-file behavior, multiple physical monitors/DPI transitions and
+large multi-4K memory/latency remain unmeasured environment cases, not inferred
+from these synthetic 64x48 native tests. PNG/JPEG Findings and W10 reporting remain
+outside W09b. Existing Session v1, numerical algorithms and packaging are unchanged.
+
+Changed implementation files: `core/review_view_state.py` and
+`ui/review_main_window_adapter.py`; regressions: the W04 value-object unit test,
+W09b authority guards and new `tests/ui/test_w09b_named_findings_roundtrip.py`.
+Guide/handoff/current-state/spec/architecture and this plan carry the acceptance
+record; the temporary native workflow is removed. Base-to-head durable-document
+statistics were inspected for unexpected contractions; existing cumulative content
+is retained. Commits use owner-authenticated Git with
+`Co-authored-by: ChatGPT <noreply@openai.com>`; PR activity is labelled
+**ChatGPT-assisted**. Existing human commits are not rewritten.
