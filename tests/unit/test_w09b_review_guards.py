@@ -360,3 +360,41 @@ def test_late_gui_capture_callback_does_not_persist_changed_roi():
         owner._capture_succeeded("task", None, 5, attested)
     owner.library.add.assert_not_called()
     assert messages and "context changed" in messages[0]
+
+
+def test_unsupported_native_channel_preflight_has_zero_mutation(tmp_path):
+    paths = (tmp_path / "a.raw", tmp_path / "b.raw")
+    review, plan = make_plan(paths)
+    plan = replace(plan, finding=NS(**{**vars(plan.finding), "channel": "R"}))
+    window = Window(paths, plan.finding.source_keys)
+    authority = MainWindowReviewRestoreAuthority(window, review)
+    with pytest.raises(ValueError, match="native channel"):
+        authority.prepare(plan)
+    assert window.mutations == 0
+
+
+def test_line_rejection_after_commit_never_claims_applied(tmp_path):
+    paths = (tmp_path / "a.raw", tmp_path / "b.raw")
+    review, plan = make_plan(paths)
+    plan = replace(
+        plan,
+        finding=NS(**{**vars(plan.finding), "line_ref": (0, 0, 4, 3)}),
+    )
+    window = Window(paths, plan.finding.source_keys)
+    window._shared_line_changed = lambda _line: None
+    authority = MainWindowReviewRestoreAuthority(window, review)
+    prepared = authority.prepare(plan)
+    with patch(
+        "pixelscope.ui.review_main_window_adapter.native_profile_signature",
+        return_value="s",
+    ), patch(
+        "pixelscope.ui.review_main_window_adapter.restore_review_view_state",
+        return_value=NS(status="applied", reason=None, partial_state=False),
+    ), patch(
+        "pixelscope.ui.review_main_window_adapter.display_gain_state",
+        return_value=NS(set_gain=lambda _: None),
+    ):
+        report = authority.commit(prepared, plan)
+    assert report.status == "unavailable"
+    assert report.partial_state
+    assert "Line" in report.reason
