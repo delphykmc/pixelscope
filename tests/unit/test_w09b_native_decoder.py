@@ -48,7 +48,8 @@ def _stored_source(path: Path, profile: RawProfile | YuvProfile) -> ReviewSource
     else:
         frame = read_yuv(path, profile)
         doc = ImageDocument(
-            path, "fixture", frame.y, frame.layout, profile.bit_depth, yuv_frame=frame
+            path, "fixture", frame.y, frame.layout, profile.bit_depth,
+            raw_profile=profile, yuv_frame=frame
         )
     captured = snapshot_source(doc, str(uuid4()))
     signature = ReviewNativeSignatureV1(
