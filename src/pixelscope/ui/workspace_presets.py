@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QSizePolicy,
+    QStyle,
     QSplitter,
     QTableWidget,
     QToolBar,
@@ -118,6 +119,12 @@ class WorkspacePresetController(QObject):
         self._recover_timer = QTimer(self)
         self._recover_timer.setSingleShot(True)
         self._recover_timer.timeout.connect(self._recover_windows)  # type: ignore[attr-defined]
+        self._density_timer = QTimer(self)
+        self._density_timer.setSingleShot(True)
+        self._density_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._sync_toolbar_density
+        )
+        self._density_updating = False
 
         stored_name = self._settings.value(WORKSPACE_PRESET_SETTING)
         try:
@@ -141,6 +148,9 @@ class WorkspacePresetController(QObject):
             dock.topLevelChanged.connect(self._dock_changed)  # type: ignore[attr-defined]
             dock.installEventFilter(self)
         window.installEventFilter(self)
+        toolbar = getattr(window, "main_toolbar", None)
+        if isinstance(toolbar, QToolBar):
+            toolbar.installEventFilter(self)
         action_map = getattr(window, "action_map", {})
         reset = action_map.get("Reset Workspace Layout")
         if isinstance(reset, QAction):
@@ -158,6 +168,7 @@ class WorkspacePresetController(QObject):
             # pre-W06 users keep their legacy layout until an explicit switch.
             self._apply_preset(WorkspacePreset.COMPARE, prefer_saved=False)
         self._recover_timer.start(0)
+        self._density_timer.start(0)
 
     @property
     def preset(self) -> WorkspacePreset:
@@ -181,6 +192,9 @@ class WorkspacePresetController(QObject):
         if isinstance(open_images, QAction) and original_first is not None:
             # Reuse the existing File QAction and Ctrl+O; never clone it.
             open_images.setIconText("Open")
+            open_images.setIcon(
+                window.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
+            )
             open_images.setToolTip("Open Images (Ctrl+O); folders and Recent are in File")
             toolbar.insertAction(original_first, open_images)
             toolbar.insertSeparator(original_first)
@@ -457,11 +471,55 @@ class WorkspacePresetController(QObject):
         if not self._quiescing:
             self._recover_timer.start(0)
 
+    def _sync_toolbar_density(self) -> None:
+        """Keep source roles and core actions on the toolbar at narrow logical widths."""
+
+        if self._quiescing or self._density_updating:
+            return
+        window = self.window
+        toolbar = getattr(window, "main_toolbar", None)
+        group = window.findChild(QWidget, "comparisonPresetControl")
+        if not isinstance(toolbar, QToolBar) or not isinstance(group, QWidget):
+            # W05 is installed after the W06 dock controller in bootstrap.
+            return
+        status = group.findChild(QLabel, "comparisonPresetStatus")
+        caption = next(
+            (label for label in group.findChildren(QLabel) if label.text() == "Preset"),
+            None,
+        )
+        compact = window.width() <= 1240 or toolbar.width() <= 1120
+        self._density_updating = True
+        try:
+            toolbar.setToolButtonStyle(
+                Qt.ToolButtonStyle.ToolButtonIconOnly
+                if compact
+                else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+            )
+            if isinstance(caption, QLabel):
+                caption.setVisible(not compact)
+            if isinstance(status, QLabel):
+                # Keep Difference status accessible via an eliding label and
+                # its full tooltip; do not hide the A/B source controls.
+                status.setMaximumWidth(48 if compact else 145)
+            group.updateGeometry()
+        finally:
+            self._density_updating = False
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if not self._quiescing:
-            if watched is self.window and event.type() == QEvent.Type.Show:
+            window = self.window
+            toolbar = getattr(window, "main_toolbar", None)
+            if watched is window and event.type() == QEvent.Type.Show:
                 self._recover_timer.start(0)
-            dock = getattr(self.window, "bottom_dock", None)
+            if watched is window or watched is toolbar:
+                if event.type() in (
+                    QEvent.Type.Show,
+                    QEvent.Type.Resize,
+                    QEvent.Type.FontChange,
+                    QEvent.Type.StyleChange,
+                ):
+                    self._density_timer.start(0)
+            dock = getattr(window, "bottom_dock", None)
             if watched is dock:
                 if event.type() in (
                     QEvent.Type.Move,
@@ -504,3 +562,4 @@ class WorkspacePresetController(QObject):
         self._save_current()
         self._quiescing = True
         self._recover_timer.stop()
+        self._density_timer.stop()
