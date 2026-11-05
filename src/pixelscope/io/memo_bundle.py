@@ -110,29 +110,37 @@ def _check_regions(regions: tuple[MemoRegion, ...]) -> list[dict[str, object]]:
             actual = _png_dimensions(crop.png_bytes)
             if actual != (width, height):
                 raise ValueError("ROI PNG dimensions differ from reference ROI")
-            asset = "images/" + hashlib.sha256(
-                (region.region_id + "\0" + crop.source_key).encode("utf-8")
-            ).hexdigest()[:32] + ".png"
+            asset = (
+                "images/"
+                + hashlib.sha256(
+                    (region.region_id + "\0" + crop.source_key).encode("utf-8")
+                ).hexdigest()[:32]
+                + ".png"
+            )
             if asset in asset_names:
                 raise ValueError("duplicate archive asset")
             asset_names.add(asset)
-            crop_rows.append({
-                "source_key": crop.source_key,
-                "display_name": crop.display_name,
-                "asset": asset,
-                "sha256": hashlib.sha256(crop.png_bytes).hexdigest(),
-                "width": width,
-                "height": height,
-            })
-        serialized.append({
-            "id": region.region_id,
-            "title": region.title,
-            "note": region.note,
-            "roi": [x, y, width, height],
-            "center": list(region.center) if region.center is not None else None,
-            "physical_zoom": region.physical_zoom,
-            "crops": crop_rows,
-        })
+            crop_rows.append(
+                {
+                    "source_key": crop.source_key,
+                    "display_name": crop.display_name,
+                    "asset": asset,
+                    "sha256": hashlib.sha256(crop.png_bytes).hexdigest(),
+                    "width": width,
+                    "height": height,
+                }
+            )
+        serialized.append(
+            {
+                "id": region.region_id,
+                "title": region.title,
+                "note": region.note,
+                "roi": [x, y, width, height],
+                "center": list(region.center) if region.center is not None else None,
+                "physical_zoom": region.physical_zoom,
+                "crops": crop_rows,
+            }
+        )
     return serialized
 
 
@@ -143,30 +151,41 @@ def _render_html(rows: list[dict[str, object]]) -> bytes:
         crops = row["crops"]
         assert isinstance(roi, list) and isinstance(crops, list)
         images = "".join(
-            '<figure><img alt="' + html.escape(str(crop["display_name"]), quote=True)
-            + '" src="' + html.escape(str(crop["asset"]), quote=True) + '">'
-            + '<figcaption>' + html.escape(str(crop["display_name"])) + '</figcaption></figure>'
+            '<figure><img alt="'
+            + html.escape(str(crop["display_name"]), quote=True)
+            + '" src="'
+            + html.escape(str(crop["asset"]), quote=True)
+            + '">'
+            + "<figcaption>"
+            + html.escape(str(crop["display_name"]))
+            + "</figcaption></figure>"
             for crop in crops
         )
         sections.append(
-            '<article><h2>' + str(index) + ". " + html.escape(str(row["title"]))
-            + '</h2><p class="roi">ROI: (' + ", ".join(map(str, roi))
-            + ')</p><p class="note">' + html.escape(str(row["note"]))
-            + '</p><div class="crops">' + images + '</div></article>'
+            "<article><h2>"
+            + str(index)
+            + ". "
+            + html.escape(str(row["title"]))
+            + '</h2><p class="roi">ROI: ('
+            + ", ".join(map(str, roi))
+            + ')</p><p class="note">'
+            + html.escape(str(row["note"]))
+            + '</p><div class="crops">'
+            + images
+            + "</div></article>"
         )
     document = (
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta http-equiv="Content-Security-Policy" content="'
-        'default-src &#39;none&#39;; img-src &#39;self&#39;; '
+        "default-src &#39;none&#39;; img-src &#39;self&#39;; "
         'style-src &#39;unsafe-inline&#39;">'
-        '<title>PixelScope Memo</title><style>'
-        'body{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem}'
-        'article{border-top:1px solid #aaa;padding:1rem 0}.note{white-space:pre-wrap}'
-        '.roi,figcaption{color:#555}.crops{display:flex;flex-wrap:wrap;gap:1rem}'
-        'figure{margin:0}img{max-width:100%;height:auto;border:1px solid #888}'
-        '</style></head><body><h1>PixelScope Memo</h1>'
-        + "".join(sections) + '</body></html>'
+        "<title>PixelScope Memo</title><style>"
+        "body{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem}"
+        "article{border-top:1px solid #aaa;padding:1rem 0}.note{white-space:pre-wrap}"
+        ".roi,figcaption{color:#555}.crops{display:flex;flex-wrap:wrap;gap:1rem}"
+        "figure{margin:0}img{max-width:100%;height:auto;border:1px solid #888}"
+        "</style></head><body><h1>PixelScope Memo</h1>" + "".join(sections) + "</body></html>"
     )
     return document.encode("utf-8")
 
@@ -196,13 +215,14 @@ def save_memo_bundle(
     if any(key not in known_keys or not isinstance(value, str) for key, value in sources.items()):
         raise ValueError("local source hints must reference captured sources")
     manifest = {"schema": BUNDLE_SCHEMA, "version": BUNDLE_VERSION, "regions": rows}
-    manifest_bytes = json.dumps(
-        manifest, ensure_ascii=False, separators=(",", ":")
-    ).encode("utf-8")
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     local_bytes = json.dumps({"paths": sources}, ensure_ascii=False).encode("utf-8")
     report = _render_html(rows)
-    total = len(manifest_bytes) + len(local_bytes) + len(report) + sum(
-        len(c.png_bytes) for region in regions for c in region.crops
+    total = (
+        len(manifest_bytes)
+        + len(local_bytes)
+        + len(report)
+        + sum(len(c.png_bytes) for region in regions for c in region.crops)
     )
     if total > MAX_TOTAL_BYTES:
         raise ValueError("Memo bundle exceeds size budget")
@@ -303,9 +323,13 @@ def export_memo_html_directory(bundle_path: str | Path, directory: str | Path) -
             (staging / "index.html").write_bytes(archive.read("index.html"))
             for region in bundle.regions:
                 for crop in region.crops:
-                    name = "images/" + hashlib.sha256(
-                        (region.region_id + "\0" + crop.source_key).encode("utf-8")
-                    ).hexdigest()[:32] + ".png"
+                    name = (
+                        "images/"
+                        + hashlib.sha256(
+                            (region.region_id + "\0" + crop.source_key).encode("utf-8")
+                        ).hexdigest()[:32]
+                        + ".png"
+                    )
                     output = staging / name
                     output.parent.mkdir(exist_ok=True)
                     output.write_bytes(crop.png_bytes)
