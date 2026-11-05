@@ -74,9 +74,12 @@ class EmptyWorkspace(QWidget):
         self.title.setText(
             "Select an image from Files to view" if registered else "Drop images or folders here"
         )
-        # Registered-but-unselected is not an empty registration. Keep explicit
-        # Open/Recent entry points accessible; only initial onboarding hints recede.
+        # Preserve the P1c contract: a populated Files list asks for selection,
+        # rather than showing the initial Open Images/Open Folder call to action.
+        # W06 keeps Open in the existing toolbar and Recent in its own menu.
         for widget in (
+            self.open_images_button,
+            self.open_folders_button,
             self.formats_hint,
             self.shortcuts_hint,
             self.gestures_hint,
