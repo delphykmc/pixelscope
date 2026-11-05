@@ -173,10 +173,12 @@ class NamedReviewCoordinator:
             window = self.window
             roi = window._shared_roi
             if roi is None:
-                raise ValueError("Draw an ROI before exporting PNG crops")
+                self.panel.set_status("Draw an ROI first, then export PNG crops")
+                return
             page = tuple(window.current_comparison_documents())
             if not page:
-                raise ValueError("Select images before exporting an ROI")
+                self.panel.set_status("Select images before exporting an ROI")
+                return
             images = []
             for document in page:
                 preview = document.preview
