@@ -25,8 +25,7 @@ def test_production_composition_exposes_named_review_without_toolbar_overflow(
     qtbot: object,
 ) -> None:
     window, review = _window(qtbot)
-    view = next(action.menu() for action in window.menuBar().actions() if action.text() == "&View")
-    assert view is not None
+    view = window._menu_map["View"]
     assert review.action in view.actions()
     assert review.action not in window.main_toolbar.actions()
     assert review.dock in window._contributed_docks
