@@ -11,7 +11,6 @@ import html
 import json
 import os
 import re
-import shutil
 import struct
 import tempfile
 import zipfile
@@ -187,7 +186,11 @@ def save_memo_bundle(
     target.parent.mkdir(parents=True, exist_ok=True)
     rows = _check_regions(regions)
     sources = dict(local_sources or {})
-    known_keys = {str(c["source_key"]) for row in rows for c in row["crops"]}
+    known_keys: set[str] = set()
+    for row in rows:
+        crop_rows = row["crops"]
+        assert isinstance(crop_rows, list)
+        known_keys.update(str(c["source_key"]) for c in crop_rows)
     if any(key not in known_keys or not isinstance(value, str) for key, value in sources.items()):
         raise ValueError("local source hints must reference captured sources")
     manifest = {"schema": BUNDLE_SCHEMA, "version": BUNDLE_VERSION, "regions": rows}
@@ -273,7 +276,9 @@ def open_memo_bundle(path: str | Path) -> MemoBundle:
                 )
             )
         checked = tuple(regions)
-        _check_regions(checked)
+        expected_report = _render_html(_check_regions(checked))
+        if archive.read("index.html") != expected_report:
+            raise ValueError("Memo HTML differs from verified region content")
         if {str(c.source_key) for r in checked for c in r.crops} < set(local_sources):
             raise ValueError("private source map contains unknown keys")
         return MemoBundle(checked, local_sources)
