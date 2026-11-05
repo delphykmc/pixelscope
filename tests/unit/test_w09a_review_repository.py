@@ -216,6 +216,107 @@ def _review(tmp_path: Path, *, with_analysis: bool = False) -> ReviewDocumentV1:
     )
 
 
+
+def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
+    doc = _review(tmp_path, with_analysis=True)
+    ref, target = (source.source_key for source in doc.sources)
+    original = doc.to_dict()
+
+    import copy
+
+    mismatched_profile = copy.deepcopy(original)
+    mismatched_profile["sources"][0]["native_signature"]["profile_signature"] = "f" * 64
+    with pytest.raises(ReviewValidationError, match="W02 source interpretation"):
+        ReviewDocumentV1.from_dict(mismatched_profile)
+
+    mismatched_view = copy.deepcopy(original)
+    mismatched_view["findings"][0]["view_state"]["source_shapes_ref"][target] = [5, 5]
+    with pytest.raises(ReviewValidationError, match="W04 shape"):
+        ReviewDocumentV1.from_dict(mismatched_view)
+
+    mismatched_roi = copy.deepcopy(original)
+    mismatched_roi["findings"][0]["analysis"][0]["context"]["roi_ref"] = [0, 0, 2, 2]
+    with pytest.raises(ReviewValidationError, match="W02 analysis ROI"):
+        ReviewDocumentV1.from_dict(mismatched_roi)
+
+    mismatched_sha = copy.deepcopy(original)
+    mismatched_sha["findings"][0]["analysis"][0]["context"]["sources"][0][
+        "sha256"
+    ] = "f" * 64
+    with pytest.raises(ReviewValidationError, match="fingerprint"):
+        ReviewDocumentV1.from_dict(mismatched_sha)
+
+    invalid_snapshot_id = copy.deepcopy(original)
+    invalid_snapshot_id["findings"][0]["analysis"][0]["context"]["snapshot_id"] = "opaque"
+    with pytest.raises(ReviewValidationError, match="UUID"):
+        ReviewDocumentV1.from_dict(invalid_snapshot_id)
+
+
+def test_review_records_do_not_retain_mutable_caller_sequences(tmp_path):
+    doc = _review(tmp_path)
+    keys = [s.source_key for s in doc.sources]
+    selected = keys[:]
+    workspace = ReviewWorkspaceIntentV1(source_order=keys, selected_keys=selected)
+    selected.clear()
+    keys.clear()
+    assert len(workspace.source_order) == 2
+    assert len(workspace.selected_keys) == 2
+
+    tags = ["edge", "banding"]
+    finding_sources = list(doc.findings[0].source_keys)
+    analyses = list(doc.findings[0].analysis)
+    finding = replace(doc.findings[0], tags=tags,
+                      source_keys=finding_sources, analysis=analyses)
+    tags.append("mutation")
+    finding_sources.clear()
+    analyses.clear()
+    assert finding.tags == ("edge", "banding")
+    assert len(finding.source_keys) == 2
+    assert len(finding.analysis) == 1
+
+    sources, findings = list(doc.sources), list(doc.findings)
+    durable = replace(doc, sources=sources, findings=findings)
+    sources.clear()
+    findings.clear()
+    assert len(durable.sources) == 2
+    assert len(durable.findings) == 2
+
+
+def test_source_resolution_requires_canonical_id_and_candidate_bound_callback(tmp_path):
+    from pixelscope.io.review_repository import SourceResolutionV1
+
+    file = tmp_path / "candidate.raw"
+    file.write_bytes(b"verified-source")
+    source = _source(file, sha="auto", local=True)
+    paths = []
+
+    def signature_for_candidate(candidate: Path) -> ReviewNativeSignatureV1:
+        paths.append(candidate)
+        assert candidate == file
+        return _native()
+
+    result = verify_review_source(source, file, signature_for_candidate)
+    assert result.status == "verified"
+    assert paths == [file]
+    assert result.may_bind_historical_finding
+
+    untrusted_dto = verify_review_source(source, file, _native())
+    assert untrusted_dto.status == "candidate_unverified"
+    assert not untrusted_dto.may_bind_historical_finding
+    with pytest.raises(ReviewValidationError, match="UUID"):
+        SourceResolutionV1("not-uuid", "verified", str(file), True, "digest_match", "reason")
+
+
+def test_serialized_review_limit_includes_terminal_newline(tmp_path, monkeypatch):
+    import pixelscope.core.review_record as review_module
+
+    doc = _review(tmp_path)
+    encoded = doc.to_bytes()
+    monkeypatch.setattr(review_module, "MAX_REVIEW_BYTES", len(encoded) - 1)
+    with pytest.raises(ReviewValidationError):
+        doc.to_bytes()
+
+
 def test_minimal_zero_finding_roundtrip_and_reject_path_traversal(tmp_path):
     repository = ReviewRepository()
     minimal = new_review()
@@ -539,17 +640,17 @@ def test_hash_match_and_relink_consent_never_uses_basename(tmp_path):
     second.write_bytes(b"pixel-2")
     source = _source(first, sha="auto", local=True)
     sig = _native()
-    direct = verify_review_source(source, first, lambda: sig)
+    direct = verify_review_source(source, first, lambda candidate: sig)
     assert direct.status == "verified"
     assert direct.may_bind_historical_finding
-    changed = verify_review_source(source, second, lambda: sig, confirmed_by_user=True)
+    changed = verify_review_source(source, second, lambda candidate: sig, confirmed_by_user=True)
     assert changed.status == "changed"
     assert changed.verification == "digest_mismatch"
     second.write_bytes(first.read_bytes())
-    pending = verify_review_source(source, second, lambda: sig)
+    pending = verify_review_source(source, second, lambda candidate: sig)
     assert pending.status == "candidate_unverified"
     assert pending.verification == "digest_match"
-    approved = verify_review_source(source, second, lambda: sig, confirmed_by_user=True)
+    approved = verify_review_source(source, second, lambda candidate: sig, confirmed_by_user=True)
     assert approved.status == "verified"
     assert approved.candidate_path == str(second)
     assert approved.source_key == source.source_key
@@ -561,13 +662,13 @@ def test_missing_native_mismatch_unverified_hash_and_cancel(tmp_path):
     source = _source(path, sha="auto")
     assert verify_review_source(source, None, _native()).status == "missing"
     assert verify_review_source(source, path.with_name("absent.bin"), _native()).status == "missing"
-    mismatch = verify_review_source(source, path, lambda: _native("2" * 64), confirmed_by_user=True)
+    mismatch = verify_review_source(source, path, lambda candidate: _native("2" * 64), confirmed_by_user=True)
     assert mismatch.status == "unsupported_profile"
     assert mismatch.verification == "digest_match"
     unverified = replace(
         source, fingerprint=replace(source.fingerprint, digest=None, state="unverified")
     )
-    result = verify_review_source(unverified, path, lambda: _native(), confirmed_by_user=True)
+    result = verify_review_source(unverified, path, lambda candidate: _native(), confirmed_by_user=True)
     assert result.status == "candidate_unverified"
     with pytest.raises(ReviewCancelled):
         stream_source_sha256(path, cancel=lambda: True)
@@ -591,7 +692,7 @@ def test_hash_revision_changed_during_progress_is_not_verified(tmp_path):
         stream_source_sha256(path, progress=mutation)
     path.write_bytes(b"a" * 10000)
     result = verify_review_source(
-        source, path, lambda: _native(), confirmed_by_user=True, progress=mutation
+        source, path, lambda candidate: _native(), confirmed_by_user=True, progress=mutation
     )
     assert result.status == "candidate_unverified"
     assert not result.may_bind_historical_finding
