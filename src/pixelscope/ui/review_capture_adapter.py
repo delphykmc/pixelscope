@@ -112,12 +112,11 @@ def stage_named_finding(
     reference_key = source_key_map[reference_document_id]
     primary_key = source_key_map[primary_document_id]
     pair_key = (
-        source_key_map[pair_target_document_id]
-        if pair_target_document_id is not None
-        else None
+        source_key_map[pair_target_document_id] if pair_target_document_id is not None else None
     )
     capture = capture_review_view_state(
-        view, source_key_map,
+        view,
+        source_key_map,
         reference_source_key=reference_key,
         primary_source_key=primary_key,
         page_source_keys=keys,
@@ -138,9 +137,7 @@ def stage_named_finding(
             key,
             ReviewLocatorV1(
                 document.source_path.name,
-                local_path=(
-                    str(document.source_path.resolve()) if persist_local_paths else None
-                ),
+                local_path=(str(document.source_path.resolve()) if persist_local_paths else None),
             ),
             ReviewNativeSignatureV1(
                 original.profile_signature,
@@ -155,8 +152,12 @@ def stage_named_finding(
         )
         pending.append(
             CaptureSource(
-                key, document, document.generation, document.source_path.resolve(),
-                profile.copy(deep=True), source,
+                key,
+                document,
+                document.generation,
+                document.source_path.resolve(),
+                profile.copy(deep=True),
+                source,
             )
         )
     # No pending/stale/uncomputed W02 result is copied, and a Pivot is never
@@ -172,9 +173,22 @@ def stage_named_finding(
                     # Enforce exact W02 scope/channel and source interpretation
                     # via Finding and W09a document validation downstream.
                     ReviewFindingV1(
-                        str(uuid4()), title, note, tags, utc_now(), keys,
-                        reference_key, pair_key, capture.state, roi_ref, line_ref,
-                        channel, display_gain, difference_intent, (captured,), "available",
+                        str(uuid4()),
+                        title,
+                        note,
+                        tags,
+                        utc_now(),
+                        keys,
+                        reference_key,
+                        pair_key,
+                        capture.state,
+                        roi_ref,
+                        line_ref,
+                        channel,
+                        display_gain,
+                        difference_intent,
+                        (captured,),
+                        "available",
                     )
                     # W02 source digest may exist, but candidate fingerprints
                     # are deliberately UNVERIFIED at GUI staging time. Reconcile
@@ -189,12 +203,22 @@ def stage_named_finding(
                     "unavailable", reason=(result.reason or "stale")[:1024]
                 )
     finding = ReviewFindingV1(
-        id=str(uuid4()), title=title, note=note, tags=tags, captured_utc=utc_now(),
-        source_keys=keys, reference_key=reference_key, pair_target_key=pair_key,
-        view_state=capture.state, roi_ref=roi_ref, line_ref=line_ref, channel=channel,
-        display_gain=display_gain, difference_intent=difference_intent,
-        analysis=(analysis,), availability="available" if analysis.status == "captured"
-        else "unavailable",
+        id=str(uuid4()),
+        title=title,
+        note=note,
+        tags=tags,
+        captured_utc=utc_now(),
+        source_keys=keys,
+        reference_key=reference_key,
+        pair_target_key=pair_key,
+        view_state=capture.state,
+        roi_ref=roi_ref,
+        line_ref=line_ref,
+        channel=channel,
+        display_gain=display_gain,
+        difference_intent=difference_intent,
+        analysis=(analysis,),
+        availability="available" if analysis.status == "captured" else "unavailable",
     )
     return StagedFinding(finding, tuple(pending))
 
@@ -215,19 +239,28 @@ def attest_staged_finding(
         if cancel is not None and cancel():
             raise ReviewCancelled("capture cancelled before source attestation")
         digest = stream_source_sha256(
-            pending.path, cancel=cancel, max_bytes=MAX_NATIVE_VERIFY_BYTES,
+            pending.path,
+            cancel=cancel,
+            max_bytes=MAX_NATIVE_VERIFY_BYTES,
         )
         candidate = replace(
             pending.source,
             fingerprint=ReviewFingerprintV1(
-                "sha256", digest.sha256, digest.size_bytes,
-                digest.mtime_ns, "verified",
+                "sha256",
+                digest.sha256,
+                digest.size_bytes,
+                digest.mtime_ns,
+                "verified",
             ),
         )
         decoder = ProductionNativeCandidateDecoder(pending.profile)
         status: SourceResolutionV1 = verify_review_source(
-            candidate, pending.path, decoder, confirmed_by_user=True,
-            cancel=cancel, max_bytes=MAX_NATIVE_VERIFY_BYTES,
+            candidate,
+            pending.path,
+            decoder,
+            confirmed_by_user=True,
+            cancel=cancel,
+            max_bytes=MAX_NATIVE_VERIFY_BYTES,
         )
         if not status.may_bind_historical_finding:
             raise ReviewValidationError(f"capture source unavailable: {status.status}")
