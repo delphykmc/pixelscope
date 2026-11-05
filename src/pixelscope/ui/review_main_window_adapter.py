@@ -65,6 +65,19 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             raise ValueError("Finding source order drift")
         if not all(item.verified and item.still_current() for item in plan.candidates):
             raise ValueError("a required source is not verified")
+        # Canonical MainWindow registration deduplicates by _path_key(path).
+        # Reject collisions *before* any catalog/selection/layout mutation.
+        canonical_keys = tuple(
+            window._path_key(item.approved.path) for item in plan.candidates
+        )
+        if len(set(canonical_keys)) != len(canonical_keys):
+            raise ValueError("multiple Review Source UUIDs resolve to one canonical path")
+        existing_ids = tuple(
+            window._document_id_by_path.get(key) for key in canonical_keys
+        )
+        reused = tuple(document_id for document_id in existing_ids if document_id is not None)
+        if len(set(reused)) != len(reused):
+            raise ValueError("multiple Review Source UUIDs reuse one document ID")
         by_key = {source.source_key: source for source in self.review.sources}
         for item in plan.candidates:
             source = by_key.get(item.approved.source_key)
@@ -123,6 +136,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 window._raw_profiles[document_id] = profile
                 if prior is not None:
                     window._mark_document_for_reload(document_id, profile)
+                if document_id in selected_ids:
+                    raise RuntimeError("canonical Source UUID collision during registration")
                 selected_ids.append(document_id)
                 current = window.documents[document_id]
                 self._binding[item.approved.source_key] = (
