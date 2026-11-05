@@ -216,7 +216,6 @@ def _review(tmp_path: Path, *, with_analysis: bool = False) -> ReviewDocumentV1:
     )
 
 
-
 def test_minimal_zero_finding_roundtrip_and_reject_path_traversal(tmp_path):
     repository = ReviewRepository()
     minimal = new_review()
@@ -230,7 +229,6 @@ def test_minimal_zero_finding_roundtrip_and_reject_path_traversal(tmp_path):
     for relative in ("../escape", "/absolute", "C:/drive", "//server/share", "a/../b"):
         with pytest.raises(ReviewValidationError):
             ReviewLocatorV1("safe.raw", relative_hint=relative)
-
 
 
 def test_roundtrip_multiple_findings_unicode_w02_w04_and_session_unchanged(tmp_path):
