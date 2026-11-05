@@ -277,7 +277,16 @@ class AnalysisExportController(QObject):
             copy_row.setContentsMargins(0, 0, 0, 0)
             copy_row.addStretch(1)
             copy_row.addWidget(self.statistics_copy_button)
+            # W07's Raw/Pivot switch must not steal one or more table rows
+            # from W06's 1400×880 compact Analyze layout. Reuse the
+            # production Statistics command header; standalone panels still
+            # present the switch in their own row.
+            statistics.statistics_view_row.hide()
+            copy_row.addWidget(statistics.statistics_view_label)
+            copy_row.addWidget(statistics.statistics_view)
             statistics_layout.insertLayout(0, copy_row)
+            statistics.statistics_view_label.show()
+            statistics.statistics_view.show()
         self.statistics_copy_button.clicked.connect(  # type: ignore[attr-defined]
             self.copy_statistics_csv
         )
