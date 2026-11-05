@@ -248,7 +248,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
     ref, target = (source.source_key for source in doc.sources)
     original = doc.to_dict()
 
-     mismatched_profile = copy.deepcopy(original)
+    mismatched_profile = copy.deepcopy(original)
     mismatched_profile["sources"][0]["native_signature"]["profile_signature"] = "f" * 64
     with pytest.raises(ReviewValidationError, match="W02 source interpretation"):
         ReviewDocumentV1.from_dict(mismatched_profile)
@@ -277,7 +277,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
 
 
 def test_reject_w02_channel_and_scope_mismatch(tmp_path):
-     doc = _review(tmp_path, with_analysis=True)
+    doc = _review(tmp_path, with_analysis=True)
     original = doc.to_dict()
 
     wrong_channel = copy.deepcopy(original)
