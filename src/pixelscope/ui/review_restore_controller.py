@@ -186,6 +186,7 @@ class ReviewRestoreController(QObject):
         self._finding_id: str | None = None
         self._verified: tuple[VerifiedCandidate, ...] = ()
         self._pending: RestorePlan | None = None
+        self._committed_epoch: int | None = None
         self._phase = "idle"
 
     @property
@@ -201,7 +202,7 @@ class ReviewRestoreController(QObject):
         return {item.approved.source_key: item.resolution for item in self._verified}
 
     def cancel(self) -> None:
-        prior = self._pending
+        committed = self._committed_epoch
         self._epoch += 1
         if self._cancel_event is not None:
             self._cancel_event.set()
@@ -213,9 +214,10 @@ class ReviewRestoreController(QObject):
         self._verified = ()
         self._finding_id = None
         self._pending = None
+        self._committed_epoch = None
         self._phase = "idle"
-        if prior is not None:
-            self.authority.cancel(prior.epoch)
+        if committed is not None:
+            self.authority.cancel(committed)
 
     def change_finding(self, finding_id: str | None) -> None:
         """Every Finding switch revokes pending hash/decode/load callbacks."""
@@ -325,6 +327,7 @@ class ReviewRestoreController(QObject):
         # Commit is a point of no return for canonical source registration.
         # Failure after this line is PARTIAL, not a claimed atomic rollback.
         self._phase = "committing"
+        self._committed_epoch = plan.epoch
         try:
             report = self.authority.commit(prepared, plan)
         except Exception as exc:  # noqa: BLE001 - post-commit failures are partial
