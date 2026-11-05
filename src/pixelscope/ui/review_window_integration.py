@@ -79,8 +79,10 @@ class NamedReviewCoordinator:
         self._capture_fence: CaptureGuiFence | None = None
         self._closed = False
         self.action = QAction("Named Findings", window)
-        self.action.setToolTip("Historical Finding evidence (.pxreview)")
-        self.action.triggered.connect(self.show)  # type: ignore[attr-defined]
+        self.action.setToolTip("Show or hide the Finding notes panel")
+        self.action.setCheckable(True)
+        self.action.triggered.connect(self._toggle_visibility)  # type: ignore[attr-defined]
+        self.dock.visibilityChanged.connect(self._dock_visibility_changed)  # type: ignore[attr-defined]
         # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
         view_menu = window._menu_map["View"]
         # Use the strongly owned canonical menu; transient QMenu wrappers from
@@ -115,22 +117,39 @@ class NamedReviewCoordinator:
         return window
 
     def show(self) -> None:
-        if self._workspace_presets is not None:
-            self._workspace_presets.select(WorkspacePreset.REVIEW)
+        """Expose the notes dock without silently changing the workspace layout."""
+        if self._closed:
+            return
         self.dock.show()
         self.dock.raise_()
+
+    @Slot(bool)
+    def _toggle_visibility(self, show: bool) -> None:
+        """View > Named Findings has the same reversible contract as other docks."""
+        if self._closed:
+            return
+        if show:
+            self.show()
+        else:
+            self.dock.hide()
+
+    @Slot(bool)
+    def _dock_visibility_changed(self, visible: bool) -> None:
+        """The dock X button and the View checkmark are one visibility state."""
+        if self._closed:
+            return
+        blocked = self.action.blockSignals(True)
+        try:
+            self.action.setChecked(visible)
+        finally:
+            self.action.blockSignals(blocked)
 
     @Slot(int)
     def _workspace_changed(self, _index: int) -> None:
         if self._closed or self._workspace_presets is None:
             return
         if self._workspace_presets.preset is WorkspacePreset.REVIEW:
-            self.dock.show()
-            self.window.statusBar().showMessage(
-                "Named Findings: historical evidence, not current analysis", 5000
-            )
-        else:
-            self.dock.hide()
+            self.show()
 
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
