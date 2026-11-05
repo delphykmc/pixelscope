@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from pixelscope.core.review_analysis import (
@@ -110,7 +110,7 @@ def _integer(value: object, name: str, *, minimum: int = 0) -> int:
 def _number(value: object, name: str, *, minimum: float = 0.0) -> float:
     if type(value) not in (int, float):
         raise ReviewValidationError(f"invalid {name} number")
-    result = float(value)
+    result = float(cast(int | float, value))
     if not math.isfinite(result) or result < minimum:
         raise ReviewValidationError(f"invalid {name} finite number")
     return result
@@ -121,7 +121,8 @@ def _keys(raw: object, *, maximum: int, allow_empty: bool = False) -> tuple[str,
         not allow_empty and not raw
     ):
         raise ReviewValidationError("invalid ordered source key collection")
-    keys = tuple(_uuid(item) for item in raw)
+    sequence = cast(list[object] | tuple[object, ...], raw)
+    keys = tuple(_uuid(item) for item in sequence)
     if len(set(keys)) != len(keys):
         raise ReviewValidationError("duplicate source keys")
     return keys
@@ -134,7 +135,7 @@ def _rect(raw: object, *, line: bool = False) -> tuple[int, int, int, int] | Non
     obj = _fields(raw, set(labels), "line" if line else "ROI")
     values = tuple(_integer(obj[key], key, minimum=0 if line or key in ("x", "y") else 1)
                    for key in labels)
-    return values
+    return cast(tuple[int, int, int, int], values)
 
 
 def _rect_wire(value: tuple[int, int, int, int] | None, *, line: bool = False
@@ -515,11 +516,15 @@ class ReviewFindingV1:
             raise ReviewValidationError("W04 page/reference conflicts with finding")
         height, width = self.view_state.reference_shape
         if self.roi_ref is not None:
-            x, y, w, h = _rect(_rect_wire(self.roi_ref))
+            coords = _rect(_rect_wire(self.roi_ref))
+            assert coords is not None
+            x, y, w, h = coords
             if x + w > width or y + h > height:
                 raise ReviewValidationError("ROI exceeds reference-space shape")
         if self.line_ref is not None:
-            x1, y1, x2, y2 = _rect(_rect_wire(self.line_ref, line=True), line=True)
+            coords = _rect(_rect_wire(self.line_ref, line=True), line=True)
+            assert coords is not None
+            x1, y1, x2, y2 = coords
             if max(x1, x2) >= width or max(y1, y2) >= height:
                 raise ReviewValidationError("line exceeds reference-space shape")
         if type(self.channel) is not str or not _LABEL.fullmatch(self.channel):
@@ -541,9 +546,10 @@ class ReviewFindingV1:
             if item.status == "captured":
                 assert item.context_json is not None
                 context = parse_analysis_context(item.context_json)
-                if not {s["source_key"] for s in context["sources"]} <= set(self.source_keys):
+                context_sources = cast(list[dict[str, Any]], context["sources"])
+                if not {s["source_key"] for s in context_sources} <= set(self.source_keys):
                     raise ReviewValidationError("analysis source outside finding")
-                snapshot_id = context["snapshot_id"]
+                snapshot_id = cast(str, context["snapshot_id"])
                 if snapshot_id in snapshot_ids:
                     raise ReviewValidationError("duplicate analysis snapshot id")
                 snapshot_ids.add(snapshot_id)
@@ -695,6 +701,11 @@ class PortableReviewProjectionV1:
         return self.payload_json + b"\n"
 
 
+def _snapshot_id(capture: ReviewAnalysisCaptureV1) -> str:
+    assert capture.context_json is not None
+    return cast(str, parse_analysis_context(capture.context_json)["snapshot_id"])
+
+
 def project_portable_review(
     document: ReviewDocumentV1, *, disclose_titles: bool = False,
     disclose_notes_and_tags: bool = False, disclose_source_names: bool = False,
@@ -729,8 +740,8 @@ def project_portable_review(
             "roi_ref": _rect_wire(finding.roi_ref),
             "line_ref": _rect_wire(finding.line_ref, line=True),
             "channel": finding.channel, "availability": finding.availability,
-            "snapshot_ids": [parse_analysis_context(a.context_json)["snapshot_id"]
-                             for a in finding.analysis if a.status == "captured"],
+            "snapshot_ids": [_snapshot_id(a) for a in finding.analysis
+                             if a.status == "captured"],
         })
     payload = {"kind": PORTABLE_KIND, "schema_version": 1,
                "sources": source_rows, "findings": finding_rows,
