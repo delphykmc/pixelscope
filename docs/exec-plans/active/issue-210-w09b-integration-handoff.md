@@ -45,3 +45,44 @@ No View/Edit/Source/Session v1 API changes, no automatic relink or disk crawling
 ## Validation reporting rules
 
 Use exact SHA per run and never combine count from an older tested source SHA with a later untested HEAD. Temporary focused workflow `.github/workflows/w09b-native-focused.yml` is only a CI aid; remove it before merge or formalize it under owner-approved CI policy. Tests and static checks may continue evolving on this Draft PR.
+
+## PR #222 independent review #5786074180 remediation
+
+Reviewed baseline: `6df3011ab3a3338a7b2da5b87f03b1b05b54571b`.
+The four inline findings have explicit fail-closed code and new tests:
+
+- **P1 asynchronous capture:** `CaptureGuiFence` compares the full staged page/order,
+  generation, durable UUID mapping, selected/primary/active IDs, ROI/Line, W04
+  physical view/sync, Difference controls, display gain and W02 presented/current
+  token before `ReviewLibrary.add`. Changed state rejects the async callback.
+- **P1 incomplete restore:** ROI and Line are applied once through canonical owner
+  authority *before* the W04 geometry stage, Difference reference/target/channel/
+  mode/threshold/gain/region are staged through existing controls with signals
+  blocked and no direct Calculate. After W04 Applied, overlay and recipe values
+  are rechecked. Unsupported native Finding channels fail precommit. Any divergence
+  reports Unavailable (postcommit partial), never misleading Applied.
+- **P1 resident pending:** after canonical registration/staging,
+  `MainWindowReviewRestoreAuthority.commit` immediately calls its W04 retry;
+  fully settled/resident presentations can return Applied synchronously, while
+  actual pending loads stay pending for *owner-authoritative* notifications.
+  Overlay/recipe stages are epoch-once, so geometry cannot be churned on retries.
+- **P2 duplicate relink:** read-only prepare rejects multiple historical UUIDs
+  resolving to the same `MainWindow._path_key` or existing document ID before any
+  registration/selection/layout mutation. Commit separately checks resulting IDs.
+
+`tests/unit/test_w09b_review_guards.py` covers duplicate candidate with zero
+mutation, already-ready and pending-load paths, nondefault Difference pair/Line
+restore with no calculate, stale capture ROI/page/primary/W04/W02, unsupported
+channel and canonical Line refusal. Hosted focused checks are not the owner's
+Windows normal-GC GUI full suite.
+
+**Remaining mandatory integration:** The application composition root must call
+`install_named_review(window)` after W05/W06 installation. The existing W06
+Review Preset can then expose the dock without mutating W06. The orchestrator
+must wire an epoch-tagged terminal notification after real foreground load,
+display-gain and layout settlement to `on_owner_terminal(epoch)`, and invoke
+`shutdown()` before view shutdown. The independent Review acceptance must test
+the installed entrypoint with 3 Findings across restart, 2/4/6 sources,
+Source relink approval, ROI/Line, Difference, physical zoom, sync, rapid
+switching and Windows full normal-GC suite. Until the owner adds this seam
+and passes the tests, PR #222 stays **Draft / DO NOT MERGE**.
