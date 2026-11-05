@@ -10,11 +10,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Protocol
 from uuid import uuid4
 
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.review_analysis import capture_presented_analysis
+from pixelscope.core.review_analysis import AnalysisPanelAdapter, capture_presented_analysis
 from pixelscope.core.review_analysis_sources import snapshot_source
 from pixelscope.core.review_record import (
     ReviewAnalysisCaptureV1,
@@ -45,12 +44,6 @@ from pixelscope.ui.review_view_state_adapter import capture_review_view_state
 from pixelscope.ui.multi_compare_view import MultiCompareView
 
 
-class CurrentAnalysisPanel(Protocol):
-    def get_current_analysis_token(self) -> object: ...
-    def get_presented_analysis_token(self) -> object: ...
-    def read_presented_analysis(self) -> object: ...
-
-
 @dataclass(frozen=True)
 class CaptureSource:
     key: str
@@ -65,7 +58,8 @@ class CaptureSource:
         return (
             document is self.document
             and document.generation == self.generation
-            and document.source_path == self.path
+            and document.source_path is not None
+            and document.source_path.resolve() == self.path
         )
 
 
@@ -98,7 +92,7 @@ def stage_named_finding(
     channel: str,
     display_gain: float,
     difference_intent: ReviewDifferenceIntentV1 | None,
-    analysis_panel: CurrentAnalysisPanel | None = None,
+    analysis_panel: AnalysisPanelAdapter | None = None,
     persist_local_paths: bool = False,
 ) -> StagedFinding:
     """Capture exactly presented geometry and frozen W02 token, without any IO."""
@@ -152,7 +146,7 @@ def stage_named_finding(
                 original.effective_bits,
                 canonical_json(original.native_interpretation.to_portable(), limit=16_384),
             ),
-            ReviewFingerprintV1("sha256", None, None, None, "unverified"),
+            ReviewFingerprintV1("sha256", None, 0, None, "unverified"),
         )
         pending.append(
             CaptureSource(
