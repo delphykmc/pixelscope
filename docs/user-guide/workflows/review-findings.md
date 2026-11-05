@@ -1,75 +1,59 @@
-# Named Findings (.pxreview) — W09b integration preview
+# Memo — save inspection points
 
-Named Findings is installed by the application composition root. Open it through
-**View > Named Findings** or the **Review** workspace. This integration preview
-is not a release announcement. Unlike Session v1, Review stores named historical
-evidence.
+A **Session** saves the whole PixelScope workspace for continuing work. A
+**Memo** saves individual image inspection points so you can return to a
+particular image/ROI and see the note attached to it.
 
-## Capture a Finding
+## Add and revisit a memo
 
-1. Open and compare the intended sources, choose Reference/Target and
-   inspection ROI/Line, channel, Display Gain and physical zoom.
-2. Open **View > Named Findings**. Provide a Title, optional Note and comma-separated
-   Tags, then select **Add Finding**.
-3. The application records the W04 view state and the W02 analysis snapshot
-   **only if its presented/current tokens match**. Pending, stale,
-   cancelled or uncomputed results are explicitly unavailable.
-4. Candidate file bytes, native interpretation and loaded samples are
-   independently checked in a bounded worker before committing a Finding.
-   Recording does not calculate Difference or silently reload an image.
-5. Edit metadata or delete a Finding from the list. Metadata edits do not
-   change the captured numeric evidence or its timestamp.
+1. Open a PNG/JPEG/BMP, RAW or YUV image through the existing File menu or drag-and-drop.
+2. Draw a rectangle on the image. Select **View > Memo**.
+3. Type a short Title and Note, then select **Add Memo**.
+4. Repeat for another ROI. Select either entry in the Memo list: the selected
+   image(s), saved ROI and physical zoom/center are restored automatically.
+5. **Update** edits note text. **Delete** removes only that Memo entry.
 
-## Export the selected ROI as PNGs
+A Memo does not calculate Difference or replace current Statistics. If an ROI
+or source is missing, the note stays readable and a concise status explains
+what needs correcting. **Locate image…** appears only when the original image
+cannot be automatically reopened; it is not part of normal note-taking.
 
-With images selected and a rectangular ROI drawn, choose **Export ROI PNGs…**
-in the notes panel, then select an output folder. This command works without
-first creating or saving a Finding. The current comparison page is the
-export scope (up to six source images); if more sources are selected, change
-page to export the remaining ones. It writes **one PNG per loaded source**,
-cropping the exact same reference-pixel ROI. Files contain the canonical
-8-bit display preview (including RAW/YUV visualization), not Bayer codes,
-native YUV planes, overlays, a viewer screenshot or measured statistics.
-No ROI or any out-of-bounds/unloaded source blocks the entire operation:
-coordinates are never silently clamped. Repeated exports use a unique
-numbered filename and do not overwrite prior PNGs.
+## Local save and reopen
 
-## Save, reopen and inspect
+Use **Save Memo…** to save an editable `.pxreview` notebook with multiple memo
+entries. This is not a Session. It stores text, image references, ROI/line and
+just enough view state to revisit each saved point. It does **not** embed full
+original image arrays or screenshots.
 
-Use **Save .pxreview** to write a validated Review atomically. A changed
-existing Review requires a loaded matching revision and overwrite approval.
-**Open .pxreview** validates the file before replacing the displayed historical
-library; it does **not** change the current image workspace.
+For local click-to-reopen, `.pxreview` contains the absolute paths of the
+original image files. **Treat the editable notebook as private/local** and do
+not distribute it as an anonymized report. If the original files are removed
+or modified, open the notebook to read the notes and use Locate image when
+appropriate. No silent relinking or substitution occurs.
 
-Historical snapshots remain labelled as **past captured evidence**. Opening
-them does not establish that current source files or current measurements
-are identical.
+**Open Memo…** loads a notebook and selects its first entry; clicking another
+entry revisits that inspection point without a separate Verify or Activate
+button. RAW/YUV originals may need a valid user-approved native input profile
+when loaded in a fresh process; PNG/BMP/JPEG do not require RAW/YUV profile
+dialogs. Internal source fingerprint checks run without a manual verification
+panel.
 
-## Verified source binding and restore
+## Save cropped ROI PNGs
 
-Select each exact source candidate. RAW/YUV sources require their approved
-native profile; PNG/BMP/JPEG sources use the existing unambiguous image decoder
-and require no RAW/YUV profile dialog.
-Any relocated path requires separate user confirmation **even if its digest
-matches**. Select **Verify Selected Finding**, which checks source SHA-256 and
-native interpretation. An unresolved, changed, missing or unsupported source
-cannot activate a Finding; offline evidence remains visible.
+With images selected and a rectangular ROI drawn, select **Export ROI PNGs…**
+in the Memo panel and choose a directory. No Memo record needs to exist.
 
-Only once all required sources are Verified should **Activate verified Finding**
-begin canonical Source/Pair/ROI/View State restoration. Pending foreground
-loads or display geometry must be handled on authoritative terminal events.
-A post-commit failure may leave partial state and must be reported as such.
+Each image on the current comparison page produces one PNG with the same
+reference-pixel ROI, retaining its original reference dimensions. Output is a
+canonical **8-bit display preview**, not raw Bayer values, native YUV planes or
+a screenshot with selection overlays. Existing files are never overwritten.
+An invalid/out-of-bounds ROI fails the operation without clamping.
 
-## Integration restrictions
+## Portable HTML report — separate from editable Memo
 
-PNG/BMP/JPEG and explicitly profiled RAW/YUV sources can be recorded under
-the Review v1 source identity and verification contract. Only real decoded
-samples and current input bytes may attest captured history; unsupported or
-changed sources are not silently accepted.
-Restoration includes ROI/Line, the Difference pair/recipe, display gain, physical
-zoom and Sync state. The Sync button reflects the restored state. Restoring a
-recipe does not calculate Difference or turn past measurements into current ones;
-use Calculate explicitly for a new measurement. Mixed YUV/non-YUV analysis remains
-disabled by the existing semantic compatibility rules. User navigation interrupts
-a pending restore. Hardware DPI/multiple-monitor and SMB/locked-file acceptance
-remain separate environment checks.
+A portable report is a different use case: an `index.html` plus ROI PNG
+assets and a minimal manifest for recipients without PixelScope. It must not
+include private source file paths. **Export of this self-contained HTML package
+and permanent offline ROI snapshots is not implemented in this W09b slice.**
+The distinction is deliberate; the presence of a design document or JSON
+metadata alone does not make a report shareable.
