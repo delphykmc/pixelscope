@@ -128,6 +128,8 @@ class Window:
         )
         self.comparison_analysis_panel = NS(bind_review_source_keys=MagicMock())
         self.diff_action = NS(blockSignals=lambda _: False, setChecked=lambda _: None)
+        self.sync_action = NS(blockSignals=lambda _: False, setChecked=MagicMock())
+        self._update_action_states = MagicMock()
         self._profile = NS(copy=lambda deep: NS(copy=lambda deep: None))
         self._force_pending = False
 
@@ -175,6 +177,7 @@ def make_plan(paths):
     view = NS(
         presentation_mode="originals",
         primary_source_key=keys[0],
+        sync_enabled=False,
         source_shapes_ref={key: (4, 5) for key in keys},
     )
     finding = NS(
@@ -261,6 +264,8 @@ def test_already_resident_restore_applies_complete_pair_and_line_without_timer(t
     ) == (0, 0, 4, 3)
     window.difference_panel.calculate_difference.assert_not_called()
     window.multi_compare_view.begin_review_restore.assert_called_once_with(11)
+    window.sync_action.setChecked.assert_called_once_with(False)
+    window._update_action_states.assert_called_once_with()
 
 
 def test_new_foreground_load_is_pending_until_owner_terminal(tmp_path):

@@ -238,6 +238,15 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             presentation_mode="originals",
         )
         if state.status == "applied":
+            # W04 restores the viewport owner. Mirror its committed Sync state
+            # into the canonical action without emitting a second range change.
+            action = window.sync_action
+            blocked = action.blockSignals(True)
+            try:
+                action.setChecked(plan.finding.view_state.sync_enabled)
+            finally:
+                action.blockSignals(blocked)
+            window._update_action_states()
             if not self._difference_recipe_matches(plan):
                 return RestoreReport(plan.epoch, "unavailable", "Difference recipe changed", True)
             if plan.finding.line_ref is not None:
