@@ -53,11 +53,7 @@ def native_sample_sha256(document: ImageDocument) -> str:
     native digest as a second independent equality check after W09a SHA/
     interpretation verification, off the GUI thread.
     """
-    arrays = (
-        document.yuv_frame.planes
-        if document.yuv_frame is not None
-        else (document.source,)
-    )
+    arrays = document.yuv_frame.planes if document.yuv_frame is not None else (document.source,)
     if not arrays or any(plane is None for plane in arrays):
         raise UnsupportedNativeCandidate("unloaded native samples")
     hasher = hashlib.sha256()
