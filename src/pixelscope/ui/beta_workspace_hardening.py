@@ -3,14 +3,13 @@ from __future__ import annotations
 import weakref
 from typing import Any, cast
 
-from PySide6.QtCore import QObject, Qt, QTimer
-from PySide6.QtGui import QWindow
+from PySide6.QtCore import QObject, QRect, Qt, QTimer
+from PySide6.QtGui import QGuiApplication, QWindow
 from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QSizePolicy, QSplitter, QWidget
 
 from pixelscope.ui.design_tokens import WORKSPACE_CHROME_HEIGHT, panel_heading_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
-from pixelscope.ui.workspace_presets import WorkspacePresetController
 
 
 def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
@@ -29,6 +28,37 @@ def _sync_full_text_label(label: QLabel, description: str) -> None:
     text = label.text()
     label.setToolTip(text)
     label.setAccessibleName(f"{description}: {text}")
+
+
+def _screen_recover(widget: QWidget) -> bool:
+    """Only relocate a *fully* off-screen native window in logical screen coordinates."""
+
+    available = [
+        screen.availableGeometry()
+        for screen in QGuiApplication.screens()
+        if screen.availableGeometry().isValid()
+    ]
+    if not available:
+        return False
+    frame = widget.frameGeometry()
+    # A sliver of the *content* is not enough: the native title/drag region
+    # must remain accessible after a monitor is unplugged or DPI changes.
+    caption_height = min(frame.height(), max(24, widget.fontMetrics().height() + 10))
+    caption = QRect(frame.x(), frame.y(), frame.width(), caption_height)
+    for screen_rect in available:
+        visible = caption.intersected(screen_rect)
+        if visible.width() >= min(96, caption.width()) and visible.height() >= min(
+            16, caption.height()
+        ):
+            return False
+    primary = QGuiApplication.primaryScreen()
+    target = primary.availableGeometry() if primary is not None else available[0]
+    width = min(max(1, frame.width()), target.width())
+    height = min(max(1, frame.height()), target.height())
+    x = target.x() + max(0, (target.width() - width) // 2)
+    y = target.y() + max(0, (target.height() - height) // 2)
+    widget.setGeometry(QRect(x, y, width, height))
+    return True
 
 
 class _WorkspaceDockTopLevelController(QObject):
@@ -97,6 +127,7 @@ class _WorkspaceDockTopLevelController(QObject):
     def _detach_transient_parent(self) -> None:
         if self._quiescing or not self._dock.isFloating() or self._dock.isHidden():
             return
+        _screen_recover(self._dock)
         handle = self._dock.windowHandle()
         if handle is not None and handle.transientParent() is not None:
             # QWindow::setTransientParent accepts a null pointer to clear the
@@ -132,7 +163,11 @@ class BetaWorkspaceHardeningController(QObject):
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
         self._install_workspace_windows()
-        self.workspace_presets = WorkspacePresetController(window)
+        # Migrate retired preset keys once; Qt owns the single canonical Dock state.
+        settings = getattr(window, "settings", None)
+        if settings is not None:
+            settings.remove("ui/workspace_preset")
+            settings.remove("ui/workspace_layouts/v1")
 
     @property
     def window(self) -> QMainWindow:
@@ -303,7 +338,6 @@ class BetaWorkspaceHardeningController(QObject):
     def quiesce_pending_callbacks(self) -> None:
         """Quiesce every managed dock's queued native-window adjustment."""
 
-        self.workspace_presets.quiesce_pending_callbacks()
         for controller in self._dock_controllers:
             controller.quiesce_pending_callbacks()
 
