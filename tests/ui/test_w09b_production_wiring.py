@@ -7,7 +7,6 @@ import pytest
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.review_window_integration import NamedReviewCoordinator
-from pixelscope.ui.workspace_presets import WorkspacePreset
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -53,14 +52,10 @@ def test_production_composition_exposes_named_review_without_toolbar_overflow(
     assert not review.action.isChecked()
     assert review.dock.isHidden()
 
-    # The W06 Review layout remains a supported alternate entry until retired.
-    selector = window.beta_workspace_hardening_controller.workspace_presets
-    selector.select(WorkspacePreset.REVIEW)
-    review._workspace_changed(0)
-    assert review.action.isChecked()
-    selector.select(WorkspacePreset.COMPARE)
-    review._workspace_changed(0)
-    assert review.action.isChecked()
+    # Memo is a View dock, not a second workspace mode.
+    assert review.action.text() == "Memo"
+    review.action.trigger()
+    assert not review.dock.isHidden()
     review.action.trigger()
     assert review.dock.isHidden()
     window.close()
