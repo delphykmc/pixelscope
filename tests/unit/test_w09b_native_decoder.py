@@ -40,10 +40,10 @@ YUV = ROOT / "test_data" / "manual" / "yuv_chart_set"
 def _stored_source(path: Path, profile: RawProfile | YuvProfile) -> ReviewSourceV1:
     if isinstance(profile, RawProfile):
         pixels = read_raw(path, profile)
-        doc = ImageDocument(path, "fixture", pixels, profile.channel_layout, profile.bit_depth, raw_profile=profile)
+        doc = ImageDocument(\n            path, "fixture", pixels, profile.channel_layout, profile.bit_depth, raw_profile=profile\n        )
     else:
         frame = read_yuv(path, profile)
-        doc = ImageDocument(path, "fixture", frame.y, frame.layout, profile.bit_depth, yuv_frame=frame)
+        doc = ImageDocument(\n            path, "fixture", frame.y, frame.layout, profile.bit_depth, yuv_frame=frame\n        )
     captured = snapshot_source(doc, str(uuid4()))
     signature = ReviewNativeSignatureV1(
         captured.profile_signature,
@@ -159,6 +159,6 @@ def test_native_profile_variants_do_not_rebind_incorrect_geometry():
     assert not mismatch.may_bind_historical_finding
 
     # A synthetic changed source fingerprint never grants verified by size/mtime.
-    modified = replace(source, fingerprint=replace(source.fingerprint, digest=None, state="unverified"))
+    modified = replace(\n        source, fingerprint=replace(source.fingerprint, digest=None, state="unverified")\n    )
     missing_digest = verify_review_source(modified, path, ProductionNativeCandidateDecoder(profile))
     assert missing_digest.status == "candidate_unverified"
