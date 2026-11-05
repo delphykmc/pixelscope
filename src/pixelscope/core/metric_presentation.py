@@ -281,8 +281,12 @@ def build_statistics_pivot(
                         reason = "Absolute Delta overflow"
                 cells.append(
                     PivotCell(
-                        source.source_key, current_measurement, definition.unit,
-                        delta, relative, reason,
+                        source.source_key,
+                        current_measurement,
+                        definition.unit,
+                        delta,
+                        relative,
+                        reason,
                     )
                 )
             rows.append(PivotRow(current_channel, metric, definition, tuple(cells)))
