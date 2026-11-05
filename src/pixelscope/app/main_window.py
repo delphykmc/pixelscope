@@ -2394,9 +2394,7 @@ class MainWindow(QMainWindow):
                 self._shared_line,
                 preserve_view,
                 local_slot_by_id,
-                fixed_geometry_count=(
-                    COMPARISON_PAGE_SIZE if large_selection else None
-                ),
+                fixed_geometry_count=(COMPARISON_PAGE_SIZE if large_selection else None),
                 local_slots=large_selection,
             )
             render_trace.checkpoint("multi_viewer_set_documents")
