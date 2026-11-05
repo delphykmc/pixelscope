@@ -495,6 +495,26 @@ class WorkspacePresetController(QObject):
                 if compact
                 else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
             )
+            if compact:
+                # Reorder existing QAction instances, never recreate shortcuts or
+                # status ownership. Zoom +/- and Plots may use the native overflow;
+                # Fit, 100%, Sync and Diff must precede those secondary controls.
+                zoom_in = getattr(window, "zoom_in_action", None)
+                sync = getattr(window, "sync_action", None)
+                diff = getattr(window, "diff_action", None)
+                if isinstance(zoom_in, QAction):
+                    for action in (sync, diff):
+                        if isinstance(action, QAction):
+                            toolbar.insertAction(zoom_in, action)
+            else:
+                # Restore the native wide-screen action order.
+                plots = getattr(window, "plots_action", None)
+                sync = getattr(window, "sync_action", None)
+                diff = getattr(window, "diff_action", None)
+                if isinstance(plots, QAction):
+                    for action in (sync, diff):
+                        if isinstance(action, QAction):
+                            toolbar.insertAction(plots, action)
             if isinstance(caption, QLabel):
                 caption.setVisible(not compact)
             if isinstance(status, QLabel):
