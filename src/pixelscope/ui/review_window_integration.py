@@ -284,11 +284,7 @@ class NamedReviewCoordinator:
             if primary is None:
                 raise ReviewValidationError("Primary source is not available")
             pair = window.difference_panel.selected_documents()
-            if (
-                pair is not None
-                and window.diff_action.isChecked()
-                and all(d.document_id in keys for d in pair)
-            ):
+            if pair is not None and all(d.document_id in keys for d in pair):
                 reference_id, target_id = pair[0].document_id, pair[1].document_id
                 difference = window.difference_panel
                 recipe = ReviewDifferenceIntentV1(
