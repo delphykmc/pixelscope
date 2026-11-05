@@ -96,10 +96,17 @@ class CanonicalReviewRestoreAuthority(Protocol):
     retry() may be invoked ONLY on owner terminal load/layout notifications.
     """
 
-    def prepare(self, plan: RestorePlan) -> object: ...
-    def commit(self, prepared: object, plan: RestorePlan) -> RestoreReport: ...
-    def retry(self, plan: RestorePlan) -> RestoreReport: ...
-    def cancel(self, epoch: int) -> None: ...
+    def prepare(self, plan: RestorePlan) -> object:
+        ...
+
+    def commit(self, prepared: object, plan: RestorePlan) -> RestoreReport:
+        ...
+
+    def retry(self, plan: RestorePlan) -> RestoreReport:
+        ...
+
+    def cancel(self, epoch: int) -> None:
+        ...
 
 
 def _verify_batch(
@@ -121,7 +128,8 @@ def _verify_batch(
         except OSError:
             before = None
         result = verify_review_source(
-            source, candidate.path,
+            source,
+            candidate.path,
             ProductionNativeCandidateDecoder(candidate.profile),
             confirmed_by_user=candidate.confirmed_by_user,
             cancel=cancel.is_set,
@@ -133,8 +141,12 @@ def _verify_batch(
             after = None
         if before is None or after != before:
             result = SourceResolutionV1(
-                source.source_key, "candidate_unverified", str(candidate.path),
-                candidate.confirmed_by_user, "unavailable", "candidate revision changed",
+                source.source_key,
+                "candidate_unverified",
+                str(candidate.path),
+                candidate.confirmed_by_user,
+                "unavailable",
+                "candidate revision changed",
             )
         output.append(
             VerifiedCandidate(
@@ -156,7 +168,9 @@ class ReviewRestoreController(QObject):
     restore_completed = Signal(object)
 
     def __init__(
-        self, library: ReviewLibrary, authority: CanonicalReviewRestoreAuthority,
+        self,
+        library: ReviewLibrary,
+        authority: CanonicalReviewRestoreAuthority,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -209,7 +223,9 @@ class ReviewRestoreController(QObject):
         self._finding_id = finding_id
 
     def verify(
-        self, finding_id: str, approved: Mapping[str, ApprovedCandidate],
+        self,
+        finding_id: str,
+        approved: Mapping[str, ApprovedCandidate],
     ) -> int:
         self.cancel()
         if self._closing:
@@ -242,11 +258,18 @@ class ReviewRestoreController(QObject):
 
     @Slot(str, object, int, object)
     def _verified_ready(
-        self, task_id: str, _document: object, epoch: int, value: object,
+        self,
+        task_id: str,
+        _document: object,
+        epoch: int,
+        value: object,
     ) -> None:
         if (
-            self._closing or epoch != self._epoch or task_id != self._task_id
-            or self._phase != "verifying" or not isinstance(value, tuple)
+            self._closing
+            or epoch != self._epoch
+            or task_id != self._task_id
+            or self._phase != "verifying"
+            or not isinstance(value, tuple)
             or any(not isinstance(item, VerifiedCandidate) for item in value)
         ):
             return
@@ -256,7 +279,11 @@ class ReviewRestoreController(QObject):
 
     @Slot(str, object, int, object)
     def _verify_failed(
-        self, task_id: str, _document: object, epoch: int, error: object,
+        self,
+        task_id: str,
+        _document: object,
+        epoch: int,
+        error: object,
     ) -> None:
         if self._closing or epoch != self._epoch or task_id != self._task_id:
             return
@@ -302,7 +329,10 @@ class ReviewRestoreController(QObject):
             report = self.authority.commit(prepared, plan)
         except Exception as exc:  # noqa: BLE001 - post-commit failures are partial
             report = RestoreReport(
-                self._epoch, "unavailable", f"post-commit failure: {exc}", partial_state=True,
+                self._epoch,
+                "unavailable",
+                f"post-commit failure: {exc}",
+                partial_state=True,
             )
         if report.epoch != self._epoch or self._closing:
             return RestoreReport(plan.epoch, "interrupted", "epoch superseded", True)
@@ -318,8 +348,11 @@ class ReviewRestoreController(QObject):
         """Only call after authoritative foreground-load/layout completion."""
         plan = self._pending
         if (
-            self._closing or plan is None or epoch != self._epoch
-            or plan.epoch != epoch or self._phase != "pending"
+            self._closing
+            or plan is None
+            or epoch != self._epoch
+            or plan.epoch != epoch
+            or self._phase != "pending"
         ):
             return None
         if any(not item.still_current() for item in plan.candidates):
