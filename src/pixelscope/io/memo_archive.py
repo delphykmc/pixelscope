@@ -12,10 +12,10 @@ import os
 import re
 import tempfile
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from collections.abc import Mapping
 
 import cv2
 import numpy as np
