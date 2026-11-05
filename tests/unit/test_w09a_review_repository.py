@@ -41,8 +41,8 @@ from pixelscope.core.review_record import (
 from pixelscope.core.review_view_state import ReviewViewStateV1
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.review_repository import (
-    CandidateNativeDecoderV1,
     CandidateDecodeProbeV1,
+    CandidateNativeDecoderV1,
     ReviewCancelled,
     ReviewConflictError,
     ReviewRepository,
