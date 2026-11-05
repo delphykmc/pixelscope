@@ -386,7 +386,6 @@ def test_review_records_do_not_retain_mutable_caller_sequences(tmp_path):
     assert len(durable.findings) == 2
 
 
-
 def test_direct_native_geometry_rejects_invalid_mutable_sequences(tmp_path):
     doc = _review(tmp_path)
     signature = doc.sources[0].native_signature
