@@ -36,6 +36,7 @@ MAX_NOTE_BYTES = 32 * 1024
 MAX_EXTENSIONS_BYTES = 64 * 1024
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 _LABEL = re.compile(r"^[\w .:+-]{1,96}$", re.UNICODE)
+_DTYPE = re.compile(r"^(?:bool|u?int(?:8|16|32|64)|float(?:16|32|64)|[<>=|](?:[iu](?:1|2|4|8)|f(?:2|4|8)|b1))$")
 _VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$")
 _STATUSES = frozenset({"available", "partial", "unavailable"})
 _ANALYSIS_STATUSES = frozenset({"captured", "unavailable"})
@@ -283,10 +284,10 @@ class ReviewNativeSignatureV1:
         _integer(self.effective_bits, "effective_bits", minimum=1)
         if self.effective_bits > 64:
             raise ReviewValidationError("effective_bits exceeds 64")
-        for value, name in ((self.native_dtype, "native_dtype"),
-                            (self.channel_layout, "channel_layout")):
-            if type(value) is not str or not _LABEL.fullmatch(value):
-                raise ReviewValidationError(f"invalid {name}")
+        if type(self.native_dtype) is not str or not _DTYPE.fullmatch(self.native_dtype):
+            raise ReviewValidationError("invalid native_dtype")
+        if type(self.channel_layout) is not str or not _LABEL.fullmatch(self.channel_layout):
+            raise ReviewValidationError("invalid channel_layout")
         native = AnalysisNativeInterpretationV1.from_portable(
             parse_bounded_json(self.native_interpretation_json)
         )
@@ -368,8 +369,7 @@ class ReviewWorkspaceIntentV1:
         for value in (self.page_anchor_key, self.active_key, self.primary_key):
             if value is not None and _uuid(value) not in self.selected_keys:
                 raise ReviewValidationError("workspace role outside selection")
-        if self.layout_mode not in ("Auto", "Single", "Focus + 2",
-                                    "Grid 2x2", "Grid 3x2"):
+        if self.layout_mode not in ("Auto", "Single View", "Multi View"):
             raise ReviewValidationError("invalid workspace layout")
         _number(self.display_gain, "display_gain", minimum=0.000001)
         if type(self.split_channels) is not bool:
@@ -407,12 +407,15 @@ class ReviewDifferenceIntentV1:
     def __post_init__(self) -> None:
         if _uuid(self.reference_key) == _uuid(self.target_key):
             raise ReviewValidationError("difference pair requires distinct sources")
-        if self.mode not in ("Absolute", "Signed", "Threshold") or (
-            type(self.channel) is not str or not _LABEL.fullmatch(self.channel)
-        ) or self.region not in ("Full image", "ROI"):
+        if self.mode not in ("Absolute", "Mask") or (
+            self.channel not in ("All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb",
+                                 "Y", "U", "V")
+        ) or self.region not in ("Full image", "Active ROI"):
             raise ReviewValidationError("unsupported difference recipe")
-        _number(self.threshold, "threshold")
-        _integer(self.gain, "difference gain", minimum=1)
+        if _number(self.threshold, "threshold") > 65535.0:
+            raise ReviewValidationError("difference threshold exceeds limit")
+        if _integer(self.gain, "difference gain", minimum=1) > 1000:
+            raise ReviewValidationError("difference gain exceeds limit")
 
     def to_dict(self) -> dict[str, Any]:
         return {"reference_key": self.reference_key, "target_key": self.target_key,
