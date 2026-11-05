@@ -72,16 +72,18 @@ class SourceResolutionV1:
 
     def __post_init__(self) -> None:
         if self.status not in (
-            "verified", "candidate_unverified", "changed", "missing",
-            "unsupported_profile"
+            "verified",
+            "candidate_unverified",
+            "changed",
+            "missing",
+            "unsupported_profile",
         ):
             raise ReviewValidationError("unknown source resolution status")
         if self.verification not in ("digest_match", "digest_mismatch", "unavailable"):
             raise ReviewValidationError("unknown source resolution evidence")
         if type(self.confirmed_by_user) is not bool or (
-            self.status == "verified" and (
-                self.verification != "digest_match" or self.candidate_path is None
-            )
+            self.status == "verified"
+            and (self.verification != "digest_match" or self.candidate_path is None)
         ):
             raise ReviewValidationError("verified source requires digest and candidate")
 
@@ -100,7 +102,9 @@ def _identity(st: os.stat_result) -> tuple[int, int, int, int, int]:
 
 
 def stream_source_sha256(
-    path: str | Path, *, cancel: CancelCheck | None = None,
+    path: str | Path,
+    *,
+    cancel: CancelCheck | None = None,
     progress: ProgressCallback | None = None,
     max_bytes: int | None = None,
 ) -> SourceHashV1:
@@ -136,8 +140,11 @@ def stream_source_sha256(
         at_end = os.fstat(handle.fileno())
     _cancel_if_requested(cancel)
     after = source.stat()
-    if (processed != before.st_size or _identity(before) != _identity(at_end)
-            or _identity(before) != _identity(after)):
+    if (
+        processed != before.st_size
+        or _identity(before) != _identity(at_end)
+        or _identity(before) != _identity(after)
+    ):
         raise SourceHashUnstable("source revision changed during SHA-256")
     return SourceHashV1(sha.hexdigest(), processed, before.st_mtime_ns)
 
@@ -146,7 +153,8 @@ def verify_review_source(
     source: ReviewSourceV1,
     candidate_path: str | Path | None,
     native_signature: ReviewNativeSignatureV1 | SignatureProvider | None,
-    *, confirmed_by_user: bool = False,
+    *,
+    confirmed_by_user: bool = False,
     cancel: CancelCheck | None = None,
     progress: ProgressCallback | None = None,
     max_bytes: int | None = None,
@@ -164,9 +172,12 @@ def verify_review_source(
 
     def outcome(status: str, verification: str, reason: str) -> SourceResolutionV1:
         return SourceResolutionV1(
-            source.source_key, status,
+            source.source_key,
+            status,
             str(candidate_path) if candidate_path is not None else None,
-            confirmed_by_user, verification, reason
+            confirmed_by_user,
+            verification,
+            reason,
         )
 
     if candidate_path is None:
@@ -175,32 +186,38 @@ def verify_review_source(
     if not path.is_file():
         return outcome("missing", "unavailable", "candidate file is missing")
     saved_path = source.locator.local_path
-    same_saved_path = (
-        saved_path is not None and
-        os.path.normcase(os.path.realpath(path)) ==
-        os.path.normcase(os.path.realpath(saved_path))
-    )
+    same_saved_path = saved_path is not None and os.path.normcase(
+        os.path.realpath(path)
+    ) == os.path.normcase(os.path.realpath(saved_path))
     try:
         initial_revision = _identity(path.stat())
-        probe = stream_source_sha256(path, cancel=cancel, progress=progress,
-                                     max_bytes=max_bytes)
+        probe = stream_source_sha256(path, cancel=cancel, progress=progress, max_bytes=max_bytes)
     except (ReviewCancelled, KeyboardInterrupt):
         raise
     except OSError as exc:
-        return outcome("candidate_unverified", "unavailable",
-                       f"cannot safely hash candidate: {type(exc).__name__}")
+        return outcome(
+            "candidate_unverified",
+            "unavailable",
+            f"cannot safely hash candidate: {type(exc).__name__}",
+        )
 
     prior_sha = source.fingerprint.digest
     if prior_sha is None:
-        return outcome("candidate_unverified", "unavailable",
-                       "saved SHA-256 is absent; metadata cannot prove identity")
+        return outcome(
+            "candidate_unverified",
+            "unavailable",
+            "saved SHA-256 is absent; metadata cannot prove identity",
+        )
     if probe.sha256 != prior_sha:
         return outcome("changed", "digest_mismatch", "source SHA-256 differs")
     # A signature object computed outside this stat window is not sufficient
     # evidence that the decoder interpretation describes the hashed revision.
     if not callable(native_signature):
-        return outcome("candidate_unverified", "digest_match",
-                       "native decoder signature requires revision-bound provider")
+        return outcome(
+            "candidate_unverified",
+            "digest_match",
+            "native decoder signature requires revision-bound provider",
+        )
     try:
         _cancel_if_requested(cancel)
         current_signature = native_signature()
@@ -210,22 +227,30 @@ def verify_review_source(
     except (ReviewCancelled, KeyboardInterrupt):
         raise
     except (ValueError, TypeError) as exc:
-        return outcome("unsupported_profile", "digest_match",
-                       f"decoder rejected profile: {type(exc).__name__}")
+        return outcome(
+            "unsupported_profile", "digest_match", f"decoder rejected profile: {type(exc).__name__}"
+        )
     except OSError as exc:
-        return outcome("candidate_unverified", "digest_match",
-                       f"cannot verify stable decoder revision: {type(exc).__name__}")
+        return outcome(
+            "candidate_unverified",
+            "digest_match",
+            f"cannot verify stable decoder revision: {type(exc).__name__}",
+        )
     if not isinstance(current_signature, ReviewNativeSignatureV1):
-        return outcome("unsupported_profile", "digest_match",
-                       "native decoder signature is unavailable")
+        return outcome(
+            "unsupported_profile", "digest_match", "native decoder signature is unavailable"
+        )
     if current_signature != source.native_signature:
-        return outcome("unsupported_profile", "digest_match",
-                       "native decode signature differs")
+        return outcome("unsupported_profile", "digest_match", "native decode signature differs")
     if not same_saved_path and not confirmed_by_user:
-        return outcome("candidate_unverified", "digest_match",
-                       "verified bytes require explicit relocation confirmation")
-    return outcome("verified", "digest_match",
-                   "SHA-256 and revision-bound native decoder signature both match")
+        return outcome(
+            "candidate_unverified",
+            "digest_match",
+            "verified bytes require explicit relocation confirmation",
+        )
+    return outcome(
+        "verified", "digest_match", "SHA-256 and revision-bound native decoder signature both match"
+    )
 
 
 def normalize_review_path(path: str | Path) -> Path:
@@ -272,16 +297,24 @@ def _same_file(a: Path, b: Path) -> bool:
 
 
 def _ensure_no_source_collision(
-    destination: Path, document: ReviewDocumentV1,
+    destination: Path,
+    document: ReviewDocumentV1,
     protected_paths: Iterable[str | Path],
 ) -> None:
     protected = [Path(path) for path in protected_paths]
-    protected += [Path(source.locator.local_path) for source in document.sources
-                  if source.locator.local_path is not None]
-    if any(_same_file(destination, path) or (
-        os.path.normcase(os.path.abspath(destination)) ==
-        os.path.normcase(os.path.abspath(path))
-    ) for path in protected):
+    protected += [
+        Path(source.locator.local_path)
+        for source in document.sources
+        if source.locator.local_path is not None
+    ]
+    if any(
+        _same_file(destination, path)
+        or (
+            os.path.normcase(os.path.abspath(destination))
+            == os.path.normcase(os.path.abspath(path))
+        )
+        for path in protected
+    ):
         raise ReviewConflictError("Review destination conflicts with a source/protected file")
 
 
@@ -311,7 +344,10 @@ class ReviewRepository:
         return self.load_with_revision(path)[0]
 
     def save(
-        self, path: str | Path, document: ReviewDocumentV1, *,
+        self,
+        path: str | Path,
+        document: ReviewDocumentV1,
+        *,
         overwrite: bool = False,
         expected_revision: str | None = None,
         cancel: CancelCheck | None = None,
@@ -322,8 +358,11 @@ class ReviewRepository:
         if type(overwrite) is not bool:
             raise ReviewValidationError("overwrite must be bool")
         if overwrite:
-            if (type(expected_revision) is not str or len(expected_revision) != 64
-                    or any(char not in "0123456789abcdef" for char in expected_revision)):
+            if (
+                type(expected_revision) is not str
+                or len(expected_revision) != 64
+                or any(char not in "0123456789abcdef" for char in expected_revision)
+            ):
                 raise ReviewConflictError("overwrite requires prior loaded SHA-256 revision")
         elif expected_revision is not None:
             raise ReviewConflictError("expected_revision applies only to explicit overwrite")
