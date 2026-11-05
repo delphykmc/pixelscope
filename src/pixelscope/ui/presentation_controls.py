@@ -11,10 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QStyle,
-    QStyleOptionComboBox,
-    QStylePainter,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -167,48 +163,6 @@ class _ElidingMetadataLabel(QLabel):
     def _sync_metadata(self, text: str) -> None:
         self.setToolTip(text)
         self.setAccessibleName(f"{self._description}: {text}" if text else self._description)
-
-
-class _ElidingAliasCombo(QComboBox):
-    """Display abbreviated W05 aliases, but expose the exact source in accessibility/tooltip."""
-
-    def __init__(self, role: str, parent: QWidget) -> None:
-        super().__init__(parent)
-        self._role = role
-
-    def setCurrentIndex(self, index: int) -> None:  # noqa: N802 - Qt API override
-        super().setCurrentIndex(index)
-        self._sync_full_alias()
-
-    def _sync_full_alias(self) -> None:
-        alias = self.currentText()
-        prefix = f"{self._role}: "
-        full = prefix + alias if alias else prefix.rstrip()
-        self.setToolTip(full)
-        self.setAccessibleDescription(full)
-
-    def paintEvent(self, _event: object) -> None:  # noqa: N802 - Qt API override
-        option = QStyleOptionComboBox()
-        self.initStyleOption(option)
-        # Preserve the native combo frame/dropdown while eliding its display text.
-        option.currentText = self.fontMetrics().elidedText(  # type: ignore[attr-defined]
-            option.currentText,  # type: ignore[attr-defined]
-            Qt.TextElideMode.ElideMiddle,
-            max(
-                0,
-                self.style()
-                .subControlRect(
-                    QStyle.ComplexControl.CC_ComboBox,
-                    option,
-                    QStyle.SubControl.SC_ComboBoxEditField,
-                    self,
-                )
-                .width(),
-            ),
-        )
-        painter = QStylePainter(self)
-        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
-        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, option)
 
 
 def _replace_page_label(
@@ -821,65 +775,3 @@ def polish_presentation_controls(window: Any) -> None:
     window._update_comparison_page_controls()
 
 
-def install_comparison_preset_controls(
-    window: Any,
-) -> tuple[QWidget, QComboBox, QComboBox, QComboBox, QLabel]:
-    """Create the W05 source-only comparison controls in the existing command row.
-
-    Callers own the signals and runtime pair state. This presentation-only helper
-    is the W05 -> W06 handoff seam; it neither registers sources nor calculates
-    Difference results.
-    """
-    from pixelscope.core.comparison_presets import ComparisonPreset
-
-    toolbar = window.main_toolbar
-    if not isinstance(toolbar, QToolBar):
-        raise RuntimeError("Comparison preset requires the existing main toolbar")
-    group = QWidget(toolbar)
-    group.setObjectName("comparisonPresetControl")
-    row = QHBoxLayout(group)
-    row.setContentsMargins(0, 0, 0, 0)
-    row.setSpacing(TOKENS.spacing_xs)
-
-    preset = QComboBox(group)
-    preset.setObjectName("comparisonPresetCombo")
-    preset.setAccessibleName("Comparison preset")
-    preset.setToolTip("Choose an explicit source comparison layout without changing Files Selected")
-    for choice in ComparisonPreset:
-        preset.addItem(choice.value, choice.value)
-    preset.setMinimumWidth(108)
-    preset.setMaximumWidth(126)
-
-    reference = _ElidingAliasCombo("Reference A", group)
-    reference.setObjectName("comparisonReferenceCombo")
-    reference.setAccessibleName("Reference A source")
-    reference.setToolTip("Reference A (independent of Primary, Active, and Picked)")
-    reference.setMinimumWidth(70)
-    reference.setMaximumWidth(124)
-    target = _ElidingAliasCombo("Target B", group)
-    target.setObjectName("comparisonTargetCombo")
-    target.setAccessibleName("Target B source")
-    target.setToolTip("Target B (pair change does not calculate Difference)")
-    target.setMinimumWidth(70)
-    target.setMaximumWidth(124)
-    status = _ElidingMetadataLabel("", "Comparison preset Difference status", 145, group)
-    status.setObjectName("comparisonPresetStatus")
-    status.setAccessibleName("Comparison preset Difference status")
-    status.setMaximumWidth(145)
-    status.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    for label_text, combo in (("Preset", preset), ("A", reference), ("B", target)):
-        label = QLabel(label_text, group)
-        row.addWidget(label)
-        row.addWidget(combo)
-    row.addWidget(status)
-    group.setVisible(True)
-
-    # The Main toolbar spans the window, unlike the Image row inside the
-    # horizontal splitter. Keep W05 controls before zoom/difference without
-    # consuming the available source viewer width.
-    before = getattr(window, "split_channels_action", None)
-    if before is not None and before in toolbar.actions():
-        toolbar.insertWidget(before, group)
-    else:
-        toolbar.addWidget(group)
-    return group, preset, reference, target, status
