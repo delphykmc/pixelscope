@@ -9,6 +9,8 @@ are reused so no independent interpretation/signature dialect is introduced.
 from __future__ import annotations
 
 import hashlib
+
+import cv2
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
@@ -188,3 +190,81 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
             )
         except (ValueError, TypeError, OverflowError, MemoryError) as exc:
             raise UnsupportedNativeCandidate(f"unsupported native interpretation: {exc}") from exc
+
+# Ordinary PNG/BMP/JPEG already carry the image interpretation in their bytes.
+# Decode exactly as io.image_reader.read_image does; no native profile prompt.
+ENCODED_IMAGE_EXTENSIONS = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
+
+
+@dataclass(frozen=True)
+class ProductionEncodedCandidateDecoder(CandidateNativeDecoderV1):
+    """Same-descriptor verification for supported ordinary images."""
+
+    max_decode_bytes: int = MAX_NATIVE_VERIFY_BYTES
+    native_sample_digest: str | None = field(init=False, default=None, compare=False)
+
+    def __post_init__(self) -> None:
+        if type(self.max_decode_bytes) is not int or self.max_decode_bytes <= 0:
+            raise UnsupportedNativeCandidate("invalid encoded-image decode budget")
+
+    def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+        object.__setattr__(self, "native_sample_digest", None)
+        if Path(probe.path).suffix.lower() not in ENCODED_IMAGE_EXTENSIONS:
+            raise UnsupportedNativeCandidate("not a supported encoded image")
+        file_size = probe.revision[2]
+        if file_size <= 0 or file_size > self.max_decode_bytes:
+            raise UnsupportedNativeCandidate("encoded image exceeds decode budget")
+        probe.seek(0)
+        encoded = probe.read(file_size + 1)
+        if len(encoded) != file_size:
+            raise UnsupportedNativeCandidate("candidate changed during encoded-image read")
+        try:
+            decoded = cv2.imdecode(np.frombuffer(encoded, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+            if decoded is None:
+                raise UnsupportedNativeCandidate("cannot decode ordinary image")
+            if decoded.ndim == 2:
+                pixels, layout = decoded, "GRAY"
+            elif decoded.ndim == 3 and decoded.shape[2] == 3:
+                pixels, layout = cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB), "RGB"
+            elif decoded.ndim == 3 and decoded.shape[2] == 4:
+                pixels, layout = cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA), "RGBA"
+            else:
+                raise UnsupportedNativeCandidate("unsupported encoded image channel count")
+            if pixels.nbytes > 512 * 1024 * 1024:
+                raise UnsupportedNativeCandidate("decoded image exceeds memory budget")
+            document = ImageDocument(
+                source_path=Path(probe.path),
+                display_name="candidate",
+                source=pixels,
+                channel_layout=layout,
+                bit_depth=pixels.dtype.itemsize * 8,
+            )
+            current = snapshot_source(document, str(uuid4()))
+            object.__setattr__(self, "native_sample_digest", native_sample_sha256(document))
+            return ReviewNativeSignatureV1(
+                current.profile_signature,
+                current.native_shape,
+                current.reference_shape,
+                current.native_dtype,
+                current.channel_layout,
+                current.effective_bits,
+                canonical_json(current.native_interpretation.to_portable(), limit=16_384),
+            )
+        except cv2.error as exc:
+            raise UnsupportedNativeCandidate("encoded image decode failed") from exc
+        except (TypeError, ValueError, MemoryError, OverflowError) as exc:
+            raise UnsupportedNativeCandidate(f"invalid encoded image: {exc}") from exc
+
+
+def review_candidate_decoder(
+    path: Path, profile: RawProfile | YuvProfile | None
+) -> CandidateNativeDecoderV1:
+    """Native profile required only for RAW/YUV; ordinary images need none."""
+    suffix = path.suffix.lower()
+    if suffix in ENCODED_IMAGE_EXTENSIONS and profile is None:
+        return ProductionEncodedCandidateDecoder()
+    if suffix == ".raw" and isinstance(profile, RawProfile):
+        return ProductionNativeCandidateDecoder(profile)
+    if suffix == ".yuv" and isinstance(profile, YuvProfile):
+        return ProductionNativeCandidateDecoder(profile)
+    raise UnsupportedNativeCandidate("source format and native profile disagree")

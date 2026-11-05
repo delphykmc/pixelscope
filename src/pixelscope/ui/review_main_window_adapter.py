@@ -16,6 +16,7 @@ from pixelscope.core.review_analysis_sources import native_profile_signature
 from pixelscope.core.review_record import ReviewDocumentV1
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.path_discovery import ImageInput
+from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.ui.display_gain import display_gain_state
 from pixelscope.ui.review_restore_controller import (
     CanonicalReviewRestoreAuthority,
@@ -97,8 +98,11 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 != finding.view_state.source_shapes_ref[source.source_key]
             ):
                 raise ValueError("native/reference geometry changed")
-            if item.approved.path.suffix.lower() not in (".raw", ".yuv"):
-                raise ValueError("unsupported canonical RAW/YUV input extension")
+            suffix = item.approved.path.suffix.lower()
+            if suffix not in (".raw", ".yuv") and suffix not in ENCODED_IMAGE_EXTENSIONS:
+                raise ValueError("unsupported canonical Review input extension")
+            if suffix in ENCODED_IMAGE_EXTENSIONS and item.approved.profile is not None:
+                raise ValueError("encoded source must not use a RAW/YUV profile")
         if window._channel_split_active:
             raise ValueError("Split Channels must be exited before Review activation")
         return PreparedReviewStage(
@@ -143,8 +147,13 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 )
                 if document_id is None:
                     raise RuntimeError(f"canonical registration refused {path.name}")
-                profile = item.approved.profile.copy(deep=True)
-                window._raw_profiles[document_id] = profile
+                profile = (
+                    item.approved.profile.copy(deep=True)
+                    if item.approved.profile is not None
+                    else None
+                )
+                if profile is not None:
+                    window._raw_profiles[document_id] = profile
                 if prior is not None:
                     window._mark_document_for_reload(document_id, profile)
                 if document_id in selected_ids:

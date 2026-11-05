@@ -37,8 +37,9 @@ from pixelscope.core.review_record import (
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
     MAX_NATIVE_VERIFY_BYTES,
-    ProductionNativeCandidateDecoder,
+    ENCODED_IMAGE_EXTENSIONS,
     native_sample_sha256,
+    review_candidate_decoder,
 )
 from pixelscope.io.review_repository import (
     ReviewCancelled,
@@ -57,7 +58,7 @@ class CaptureSource:
     document: ImageDocument
     generation: int
     path: Path
-    profile: RawProfile | YuvProfile
+    profile: RawProfile | YuvProfile | None
     source: ReviewSourceV1
 
     def still_loaded_as(self, current: Mapping[str, ImageDocument]) -> bool:
@@ -219,10 +220,11 @@ def stage_named_finding(
     pending: list[CaptureSource] = []
     for document, key in zip(page, keys, strict=True):
         profile = document.raw_profile
-        if not isinstance(profile, RawProfile | YuvProfile):
-            raise ReviewValidationError(
-                "W09b currently supports only explicitly profiled RAW/YUV sources"
-            )
+        suffix = document.source_path.suffix.lower() if document.source_path else ""
+        if profile is None and suffix not in ENCODED_IMAGE_EXTENSIONS:
+            raise ReviewValidationError("Finding source format is not supported")
+        if profile is not None and not isinstance(profile, RawProfile | YuvProfile):
+            raise ReviewValidationError("Finding source has invalid native profile")
         if document.source_path is None:
             raise ReviewValidationError("unloaded source path")
         original = snapshot_source(document, key)
@@ -249,7 +251,7 @@ def stage_named_finding(
                 document,
                 document.generation,
                 document.source_path.resolve(),
-                profile.copy(deep=True),
+                profile.copy(deep=True) if profile is not None else None,
                 source,
             )
         )
@@ -346,7 +348,7 @@ def attest_staged_finding(
                 "verified",
             ),
         )
-        decoder = ProductionNativeCandidateDecoder(pending.profile)
+        decoder = review_candidate_decoder(pending.path, pending.profile)
         status: SourceResolutionV1 = verify_review_source(
             candidate,
             pending.path,

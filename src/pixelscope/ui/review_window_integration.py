@@ -25,6 +25,7 @@ from pixelscope.core.review_record import (
 )
 from pixelscope.core.review_workflow import ReviewLibrary
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.io.review_repository import ReviewConflictError, normalize_review_path
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.display_gain import display_gain_state
@@ -393,21 +394,22 @@ class NamedReviewCoordinator:
         if not path.is_file():
             self._error("Candidate file is missing")
             return
-        profile: RawProfile | YuvProfile
-        dialog: RawOpenDialog | YuvOpenDialog
+        profile: RawProfile | YuvProfile | None = None
+        dialog: RawOpenDialog | YuvOpenDialog | None = None
         if path.suffix.casefold() == ".raw":
             dialog = RawOpenDialog(self.panel)
             dialog.set_source_path(path)
         elif path.suffix.casefold() == ".yuv":
             dialog = YuvOpenDialog(self.panel)
             dialog.set_source_path(path)
-        else:
-            self._error("Only explicitly profiled RAW/YUV candidates are supported")
+        elif path.suffix.casefold() not in ENCODED_IMAGE_EXTENSIONS:
+            self._error("Supported Memo sources: PNG, BMP, JPEG, RAW, YUV")
             return
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        try:
+        if dialog is not None:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
             profile = dialog.profile()
+        try:
             saved = source.locator.local_path
             same = (
                 saved is not None and str(Path(saved).resolve()).casefold() == str(path).casefold()

@@ -19,7 +19,8 @@ from pixelscope.core.review_workflow import ReviewLibrary
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
     MAX_NATIVE_VERIFY_BYTES,
-    ProductionNativeCandidateDecoder,
+    ENCODED_IMAGE_EXTENSIONS,
+    review_candidate_decoder,
 )
 from pixelscope.io.review_repository import (
     ReviewCancelled,
@@ -41,17 +42,21 @@ class ApprovedCandidate:
 
     source_key: str
     path: Path
-    profile: RawProfile | YuvProfile
+    profile: RawProfile | YuvProfile | None
     confirmed_by_user: bool
 
     def __post_init__(self) -> None:
         if not isinstance(self.path, Path) or not self.path.is_absolute():
             raise ValueError("candidate path must be explicit and absolute")
-        if not isinstance(self.profile, RawProfile | YuvProfile):
-            raise ValueError("approved candidate requires native RAW/YUV profile")
+        suffix = self.path.suffix.lower()
+        if self.profile is None and suffix not in ENCODED_IMAGE_EXTENSIONS:
+            raise ValueError("unprofiled candidate must be PNG/BMP/JPEG")
+        if self.profile is not None and not isinstance(self.profile, RawProfile | YuvProfile):
+            raise ValueError("invalid native Review profile")
         if not isinstance(self.confirmed_by_user, bool):
             raise ValueError("relocation consent must be explicit")
-        object.__setattr__(self, "profile", self.profile.copy(deep=True))
+        if self.profile is not None:
+            object.__setattr__(self, "profile", self.profile.copy(deep=True))
 
 
 @dataclass(frozen=True)
@@ -130,7 +135,7 @@ def _verify_batch(
         result = verify_review_source(
             source,
             candidate.path,
-            ProductionNativeCandidateDecoder(candidate.profile),
+            review_candidate_decoder(candidate.path, candidate.profile),
             confirmed_by_user=candidate.confirmed_by_user,
             cancel=cancel.is_set,
             max_bytes=MAX_NATIVE_VERIFY_BYTES,
