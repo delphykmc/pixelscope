@@ -31,7 +31,6 @@ from pixelscope.io.review_repository import verify_review_source
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.io.yuv_reader import read_yuv
 
-
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "test_data" / "manual" / "raw_chart_set"
 YUV = ROOT / "test_data" / "manual" / "yuv_chart_set"
