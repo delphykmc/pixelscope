@@ -5,9 +5,9 @@ measurement state and all arithmetic remain independent of display aliases.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import isfinite
-from typing import Mapping, Sequence
 
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
@@ -243,19 +243,19 @@ def build_statistics_pivot(
             reference = source_by_key[reference_key] if reference_key is not None else None
             cells: list[PivotCell] = []
             for source in sources:
-                item = values.get((source.source_key, current_channel, metric))
+                current_measurement = values.get((source.source_key, current_channel, metric))
                 reason = (
                     _numeric_compatibility(
-                        token, source, reference, item, reference_measurement, definition
+                        token, source, reference, current_measurement, reference_measurement, definition
                     )
                     if reference is not None
                     else "No Reference selected"
                 )
                 delta: float | None = None
                 relative: float | None = None
-                if reason is None and item is not None and reference_measurement is not None:
-                    assert item.value is not None and reference_measurement.value is not None
-                    candidate = item.value - reference_measurement.value
+                if reason is None and current_measurement is not None and reference_measurement is not None:
+                    assert current_measurement.value is not None and reference_measurement.value is not None
+                    candidate = current_measurement.value - reference_measurement.value
                     if isfinite(candidate):
                         delta = candidate
                         denominator = abs(reference_measurement.value)
@@ -270,7 +270,7 @@ def build_statistics_pivot(
                     else:
                         reason = "Absolute Delta overflow"
                 cells.append(
-                    PivotCell(source.source_key, item, definition.unit, delta, relative, reason)
+                    PivotCell(source.source_key, current_measurement, definition.unit, delta, relative, reason)
                 )
             rows.append(PivotRow(current_channel, metric, definition, tuple(cells)))
     return StatisticsPivot(token, columns, tuple(rows), reference_key)
