@@ -40,6 +40,8 @@ from pixelscope.core.review_record import (
 from pixelscope.core.review_view_state import ReviewViewStateV1
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.review_repository import (
+    CandidateNativeDecoderV1,
+    CandidateDecodeProbeV1,
     ReviewCancelled,
     ReviewConflictError,
     ReviewRepository,
@@ -68,18 +70,27 @@ def _native(digest: str = "1" * 64) -> ReviewNativeSignatureV1:
     )
 
 
+class _FixtureNativeDecoder(CandidateNativeDecoderV1):
+    """Only test fixtures implement this decoder; W09b must supply real native IO."""
+
+    def __init__(
+        self, expected: bytes, signature: ReviewNativeSignatureV1 | None = None
+    ) -> None:
+        self.expected = expected
+        self.signature = signature
+
+    def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+        actual = probe.read()
+        if actual != self.expected:
+            raise ValueError("unexpected decoded fixture input")
+        return self.signature if self.signature is not None else _native()
+
+
 def _decode_fixture_bytes(
     expected: bytes, signature: ReviewNativeSignatureV1 | None = None
-):
-    """Test-only decoder; reads candidate content rather than returning a cache."""
+) -> CandidateNativeDecoderV1:
+    return _FixtureNativeDecoder(expected, signature)
 
-    def decoder(probe):
-        actual = probe.read()
-        if actual != expected:
-            raise ValueError("unexpected decoded fixture input")
-        return signature if signature is not None else _native()
-
-    return decoder
 
 
 def _source(
@@ -343,13 +354,14 @@ def test_source_resolution_requires_canonical_id_and_candidate_bound_callback(tm
     source = _source(file, sha="auto", local=True)
     paths = []
 
-    def signature_for_candidate(probe) -> ReviewNativeSignatureV1:
-        paths.append(probe.path)
-        assert probe.path == file
-        assert probe.read() == file.read_bytes()
-        return _native()
+    class InspectCandidate(CandidateNativeDecoderV1):
+        def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+            paths.append(probe.path)
+            assert probe.path == file
+            assert probe.read() == file.read_bytes()
+            return _native()
 
-    result = verify_review_source(source, file, signature_for_candidate)
+    result = verify_review_source(source, file, InspectCandidate())
     assert result.status == "verified"
     assert paths == [file]
     assert result.may_bind_historical_finding
@@ -720,12 +732,13 @@ def test_native_decoder_changes_file_revision_never_verifies(tmp_path):
     path.write_bytes(original)
     source = _source(path, sha="auto", local=True)
 
-    def mutating_decoder(probe):
-        assert probe.read() == original
-        path.write_bytes(b"replacement-native")
-        return _native()
+    class MutatingDecoder(CandidateNativeDecoderV1):
+        def decode_signature(self, probe: CandidateDecodeProbeV1) -> ReviewNativeSignatureV1:
+            assert probe.read() == original
+            path.write_bytes(b"replacement-native")
+            return _native()
 
-    resolution = verify_review_source(source, path, mutating_decoder)
+    resolution = verify_review_source(source, path, MutatingDecoder())
     assert resolution.status == "candidate_unverified"
     assert not resolution.may_bind_historical_finding
     assert resolution.verification == "unavailable"
