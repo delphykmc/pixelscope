@@ -256,7 +256,7 @@ def test_w02_w04_identity_cannot_be_cross_bound(tmp_path):
 
     mismatched_roi = copy.deepcopy(original)
     mismatched_roi["findings"][0]["analysis"][0]["context"]["roi_ref"] = [0, 0, 2, 2]
-    with pytest.raises(ReviewValidationError, match="W02 analysis ROI"):
+    with pytest.raises(ReviewValidationError, match="scope/ROI"):
         ReviewDocumentV1.from_dict(mismatched_roi)
 
     mismatched_sha = copy.deepcopy(original)
