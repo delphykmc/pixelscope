@@ -10,6 +10,7 @@ import numpy as np
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
+from pixelscope.ui.difference_panel import DifferencePanel
 
 
 def _document(name: str, value: int, *, dtype: object = np.uint8) -> ImageDocument:
@@ -155,3 +156,70 @@ def test_six_source_horizontal_scroll_metric_filter_generation_and_gc(
     panel.close()
     del panel
     gc.collect()
+
+
+def test_gray_uint16_native_pivot_and_delta(qtbot: object) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.show()
+    docs = [
+        ImageDocument.from_array(
+            np.full((8, 8), value, dtype=np.uint16),
+            f"gray-{index}.raw",
+            bit_depth=12,
+        )
+        for index, value in enumerate((1000, 1005))
+    ]
+    panel.set_documents(docs, None)
+    _ready(panel, qtbot)
+    panel.statistics_view.setCurrentText("Pivot")
+    assert panel.pivot_table.rowCount() == 3
+    assert panel.pivot_table.item(0, 0).text() == "Mean · Gray"
+    panel.pivot_reference.setCurrentIndex(1)
+    panel.pivot_delta.setCurrentText("Absolute Δ")
+    value_item = panel.pivot_table.item(0, 3)
+    assert "Δ 5 native code" in value_item.text()
+    assert "Effective bits: 12" in panel.pivot_table.horizontalHeaderItem(2).toolTip()
+    panel.shutdown()
+    panel.close()
+
+
+def test_difference_metric_native_and_normalized_unit_columns(qtbot: object) -> None:
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    first = ImageDocument.from_array(
+        np.full((8, 8), 100, dtype=np.uint8), "a.png", bit_depth=8
+    )
+    second = ImageDocument.from_array(
+        np.full((8, 8), 120, dtype=np.uint8), "b.png", bit_depth=8
+    )
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+    panel.calculate_difference()
+    qtbot.waitUntil(lambda: panel.last_result is not None, timeout=3000)  # type: ignore[attr-defined]
+    assert panel.metrics.columnCount() == 3
+    assert panel.metrics.item(0, 1).text() == "20"
+    assert panel.metrics.item(0, 2).text() == "native code"
+    assert panel.metrics.item(1, 2).text() == "native code²"
+    assert panel.metrics.item(3, 2).text() == "dB"
+    assert panel.metrics.item(7, 2).text() == "ratio [0,1]"
+    panel.shutdown()
+    panel.close()
+
+    normalized = DifferencePanel()
+    qtbot.addWidget(normalized)  # type: ignore[attr-defined]
+    low = ImageDocument.from_array(
+        np.full((8, 8), 100, dtype=np.uint8), "low.png", bit_depth=8
+    )
+    high = ImageDocument.from_array(
+        np.full((8, 8), 1000, dtype=np.uint16), "high.raw", bit_depth=10
+    )
+    normalized.set_documents([low, high], (low.document_id, high.document_id))
+    normalized.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: normalized.last_result is not None, timeout=3000
+    )
+    assert normalized.metrics.item(0, 2).text() == "normalized [0,1]"
+    assert normalized.metrics.item(1, 2).text() == "normalized²"
+    assert normalized.metrics.item(3, 2).text() == "dB"
+    normalized.shutdown()
+    normalized.close()
