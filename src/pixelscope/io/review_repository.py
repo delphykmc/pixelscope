@@ -1,3 +1,4 @@
+# ruff: noqa: E721  # Strict primitives: bool is not an integer.
 """Atomic local .pxreview repository and consent-gated source verification.
 
 All IO here is Qt-free. Call streaming hashes and disk writes on bounded workers;
@@ -10,9 +11,10 @@ import os
 import stat
 import tempfile
 import threading
+from collections.abc import Callable, Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 from pixelscope.core.review_record import (
     MAX_REVIEW_BYTES,
@@ -355,14 +357,18 @@ class ReviewRepository:
                 _ensure_no_source_collision(target, document, protected_paths)
                 if target.exists():
                     if not overwrite:
-                        raise ReviewConflictError("Review destination exists; explicit overwrite required")
+                        raise ReviewConflictError(
+                            "Review destination exists; explicit overwrite required"
+                        )
                     try:
                         mode = target.stat().st_mode
                         if not mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH):
                             raise ReviewConflictError("existing Review is read-only")
                         current, current_revision = self.load_with_revision(target)
                     except ReviewRepositoryError as exc:
-                        raise ReviewConflictError("existing destination is not a valid Review") from exc
+                        raise ReviewConflictError(
+                            "existing destination is not a valid Review"
+                        ) from exc
                     if current.document_id != document.document_id:
                         raise ReviewConflictError("cannot overwrite unrelated Review document")
                     if current_revision != expected_revision:
@@ -400,18 +406,12 @@ class ReviewRepository:
                 raise
             finally:
                 if temp_path is not None:
-                    try:
+                    with suppress(OSError):
                         temp_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
                 if lock_fd is not None:
-                    try:
+                    with suppress(OSError):
                         os.close(lock_fd)
-                    except OSError:
-                        pass
-                    try:
+                    with suppress(OSError):
                         lock_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
                     _fsync_directory(target.parent)
             return ReviewSaveResult(target, revision)
