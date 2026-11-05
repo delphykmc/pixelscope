@@ -1780,17 +1780,13 @@ class ComparisonAnalysisPanel(QWidget):
         coordinates = {
             (index.row(), index.column())
             for index in self.pivot_table.selectedIndexes()
-            if 0 <= index.row() < len(pivot.rows)
-            and 0 <= index.column() < len(pivot.columns) + 2
+            if 0 <= index.row() < len(pivot.rows) and 0 <= index.column() < len(pivot.columns) + 2
         }
         if not coordinates:
             return
         rows = sorted({row for row, _column in coordinates})
         columns = sorted({column for _row, column in coordinates})
-        header = [
-            self.pivot_table.horizontalHeaderItem(column).text()
-            for column in columns
-        ]
+        header = [self.pivot_table.horizontalHeaderItem(column).text() for column in columns]
         lines = ["\t".join(header)]
         mode = self.pivot_delta.currentText()
         for row_index in rows:
