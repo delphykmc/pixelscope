@@ -80,14 +80,25 @@ class WorkspacePresetController(QObject):
         self._settings = getattr(window, "settings", QSettings())
         self._saving = False
         self._applying = False
-        self._summary_original: tuple[QSizePolicy, QSizePolicy, Qt.ScrollBarPolicy, int] | None = None
+        self._summary_original: tuple[
+            QSizePolicy.Policy,
+            QSizePolicy.Policy,
+            QSizePolicy.Policy,
+            QSizePolicy.Policy,
+            Qt.ScrollBarPolicy,
+            int,
+        ] | None = None
         analysis = getattr(window, "comparison_analysis_panel", None)
         summary_group = getattr(analysis, "image_summary_group", None)
         summary = getattr(analysis, "image_summary", None)
         if isinstance(summary_group, QWidget) and isinstance(summary, QTableWidget):
+            group_policy = summary_group.sizePolicy()
+            table_policy = summary.sizePolicy()
             self._summary_original = (
-                QSizePolicy(summary_group.sizePolicy()),
-                QSizePolicy(summary.sizePolicy()),
+                group_policy.horizontalPolicy(),
+                group_policy.verticalPolicy(),
+                table_policy.horizontalPolicy(),
+                table_policy.verticalPolicy(),
                 summary.verticalScrollBarPolicy(),
                 summary_group.maximumHeight(),
             )
@@ -288,7 +299,7 @@ class WorkspacePresetController(QObject):
         """Accept only nonnegative, bounded Qt splitter sizes from settings."""
 
         value = settings.value(key)
-        if not isinstance(value, (list, tuple)) or len(value) != count:
+        if not isinstance(value, list | tuple) or len(value) != count:
             return None
         result: list[int] = []
         for item in value:
@@ -320,10 +331,10 @@ class WorkspacePresetController(QObject):
         ):
             return
         if not analyze:
-            group.setMaximumHeight(original[3])
-            group.setSizePolicy(original[0])
-            summary.setSizePolicy(original[1])
-            summary.setVerticalScrollBarPolicy(original[2])
+            group.setMaximumHeight(original[5])
+            group.setSizePolicy(original[0], original[1])
+            summary.setSizePolicy(original[2], original[3])
+            summary.setVerticalScrollBarPolicy(original[4])
             return
 
         summary.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
