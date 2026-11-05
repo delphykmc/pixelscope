@@ -31,4 +31,5 @@ jobs:
           python -m pytest -q
           tests/unit/test_w09b_native_decoder.py
           tests/unit/test_w09b_review_workflow.py
+          tests/unit/test_w09b_review_guards.py
           tests/unit/test_w09a_review_repository.py
