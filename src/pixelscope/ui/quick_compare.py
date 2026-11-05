@@ -486,3 +486,12 @@ class QuickCompareController(QObject):
         )
         self.three_view_group.setVisible(visible)
         self._sync_three_view_buttons(self._effective_three_view_variant())
+
+
+def install_quick_compare_workflow(window: Any) -> QuickCompareController:
+    existing = getattr(window, "quick_compare_controller", None)
+    if isinstance(existing, QuickCompareController):
+        return existing
+    controller = QuickCompareController(window)
+    window.quick_compare_controller = controller
+    return controller
