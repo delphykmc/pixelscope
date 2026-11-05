@@ -407,15 +407,19 @@ class ComparisonAnalysisPanel(QWidget):
         # W06 compact Analyze workspace reserves three readable Raw statistics
         # rows at 1400×880. The W07 Pivot options must not occupy those rows
         # when the default legacy Raw view is selected.
-        statistics_view_row = QWidget()
-        statistics_view_layout = QHBoxLayout(statistics_view_row)
+        # Standalone panel: keep a local View selector. The composed
+        # MainWindow relocates it into the already-present Statistics header,
+        # avoiding an extra row in the height-constrained W06 Analyze preset.
+        self.statistics_view_row = QWidget()
+        statistics_view_layout = QHBoxLayout(self.statistics_view_row)
         statistics_view_layout.setContentsMargins(0, 0, 0, 0)
         statistics_view_layout.setSpacing(TOKENS.spacing_xs)
-        statistics_view_layout.addWidget(QLabel("View"))
+        self.statistics_view_label = QLabel("View")
+        statistics_view_layout.addWidget(self.statistics_view_label)
         self.statistics_view.setMaximumWidth(130)
         statistics_view_layout.addWidget(self.statistics_view)
         statistics_view_layout.addStretch(1)
-        statistics_layout.addWidget(statistics_view_row)
+        statistics_layout.addWidget(self.statistics_view_row)
 
         self.pivot_controls_widget = QWidget()
         pivot_controls = ResponsiveControlLayout(
