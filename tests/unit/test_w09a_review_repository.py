@@ -205,9 +205,7 @@ def test_roundtrip_multiple_findings_unicode_w02_w04_and_session_unchanged(tmp_p
     assert reopened.findings[0].tags[1] == "Edge_α"
     assert reopened.findings[0].view_state.to_dict() == doc.findings[0].view_state.to_dict()
     context = reopened.findings[0].analysis[0].to_dict()["context"]
-    assert context == parse_analysis_context(serialize_analysis_context(
-        _snapshot_for_context(context, doc.findings[0].source_keys[0])
-    )) if False else context["measurements"][0]["value"] == 10.25
+    assert context["measurements"][0]["value"] == 10.25
     assert "runtime-id-NOT-PORTABLE" not in result.path.read_text(encoding="utf-8")
 
     # Session v1 continues to use its original repository and exact kind.
@@ -318,16 +316,12 @@ def test_resource_limits_duplicate_nested_keys_and_text_budget(tmp_path):
 def test_local_path_opt_in_and_portable_projection_excludes_sensitive_data(tmp_path):
     doc = _review(tmp_path)
     sensitive = str((tmp_path / "PrivateUser" / "secrets" / "sample.raw").resolve())
-    altered = replace(
-        doc, sources=(replace(doc.sources[0],
-                             locator=ReviewLocatorV1("private.raw", local_path=sensitive)),
-                      doc.sources[1]),
-    )
+    sources = (replace(doc.sources[0],
+                       locator=ReviewLocatorV1("private.raw", local_path=sensitive)),
+               doc.sources[1])
     with pytest.raises(ReviewValidationError, match="opt-in"):
-        altered.to_bytes()
-    with pytest.raises(ReviewValidationError, match="opt-in"):
-        replace(doc, sources=altered.sources)
-    local = replace(doc, sources=altered.sources, allow_local_paths=True,
+        replace(doc, sources=sources)
+    local = replace(doc, sources=sources, allow_local_paths=True,
                     extensions_json=canonical_json({"private": sensitive}))
     local_bytes = local.to_bytes()
     assert sensitive.encode() in local_bytes
