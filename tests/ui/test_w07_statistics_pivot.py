@@ -45,6 +45,7 @@ def test_raw_pivot_switch_reference_delta_copy_and_legacy_export(
     _ready(panel, qtbot)
     assert panel.statistics_view.currentText() == "Raw"
     assert panel.statistics_stack.currentWidget() is panel.table
+    assert panel.pivot_controls_widget.isHidden()
     legacy_path = tmp_path / "old.csv"
     panel.export_csv(legacy_path)
     legacy = legacy_path.read_text(encoding="utf-8-sig")
@@ -53,6 +54,7 @@ def test_raw_pivot_switch_reference_delta_copy_and_legacy_export(
 
     panel.statistics_view.setCurrentText("Pivot")
     assert panel.statistics_stack.currentWidget() is panel.pivot_table
+    assert panel.pivot_controls_widget.isVisible()
     assert panel.pivot_table.columnCount() == 4
     assert panel.pivot_table.rowCount() == 9  # Mean, Std, P99 × RGB
     assert "기준.png" in panel.pivot_table.horizontalHeaderItem(2).text()
@@ -82,6 +84,7 @@ def test_raw_pivot_switch_reference_delta_copy_and_legacy_export(
     assert legacy_path.read_text(encoding="utf-8-sig") == legacy
 
     panel.statistics_view.setCurrentText("Raw")
+    assert panel.pivot_controls_widget.isHidden()
     assert panel.table.item(0, 4).text() == "10"
     panel.shutdown()
     panel.close()
