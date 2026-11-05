@@ -20,6 +20,20 @@ evidence.
 5. Edit metadata or delete a Finding from the list. Metadata edits do not
    change the captured numeric evidence or its timestamp.
 
+## Export the selected ROI as PNGs
+
+With images selected and a rectangular ROI drawn, choose **Export ROI PNGs…**
+in the notes panel, then select an output folder. This command works without
+first creating or saving a Finding. The current comparison page is the
+export scope (up to six source images); if more sources are selected, change
+page to export the remaining ones. It writes **one PNG per loaded source**,
+cropping the exact same reference-pixel ROI. Files contain the canonical
+8-bit display preview (including RAW/YUV visualization), not Bayer codes,
+native YUV planes, overlays, a viewer screenshot or measured statistics.
+No ROI or any out-of-bounds/unloaded source blocks the entire operation:
+coordinates are never silently clamped. Repeated exports use a unique
+numbered filename and do not overwrite prior PNGs.
+
 ## Save, reopen and inspect
 
 Use **Save .pxreview** to write a validated Review atomically. A changed
@@ -33,7 +47,9 @@ are identical.
 
 ## Verified source binding and restore
 
-Select each exact source candidate, then approve an explicit RAW/YUV profile.
+Select each exact source candidate. RAW/YUV sources require their approved
+native profile; PNG/BMP/JPEG sources use the existing unambiguous image decoder
+and require no RAW/YUV profile dialog.
 Any relocated path requires separate user confirmation **even if its digest
 matches**. Select **Verify Selected Finding**, which checks source SHA-256 and
 native interpretation. An unresolved, changed, missing or unsupported source
@@ -46,8 +62,10 @@ A post-commit failure may leave partial state and must be reported as such.
 
 ## Integration restrictions
 
-RAW/YUV candidates with explicit supported profiles and a bounded native decode
-budget are the implemented trust slice; general PNG/JPEG capture is unsupported.
+PNG/BMP/JPEG and explicitly profiled RAW/YUV sources can be recorded under
+the Review v1 source identity and verification contract. Only real decoded
+samples and current input bytes may attest captured history; unsupported or
+changed sources are not silently accepted.
 Restoration includes ROI/Line, the Difference pair/recipe, display gain, physical
 zoom and Sync state. The Sync button reflects the restored state. Restoring a
 recipe does not calculate Difference or turn past measurements into current ones;

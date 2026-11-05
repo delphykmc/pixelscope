@@ -55,7 +55,7 @@ def test_cancel_cleans_outputs(tmp_path: Path) -> None:
     def cancel() -> bool:
         nonlocal count
         count += 1
-        return count >= 3
+        return count >= 4
 
     with pytest.raises(RuntimeError, match="cancelled"):
         export_roi_pngs(
