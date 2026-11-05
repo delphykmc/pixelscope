@@ -408,6 +408,12 @@ def test_existing_actions_and_recent_menu_are_reused(qtbot: object, tmp_path: Pa
     assert "Reference A" in combo.accessibleDescription()
     assert combo.width() <= combo.maximumWidth()
     assert isinstance(workspace.selector, QWidget)
+    picks = window.review_selection_controller
+    assert picks.clear_button.text() == "Clear Picks"
+    assert picks.keep_button.text() == "Keep Picks"
+    assert picks.clear_button.accessibleName() == "Clear Selection"
+    assert "temporary Picks" in picks.clear_button.accessibleDescription()
+    assert "Files Selected" in picks.keep_button.accessibleDescription()
     window.close()
 
 
