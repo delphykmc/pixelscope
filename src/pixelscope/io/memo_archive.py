@@ -15,7 +15,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Mapping
+from collections.abc import Mapping
 
 import cv2
 import numpy as np
@@ -50,8 +50,8 @@ def _asset_path(finding_id: str, source_key: str) -> str:
 
 def _validate_png(payload: bytes, width: int, height: int) -> None:
     if (
-        type(payload) is not bytes
-        or not _PNG_MAGIC == payload[:8]
+        not isinstance(payload, bytes)
+        or payload[:8] != _PNG_MAGIC
         or not 32 <= len(payload) <= _MAX_PNG
     ):
         raise ReviewValidationError("invalid or oversized Memo PNG")
@@ -170,7 +170,11 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
             raise ReviewValidationError("duplicate or excessive Memo ZIP members")
         if "manifest.json" not in names or "review.json" not in names:
             raise ReviewValidationError("Memo ZIP missing manifest or review")
-        if any(info.is_dir() or info.file_size > _MAX_PNG and info.filename.endswith(".png") for info in infos):
+        if any(
+            info.is_dir()
+            or (info.file_size > _MAX_PNG and info.filename.endswith(".png"))
+            for info in infos
+        ):
             raise ReviewValidationError("invalid Memo ZIP member")
         if sum(info.file_size for info in infos) > _MAX_TOTAL:
             raise ReviewValidationError("Memo ZIP expanded size exceeds budget")
@@ -178,11 +182,11 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
             raise ReviewValidationError("oversized Memo manifest")
         manifest = json.loads(z.read("manifest.json"))
         if (
-            type(manifest) is not dict
+            not isinstance(manifest, dict)
             or set(manifest) != {"kind", "schema_version", "document_id", "assets"}
             or manifest["kind"] != MEMO_KIND
             or manifest["schema_version"] != MEMO_SCHEMA
-            or type(manifest["assets"]) is not list
+            or not isinstance(manifest["assets"], list)
         ):
             raise ReviewValidationError("unknown or malformed Memo schema")
         review = ReviewDocumentV1.from_bytes(z.read("review.json"))
@@ -192,10 +196,10 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         allowed = {"manifest.json", "review.json"}
         for item in manifest["assets"]:
             if (
-                type(item) is not dict
+                not isinstance(item, dict)
                 or set(item) != {"path", "sha256"}
-                or type(item["path"]) is not str
-                or type(item["sha256"]) is not str
+                or not isinstance(item["path"], str)
+                or not isinstance(item["sha256"], str)
             ):
                 raise ReviewValidationError("invalid Memo asset manifest")
             name = item["path"]
@@ -232,7 +236,10 @@ def export_memo_html(folder: Path, archive: MemoArchive) -> Path:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(assets[name])
                 label = html.escape(labels.get(key, "Source"), quote=True)
-                images.append(f'<figure><img src="{name}" alt="{label} ROI" loading="lazy"><figcaption>{label}</figcaption></figure>')
+                images.append(
+                    f'<figure><img src="{name}" alt="{label} ROI" loading="lazy">'
+                    f"<figcaption>{label}</figcaption></figure>"
+                )
             rows.append(
                 f'<section><h2>{index}. {html.escape(finding.title)}</h2>'
                 f'<p class="roi">ROI x={x} y={y} w={width} h={height}</p>'
