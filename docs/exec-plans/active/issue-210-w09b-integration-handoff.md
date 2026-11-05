@@ -8,13 +8,13 @@
 | --- | --- | --- |
 | Production same-descriptor RAW/YUV decoder | `io/review_native_decoder.py` | `CandidateNativeDecoderV1.decode_signature(CandidateDecodeProbeV1)` never reads from cached Review or preview; W09a double SHA and revision/consent policy remain authoritative. RAW reader MIPI 10/12/14, generic packed, unpacked and YUV Y-first/UV-interleaved plane kernels are reused. W02 `snapshot_source()` provides the signature. |
 | Immutable local Finding editor / CAS repository | `core/review_workflow.py` | W09a `ReviewDocumentV1`, `ReviewFindingV1`, `ReviewRepository.load_with_revision()` and `save()`. Never writes Session v1. |
-| Named Finding panel | `ui/review_panel.py` | Typed signals only; historical analysis explicitly distinguished from live results. Panel is not yet installed by production bootstrap. |
+| Named Finding panel | `ui/review_panel.py` | Typed signals only; historical analysis explicitly distinguished from live results. Panel is now installed by the orchestrator-owned production bootstrap; end-to-end acceptance is still pending. |
 | Source verification and Restore transaction | `ui/review_restore_controller.py` | Worker `_verify_batch` checks SHA+native signature+per-source consent with bounded input; epoch and late-result filters. A separate `CanonicalReviewRestoreAuthority` supplied by MainWindow owns preflight/commit/retry/cancel. |
 | Staged W02/W04 Finding capture | `ui/review_capture_adapter.py` | `capture_review_view_state()`, `capture_presented_analysis()`; file hashes and decoded native samples are attested before a Finding can be persisted. A current/stale mismatch produces `unavailable`, not calculation. |
 
 ## Mandatory MainWindow / bootstrap integration ownership
 
-The agent did **not** edit `app/main_window.py` or `app/bootstrap.py`. The orchestrator must add a *narrow typed host seam*, not monkeypatch methods or create a second source registry:
+The implementation agent did **not** edit `app/main_window.py` or `app/bootstrap.py`. The orchestrator has now added a narrow typed host seam in PR #222. The following remains the complete integration/acceptance contract (not all steps are yet independently accepted):
 
 1. Install the `ReviewPanel` in a contribution-owned named dock, add explicit Open/Save actions and a Review Workspace preset affordance, and attach `ReviewLibrary` / `ReviewRestoreController` for the lifespan of the window. Wire Add/Edit/Delete, file pickers and explicit per-candidate profile/relocation approval. The currently supplied panel emits signals only; it is not a user-accessible feature by itself.
 2. Produce a persistent runtime `document_id -> ReviewSource UUID` binding for capture. Supply the exact current page, reference and primary authorities, pair/recipe, ROI/line, native channel and display gain. Bind W02 `comparison_analysis_panel.bind_review_source_keys()` only to the canonical binding; do not let a fallback UUID authorize a different file after restart.
@@ -86,3 +86,13 @@ the installed entrypoint with 3 Findings across restart, 2/4/6 sources,
 Source relink approval, ROI/Line, Difference, physical zoom, sync, rapid
 switching and Windows full normal-GC suite. Until the owner adds this seam
 and passes the tests, PR #222 stays **Draft / DO NOT MERGE**.
+
+## Orchestrator production-wiring checkpoint (2026-11-06)
+
+Production integration was committed to PR #222 on its Draft branch:
+
+- The Base `compose_main_window_presentation()` now calls `install_named_review(window)` after W05/W06 composition, registering the Named Findings contribution dock. Its QAction is attached to the canonical owned View menu rather than adding a potentially overflowing toolbar item; W06 Review selection exposes the dock. The existing W05 A/B/Diff toolbar remains unchanged.
+- `MainWindow._notify_named_review_terminal()` forwards only the **current pending epoch**, with an explicit reentrancy guard, when foreground loading succeeds/fails, ImageViewer physical geometry settles, gained preview finishes, or a first frame is painted. This is event-driven, not an arbitrary sleep/poll or direct stale-worker callback.
+- Real viewport user navigation revokes a pending restore. `MainWindow.closeEvent()` shuts down Named Review workers/controller **before** disposing the W01/W04 Viewers; Qt signals after close are filtered by the owner close guard.
+- Dedicated `tests/ui/test_w09b_production_wiring.py` covers production composition, View entry, Review Workspace visibility, event-to-epoch filtering, user navigation cancellation and teardown order. The temporary focused native workflow includes `pytest-qt` and these GUI tests on Linux/Windows; remove the temporary workflow before merge once its evidence is recorded.
+- These changes are **not** a guarantee that a three-Finding save→restart→selective-restore works in the actual Windows application. That end-to-end integration, production RAW/YUV source consent, Background Worker/normal-GC, physical monitor DPI, file-lock/SMB, and the pre-existing Windows COM diagnostic remain explicit owner acceptance gates. The W09b PR stays Draft; independent review must cover its final production-wired exact HEAD.
