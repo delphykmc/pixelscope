@@ -70,16 +70,19 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             source = by_key.get(item.approved.source_key)
             if source is None:
                 raise ValueError("candidate is outside the opened Review")
-            if source.native_signature.reference_shape != finding.view_state.source_shapes_ref[
-                source.source_key
-            ]:
+            if (
+                source.native_signature.reference_shape
+                != finding.view_state.source_shapes_ref[source.source_key]
+            ):
                 raise ValueError("native/reference geometry changed")
             if item.approved.path.suffix.lower() not in (".raw", ".yuv"):
                 raise ValueError("unsupported canonical RAW/YUV input extension")
         if window._channel_split_active:
             raise ValueError("Split Channels must be exited before Review activation")
         return PreparedReviewStage(
-            plan.epoch, self.review.document_id, finding.source_keys,
+            plan.epoch,
+            self.review.document_id,
+            finding.source_keys,
             tuple(str(item.approved.path) for item in plan.candidates),
         )
 
@@ -111,7 +114,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 path = item.approved.path
                 prior = window._document_id_by_path.get(window._path_key(path))
                 document_id = window._register_input(
-                    ImageInput(path, None), resolve_raw_profile=False,
+                    ImageInput(path, None),
+                    resolve_raw_profile=False,
                 )
                 if document_id is None:
                     raise RuntimeError(f"canonical registration refused {path.name}")
@@ -122,7 +126,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
                 selected_ids.append(document_id)
                 current = window.documents[document_id]
                 self._binding[item.approved.source_key] = (
-                    document_id, current.generation,
+                    document_id,
+                    current.generation,
                 )
             window._select_document_ids(selected_ids)
             if window._layout_mode != "Multi View":
@@ -137,7 +142,10 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             return RestoreReport(plan.epoch, "pending", "canonical sources loading")
         except Exception as exc:  # noqa: BLE001 - registration may already be committed
             return RestoreReport(
-                plan.epoch, "unavailable", f"post-commit stage failed: {exc}", True,
+                plan.epoch,
+                "unavailable",
+                f"post-commit stage failed: {exc}",
+                True,
             )
 
     def retry(self, plan: RestorePlan) -> RestoreReport:
@@ -166,9 +174,9 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             ):
                 return RestoreReport(plan.epoch, "unavailable", "loaded profile mismatch", True)
             bound[key] = VerifiedViewSource(document, generation, True)
-        if tuple(
-            d.document_id for d in window.current_comparison_documents()
-        ) != tuple(self._binding[key][0] for key in plan.finding.source_keys):
+        if tuple(d.document_id for d in window.current_comparison_documents()) != tuple(
+            self._binding[key][0] for key in plan.finding.source_keys
+        ):
             return RestoreReport(plan.epoch, "unavailable", "canonical page changed", True)
         # Overlay and presentation restoration happen only after foreground
         # source completion. This does not calculate Difference metrics/maps.
@@ -179,11 +187,16 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         else:
             window.clear_roi()
         state = restore_review_view_state(
-            window.multi_compare_view, plan.finding.view_state, bound,
-            epoch=plan.epoch, presentation_mode="originals",
+            window.multi_compare_view,
+            plan.finding.view_state,
+            bound,
+            epoch=plan.epoch,
+            presentation_mode="originals",
         )
         return RestoreReport(
-            plan.epoch, state.status, state.reason or state.status,
+            plan.epoch,
+            state.status,
+            state.reason or state.status,
             state.partial_state or state.status == "unavailable",
         )
 
