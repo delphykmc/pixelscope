@@ -425,4 +425,5 @@ def test_normal_gc_close_stops_workspace_callbacks(qtbot: object) -> None:
     assert workspace._quiescing
     assert not workspace._capture_timer.isActive()
     assert not workspace._recover_timer.isActive()
+    assert not workspace._density_timer.isActive()
     gc.collect()
