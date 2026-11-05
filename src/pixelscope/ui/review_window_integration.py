@@ -45,6 +45,7 @@ from pixelscope.ui.review_restore_controller import (
     RestoreReport,
     ReviewRestoreController,
 )
+from pixelscope.ui.workspace_presets import WorkspacePreset
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
@@ -95,6 +96,12 @@ class NamedReviewCoordinator:
         self.restore.verification_failed.connect(self._verification_failed)
         self.restore.restore_completed.connect(self._restored)
         self.panel.set_document(self.library.document)
+        hardening = getattr(window, "beta_workspace_hardening_controller", None)
+        self._workspace_presets = getattr(hardening, "workspace_presets", None)
+        if self._workspace_presets is not None:
+            self._workspace_presets.selector.currentIndexChanged.connect(
+                self._workspace_changed
+            )
 
     @property
     def window(self) -> Any:
@@ -104,8 +111,19 @@ class NamedReviewCoordinator:
         return window
 
     def show(self) -> None:
+        if self._workspace_presets is not None:
+            self._workspace_presets.select(WorkspacePreset.REVIEW)
         self.dock.show()
         self.dock.raise_()
+
+    @Slot(int)
+    def _workspace_changed(self, _index: int) -> None:
+        if (
+            not self._closed
+            and self._workspace_presets is not None
+            and self._workspace_presets.preset is WorkspacePreset.REVIEW
+        ):
+            self.dock.show()
 
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
