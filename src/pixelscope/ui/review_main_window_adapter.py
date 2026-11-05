@@ -68,6 +68,12 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             raise ValueError("Unsupported historical native channel: " + finding.channel)
         if finding.line_ref is not None:
             LineSelection(*finding.line_ref)
+        if (
+            finding.difference_intent is not None
+            and finding.difference_intent.region == "Active ROI"
+            and finding.roi_ref is None
+        ):
+            raise ValueError("Active ROI Difference requires recorded ROI")
         if tuple(item.approved.source_key for item in plan.candidates) != finding.source_keys:
             raise ValueError("Finding source order drift")
         if not all(item.verified and item.still_current() for item in plan.candidates):
@@ -232,6 +238,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             presentation_mode="originals",
         )
         if state.status == "applied":
+            if not self._difference_recipe_matches(plan):
+                return RestoreReport(plan.epoch, "unavailable", "Difference recipe changed", True)
             if plan.finding.line_ref is not None:
                 line = window._shared_line
                 if line is None or (line.x1, line.y1, line.x2, line.y2) != plan.finding.line_ref:
@@ -249,6 +257,26 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             state.status,
             state.reason or state.status,
             state.partial_state or state.status == "unavailable",
+        )
+
+    def _difference_recipe_matches(self, plan: RestorePlan) -> bool:
+        intent = plan.finding.difference_intent
+        if intent is None:
+            return True
+        panel = self.window.difference_panel
+        first = self._binding.get(intent.reference_key)
+        second = self._binding.get(intent.target_key)
+        pair = panel.selected_documents()
+        return (
+            first is not None
+            and second is not None
+            and pair is not None
+            and tuple(doc.document_id for doc in pair) == (first[0], second[0])
+            and panel.channel.currentText() == intent.channel
+            and panel.mode.currentText() == intent.mode
+            and panel.region.currentText() == intent.region
+            and panel.gain.value() == intent.gain
+            and panel.threshold.value() == intent.threshold
         )
 
     def _restore_difference_recipe(self, plan: RestorePlan) -> str | None:
