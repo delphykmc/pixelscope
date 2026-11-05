@@ -216,6 +216,23 @@ def _review(tmp_path: Path, *, with_analysis: bool = False) -> ReviewDocumentV1:
     )
 
 
+
+def test_minimal_zero_finding_roundtrip_and_reject_path_traversal(tmp_path):
+    repository = ReviewRepository()
+    minimal = new_review()
+    target = tmp_path / "minimal"
+    result = repository.save(target, minimal)
+    assert result.path.name == "minimal.pxreview"
+    reopened = repository.load(result.path)
+    assert reopened.to_dict() == minimal.to_dict()
+    assert reopened.findings == ()
+    assert reopened.sources == ()
+    for relative in ("../escape", "/absolute", "C:/drive", "//server/share", "a/../b"):
+        with pytest.raises(ReviewValidationError):
+            ReviewLocatorV1("safe.raw", relative_hint=relative)
+
+
+
 def test_roundtrip_multiple_findings_unicode_w02_w04_and_session_unchanged(tmp_path):
     repo = ReviewRepository()
     doc = _review(tmp_path, with_analysis=True)
