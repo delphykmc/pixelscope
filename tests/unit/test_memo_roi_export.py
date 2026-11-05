@@ -59,7 +59,9 @@ def test_cancel_cleans_outputs(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="cancelled"):
         export_roi_pngs(
-            tmp_path, (("one.png", preview), ("two.png", preview)),
-            RoiBounds(0, 0, 2, 2), cancel=cancel,
+            tmp_path,
+            (("one.png", preview), ("two.png", preview)),
+            RoiBounds(0, 0, 2, 2),
+            cancel=cancel,
         )
     assert not list(tmp_path.iterdir())

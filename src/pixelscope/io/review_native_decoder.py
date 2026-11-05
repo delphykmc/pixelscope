@@ -190,6 +190,7 @@ class ProductionNativeCandidateDecoder(CandidateNativeDecoderV1):
         except (ValueError, TypeError, OverflowError, MemoryError) as exc:
             raise UnsupportedNativeCandidate(f"unsupported native interpretation: {exc}") from exc
 
+
 # Ordinary PNG/BMP/JPEG already carry the image interpretation in their bytes.
 # Decode exactly as io.image_reader.read_image does; no native profile prompt.
 ENCODED_IMAGE_EXTENSIONS = frozenset({".png", ".bmp", ".jpg", ".jpeg"})

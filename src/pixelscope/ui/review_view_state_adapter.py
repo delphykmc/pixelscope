@@ -109,7 +109,6 @@ def _ready(view: MultiCompareView) -> str | None:
     return None
 
 
-
 def capture_single_memo_view_state(
     viewer: ImageViewer,
     source_key_map: Mapping[str, str],

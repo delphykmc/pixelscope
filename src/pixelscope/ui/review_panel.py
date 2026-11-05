@@ -249,13 +249,12 @@ class ReviewPanel(QWidget):
             source.source_key: source.display_tag or source.locator.basename
             for source in self._document.sources
         }
-        image_labels = ", ".join(
-            source_names[key] for key in finding.source_keys
-        )
+        image_labels = ", ".join(source_names[key] for key in finding.source_keys)
         roi_label = (
             f"ROI: x={finding.roi_ref[0]}, y={finding.roi_ref[1]}, "
             f"{finding.roi_ref[2]}×{finding.roi_ref[3]}"
-            if finding.roi_ref is not None else "Full image / no ROI"
+            if finding.roi_ref is not None
+            else "Full image / no ROI"
         )
         self.evidence_label.setText(f"{roi_label}\nImages: {image_labels}")
         self._set_selection_enabled(True)

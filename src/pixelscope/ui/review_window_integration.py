@@ -219,13 +219,8 @@ class NamedReviewCoordinator:
             self._error(f"ROI PNG export unavailable: {exc}")
 
     @Slot(str, object, int, object)
-    def _export_succeeded(
-        self, task_id: str, _document: object, epoch: int, value: object
-    ) -> None:
-        if (
-            self._closed or task_id != self._export_task_id
-            or epoch != self._export_epoch
-        ):
+    def _export_succeeded(self, task_id: str, _document: object, epoch: int, value: object) -> None:
+        if self._closed or task_id != self._export_task_id or epoch != self._export_epoch:
             return
         if isinstance(value, tuple):
             message = (
@@ -332,8 +327,7 @@ class NamedReviewCoordinator:
                 persist_local_paths=True,
                 single_viewer=(
                     window.viewer
-                    if len(page) == 1
-                    and window.central_stack.currentWidget() is window.viewer
+                    if len(page) == 1 and window.central_stack.currentWidget() is window.viewer
                     else None
                 ),
             )
@@ -461,7 +455,8 @@ class NamedReviewCoordinator:
                     # loaded source, not from historical untrusted JSON.
                     loaded = next(
                         (
-                            document for document in self.window.documents.values()
+                            document
+                            for document in self.window.documents.values()
                             if document.source_path is not None
                             and document.source_path.resolve() == path.resolve()
                             and isinstance(document.raw_profile, RawProfile | YuvProfile)
@@ -639,8 +634,7 @@ class NamedReviewCoordinator:
             if selected is not None and selected == self._auto_restore_id:
                 finding = self.library.get(selected)
                 if all(
-                    results.get(key) is not None
-                    and results[key].may_bind_historical_finding
+                    results.get(key) is not None and results[key].may_bind_historical_finding
                     for key in finding.source_keys
                 ):
                     self._auto_restore_id = None

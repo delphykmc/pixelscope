@@ -25,10 +25,7 @@ def _filename(index: int, name: str, roi: RoiBounds) -> str:
     safe = re.sub(r"[^\w.-]+", "_", basename, flags=re.UNICODE).strip("._")[:68]
     if not safe:
         safe = "image"
-    return (
-        f"{index:02d}_{safe}_ROI_x{roi.x}_y{roi.y}_"
-        f"w{roi.width}_h{roi.height}.png"
-    )
+    return f"{index:02d}_{safe}_ROI_x{roi.x}_y{roi.y}_" f"w{roi.width}_h{roi.height}.png"
 
 
 def _encode_png(preview: NDArray[np.uint8], roi: RoiBounds) -> bytes:

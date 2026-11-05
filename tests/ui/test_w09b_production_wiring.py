@@ -199,9 +199,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
 
     root = Path(str(tmp_path))
     image = root / "inspection_rgb.png"
-    assert cv2.imwrite(
-        str(image), np.full((72, 96, 3), (15, 65, 155), dtype=np.uint8)
-    )
+    assert cv2.imwrite(str(image), np.full((72, 96, 3), (15, 65, 155), dtype=np.uint8))
     memo_file = root / "inspection.pxreview"
 
     first_roi = RoiBounds(4, 5, 24, 18)
@@ -239,9 +237,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
         source.locator.local_path == str(image.resolve())
         for source in review.library.document.sources
     )
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName", lambda *_args, **_kw: (str(memo_file), "")
-    )
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kw: (str(memo_file), ""))
     review.save_dialog()
     assert memo_file.is_file()
     window.close()
@@ -249,9 +245,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
     fresh, notes = _window(qtbot)
     fresh.resize(1400, 880)
     fresh.show()
-    monkeypatch.setattr(
-        QFileDialog, "getOpenFileName", lambda *_args, **_kw: (str(memo_file), "")
-    )
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_args, **_kw: (str(memo_file), ""))
     notes.open_dialog()
     assert len(notes.library.document.findings) == 2
     qtbot.waitUntil(  # type: ignore[attr-defined]
