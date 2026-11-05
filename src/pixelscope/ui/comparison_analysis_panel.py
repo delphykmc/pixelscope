@@ -1672,7 +1672,7 @@ class ComparisonAnalysisPanel(QWidget):
                 table.setItem(row_index, 1, QTableWidgetItem(row.definition.unit))
                 for column_index, cell in enumerate(row.cells, 2):
                     display = cell.formatted_value()
-                    if mode != "Values" and pivot.reference_key is not None:
+                    if mode != "Values":
                         is_relative = mode == "Relative Δ (%)"
                         delta_text = cell.formatted_delta(relative=is_relative)
                         delta_unit = "%" if is_relative else row.definition.unit
@@ -1693,7 +1693,7 @@ class ComparisonAnalysisPanel(QWidget):
                         f"Native samples: {native_count}\n"
                         f"Reference ROI: {pivot.token.roi_ref or 'Full image'}"
                     )
-                    if pivot.reference_key is not None:
+                    if pivot.reference_key is not None or mode != "Values":
                         tooltip += (
                             f"\nAbsolute Δ: {cell.formatted_delta(precision=17)} "
                             f"{row.definition.unit}"
@@ -1794,7 +1794,7 @@ class ComparisonAnalysisPanel(QWidget):
             for source_index in source_indices:
                 cell = row.cells[source_index]
                 text = cell.formatted_value(precision=17)
-                if mode != "Values" and pivot.reference_key is not None:
+                if mode != "Values":
                     relative = mode == "Relative Δ (%)"
                     text += (
                         " | Delta "
