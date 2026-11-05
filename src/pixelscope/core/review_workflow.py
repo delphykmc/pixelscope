@@ -22,6 +22,7 @@ from pixelscope.io.review_repository import (
     ReviewRepository,
     ReviewSaveResult,
     SourceResolutionV1,
+    normalize_review_path,
 )
 
 
@@ -116,7 +117,7 @@ class ReviewLibrary:
         overwrite: bool = False,
         protected_paths: Iterable[str | Path] = (),
     ) -> ReviewSaveResult:
-        target = Path(path).absolute()
+        target = normalize_review_path(path)
         same_revision = self.path == target and self.revision is not None
         if overwrite and not same_revision:
             raise ReviewValidationError(
