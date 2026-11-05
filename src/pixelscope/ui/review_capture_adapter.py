@@ -176,15 +176,9 @@ def stage_named_finding(
                         reference_key, pair_key, capture.state, roi_ref, line_ref,
                         channel, display_gain, difference_intent, (captured,), "available",
                     )
-                    # No persistence, just the same document-level evidence
-                    # signature checks that a real .pxreview load will enforce.
-                    ReviewDocumentV1(
-                        str(uuid4()), "0.1.0", probe.captured_utc, probe.captured_utc,
-                        tuple(p.source for p in pending),
-                        ReviewWorkspaceIntentV1(source_order=keys),
-                        (probe,),
-                        allow_local_paths=persist_local_paths,
-                    )
+                    # W02 source digest may exist, but candidate fingerprints
+                    # are deliberately UNVERIFIED at GUI staging time. Reconcile
+                    # with the attested bytes only after the worker completes.
                     analysis = captured
                 except (ReviewValidationError, ValueError, TypeError):
                     analysis = ReviewAnalysisCaptureV1(
@@ -247,4 +241,32 @@ def attest_staged_finding(
         verified_sources.append(candidate)
     if cancel is not None and cancel():
         raise ReviewCancelled("capture cancelled before commit")
-    return AttestedFinding(stage.finding, tuple(verified_sources), stage.sources)
+    finding = stage.finding
+    # A completed W02 capture is historical evidence only if its own source
+    # interpretations and optional SHA agree with newly attested candidate
+    # content. Otherwise keep the Finding but record explicit unavailability.
+    if any(c.status == "captured" for c in finding.analysis):
+        try:
+            ReviewDocumentV1(
+                str(uuid4()),
+                "0.1.0",
+                finding.captured_utc,
+                finding.captured_utc,
+                tuple(verified_sources),
+                ReviewWorkspaceIntentV1(
+                    source_order=tuple(s.source_key for s in verified_sources),
+                ),
+                (finding,),
+                allow_local_paths=any(s.locator.local_path for s in verified_sources),
+            )
+        except ReviewValidationError:
+            finding = replace(
+                finding,
+                analysis=(
+                    ReviewAnalysisCaptureV1(
+                        "unavailable", reason="attested_source_or_analysis_context_mismatch"
+                    ),
+                ),
+                availability="unavailable",
+            )
+    return AttestedFinding(finding, tuple(verified_sources), stage.sources)
