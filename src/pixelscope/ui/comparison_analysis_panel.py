@@ -29,6 +29,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHeaderView,
@@ -37,6 +38,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QSpinBox,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -50,6 +52,14 @@ from PySide6.QtWidgets import (
 from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.metric_presentation import (
+    FOCUSED_METRICS,
+    PERCENTILE_METRICS,
+    STATISTICS_METRICS,
+    StatisticsPivot,
+    build_statistics_pivot,
+    format_metric_number,
+)
 from pixelscope.core.review_analysis import (
     AnalysisMeasurementV1,
     AnalysisSeriesV1,
@@ -199,6 +209,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._analysis_source_keys: dict[str, str] = {}
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
+        self._pivot: StatisticsPivot | None = None
         self._pool = analysis_thread_pool()
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -360,7 +371,76 @@ class ComparisonAnalysisPanel(QWidget):
         self.statistics_group = QGroupBox("3. Channel statistics")
         statistics_layout = QVBoxLayout(self.statistics_group)
         statistics_layout.setContentsMargins(6, 6, 6, 6)
-        statistics_layout.addWidget(self.table)
+        statistics_layout.setSpacing(4)
+        self.statistics_view = QComboBox()
+        self.statistics_view.addItems(("Raw", "Pivot"))
+        self.pivot_channel = QComboBox()
+        self.pivot_channel.addItem("All")
+        self.pivot_metrics = QComboBox()
+        self.pivot_metrics.addItems(("Mean / Std / P99", "All metrics", "Percentiles"))
+        self.pivot_reference = QComboBox()
+        self.pivot_reference.addItem("No reference", None)
+        self.pivot_reference.setToolTip(
+            "Statistics-only Reference. Independent of W05 Primary and Difference A/B roles."
+        )
+        self.pivot_delta = QComboBox()
+        self.pivot_delta.addItems(("Values", "Absolute Δ", "Relative Δ (%)"))
+        self.pivot_delta.setToolTip("Delta = Target - Reference; relative = Δ / |Reference| × 100")
+        self.pivot_export_button = QPushButton("Export Pivot CSV…")
+        self.pivot_export_button.setToolTip(
+            "High-precision typed Pivot CSV; existing Raw Statistics CSV is unchanged"
+        )
+        self.pivot_table = QTableWidget(0, 0)
+        self.pivot_table.verticalHeader().hide()
+        self.pivot_table.setWordWrap(False)
+        self.pivot_table.setAlternatingRowColors(True)
+        self.pivot_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.pivot_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        self.pivot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.pivot_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.pivot_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Interactive
+        )
+        self.pivot_table.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
+        )
+        self.pivot_export_button.setEnabled(False)
+        pivot_copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.pivot_table)
+        pivot_copy_shortcut.activated.connect(self.copy_selection)  # type: ignore[attr-defined]
+
+        statistics_controls_widget = QWidget()
+        statistics_controls = ResponsiveControlLayout(
+            statistics_controls_widget, spacing=TOKENS.spacing_xs
+        )
+        for row_index, title, combo in (
+            (0, "View", self.statistics_view),
+            (0, "Channel", self.pivot_channel),
+            (0, "Metrics", self.pivot_metrics),
+            (1, "Pivot reference", self.pivot_reference),
+            (1, "Delta", self.pivot_delta),
+        ):
+            statistics_controls.add_control(QLabel(title), compact_row=row_index)
+            statistics_controls.add_control(combo, compact_row=row_index)
+            combo.setMinimumWidth(0)
+            combo.setMaximumWidth(170)
+        statistics_controls.add_control(self.pivot_export_button, compact_row=1)
+        statistics_layout.addWidget(statistics_controls_widget)
+        self.statistics_stack = QStackedWidget()
+        self.statistics_stack.addWidget(self.table)
+        self.statistics_stack.addWidget(self.pivot_table)
+        statistics_layout.addWidget(self.statistics_stack, 1)
+        self.statistics_view.currentIndexChanged.connect(
+            self._statistics_view_changed
+        )  # type: ignore[attr-defined]
+        for combo in (
+            self.pivot_channel, self.pivot_metrics, self.pivot_reference, self.pivot_delta
+        ):
+            combo.currentIndexChanged.connect(
+                self._refresh_pivot
+            )  # type: ignore[attr-defined]
+        self.pivot_export_button.clicked.connect(
+            self._prompt_pivot_export
+        )  # type: ignore[attr-defined]
 
         self.histogram_grid = QWidget()
         self.histogram_layout = QGridLayout(self.histogram_grid)
@@ -496,6 +576,7 @@ class ComparisonAnalysisPanel(QWidget):
         # Explicit rebind affects identity only, not native data or requests.
         self._presented_analysis_token = self._analysis_render_token()
         self._presented_histogram_token = self._histogram_live_token()
+        self._refresh_pivot()
 
     def source_key_for_document(self, document_id: str) -> str:
         return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
@@ -803,6 +884,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.last_results = ()
         self.image_summary.setRowCount(0)
         self.table.setRowCount(0)
+        self._clear_pivot()
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
@@ -985,6 +1067,7 @@ class ComparisonAnalysisPanel(QWidget):
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
+            self._refresh_pivot()
 
     def _channels_changed(self, _checked: bool) -> None:
         if self.last_results and self._histogram_specs:
@@ -1110,6 +1193,7 @@ class ComparisonAnalysisPanel(QWidget):
         # until the new analysis has finished. Clearing here causes a blank
         # frame and a scrollbar/layout jump while the worker is running.
         self.last_results = ()
+        self._clear_pivot()
         if self.histogram_context.text() and not self.histogram_context.text().startswith(
             "Previous result · "
         ):
@@ -1353,6 +1437,7 @@ class ComparisonAnalysisPanel(QWidget):
             if stats is not None and any(self._histogram_series)
             else None
         )
+        self._refresh_pivot()
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
