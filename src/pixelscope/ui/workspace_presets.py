@@ -432,10 +432,12 @@ class WorkspacePresetController(QObject):
         # Apply the Files/Statistics ratio against the actual central height,
         # not the pre-dock height used for the initial layout request.
         available_height = max(1, sidebar.height())
-        sidebar.setSizes([
-            round(available_height * files_ratio),
-            round(available_height * (1 - files_ratio)),
-        ])
+        sidebar.setSizes(
+            [
+                round(available_height * files_ratio),
+                round(available_height * (1 - files_ratio)),
+            ]
+        )
 
     def _layout_changed(self, *_args: object) -> None:
         if not self._applying and not self._quiescing:
