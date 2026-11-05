@@ -13,6 +13,7 @@ from typing import Any
 
 from pixelscope.core.review_analysis_sources import native_profile_signature
 from pixelscope.core.review_record import ReviewDocumentV1
+from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.ui.display_gain import display_gain_state
@@ -61,6 +62,10 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
         finding = plan.finding
         if finding.view_state.presentation_mode != "originals":
             raise ValueError("Review needs explicit W05 presentation-mode adapter")
+        if finding.channel != "All":
+            raise ValueError("Unsupported historical native channel: " + finding.channel)
+        if finding.line_ref is not None:
+            LineSelection(*finding.line_ref)
         if tuple(item.approved.source_key for item in plan.candidates) != finding.source_keys:
             raise ValueError("Finding source order drift")
         if not all(item.verified and item.still_current() for item in plan.candidates):
@@ -154,7 +159,8 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             )
             window.multi_compare_view.begin_review_restore(plan.epoch)
             display_gain_state().set_gain(plan.finding.display_gain)
-            return RestoreReport(plan.epoch, "pending", "canonical sources loading")
+            # Reused/resident sources can settle synchronously: apply immediately.
+            return self.retry(plan)
         except Exception as exc:  # noqa: BLE001 - registration may already be committed
             return RestoreReport(
                 plan.epoch,
