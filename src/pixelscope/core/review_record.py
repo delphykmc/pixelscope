@@ -138,6 +138,16 @@ def _rect(raw: object, *, line: bool = False) -> tuple[int, int, int, int] | Non
     return cast(tuple[int, int, int, int], values)
 
 
+def _geometry_tuple(raw: object, *, line: bool = False) -> tuple[int, int, int, int] | None:
+    """Copy caller-owned geometry into a validated immutable value."""
+    if raw is None:
+        return None
+    if type(raw) not in (list, tuple) or len(raw) != 4:
+        raise ReviewValidationError("invalid line" if line else "invalid ROI")
+    labels = ("x1", "y1", "x2", "y2") if line else ("x", "y", "width", "height")
+    return _rect(dict(zip(labels, raw, strict=True)), line=line)
+
+
 def _rect_wire(
     value: tuple[int, int, int, int] | None, *, line: bool = False
 ) -> dict[str, int] | None:
@@ -294,14 +304,20 @@ class ReviewNativeSignatureV1:
 
     def __post_init__(self) -> None:
         _digest(self.profile_signature)
-        if len(self.native_shape) not in (2, 3) or any(
-            type(v) is not int or v <= 0 for v in self.native_shape
+        if (
+            type(self.native_shape) not in (tuple, list)
+            or len(self.native_shape) not in (2, 3)
+            or any(type(v) is not int or v <= 0 for v in self.native_shape)
         ):
             raise ReviewValidationError("invalid native shape")
-        if len(self.reference_shape) != 2 or any(
-            type(v) is not int or v <= 0 for v in self.reference_shape
+        if (
+            type(self.reference_shape) not in (tuple, list)
+            or len(self.reference_shape) != 2
+            or any(type(v) is not int or v <= 0 for v in self.reference_shape)
         ):
             raise ReviewValidationError("invalid reference shape")
+        object.__setattr__(self, "native_shape", tuple(self.native_shape))
+        object.__setattr__(self, "reference_shape", tuple(self.reference_shape))
         _integer(self.effective_bits, "effective_bits", minimum=1)
         if self.effective_bits > 64:
             raise ReviewValidationError("effective_bits exceeds 64")
@@ -613,16 +629,16 @@ class ReviewFindingV1:
         ):
             raise ReviewValidationError("W04 page/reference conflicts with finding")
         height, width = self.view_state.reference_shape
-        if self.roi_ref is not None:
-            coords = _rect(_rect_wire(self.roi_ref))
-            assert coords is not None
-            x, y, w, h = coords
+        roi_ref = _geometry_tuple(self.roi_ref)
+        line_ref = _geometry_tuple(self.line_ref, line=True)
+        object.__setattr__(self, "roi_ref", roi_ref)
+        object.__setattr__(self, "line_ref", line_ref)
+        if roi_ref is not None:
+            x, y, w, h = roi_ref
             if x + w > width or y + h > height:
                 raise ReviewValidationError("ROI exceeds reference-space shape")
-        if self.line_ref is not None:
-            coords = _rect(_rect_wire(self.line_ref, line=True), line=True)
-            assert coords is not None
-            x1, y1, x2, y2 = coords
+        if line_ref is not None:
+            x1, y1, x2, y2 = line_ref
             if max(x1, x2) >= width or max(y1, y2) >= height:
                 raise ReviewValidationError("line exceeds reference-space shape")
         if type(self.channel) is not str or not _LABEL.fullmatch(self.channel):
