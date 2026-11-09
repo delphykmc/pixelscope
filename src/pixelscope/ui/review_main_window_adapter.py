@@ -62,6 +62,12 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             raise RuntimeError("MainWindow unavailable or closing")
         return window
 
+    def matches_committed_selection(self, ids: tuple[str, ...]) -> bool:
+        """Distinguish this restore's publication from a new user selection."""
+        return self._committed_epoch is not None and ids == tuple(
+            document_id for document_id, _generation in self._binding.values()
+        )
+
     def prepare(self, plan: RestorePlan) -> PreparedReviewStage:
         window = self.window
         finding = plan.finding

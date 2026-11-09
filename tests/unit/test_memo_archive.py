@@ -25,7 +25,6 @@ from pixelscope.core.review_view_state import ReviewViewStateV1
 from pixelscope.core.review_workflow import ReviewLibrary
 from pixelscope.io.memo_archive import (
     MemoArchive,
-    export_memo_html,
     load_memo_archive,
     save_memo_archive,
 )
@@ -126,14 +125,14 @@ def test_multi_roi_archive_survives_missing_originals_and_exports_safe_html(tmp_
     assert dict(loaded.crops) == crops
     # No source file was created: the HTML remains completely offline.
     assert not (tmp_path / "source0.raw").exists()
-    page = export_memo_html(tmp_path / "shareable", loaded)
-    markup = page.read_text(encoding="utf-8")
-    assert "&lt;script&gt;" in markup
-    assert "<script>" not in markup
-    assert len(tuple((page.parent / "images").rglob("*.png"))) == 6
+    with zipfile.ZipFile(path) as saved:
+        markup = saved.read("index.html").decode("utf-8")
+        pngs = [name for name in saved.namelist() if name.endswith(".png")]
+    assert "&lt;script&gt;" in markup and "<script>" not in markup
     assert str(tmp_path) not in markup
+    assert len(pngs) == 6
     for finding in findings:
-        assert finding.id in str(tuple((page.parent / "images").rglob("*.png")))
+        assert any(finding.id in name for name in pngs)
 
 
 def test_delete_one_roi_then_resave_keeps_independent_crops(tmp_path):
@@ -215,8 +214,8 @@ def test_legacy_metadata_can_be_migrated_without_inventing_old_crops(tmp_path):
     save_memo_archive(target, MemoArchive(library.document, {}))
     loaded, _ = load_memo_archive(target)
     assert loaded.review == library.document and not loaded.crops
-    page = export_memo_html(tmp_path / "legacy-report", loaded)
-    assert "No stored crop (legacy memo)" in page.read_text(encoding="utf-8")
+    with zipfile.ZipFile(target) as saved:
+        assert b"No stored crop (legacy memo)" in saved.read("index.html")
 
 
 def test_capture_mapping_is_immutable_and_failed_save_keeps_revision(tmp_path):

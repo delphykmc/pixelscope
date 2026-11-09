@@ -4,8 +4,10 @@
 > `codex/memo-evidence-cleanup-20261109` consolidates W09b #222 and actual W05/W06
 > retirement from #224. Preset engines and hide-only toolbar compatibility are
 > removed. Memo captures per-ROI PNGs and optional presented native Statistics,
-> saves `.pxmemo`, reopens evidence without originals, and exports offline HTML
-> with PNG/CSV assets. Legacy `.pxreview` stays readable. Earlier W05/W09b records
+> saves `.pxmemo` with HTML/PNG/CSV, reopens evidence without originals, and now
+> uses one current-context ROI list with immediate memory edits and selection reset.
+> Separate Export/Update/source browsing controls are retired; see
+> [the current simplification](exec-plans/active/memo-roi-simplification.md). Legacy `.pxreview` stays readable. Earlier W05/W09b records
 > below are historical acceptance for their named SHAs, not acceptance of this
 > reshaped implementation. See [the active plan](exec-plans/active/memo-evidence-cleanup.md)
 > for current scope, evidence and remaining validation. No MAIN merge is claimed.

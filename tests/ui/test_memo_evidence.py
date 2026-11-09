@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import csv
+import io
+import zipfile
 
 import cv2
 import numpy as np
@@ -27,6 +29,7 @@ def windows(qtbot, monkeypatch):
         compose_main_window_presentation(window)
         window.resize(1400, 880)
         window.show()
+        window.named_review_coordinator.show()
         opened.append(window)
         return window, window.named_review_coordinator
 
@@ -111,32 +114,24 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert not fresh.documents
     assert offline.panel.crop_previews.count() == 2
     assert "unavailable" in offline.panel.status.text()
-    assert offline.panel.candidate_button.isEnabled()
-    assert offline.panel.tags_edit.isHidden()
     offline.show()
     qtbot.waitUntil(lambda: offline.dock.isVisible())
     assert fresh.grab().save(str(tmp_path / "memo-offline.png"))
     for index in range(3):
         offline.panel.findings.setCurrentRow(index)
         assert offline.panel.crop_previews.count() == 2
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_kw: str(tmp_path))
-    offline.panel.export_report_button.click()
-    _idle(qtbot, offline)
-    report = tmp_path / "PixelScope Memo"
-    html = (report / "index.html").read_text(encoding="utf-8")
-    assert "Edited note" in html and "&lt;script&gt;" in html
-    assert str(tmp_path) not in html and "<script>" not in html
-    assert len(list((report / "images").rglob("*.png"))) == 6
-    assert {p.read_bytes() for p in (report / "images").rglob("*.png")} == set(frozen.values())
-    csvs = list((report / "statistics").glob("*.csv"))
-    assert len(csvs) == 1
-    with csvs[0].open(encoding="utf-8-sig", newline="") as stream:
-        rows = list(csv.DictReader(stream))
+    with zipfile.ZipFile(target) as saved:
+        pngs = [n for n in saved.namelist() if n.endswith(".png")]
+        assert len(pngs) == 6
+        assert {saved.read(n) for n in pngs} == set(frozen.values())
+        csvs = [n for n in saved.namelist() if n.endswith(".csv")]
+        assert len(csvs) == 1
+        rows = list(csv.DictReader(io.StringIO(saved.read(csvs[0]).decode("utf-8-sig"))))
     assert rows and all(int(r["Samples"]) == 192 for r in rows)
     assert all((r["X"], r["Y"], r["Width"], r["Height"]) == ("2", "3", "16", "12") for r in rows)
     means = [float(r["Value"]) for r in rows if r["Metric"].lower() == "mean"]
     assert sorted(means) == [40, 40, 70, 70, 90, 91]
-    assert not fresh.documents  # report export never opens or calculates originals
+    assert not fresh.documents  # saved evidence never requires an original
 
     # Delete one note, retain the other evidence, and save the same revision.
     offline.delete(offline.library.document.findings[1].id)
@@ -146,7 +141,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert len(load_memo_archive(target)[0].review.findings) == 2
 
 
-def test_corrupt_open_retains_existing_notebook_and_close_can_be_cancelled(
+def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(
     qtbot,
     monkeypatch,
     tmp_path,
@@ -161,11 +156,8 @@ def test_corrupt_open_retains_existing_notebook_and_close_can_be_cancelled(
     assert memo.library.document is document
     assert "failed" in memo.panel.status.text()
     memo.library.dirty = True
-    monkeypatch.setattr(QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.No)
-    assert not window.close()
-    assert not window._closing and not memo._closed
-    monkeypatch.setattr(QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.Yes)
     assert window.close()
+    assert window._closing and memo._closed
 
 
 def test_missing_roi_does_not_create_memo(qtbot, windows):

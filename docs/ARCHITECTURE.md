@@ -89,15 +89,20 @@ Memo reuses the W09a `ReviewDocumentV1` and existing source verification/restore
 pipeline. `io/memo_archive.py` wraps that record in a bounded `.pxmemo` ZIP with
 immutable per-finding/source PNGs and optional native ROI Statistics CSVs. Legacy
 `.pxreview` imports remain metadata-only until the user creates new inspection
-points; old images are never retrospectively fabricated. Crop encoding, archive
+points; old images are never retrospectively fabricated. The current ROI-list interaction contract is in
+[the simplification plan](exec-plans/active/memo-roi-simplification.md). Stable
+MainWindow manual-ROI and source-publication signals drive ROI creation/context
+reset; no file discovery or reverse note matching is installed. Save embeds static
+HTML alongside PNG/CSV evidence; the coordinator has no separate Export flow.
+Crop encoding, archive
 validation, thumbnails and HTML export run in bounded workers. Only small thumbnail
 PNGs reach the GUI. The capture fence rejects source/ROI/view revisions; W02 result
 revisions matter only when Statistics were explicitly requested. Text edits preserve
 pixels, and source absence never removes historical crops or notes. Save/export
 consume frozen evidence rather than current viewer pixels. Source verification
 still gates live restoration; historical CSVs never publish current analysis.
-Memo close waits for file operations and offers discard confirmation for dirty
-notes. No Base import or forced layout of IQA contributions is introduced.
+Memo close waits for file operations; unwritten notes are temporary and do not
+request a separate discard confirmation. No Base import or forced layout of IQA contributions is introduced.
 
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always `1..6` within the Current Comparison Page. A global Selected

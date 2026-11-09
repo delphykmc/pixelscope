@@ -920,33 +920,26 @@ interpolation.
 
 ## Memo inspection evidence
 
-**View > Memo** opens an optional dock for multiple independent inspection points.
-Draw an ROI, enter a title/note and choose **Add Memo**: capture the selected page's
-source references, exact ROI/line, physical view, comparison pair intent and one
-8-bit canonical preview PNG per source. Preview crops contain no overlays and are
-not native numerical authority. **Update Note** changes text without replacing
-historical pixels; Delete removes only that entry and its crops.
-Single View records the visible original image; Multi View records the comparison
-page. Capture itself does not change logical Selected or Primary.
+**View > Memo** is an optional ROI list for the current image comparison. A manual
+ROI gesture captures a new record with a blank note and per-source 8-bit PNG crops.
+Title/note edits update memory immediately; selecting an ROI row revisits that
+record. Add ROI and Delete operate only on ROI entries. There is no Update button,
+file catalog, source matching or file browsing inside Memo.
 
-**Include current ROI statistics** is opt-in. Only matching already-presented native
-ROI Statistics may be frozen; pending/stale results require waiting or opting out.
-Save produces a local editable `.pxmemo` ZIP containing records, PNGs and applicable
-CSV data. It may include private original paths for verified re-navigation. It
-does not embed full originals or change Session v1. Legacy `.pxreview` metadata
-remains readable and can be migrated without inventing missing historical crops.
+Changing Selected membership/order or comparison page discards the temporary
+notebook and clears its editor. Selecting the old files never retrieves notes.
+Open Memo is the explicit way to reopen saved work; verified navigation remains
+one-way from Memo to the original viewer. Missing originals leave crops/text
+readable. RAW/YUV input settings can be supplied through the existing File workflow.
 
-Selecting a note shows its saved crops and attempts verified original restoration.
-Missing/changed originals leave text and crops readable and expose Locate image;
-RAW/YUV may require explicit native-profile approval. PNG/BMP/JPEG need no such
-dialog. Successful restore uses canonical source/page and W04 viewport authorities,
-restores ROI/line and comparison intent, and never implicitly calculates Difference.
+Save Memo is the single persistence command: one `.pxmemo` ZIP contains the editable
+record, immutable PNGs, optional already-presented native ROI Statistics CSVs and
+static `index.html`. No separate Export controls are exposed. Amber Unsaved and
+green Saved markers identify memory versus persisted state. Unsaved notes are
+not retained across image-context changes or application close. Text edits do not
+replace crop pixels or recompute metrics. HTML omits automatic original paths;
+the editable local record can contain them. Single View captures its visible
+original, while Multi View captures the comparison page. Session v1 remains unchanged.
 
-**Export Report…** creates an offline `index.html` and relative
-assets from frozen evidence, even with no originals. Automatic original paths are
-omitted; user titles/notes are included as escaped text. PNG/CSV files can be reused
-in other reports. **Export ROI PNGs…** remains a separate current-page convenience.
-Memo does not create a layout mode or force IQA docking. Existing Session saves
-the resumable source/selection and inspection intent; Qt dock state is separately
-remembered by the application. Acceptance and limits are maintained in the
-[Memo integration plan](exec-plans/active/memo-evidence-cleanup.md).
+See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
+for acceptance evidence and inherited native environment limitations.

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFileDialog
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -90,7 +90,7 @@ def _settled(qtbot: object, window: MainWindow) -> None:
     qtbot.waitUntil(ready, timeout=10000)  # type: ignore[attr-defined]
 
 
-def test_three_findings_save_reopen_verified_restore_without_implicit_difference(
+def test_native_memo_resets_on_image_set_change_and_reopens_last_roi(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -106,7 +106,7 @@ def test_three_findings_save_reopen_verified_restore_without_implicit_difference
                     "-m",
                     "pytest",
                     f"{__file__}::"
-                    "test_three_findings_save_reopen_verified_restore_without_implicit_difference",
+                    "test_native_memo_resets_on_image_set_change_and_reopens_last_roi",
                     "-q",
                     f"--basetemp={tmp_path / phase}",
                 ],
@@ -158,8 +158,7 @@ def test_three_findings_save_reopen_verified_restore_without_implicit_difference
         review.panel.title_edit.setText(f"Finding {index + 1}")
         review.add()
         qtbot.waitUntil(
-            lambda expected=index + 1: bool(errors)
-            or len(review.library.document.findings) == expected,
+            lambda expected=1: bool(errors) or len(review.library.document.findings) == expected,
             timeout=10000,
         )  # type: ignore[attr-defined]
         assert not errors
@@ -195,13 +194,17 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
     fresh = restored.named_review_coordinator
     fresh.action.trigger()
     monkeypatch.setattr(fresh, "_error", errors.append)
+    # Native input approval belongs to the existing File workflow, never Memo.
+    monkeypatch.setattr(RawOpenDialog, "exec", lambda _self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(YuvOpenDialog, "exec", lambda _self: QDialog.DialogCode.Accepted)
+    restored.open_image_paths(paths)
+    _settled(qtbot, restored)
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_kw: (str(review_path), ""))
     fresh.open_dialog()
     qtbot.waitUntil(lambda: fresh._io_worker is None, timeout=10000)
-    assert len(fresh.library.document.findings) == 3
+    assert len(fresh.library.document.findings) == 1
     recorded = fresh.library.document
-    assert restored.current_comparison_documents() == []
-    by_basename = {p.name: p for p in paths}
+    assert len(restored.current_comparison_documents()) == 6
     for finding_index, finding in enumerate(recorded.findings):
         row = next(
             i
@@ -209,21 +212,6 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
             if fresh.panel.findings.item(i).data(256) == finding.id
         )
         fresh.panel.findings.setCurrentRow(row)
-        for key in finding.source_keys:
-            source = next(s for s in recorded.sources if s.source_key == key)
-            path = by_basename[source.locator.basename]
-            monkeypatch.setattr(
-                QFileDialog, "getOpenFileName", lambda *_a, _p=path, **_kw: (str(_p), "")
-            )
-            dialog_class = RawOpenDialog if path.suffix == ".raw" else YuvOpenDialog
-            monkeypatch.setattr(dialog_class, "exec", lambda _self: QDialog.DialogCode.Accepted)
-            monkeypatch.setattr(dialog_class, "profile", lambda _self, _p=path: profiles[_p])
-            monkeypatch.setattr(
-                QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.Yes
-            )
-            # The final missing native source selection triggers automatic
-            # verification and ROI restoration. No Verify/Activate button.
-            fresh.choose_candidate(key)
         qtbot.waitUntil(
             lambda: fresh.restore.phase in ("applied", "unavailable", "interrupted")
             or bool(errors),

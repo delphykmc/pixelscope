@@ -201,9 +201,48 @@ def memo_thumbnails(crops: Mapping[tuple[str, str], bytes]) -> dict[tuple[str, s
     return result
 
 
+def memo_html(archive: MemoArchive) -> bytes:
+    """Static report saved inside the same notebook; no separate export choice."""
+    labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}
+    csvs = statistics_csvs(archive.review)
+    rows = []
+    for ordinal, finding in enumerate(archive.review.findings, 1):
+        images = []
+        for image_number, key in enumerate(finding.source_keys, 1):
+            if (finding.id, key) in archive.crops:
+                images.append(
+                    f'<figure><img src="{_asset_path(finding.id, key)}" alt="ROI crop">'
+                    f"<figcaption>{image_number}. {html.escape(labels[key])}</figcaption></figure>"
+                )
+        csv = f"statistics/{finding.id}.csv"
+        link = f'<p><a href="{csv}">ROI Statistics CSV</a></p>' if csv in csvs else ""
+        rows.append(
+            f"<section><h2>ROI {ordinal}: {html.escape(finding.title)}</h2>"
+            f"<p>ROI {finding.roi_ref} · {html.escape(finding.captured_utc)}</p>"
+            f'<p class="note">{html.escape(finding.note)}</p>'
+            + ("".join(images) or "<p>No stored crop (legacy memo).</p>")
+            + link
+            + "</section>"
+        )
+    return (
+        '<!doctype html><html><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; '
+        'img-src &#39;self&#39;; style-src &#39;unsafe-inline&#39;">'
+        "<title>PixelScope Memo</title><style>body{font-family:system-ui;max-width:1100px;"
+        "margin:2rem auto;padding:1rem}section{border-top:1px solid #aaa;padding:1rem 0}"
+        ".note{white-space:pre-wrap}figure{display:inline-block;margin:0 1rem 1rem 0;"
+        "vertical-align:top}img{max-width:100%;height:auto}</style></head>"
+        "<body><h1>PixelScope Memo</h1><p>Saved 8-bit ROI preview images</p>"
+        + "".join(rows)
+        + "</body></html>"
+    ).encode("utf-8")
+
+
 def _payloads(archive: MemoArchive) -> dict[str, bytes]:
     assets = _canonical_assets(archive)
     assets.update(statistics_csvs(archive.review))
+    assets["index.html"] = memo_html(archive)
     manifest = {
         "kind": MEMO_KIND,
         "schema_version": MEMO_SCHEMA,
@@ -338,6 +377,14 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
             ):
                 raise ReviewValidationError("invalid Memo asset manifest")
             name = item["path"]
+            if name == "index.html":
+                if name in allowed:
+                    raise ReviewValidationError("duplicate Memo report")
+                data = z.read(name)
+                if hashlib.sha256(data).hexdigest() != item["sha256"]:
+                    raise ReviewValidationError("Memo report digest mismatch")
+                allowed.add(name)
+                continue
             if name in csvs:
                 data = z.read(name)
                 if (
@@ -360,68 +407,10 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
             raise ReviewValidationError("Memo ZIP has unexpected members")
     archive = MemoArchive(review, items)
     expected = _payloads(archive)
-    if set(expected) != set(names):
+    if set(expected) - {"index.html"} != set(names) - {"index.html"}:
         raise ReviewValidationError("Memo ZIP missing required evidence")
+    if "index.html" in names:
+        with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
+            if z.read("index.html") != memo_html(archive):
+                raise ReviewValidationError("Memo report differs from recorded ROI evidence")
     return archive, revision
-
-
-def export_memo_html(folder: Path, archive: MemoArchive) -> Path:
-    """Write offline HTML and PNGs without source paths or executable scripts."""
-    assets = _canonical_assets(archive)
-    csvs = statistics_csvs(archive.review)
-    if folder.exists() or not folder.parent.is_dir():
-        raise FileExistsError("Choose a new HTML report folder")
-    stage = Path(tempfile.mkdtemp(prefix=".memo-html-", dir=folder.parent))
-    try:
-        rows = []
-        labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}
-        for index, finding in enumerate(archive.review.findings, 1):
-            x, y, width, height = finding.roi_ref or (0, 0, 0, 0)
-            images = []
-            for key in finding.source_keys:
-                name = _asset_path(finding.id, key)
-                if name not in assets:
-                    continue
-                target = stage / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(assets[name])
-                label = html.escape(labels.get(key, "Source"), quote=True)
-                images.append(
-                    f'<figure><img src="{name}" alt="{label} ROI" loading="lazy">'
-                    f"<figcaption>{label}</figcaption></figure>"
-                )
-            csv_name = f"statistics/{finding.id}.csv"
-            csv_link = ""
-            if csv_name in csvs:
-                target = stage / csv_name
-                target.parent.mkdir(exist_ok=True)
-                target.write_bytes(csvs[csv_name])
-                csv_link = f'<p><a href="{csv_name}">Saved ROI statistics (CSV)</a></p>'
-            rows.append(
-                f'<section><h2>{index}. {html.escape(finding.title)}</h2>'
-                f'<p class="roi">ROI x={x} y={y} w={width} h={height}</p>'
-                f'<p>{html.escape(finding.note).replace(chr(10), "<br>")}</p>'
-                + f"<p>Captured {html.escape(finding.captured_utc)} · 8-bit preview crops</p>"
-                + ("".join(images) if images else "<p>No stored crop (legacy memo).</p>")
-                + csv_link
-                + "</section>"
-            )
-        document = (
-            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; '
-            'img-src &#39;self&#39;; style-src &#39;unsafe-inline&#39;">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
-            "<title>PixelScope Memo</title><style>body{font-family:sans-serif;max-width:1100px;"
-            "margin:2rem auto;padding:1rem}section{border-top:1px solid #bbb;padding:1rem 0}"
-            "img{max-width:100%;height:auto}figure{display:inline-block;vertical-align:top;"
-            "margin:0 1rem 1rem 0}.roi{font-family:monospace}</style></head>"
-            "<body><h1>PixelScope Memo</h1>" + "".join(rows) + "</body></html>"
-        )
-        (stage / "index.html").write_text(document, encoding="utf-8")
-        stage.rename(folder)
-        return folder / "index.html"
-    finally:
-        if stage.exists():
-            import shutil
-
-            shutil.rmtree(stage)

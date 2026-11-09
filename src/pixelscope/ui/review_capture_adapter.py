@@ -39,7 +39,7 @@ from pixelscope.core.review_record import (
 )
 from pixelscope.core.roi import RoiBounds, roi_fits_shape
 from pixelscope.io.memo_archive import memo_thumbnails
-from pixelscope.io.memo_roi_export import _encode_png
+from pixelscope.io.memo_images import encode_roi_png
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
     ENCODED_IMAGE_EXTENSIONS,
@@ -441,7 +441,7 @@ def attest_staged_finding(
                 or roi.width * roi.height > 16 * 1024 * 1024
             ):
                 raise ReviewValidationError("ROI preview is unavailable or exceeds crop budget")
-            crops.append((pending.key, _encode_png(preview, roi)))
+            crops.append((pending.key, encode_roi_png(preview, roi)))
             if sum(len(data) for _, data in crops) > 128 * 1024 * 1024:
                 raise ReviewValidationError("Memo crops exceed capture budget")
     thumbs = memo_thumbnails({(finding.id, key): data for key, data in crops})

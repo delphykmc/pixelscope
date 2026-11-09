@@ -146,6 +146,8 @@ class MainWindow(QMainWindow):
     # Emitted only after the final Files selection has been bound to the GUI.
     # Downstream observers must not re-style viewers for intermediate drag edits.
     files_selection_committed = Signal()
+    memo_roi_changed = Signal()
+    memo_sources_changed = Signal()
 
     def __init__(
         self,
@@ -2177,6 +2179,7 @@ class MainWindow(QMainWindow):
         self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
+        self.memo_sources_changed.emit()
         documents = self.selected_documents
         render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
         render_trace = load_latency_trace.PhaseTimer(
@@ -3548,7 +3551,10 @@ class MainWindow(QMainWindow):
         selection_trace.checkpoint("initial_render_selection_returned")
 
     def _shared_roi_changed(self, bounds: object) -> bool:
-        return self._apply_shared_roi(bounds, allow_channel_split=False)
+        applied = self._apply_shared_roi(bounds, allow_channel_split=False)
+        if applied:
+            self.memo_roi_changed.emit()
+        return applied
 
     def _numeric_roi_requested(self, bounds: object) -> bool:
         """Apply explicit reference-space editor input, including during Split view."""

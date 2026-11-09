@@ -1,71 +1,59 @@
-# Memo — keep comparison notes and ROI images
+# Memo — notes for the current comparison ROI
 
-A **Session** saves your source selection and inspection setup to continue work.
-A **Memo** keeps several inspection points with notes and saved ROI images.
-You can read the saved evidence without the originals and reuse it in a report.
+Memo keeps a list of ROI records for the images you are currently inspecting.
+It does not browse files or automatically find notes for a newly selected image.
+Session remains the way to resume the overall inspection setup.
 
-## Add and revisit a memo
+## Add and edit ROI notes
 
-1. Open a PNG/JPEG/BMP, RAW or YUV image through the existing File menu or drag-and-drop.
-2. Draw a rectangle on the image. Select **View > Memo**.
-3. Type a short Title and Note, then select **Add Memo**. Wait for capture to finish:
-   each image on the current page contributes a frozen ROI PNG.
-   In Single View, the memo records the visible original image; Multi View records
-   the comparison page. Recording does not change your current selection.
-4. Repeat for another ROI. Select either entry in the Memo list: the selected
-   image(s), saved ROI and physical zoom/center are restored automatically.
-5. **Update Note** edits text while preserving its original crop. **Delete** removes
-   only that Memo entry and its crops. Adding another Memo creates another ROI record.
+1. Open your images and choose **View > Memo**.
+2. Draw a rectangular ROI with **Ctrl+drag**. A new ROI entry is captured and the
+   note starts empty. Wait for the short image capture to finish, then type.
+3. Title and Note edits immediately update that entry in memory. There is no
+   Update button. Captured crop pixels remain unchanged when text is edited.
+4. Draw a different ROI to start another blank note. Select an earlier entry in
+   the ROI list to see its note and return to its saved ROI and zoom.
+5. **Add ROI** adds a blank entry for the current ROI. **Delete** removes the
+   selected ROI entry. These controls operate on ROI records, not image files.
 
-A Memo does not calculate Difference or replace current Statistics. To also keep
-native numeric results, check **Include current ROI statistics** before adding.
-The current ROI Statistics must already be displayed; if they are pending, wait
-or uncheck the option. Saved CSVs identify the ROI, channels, native domain, sample
-counts and capture time. Changing a note later never recomputes its saved values.
-For a Single View note with Statistics, select only that image; use Multi View
-to keep the comparison page and its per-image Statistics together.
+Single View records the visible original; Multi View records the comparison page.
+An optional **Include current ROI statistics** checkbox captures already-presented
+native ROI Statistics when an entry is added. Pending/stale results are never used.
+For Statistics in Single View, select only that image; use Multi View for a page.
 
-## Local save and reopen
+## One Save Memo command
 
-Use **Save Memo…** to save one editable `.pxmemo` notebook containing all entries,
-ROI PNGs and any saved Statistics CSVs. It retains image references, ROI/line and
-enough view state to revisit each point, without embedding full originals.
-An unsaved indicator and close confirmation help avoid losing notes.
+The header uses an amber **Unsaved** marker for changes held in memory and a green
+**Saved** marker after a successful save. Empty working state is **Ready**.
 
-For local click-to-reopen, `.pxmemo` contains the absolute paths of the
-original image files. **Treat the editable notebook as private/local** and do
-not distribute it as an anonymized report. If the original files are removed
-or modified, open the notebook to read the notes and saved crops. The panel says
-the original is unavailable; **Locate image…** can reconnect it. No silent
-relinking or substitution occurs. Legacy `.pxreview` files remain readable, but
-have no stored crop: converting them cannot recreate an image from the past.
+**Save Memo…** writes all ROI notes, frozen PNG crops, optional Statistics CSVs and
+an offline `index.html` into one editable `.pxmemo` file. There are no separate
+Export commands. Saving consumes the recorded evidence; it does not recrop current
+images or recalculate Statistics. Unsaved edits are temporary and are discarded
+when the image selection changes or the application closes.
 
-**Open Memo…** loads a notebook and selects its first entry; clicking another
-entry revisits that inspection point without a separate Verify or Activate
-button. RAW/YUV originals may need a valid user-approved native input profile
-when loaded in a fresh process; PNG/BMP/JPEG do not require RAW/YUV profile
-dialogs. Internal source fingerprint checks run without a manual verification
-panel.
+A `.pxmemo` is a ZIP container. Open it in PixelScope to edit notes; extract a copy
+with a ZIP-capable archive tool to use `index.html`, `images/` PNGs and any
+`statistics/` CSVs in a report. The PNGs are canonical 8-bit previews without ROI
+outlines; CSV values retain their native numerical meaning. They are not full
+original images.
 
-## Save cropped ROI PNGs
+The editable notebook may contain private original paths in its internal record.
+Its HTML uses relative assets and omits automatic original paths. Share only the
+HTML, images and Statistics folders if original-path metadata should be excluded.
+User-written titles, notes and image names are included in the report.
 
-With images selected and a rectangular ROI drawn, select **Export ROI PNGs…**
-in the Memo panel and choose a directory. No Memo record needs to exist.
+## Changing images and reopening
 
-Each image on the current comparison page produces one PNG with the same
-reference-pixel ROI, retaining its original reference dimensions. Output is a
-canonical **8-bit display preview**, not raw Bayer values, native YUV planes or
-a screenshot with selection overlays. Existing files are never overwritten.
-An invalid/out-of-bounds ROI fails the operation without clamping.
+Changing selected images, their order or the comparison page clears the current
+ROI list and editor and starts a new temporary notebook. Returning to previous
+images does not retrieve notes automatically. The program does not scan files,
+match image sets or maintain a cross-file Memo catalog.
 
-## Reuse evidence or share a simple HTML report
-
-Select **Export Report…** and choose a parent folder. PixelScope
-creates a new **PixelScope Memo** folder (with a number if one already exists).
-Open `index.html` in a browser, or copy the PNGs and any Statistics CSVs into your
-own report. Source numbers in CSV follow the image order for that memo.
-
-Export uses stored crops and values, so it also works without originals. Share
-the entire HTML folder to retain its relative images and CSV links. Automatic
-original file paths are omitted; your titles, notes and image names are included.
-The editable notebook remains the way to continue editing notes in PixelScope.
+**Open Memo…** explicitly loads saved ROI records. Selecting an ROI attempts to
+verify and reopen its original images; this direction is Memo-to-viewer only.
+If originals are missing, changed or need unavailable RAW/YUV input settings, the
+saved crop and note remain readable. Memo has no file browser or Locate button.
+To supply native input settings, open originals normally through File, then open
+the Memo. Legacy `.pxreview` notes remain readable but have no stored historical
+crop; migration never invents old pixels.
