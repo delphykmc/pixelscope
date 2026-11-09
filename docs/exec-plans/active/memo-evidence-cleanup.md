@@ -1,6 +1,6 @@
 # Memo evidence and preset cleanup
 
-Status: Active
+Status: Implementation complete; validation limitations and owner/review acceptance pending
 Owner: ChatGPT-assisted implementation for owner request of 2026-11-09
 Branch: `codex/memo-evidence-cleanup-20261109`
 
@@ -107,9 +107,85 @@ No new workspace mode, forced IQA docking, decoder changes, packaging or depende
 
 ## Remaining acceptance
 
-Full normal-GC Windows pytest on committed implementation; final exact-code review;
+Resolve/recheck remaining native Windows full-suite failures; final exact-code review;
 owner interaction on actual comparison images and physical DPI/multimonitor/SMB.
 RAW/YUV reopen may require explicit native-profile approval. Legacy notes without
 crops cannot gain historical pixels by conversion. Source/profile verification
 still has its inherited 128 MiB native decode input budget. No private Enterprise
 source or packaging tools are required or executed. No merge or deployment claimed.
+
+## Final observed checkpoint (2026-11-09)
+
+- Tested final source/test SHA: `a25a64b57cd294c568bc329ac959a73d68149617`.
+- `python -m pytest -q --tb=short --junitxml=temp/memo-final-full-20261109.xml`:
+  **10 failed, 1906 passed, 1 warning in 449.91s**, exit 1. Nine clipboard failures
+  show COM OpenClipboard `0x800401d0`; one RAW dialog compact-height assertion times
+  out. These failure families reproduce on pristine MAIN. The earlier Difference
+  parity failure did not recur in this full run; it is not claimed fixed.
+- The duplicate-ZIP warning is from the existing intentional tamper test. No GC,
+  assertions, test skips, timeouts, clipboard behavior or numerical rules changed
+  to disguise native failures. Full validation is **not clean**.
+- `python scripts/check_docs.py`: **Documentation contract passed**.
+- `python -m mkdocs build --strict`: exit **0**, built offline Help; existing vendor
+  README not in nav is informational. `python -m mypy src`: **132 files, no issues**.
+- Tracked Python files via `git ls-files '*.py'`: `python -m ruff check` exit **0**;
+  `python -m ruff format --check`: **401 files already formatted**.
+- `python -m pip check`: **No broken requirements found**. `git diff --check`: clean.
+- `python -c "import pixelscope; print(pixelscope.__file__)"` confirms this checkout's
+  `src/pixelscope/__init__.py`, not an unrelated editable installation.
+- Draft **#227** is the single implementation PR. #222–#226 were closed without
+  merging and point to it; branches/reviews are retained. Issue #210's original
+  plan is retained with the current product direction taking precedence.
+- Commits use owner-configured identity with
+  `Co-authored-by: ChatGPT <noreply@openai.com>`; GitHub PR/issue updates are marked
+  ChatGPT-assisted. No separate messages/comments to people were sent.
+- Agent reviewed real-Qt screenshots. Owner manual workflow, independent code/UX
+  review, physical DPI/multimonitor/SMB and private Enterprise acceptance remain
+  unperformed. Existing owner untracked files and MAIN are unchanged.
+
+Exact applicable test selection (86 passed in 25.91s); commands use
+`.\.venv\Scripts\python.exe` from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests/unit/test_memo_archive.py tests/unit/test_memo_roi_export.py tests/unit/test_w09a_review_repository.py tests/unit/test_w09b_review_workflow.py tests/unit/test_w09b_review_guards.py tests/unit/test_w09b_native_decoder.py tests/ui/test_memo_evidence.py tests/ui/test_w09b_production_wiring.py tests/ui/test_w09b_named_findings_roundtrip.py tests/ui/test_retired_w05_w06.py tests/ui/test_toolbar_cleanup.py tests/ui/test_p4a_difference_curation.py
+```
+
+## Changed files
+
+Relative to starting W09b `56104982` (the PR also includes that earlier W09b work):
+
+- `docs/ARCHITECTURE.md` (modified)
+- `docs/CURRENT_STATE.md` (modified)
+- `docs/PRODUCT_SPEC.md` (modified)
+- `docs/exec-plans/active/issue-210-preset-retirement.md` (added)
+- `docs/exec-plans/active/memo-evidence-cleanup.md` (added)
+- `docs/user-guide/features/files-workspace.md` (modified)
+- `docs/user-guide/features/plots-workspace.md` (modified)
+- `docs/user-guide/index.md` (modified)
+- `docs/user-guide/llms.txt` (modified)
+- `docs/user-guide/workflows/compare-images.md` (modified)
+- `docs/user-guide/workflows/review-findings.md` (modified)
+- `mkdocs.yml` (modified)
+- `src/pixelscope/app/bootstrap.py` (modified)
+- `src/pixelscope/app/main_window.py` (modified)
+- `src/pixelscope/core/comparison_presets.py` (removed)
+- `src/pixelscope/io/memo_archive.py` (added)
+- `src/pixelscope/ui/beta_workspace_hardening.py` (modified)
+- `src/pixelscope/ui/difference_curation_lifecycle.py` (modified)
+- `src/pixelscope/ui/presentation_controls.py` (modified)
+- `src/pixelscope/ui/preset_view_state.py` (removed)
+- `src/pixelscope/ui/quick_compare.py` (modified)
+- `src/pixelscope/ui/review_capture_adapter.py` (modified)
+- `src/pixelscope/ui/review_panel.py` (modified)
+- `src/pixelscope/ui/review_window_integration.py` (modified)
+- `src/pixelscope/ui/toolbar_cleanup.py` (removed)
+- `src/pixelscope/ui/workspace_presets.py` (removed)
+- `tests/ui/test_memo_evidence.py` (added)
+- `tests/ui/test_retired_w05_w06.py` (added)
+- `tests/ui/test_toolbar_cleanup.py` (modified)
+- `tests/ui/test_w05_comparison_presets.py` (removed)
+- `tests/ui/test_w06_workspace_presets.py` (removed)
+- `tests/ui/test_w09b_named_findings_roundtrip.py` (modified)
+- `tests/ui/test_w09b_production_wiring.py` (modified)
+- `tests/unit/test_comparison_presets_contract.py` (removed)
+- `tests/unit/test_memo_archive.py` (added)
