@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -36,6 +38,7 @@ class ReviewPanel(QWidget):
     open_requested = Signal()
     save_requested = Signal()
     export_roi_requested = Signal()
+    export_report_requested = Signal()
     candidate_requested = Signal(str)
     verify_requested = Signal()
     finding_changed = Signal(str)
@@ -55,6 +58,15 @@ class ReviewPanel(QWidget):
         self.findings.setAccessibleName("Saved image inspection memos")
         layout.addWidget(self.findings, 3)
 
+        self.crop_previews = QListWidget(self)
+        self.crop_previews.setObjectName("memoSavedCropPreviews")
+        self.crop_previews.setViewMode(QListWidget.ViewMode.IconMode)
+        self.crop_previews.setIconSize(QSize(120, 80))
+        self.crop_previews.setToolTip("Saved ROI images — readable even without originals")
+        self.crop_previews.setMaximumHeight(160)
+        self.crop_previews.setAccessibleName("Saved ROI crops, independent of original images")
+        layout.addWidget(self.crop_previews)
+
         form = QGroupBox("Memo", self)
         grid = QFormLayout(form)
         self.title_edit = QLineEdit(form)
@@ -66,15 +78,23 @@ class ReviewPanel(QWidget):
         self.tags_edit = QLineEdit(form)
         self.tags_edit.setObjectName("findingTagsEdit")
         self.tags_edit.setPlaceholderText("comma-separated tags")
+        self.tags_edit.hide()
         grid.addRow("Title", self.title_edit)
         grid.addRow("Note", self.note_edit)
         # Legacy tags are preserved in .pxreview but not exposed as a required
         # editing workflow. They do not justify an additional form field.
         layout.addWidget(form)
 
+        self.include_statistics = QCheckBox("Include current ROI statistics", self)
+        self.include_statistics.setToolTip(
+            "Copy already displayed native ROI Statistics into this memo. "
+            "No new calculation; unavailable or stale results are never substituted."
+        )
+        layout.addWidget(self.include_statistics)
+
         row = QHBoxLayout()
         self.add_button = QPushButton("Add Memo", self)
-        self.edit_button = QPushButton("Update", self)
+        self.edit_button = QPushButton("Update Note", self)
         self.delete_button = QPushButton("Delete", self)
         for button in (self.add_button, self.edit_button, self.delete_button):
             row.addWidget(button)
@@ -88,6 +108,13 @@ class ReviewPanel(QWidget):
             "Exports the canonical 8-bit preview, without drawn overlays."
         )
         layout.addWidget(self.export_roi_button)
+
+        self.export_report_button = QPushButton("Export Report…", self)
+        self.export_report_button.setObjectName("memoExportReport")
+        self.export_report_button.setToolTip(
+            "Create offline HTML with the saved PNG crops and optional Statistics CSV files"
+        )
+        layout.addWidget(self.export_report_button)
 
         self.evidence_label = QLabel("Select a memo to revisit its ROI", self)
         self.evidence_label.setWordWrap(True)
@@ -123,6 +150,7 @@ class ReviewPanel(QWidget):
         self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
         self.export_roi_button.clicked.connect(self.export_roi_requested.emit)  # type: ignore[attr-defined]
+        self.export_report_button.clicked.connect(self.export_report_requested.emit)  # type: ignore[attr-defined]
         self.candidate_button.clicked.connect(self._request_candidate)  # type: ignore[attr-defined]
         self._set_selection_enabled(False)
 
@@ -150,6 +178,29 @@ class ReviewPanel(QWidget):
 
     def set_status(self, message: str) -> None:
         self.status.setText(message)
+
+    def show_saved_crops(self, thumbnails: Mapping[str, bytes]) -> None:
+        self.crop_previews.clear()
+        if self._document is None:
+            return
+        labels = {s.source_key: s.display_tag or s.locator.basename for s in self._document.sources}
+        for key, data in thumbnails.items():
+            pixmap = QPixmap()
+            if pixmap.loadFromData(data):
+                scaled = pixmap.scaled(
+                    QSize(120, 80),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.FastTransformation,
+                )
+                item = QListWidgetItem(QIcon(scaled), labels.get(key, "Image"))
+                item.setToolTip("Saved 8-bit ROI preview — original pixels are unchanged")
+                self.crop_previews.addItem(item)
+        self.crop_previews.setVisible(bool(thumbnails))
+
+    def set_dirty(self, dirty: bool) -> None:
+        self.header.setText(
+            "Memo — notes linked to image regions" + (" • Unsaved" if dirty else "")
+        )
 
     def _request_edit(self) -> None:
         key = self.selected_finding_id
@@ -201,6 +252,7 @@ class ReviewPanel(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, key)
                 self.sources.addItem(item)
         self.sources_group.setVisible(self.sources.count() > 0)
+        self.candidate_button.setEnabled(self.sources.count() > 0)
         if self.sources.count():
             self.sources.setCurrentRow(0)
 
@@ -236,6 +288,7 @@ class ReviewPanel(QWidget):
     def _selection_changed(self, *_args: object) -> None:
         key = self.selected_finding_id
         if self._document is None or key is None:
+            self.show_saved_crops({})
             self._set_selection_enabled(False)
             self.evidence_label.setText("Select a memo to revisit its ROI")
             self.sources.clear()

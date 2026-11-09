@@ -17,14 +17,14 @@ def test_toolbar_uses_existing_file_view_and_difference_commands(qtbot: object) 
     open_action = window.action_map["Open Images..."]
     assert open_action not in toolbar.actions()
     assert open_action in window._menu_map["File"].actions()
-    assert window.findChild(QWidget, "workspacePresetControl") is not None
-    assert window.findChild(QWidget, "comparisonPresetControl") is not None
+    assert window.findChild(QWidget, "workspacePresetControl") is None
+    assert window.findChild(QWidget, "comparisonPresetControl") is None
     for name in ("workspacePresetControl", "comparisonPresetControl"):
-        action = next(
+        actions = [
             action
             for action in toolbar.actions()
             if (widget := toolbar.widgetForAction(action)) is not None
             and widget.objectName() == name
-        )
-        assert not action.isVisible(), name
+        ]
+        assert not actions, name
     window.close()

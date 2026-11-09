@@ -16,20 +16,17 @@ Use Files to select a comparison set, set a current-page source as **Primary**, 
 
 Removing an entry from Files removes it from PixelScope's current registration state; it does not delete the source file from disk.
 
-## Workspace layout presets
+## Arrange the workspace
 
-Use **Workspace** in the main toolbar to switch between **Compare**, **Analyze**,
-and **Review**. These presets change Files/Statistics space, Plots visibility,
-and dock/splitter layout only. Compare prioritizes source identification and image
-space; Analyze allocates more room for Statistics and opens Plots; Review provides
-a comparison inspection layout without a Findings panel until that feature ships.
+Resize the Files, Statistics and Image panes directly with their splitters.
+Plots can be docked, hidden or floated using the native View/Plots controls.
+There are no Compare/Analyze/Review layout presets: those duplicated existing
+dock and splitter operations. PixelScope remembers the existing application
+layout without maintaining multiple preset-specific versions.
 
-The adjacent **Original 2/4**, **A/B/Diff**, and **Diff Focus** controls select
-*which sources are presented*, not the Workspace layout. Changing Workspace
-does not alter Registered/Selected sources, the Current Comparison Page,
-Reference A/Target B, Primary, Active, ROI, zoom intent, or Difference calculations.
-Existing **View > Reset Workspace Layout** resets the saved workspace layouts;
-manual splitter and floating Plots adjustments are retained per preset.
+Use **View > Reset Workspace Layout** to restore the default arrangement.
+Resetting layout never changes Registered/Selected/Current Page, Primary,
+Active, ROI, zoom or native Difference calculations.
 
 ## Related topics
 

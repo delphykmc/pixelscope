@@ -123,7 +123,7 @@ def test_three_findings_save_reopen_verified_restore_without_implicit_difference
             assert result.returncode == 0, result.stdout + result.stderr
         return
     tmp_path = Path(os.environ["PIXELSCOPE_FINDING_TEST_ROOT"])
-    review_path = tmp_path / "three-findings.pxreview"
+    review_path = tmp_path / "three-findings.pxmemo"
     paths, profiles = _native_inputs(tmp_path, create=stage == "save")
     errors: list[str] = []
     if stage == "restore":
@@ -166,6 +166,7 @@ def test_three_findings_save_reopen_verified_restore_without_implicit_difference
         qtbot.waitUntil(lambda: review._capture_worker is None, timeout=10000)  # type: ignore[attr-defined]
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_kw: (str(review_path), ""))
     review.save_dialog()
+    qtbot.waitUntil(lambda: review._io_worker is None, timeout=10000)
     assert review_path.is_file() and not review.library.dirty
     window.close()
     display_gain_state().set_gain(1.0)
@@ -196,6 +197,7 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
     monkeypatch.setattr(fresh, "_error", errors.append)
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_kw: (str(review_path), ""))
     fresh.open_dialog()
+    qtbot.waitUntil(lambda: fresh._io_worker is None, timeout=10000)
     assert len(fresh.library.document.findings) == 3
     recorded = fresh.library.document
     assert restored.current_comparison_documents() == []

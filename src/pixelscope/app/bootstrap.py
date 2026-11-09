@@ -45,7 +45,6 @@ from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.review_window_integration import install_named_review
-from pixelscope.ui.toolbar_cleanup import remove_redundant_toolbar_controls
 from pixelscope.ui.user_guide_help import install_user_guide_help
 from pixelscope.ui.workflow_polish import install_workflow_polish
 
@@ -136,7 +135,6 @@ def compose_main_window_presentation(
     install_beta_workspace_hardening(window)
     install_large_folder_registration(window)
     install_quick_compare_workflow(window)
-    remove_redundant_toolbar_controls(window)
     install_issue77_ui_design_followup(window)
     # W09b owns its UI and verification workers. MainWindow remains the sole
     # registration, selection and foreground-load authority.

@@ -1,35 +1,40 @@
-# Memo — save inspection points
+# Memo — keep comparison notes and ROI images
 
-A **Session** saves the whole PixelScope workspace for continuing work. A
-**Memo** saves individual image inspection points so you can return to a
-particular image/ROI and see the note attached to it.
+A **Session** saves your source selection and inspection setup to continue work.
+A **Memo** keeps several inspection points with notes and saved ROI images.
+You can read the saved evidence without the originals and reuse it in a report.
 
 ## Add and revisit a memo
 
 1. Open a PNG/JPEG/BMP, RAW or YUV image through the existing File menu or drag-and-drop.
 2. Draw a rectangle on the image. Select **View > Memo**.
-3. Type a short Title and Note, then select **Add Memo**.
+3. Type a short Title and Note, then select **Add Memo**. Wait for capture to finish:
+   each image on the current page contributes a frozen ROI PNG.
 4. Repeat for another ROI. Select either entry in the Memo list: the selected
    image(s), saved ROI and physical zoom/center are restored automatically.
-5. **Update** edits note text. **Delete** removes only that Memo entry.
+5. **Update Note** edits text while preserving its original crop. **Delete** removes
+   only that Memo entry and its crops. Adding another Memo creates another ROI record.
 
-A Memo does not calculate Difference or replace current Statistics. If an ROI
-or source is missing, the note stays readable and a concise status explains
-what needs correcting. **Locate image…** appears only when the original image
-cannot be automatically reopened; it is not part of normal note-taking.
+A Memo does not calculate Difference or replace current Statistics. To also keep
+native numeric results, check **Include current ROI statistics** before adding.
+The current ROI Statistics must already be displayed; if they are pending, wait
+or uncheck the option. Saved CSVs identify the ROI, channels, native domain, sample
+counts and capture time. Changing a note later never recomputes its saved values.
 
 ## Local save and reopen
 
-Use **Save Memo…** to save an editable `.pxreview` notebook with multiple memo
-entries. This is not a Session. It stores text, image references, ROI/line and
-just enough view state to revisit each saved point. It does **not** embed full
-original image arrays or screenshots.
+Use **Save Memo…** to save one editable `.pxmemo` notebook containing all entries,
+ROI PNGs and any saved Statistics CSVs. It retains image references, ROI/line and
+enough view state to revisit each point, without embedding full originals.
+An unsaved indicator and close confirmation help avoid losing notes.
 
-For local click-to-reopen, `.pxreview` contains the absolute paths of the
+For local click-to-reopen, `.pxmemo` contains the absolute paths of the
 original image files. **Treat the editable notebook as private/local** and do
 not distribute it as an anonymized report. If the original files are removed
-or modified, open the notebook to read the notes and use Locate image when
-appropriate. No silent relinking or substitution occurs.
+or modified, open the notebook to read the notes and saved crops. The panel says
+the original is unavailable; **Locate image…** can reconnect it. No silent
+relinking or substitution occurs. Legacy `.pxreview` files remain readable, but
+have no stored crop: converting them cannot recreate an image from the past.
 
 **Open Memo…** loads a notebook and selects its first entry; clicking another
 entry revisits that inspection point without a separate Verify or Activate
@@ -49,11 +54,14 @@ canonical **8-bit display preview**, not raw Bayer values, native YUV planes or
 a screenshot with selection overlays. Existing files are never overwritten.
 An invalid/out-of-bounds ROI fails the operation without clamping.
 
-## Portable HTML report — separate from editable Memo
+## Reuse evidence or share a simple HTML report
 
-A portable report is a different use case: an `index.html` plus ROI PNG
-assets and a minimal manifest for recipients without PixelScope. It must not
-include private source file paths. **Export of this self-contained HTML package
-and permanent offline ROI snapshots is not implemented in this W09b slice.**
-The distinction is deliberate; the presence of a design document or JSON
-metadata alone does not make a report shareable.
+Select **Export Report…** and choose a parent folder. PixelScope
+creates a new **PixelScope Memo** folder (with a number if one already exists).
+Open `index.html` in a browser, or copy the PNGs and any Statistics CSVs into your
+own report. Source numbers in CSV follow the image order for that memo.
+
+Export uses stored crops and values, so it also works without originals. Share
+the entire HTML folder to retain its relative images and CSV links. Automatic
+original file paths are omitted; your titles, notes and image names are included.
+The editable notebook remains the way to continue editing notes in PixelScope.

@@ -1,5 +1,15 @@
 # PixelScope current state
 
+> **Memo evidence / preset cleanup candidate (2026-11-09, unmerged):**
+> `codex/memo-evidence-cleanup-20261109` consolidates W09b #222 and actual W05/W06
+> retirement from #224. Preset engines and hide-only toolbar compatibility are
+> removed. Memo captures per-ROI PNGs and optional presented native Statistics,
+> saves `.pxmemo`, reopens evidence without originals, and exports offline HTML
+> with PNG/CSV assets. Legacy `.pxreview` stays readable. Earlier W05/W09b records
+> below are historical acceptance for their named SHAs, not acceptance of this
+> reshaped implementation. See [the active plan](exec-plans/active/memo-evidence-cleanup.md)
+> for current scope, evidence and remaining validation. No MAIN merge is claimed.
+
 > **W09b Named Findings — PR #222 Windows integration accepted (2026-11-06):**
 > production bootstrap/terminal/teardown wiring is exercised with independent
 > save/restart processes and 3 Findings over 2/4/6 RAW/YUV sources. `Side by Side`

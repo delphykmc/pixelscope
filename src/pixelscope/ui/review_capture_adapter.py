@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import numpy as np
+from numpy.typing import NDArray
+
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_analysis import (
     AnalysisPanelAdapter,
@@ -34,6 +37,9 @@ from pixelscope.core.review_record import (
     canonical_json,
     utc_now,
 )
+from pixelscope.core.roi import RoiBounds, roi_fits_shape
+from pixelscope.io.memo_archive import memo_thumbnails
+from pixelscope.io.memo_roi_export import _encode_png
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
     ENCODED_IMAGE_EXTENSIONS,
@@ -64,6 +70,7 @@ class CaptureSource:
     path: Path
     profile: RawProfile | YuvProfile | None
     source: ReviewSourceV1
+    preview: NDArray[np.uint8] | None = None
 
     def still_loaded_as(self, current: Mapping[str, ImageDocument]) -> bool:
         document = current.get(self.document.document_id)
@@ -142,6 +149,7 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
     panel = window.difference_panel
     pair = panel.selected_documents()
     analysis = window.comparison_analysis_panel
+    include_analysis = any(c.status == "captured" for c in expected.analysis)
     return CaptureGuiFence(
         finding_id=expected.id,
         source_ids=doc_ids,
@@ -164,8 +172,8 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
             panel.region.currentText(),
         ),
         display_gain=display_gain_state().gain,
-        w02_presented=analysis.get_presented_analysis_token(),
-        w02_current=analysis.get_current_analysis_token(),
+        w02_presented=analysis.get_presented_analysis_token() if include_analysis else None,
+        w02_current=analysis.get_current_analysis_token() if include_analysis else None,
     )
 
 
@@ -182,6 +190,8 @@ class AttestedFinding:
     finding: ReviewFindingV1
     sources: tuple[ReviewSourceV1, ...]
     bindings: tuple[CaptureSource, ...]
+    crops: tuple[tuple[str, bytes], ...] = ()
+    thumbnails: tuple[tuple[str, bytes], ...] = ()
 
 
 def stage_named_finding(
@@ -266,6 +276,7 @@ def stage_named_finding(
                 document.source_path.resolve(),
                 profile.copy(deep=True) if profile is not None else None,
                 source,
+                document.preview,
             )
         )
     # No pending/stale/uncomputed W02 result is copied, and a Pivot is never
@@ -410,4 +421,29 @@ def attest_staged_finding(
                 ),
                 availability="unavailable",
             )
-    return AttestedFinding(finding, tuple(verified_sources), stage.sources)
+    crops: list[tuple[str, bytes]] = []
+    if finding.roi_ref is not None:
+        roi = RoiBounds(*finding.roi_ref)
+        for pending in stage.sources:
+            if cancel is not None and cancel():
+                raise ReviewCancelled("capture cancelled before ROI crop")
+            preview = pending.preview
+            if preview is None:
+                continue  # Legacy domain callers do not request preview capture.
+            if (
+                preview.dtype != np.uint8
+                or not roi_fits_shape(preview.shape, roi)
+                or roi.width * roi.height > 16 * 1024 * 1024
+            ):
+                raise ReviewValidationError("ROI preview is unavailable or exceeds crop budget")
+            crops.append((pending.key, _encode_png(preview, roi)))
+            if sum(len(data) for _, data in crops) > 128 * 1024 * 1024:
+                raise ReviewValidationError("Memo crops exceed capture budget")
+    thumbs = memo_thumbnails({(finding.id, key): data for key, data in crops})
+    return AttestedFinding(
+        finding,
+        tuple(verified_sources),
+        stage.sources,
+        tuple(crops),
+        tuple((key, data) for (_, key), data in thumbs.items()),
+    )

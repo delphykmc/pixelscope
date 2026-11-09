@@ -11,6 +11,13 @@ from pixelscope.ui.review_window_integration import NamedReviewCoordinator
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
+@pytest.fixture(autouse=True)
+def _discard_on_test_close(monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.Yes)
+
+
 def _window(qtbot: object) -> tuple[MainWindow, NamedReviewCoordinator]:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -32,14 +39,15 @@ def test_production_composition_exposes_named_review_without_toolbar_overflow(
     assert review.panel.findings.count() == 0
 
     window.show()
-    original_workspace = window.beta_workspace_hardening_controller.workspace_presets.preset
+    original_layout = window._layout_mode
     assert review.action.isCheckable()
     assert not review.action.isChecked()
     review.action.trigger()
     assert not review.dock.isHidden()
     assert review.action.isChecked()
     # Opening notes is an explicit visibility action, not a layout preset switch.
-    assert window.beta_workspace_hardening_controller.workspace_presets.preset is original_workspace
+    assert window._layout_mode == original_layout
+    assert not hasattr(window.beta_workspace_hardening_controller, "workspace_presets")
 
     review.action.trigger()
     assert review.dock.isHidden()
@@ -200,7 +208,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
     root = Path(str(tmp_path))
     image = root / "inspection_rgb.png"
     assert cv2.imwrite(str(image), np.full((72, 96, 3), (15, 65, 155), dtype=np.uint8))
-    memo_file = root / "inspection.pxreview"
+    memo_file = root / "inspection.pxmemo"
 
     first_roi = RoiBounds(4, 5, 24, 18)
     second_roi = RoiBounds(38, 30, 26, 20)
@@ -239,6 +247,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
     )
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kw: (str(memo_file), ""))
     review.save_dialog()
+    qtbot.waitUntil(lambda: review._io_worker is None, timeout=10000)
     assert memo_file.is_file()
     window.close()
 
@@ -247,6 +256,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
     fresh.show()
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_args, **_kw: (str(memo_file), ""))
     notes.open_dialog()
+    qtbot.waitUntil(lambda: notes._io_worker is None, timeout=10000)
     assert len(notes.library.document.findings) == 2
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: notes.restore.phase == "applied" and fresh._shared_roi == first_roi,

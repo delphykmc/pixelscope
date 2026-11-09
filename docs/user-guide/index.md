@@ -22,6 +22,7 @@ If a workflow uses unfamiliar terms such as **Registered**, **Selected**, **Curr
 - [Calculate Difference](workflows/use-difference.md)
 - [Export current analysis](workflows/export-analysis.md)
 - [Save and restore a Session](workflows/save-and-restore-work.md)
+- [Keep Memo notes, ROI images and reports](workflows/review-findings.md)
 - [Use IQA Reference mode](workflows/use-remote-iqa.md)
 - [Open RAW](formats/raw.md) or [YUV](formats/yuv.md) data
 

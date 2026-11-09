@@ -25,10 +25,17 @@ from pixelscope.core.review_record import (
     ReviewValidationError,
 )
 from pixelscope.core.review_workflow import ReviewLibrary
+from pixelscope.io.memo_archive import (
+    MemoArchive,
+    export_memo_html,
+    load_memo_archive,
+    memo_thumbnails,
+    save_memo_archive,
+)
 from pixelscope.io.memo_roi_export import export_roi_pngs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
-from pixelscope.io.review_repository import ReviewConflictError, normalize_review_path
+from pixelscope.io.review_repository import ReviewRepository
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.display_gain import display_gain_state
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
@@ -51,6 +58,29 @@ from pixelscope.ui.review_restore_controller import (
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+def _memo_io(
+    operation: str,
+    path: Path,
+    archive: MemoArchive | None,
+    revision: str | None,
+) -> object:
+    """Worker-only file operations; no coordinator or QObject is retained."""
+    if operation == "open":
+        if path.suffix.lower() == ".pxreview":
+            document, _ = ReviewRepository().load_with_revision(path)
+            loaded, version = MemoArchive(document, {}), None
+        else:
+            loaded, version = load_memo_archive(path)
+        return loaded, version, memo_thumbnails(loaded.crops)
+    if archive is None:
+        raise ValueError("No Memo to save or export")
+    if operation == "save":
+        return save_memo_archive(path, archive, expected_revision=revision)
+    if operation == "report":
+        return export_memo_html(path, archive)
+    raise ValueError("Unknown Memo operation")
 
 
 class NamedReviewCoordinator:
@@ -85,6 +115,13 @@ class NamedReviewCoordinator:
         self._export_task_id: str | None = None
         self._export_worker: TaskWorker | None = None
         self._export_cancel: Event | None = None
+        self._crops: dict[tuple[str, str], bytes] = {}
+        self._thumbnails: dict[tuple[str, str], bytes] = {}
+        self._io_worker: TaskWorker | None = None
+        self._io_task_id: str | None = None
+        self._io_operation = ""
+        self._io_path: Path | None = None
+        self._io_snapshot: MemoArchive | None = None
         self._closed = False
         self.action = QAction("Memo", window)
         self.action.setToolTip("Show or hide image inspection notes")
@@ -104,6 +141,7 @@ class NamedReviewCoordinator:
         self.panel.open_requested.connect(self.open_dialog)
         self.panel.save_requested.connect(self.save_dialog)
         self.panel.export_roi_requested.connect(self.export_roi_dialog)
+        self.panel.export_report_requested.connect(self.export_report_dialog)
         self.panel.candidate_requested.connect(self.choose_candidate)
         self.panel.verify_requested.connect(self.verify)
         self.panel.finding_changed.connect(self.select_finding)
@@ -112,7 +150,6 @@ class NamedReviewCoordinator:
         self.restore.restore_completed.connect(self._restored)
         self.panel.set_document(self.library.document)
         # Memo is an optional View dock, not a second workspace layout mode.
-        self._workspace_presets = None
 
     @property
     def window(self) -> Any:
@@ -149,14 +186,8 @@ class NamedReviewCoordinator:
         finally:
             self.action.blockSignals(blocked)
 
-    @Slot(int)
-    def _workspace_changed(self, _index: int) -> None:
-        # Deprecated W06 layout integration: Memo is solely View-controlled.
-        return
-
     def _error(self, message: str) -> None:
         self.panel.set_status(message)
-        QMessageBox.warning(self.panel, "Named Finding", message)
 
     @Slot()
     def export_roi_dialog(self) -> None:
@@ -273,7 +304,10 @@ class NamedReviewCoordinator:
             window = self.window
             title, note, tags = self.panel.metadata()
             if not title:
-                title = f"Finding {len(self.library.document.findings) + 1}"
+                title = f"ROI {len(self.library.document.findings) + 1}"
+            if window._shared_roi is None:
+                self.panel.set_status("Draw an ROI, then add a memo")
+                return
             page = tuple(window.current_comparison_documents())
             if not page:
                 raise ReviewValidationError("No comparison sources are selected")
@@ -317,7 +351,7 @@ class NamedReviewCoordinator:
                 channel="All",
                 display_gain=display_gain_state().gain,
                 difference_intent=recipe,
-                analysis_panel=None,  # ROI/image note, not a statistics report.
+                analysis_panel=panel if self.panel.include_statistics.isChecked() else None,
                 # Editable local Memo bookmarks need their exact source paths.
                 # Portable HTML exports must explicitly strip these private paths.
                 persist_local_paths=True,
@@ -327,6 +361,13 @@ class NamedReviewCoordinator:
                     else None
                 ),
             )
+            if self.panel.include_statistics.isChecked() and not any(
+                capture.status == "captured" for capture in stage.finding.analysis
+            ):
+                self.panel.set_status(
+                    "Wait for current ROI Statistics, or uncheck Include statistics"
+                )
+                return
             fence = capture_gui_fence(window, stage)
             epoch = self._capture_epoch
             cancel = Event()
@@ -342,7 +383,7 @@ class NamedReviewCoordinator:
             worker.signals.failed.connect(self._capture_failed)
             worker.signals.finished.connect(self._capture_finished)
             analysis_thread_pool().start(worker)
-            self.panel.set_status("Verifying candidate bytes and loaded native samples…")
+            self.panel.set_status("Saving this ROI and its image crops…")
         except (ValueError, KeyError, RuntimeError, AttributeError) as exc:
             self._error(f"Finding capture unavailable: {exc}")
 
@@ -368,9 +409,22 @@ class NamedReviewCoordinator:
             current = self.window.documents
             if not all(item.still_loaded_as(current) for item in value.bindings):
                 raise ReviewValidationError("source generation changed during capture")
+            if {key for key, _ in value.crops} != set(value.finding.source_keys):
+                raise ReviewValidationError("Ready image previews are required for every ROI crop")
+            if any(c.status == "captured" for c in stage.finding.analysis) and not any(
+                c.status == "captured" for c in value.finding.analysis
+            ):
+                raise ReviewValidationError("ROI Statistics changed; retry after Statistics settle")
             self.library.add(value.finding, value.sources)
+            self.authority.review = self.library.document
+            self._crops.update({(value.finding.id, key): data for key, data in value.crops})
+            self._thumbnails.update(
+                {(value.finding.id, key): data for key, data in value.thumbnails}
+            )
             self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=value.finding.id)
+            self._show_evidence(value.finding.id)
+            self.panel.set_dirty(self.library.dirty)
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
         except (ValueError, KeyError, RuntimeError) as exc:
             self._error(f"Finding commit refused: {exc}")
@@ -397,6 +451,8 @@ class NamedReviewCoordinator:
             self.library.edit(finding_id, title=title, note=note, tags=tags)
             self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=finding_id)
+            self._show_evidence(finding_id)
+            self.panel.set_dirty(self.library.dirty)
             self.panel.set_status("Memo updated")
         except (ValueError, KeyError) as exc:
             self._error(str(exc))
@@ -407,7 +463,12 @@ class NamedReviewCoordinator:
         self.restore.cancel()
         try:
             self.library.delete(finding_id)
+            self._crops = {key: data for key, data in self._crops.items() if key[0] != finding_id}
+            self._thumbnails = {
+                key: data for key, data in self._thumbnails.items() if key[0] != finding_id
+            }
             self.panel.set_document(self.library.document)
+            self.panel.set_dirty(self.library.dirty)
             self.panel.set_status("Memo deleted")
         except KeyError as exc:
             self._error(str(exc))
@@ -422,6 +483,7 @@ class NamedReviewCoordinator:
         """
         if self._closed:
             return
+        self._show_evidence(finding_id)
         if self._skip_next_selection_restore:
             self._skip_next_selection_restore = False
             return
@@ -470,8 +532,8 @@ class NamedReviewCoordinator:
             if missing:
                 self.panel.show_missing_images(tuple(missing))
                 self.panel.set_status(
-                    "Some images need locating. Choose Locate image to reconnect; "
-                    "your note remains available."
+                    "Original image unavailable. Saved crops and notes remain readable. "
+                    "Use Locate image to reconnect."
                 )
                 return
             self._auto_restore_id = finding_id
@@ -481,76 +543,178 @@ class NamedReviewCoordinator:
             self.panel.set_status(f"Memo cannot be reopened: {exc}")
 
     def open_dialog(self) -> None:
+        if self._io_worker is not None:
+            self.panel.set_status("Wait for the current Memo file operation")
+            return
         if (
             self.library.dirty
             and QMessageBox.question(
                 self.panel,
-                "Unsaved Review",
-                "Discard unsaved Finding changes?",
+                "Unsaved Memo",
+                "Discard unsaved memo changes?",
             )
             != QMessageBox.StandardButton.Yes
         ):
             return
         chosen, _ = QFileDialog.getOpenFileName(
             self.panel,
-            "Open Review",
+            "Open Memo",
             "",
-            "Pixelscope Review (*.pxreview)",
+            "PixelScope Memo (*.pxmemo *.pxreview)",
         )
         if not chosen:
             return
         self.cancel_capture()
         self.restore.cancel()
-        try:
-            self.library.open(chosen)
-            self.authority.review = self.library.document
-            self._approved.clear()
-            first = self.library.document.findings[0].id if self.library.document.findings else None
-            self.panel.set_document(self.library.document, selected_id=first)
-            if first is None:
-                self.panel.set_status("Memo opened. No saved notes yet.")
-        except (OSError, ValueError) as exc:
-            self._error(f"Open failed; existing Review retained: {exc}")
+        self._start_io("open", Path(chosen).absolute())
 
     def save_dialog(self) -> None:
+        if self._io_worker is not None or self._capture_worker is not None:
+            self.panel.set_status("Wait for the current Memo operation before saving")
+            return
         path = self.library.path
-        if path is None:
+        if path is None or path.suffix.lower() != ".pxmemo":
             filename, _ = QFileDialog.getSaveFileName(
                 self.panel,
-                "Save Review",
+                "Save Memo (includes ROI images; local original paths are private)",
                 "",
-                "Pixelscope Review (*.pxreview)",
+                "PixelScope Memo (*.pxmemo)",
             )
             if not filename:
                 return
-            path = normalize_review_path(filename)
-        overwrite = path.is_file()
-        if overwrite and self.library.path != path:
-            self._error("Destination exists; open the exact Review before overwriting")
+            path = Path(filename).absolute()
+            if path.suffix.lower() != ".pxmemo":
+                path = path.with_suffix(".pxmemo")
+        if path.exists() and self.library.path != path:
+            self._error("Destination exists; choose another filename or open that Memo first")
             return
-        if (
-            overwrite
-            and QMessageBox.question(
+        protected = {
+            d.source_path.resolve()
+            for d in self.window.documents.values()
+            if d.source_path is not None
+        }
+        if path.resolve() in protected:
+            self._error("A Memo cannot replace an original image")
+            return
+        self._start_io("save", path)
+
+    def _show_evidence(self, finding_id: str) -> None:
+        self.panel.show_saved_crops(
+            {key: data for (fid, key), data in self._thumbnails.items() if fid == finding_id}
+        )
+
+    def export_report_dialog(self) -> None:
+        if not self.library.document.findings:
+            self.panel.set_status("Add a memo before exporting a report")
+            return
+        if self._io_worker is not None or self._capture_worker is not None:
+            self.panel.set_status("Wait for the current Memo operation before exporting")
+            return
+        directory = QFileDialog.getExistingDirectory(
+            self.panel, "Choose parent folder for Memo report"
+        )
+        if not directory:
+            return
+        parent = Path(directory)
+        target = parent / "PixelScope Memo"
+        number = 2
+        while target.exists():
+            target = parent / f"PixelScope Memo {number}"
+            number += 1
+        self._start_io("report", target)
+
+    def _start_io(self, operation: str, path: Path) -> None:
+        if self._closed or self._io_worker is not None:
+            return
+        snapshot = MemoArchive(self.library.document, self._crops)
+        revision = self.library.revision if self.library.path == path else None
+        worker = TaskWorker(_memo_io, operation, path, snapshot, revision)
+        self._io_worker = worker
+        self._io_task_id = worker.task_id
+        self._io_operation = operation
+        self._io_path = path
+        self._io_snapshot = snapshot
+        # Avoid changing notebooks or note content during a file operation. Show
+        # the existing evidence while all disk/PNG/HTML work runs off the GUI.
+        self.panel.setEnabled(False)
+        worker.signals.succeeded.connect(self._io_succeeded)
+        worker.signals.failed.connect(self._io_failed)
+        worker.signals.finished.connect(self._io_finished)
+        analysis_thread_pool().start(worker)
+        self.panel.set_status(
+            {
+                "open": "Opening saved Memo…",
+                "save": "Saving notes and ROI images…",
+                "report": "Exporting saved Memo evidence…",
+            }[operation]
+        )
+
+    @Slot(str, object, int, object)
+    def _io_succeeded(self, task_id: str, _doc: object, _epoch: int, result: object) -> None:
+        if self._closed or task_id != self._io_task_id:
+            return
+        path = self._io_path
+        snapshot = self._io_snapshot
+        if path is None or snapshot is None:
+            return
+        if self._io_operation == "open" and isinstance(result, tuple):
+            archive, revision, thumbnails = result
+            if not isinstance(archive, MemoArchive):
+                return
+            self.library.document = archive.review
+            self.library.path = path
+            self.library.revision = revision
+            self.library.dirty = False
+            self._crops = dict(archive.crops)
+            self._thumbnails = thumbnails
+            self.authority.review = archive.review
+            self._approved.clear()
+            first = archive.review.findings[0].id if archive.review.findings else None
+            self.panel.set_document(archive.review, selected_id=first)
+            if first is None:
+                self.panel.set_status("Memo opened. No saved notes yet.")
+        elif self._io_operation == "save" and isinstance(result, str):
+            self.library.path = path
+            self.library.revision = result
+            self.library.dirty = self.library.document is not snapshot.review
+            self.panel.set_status(f"Saved {path.name} — notes and stored ROI images")
+        elif self._io_operation == "report":
+            self.panel.set_status(f"Exported {path.name}/index.html with PNG/CSV assets")
+        self.panel.set_dirty(self.library.dirty)
+
+    @Slot(str, object, int, object)
+    def _io_failed(self, task_id: str, _doc: object, _epoch: int, error: object) -> None:
+        if not self._closed and task_id == self._io_task_id:
+            self.panel.set_status(
+                f"Memo {self._io_operation} failed; existing notebook retained: "
+                f"{getattr(error, 'message', error)}"
+            )
+
+    @Slot(str)
+    def _io_finished(self, task_id: str) -> None:
+        if task_id == self._io_task_id:
+            self._io_worker = None
+            self._io_task_id = None
+            self._io_snapshot = None
+            if not self._closed:
+                self.panel.setEnabled(True)
+
+    def confirm_close(self) -> bool:
+        if self._io_worker is not None:
+            self.panel.set_status("Wait for the current Memo file operation before closing")
+            return False
+        if not self.library.dirty and self._capture_worker is None:
+            return True
+        return (
+            QMessageBox.question(
                 self.panel,
-                "Overwrite Review",
-                "Replace this Review revision?",
+                "Unsaved Memo",
+                "Discard unsaved memo changes and close?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
-            != QMessageBox.StandardButton.Yes
-        ):
-            return
-        try:
-            protected = tuple(
-                d.source_path for d in self.window.documents.values() if d.source_path is not None
-            )
-            result = self.library.save(
-                path,
-                overwrite=overwrite,
-                protected_paths=protected,
-            )
-            if result.committed:
-                self.panel.set_status(f"Saved {result.path.name} (atomic CAS)")
-        except (ReviewConflictError, OSError, ValueError) as exc:
-            self._error(f"Review save failed, existing destination retained: {exc}")
+            == QMessageBox.StandardButton.Yes
+        )
 
     @Slot(str)
     def choose_candidate(self, key: str) -> None:
@@ -669,6 +833,9 @@ class NamedReviewCoordinator:
         self.cancel_capture()
         self.cancel_export()
         self.restore.shutdown()
+        if self._io_worker is not None:
+            self._io_worker.cancel()
+        self._io_task_id = None
         self._auto_restore_id = None
         self._closed = True
         self.action.setEnabled(False)
