@@ -174,3 +174,41 @@ def test_missing_roi_does_not_create_memo(qtbot, windows):
     assert "Draw an ROI" in memo.panel.status.text()
     assert not memo.library.document.findings
     window.close()
+
+
+def test_single_view_records_visible_image_when_several_sources_are_selected(
+    qtbot,
+    tmp_path,
+    windows,
+):
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"single{index}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 40 + index, np.uint8))
+        paths.append(path)
+    window, memo = windows()
+    window.open_image_paths(paths)
+    window.set_layout_mode("Single View")
+    qtbot.waitUntil(
+        lambda: len(window.selected_documents) == 2
+        and window.viewer.document is not None
+        and window.viewer.document.loading_state == "ready"
+        and window.viewer.measure_physical_zoom().valid
+        and not window.viewer._geometry_timer.isActive(),
+        timeout=10000,
+    )
+    assert window._apply_shared_roi(RoiBounds(2, 3, 16, 12), allow_channel_split=False)
+    shown = window.viewer.document
+    window._primary_page_slot = 1
+    memo.add()
+    qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=15000)
+    assert len(memo.library.document.findings) == 1, memo.panel.status.text()
+    finding = memo.library.document.findings[0]
+    assert len(finding.source_keys) == 1 and len(memo._crops) == 1
+    assert memo.library.document.sources[0].locator.local_path == str(shown.source_path)
+    assert len(window.selected_documents) == 2  # recording is not a selection change
+    assert window._primary_page_slot == 1
+    memo.panel.include_statistics.setChecked(True)
+    memo.add()
+    assert "Multi View" in memo.panel.status.text()
+    assert len(memo.library.document.findings) == 1

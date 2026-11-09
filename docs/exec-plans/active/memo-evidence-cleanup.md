@@ -85,6 +85,25 @@ No new workspace mode, forced IQA docking, decoder changes, packaging or depende
 - `ruff check .` finds four existing lint errors in untracked owner GC diagnostics;
   `ruff format --check .` identifies those three scripts. They are left untouched.
   Tracked-file checks exclude these pre-existing untracked diagnostics.
+- Full Windows run at `b8027743`: `python -m pytest -q` completed with
+  **11 failed, 1904 passed, 1 warning in 452.26s**, exit 1. Nine failures involve
+  native clipboard operations (COM OpenClipboard `0x800401d0` / empty clipboard);
+  the remaining failures are Difference geometry parity and RAW dialog height.
+  Detached pristine MAIN `98d2a603` reproduced both Difference parameter failures,
+  the RAW height timeout and both clipboard-support failures (**5 failed in
+  9.19s**). Assertions/timeouts/clipboard paths were not weakened or suppressed.
+- Post-run workflow review found Single View with several Selected sources tried
+  to capture hidden Multi View geometry. Added visible-original-only capture with
+  exact Single viewport; Selected and Primary remain unchanged. A regression
+  reproduced `layout-not-settled` before correction and passes after correction.
+  Optional Statistics for a single canvas with several Selected sources requires
+  Multi View or selecting only that image, rather than copying unrelated rows.
+- Final applicable selection after the Single View correction: `python -m pytest -q`
+  over Memo archive/ROI export, W09a repository, W09b workflow/guards/native decoder,
+  Memo evidence, production RGB/RAW/YUV restore, retirement/toolbar and P4-A
+  Difference curation modules: **86 passed in 25.91s**. Docs, tracked Ruff lint/format
+  (**401 files**) and mypy (**132 files**) passed again. The corrected source is
+  committed before its final full normal-GC run; no full PASS is inferred.
 
 ## Remaining acceptance
 

@@ -926,6 +926,8 @@ source references, exact ROI/line, physical view, comparison pair intent and one
 8-bit canonical preview PNG per source. Preview crops contain no overlays and are
 not native numerical authority. **Update Note** changes text without replacing
 historical pixels; Delete removes only that entry and its crops.
+Single View records the visible original image; Multi View records the comparison
+page. Capture itself does not change logical Selected or Primary.
 
 **Include current ROI statistics** is opt-in. Only matching already-presented native
 ROI Statistics may be frozen; pending/stale results require waiting or opting out.

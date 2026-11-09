@@ -311,10 +311,24 @@ class NamedReviewCoordinator:
             page = tuple(window.current_comparison_documents())
             if not page:
                 raise ReviewValidationError("No comparison sources are selected")
+            single = window.central_stack.currentWidget() is window.viewer
+            if single:
+                visible = window.viewer.document
+                if visible is None or visible not in page:
+                    raise ReviewValidationError("Show an original image before adding a memo")
+                # A single canvas records the image actually being inspected.
+                # Keep logical Selected and its Primary slot unchanged.
+                page = (visible,)
+                if self.panel.include_statistics.isChecked() and len(window.selected_documents) > 1:
+                    self.panel.set_status(
+                        "For ROI Statistics, use Multi View or select only this image; "
+                        "uncheck Statistics to record this visible image now"
+                    )
+                    return
             panel = window.comparison_analysis_panel
             keys = {d.document_id: panel.source_key_for_document(d.document_id) for d in page}
             panel.bind_review_source_keys(keys)
-            primary = window._primary_document_for_page(list(page))
+            primary = page[0] if single else window._primary_document_for_page(list(page))
             if primary is None:
                 raise ReviewValidationError("Primary source is not available")
             pair = window.difference_panel.selected_documents()
@@ -355,11 +369,7 @@ class NamedReviewCoordinator:
                 # Editable local Memo bookmarks need their exact source paths.
                 # Portable HTML exports must explicitly strip these private paths.
                 persist_local_paths=True,
-                single_viewer=(
-                    window.viewer
-                    if len(page) == 1 and window.central_stack.currentWidget() is window.viewer
-                    else None
-                ),
+                single_viewer=(window.viewer if single else None),
             )
             if self.panel.include_statistics.isChecked() and not any(
                 capture.status == "captured" for capture in stage.finding.analysis

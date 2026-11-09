@@ -115,8 +115,13 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
     """Read-only GUI-thread revision oracle; fail closed if a view is unsettled."""
     from pixelscope.ui.display_gain import display_gain_state
 
-    page = tuple(window.current_comparison_documents())
     expected = stage.finding
+    single = expected.view_state.layout_kind == "Single"
+    page = (
+        (window.viewer.document,)
+        if single and window.viewer.document is not None
+        else tuple(window.current_comparison_documents())
+    )
     doc_ids = tuple(document.document_id for document in page)
     keys = dict(zip(doc_ids, expected.source_keys, strict=True))
     if doc_ids != tuple(item.document.document_id for item in stage.sources):
@@ -141,7 +146,7 @@ def capture_gui_fence(window: Any, stage: StagedFinding) -> CaptureGuiFence:
         (doc_id for doc_id, key in keys.items() if key == expected.view_state.primary_source_key),
         None,
     )
-    primary = window._primary_document_for_page(list(page))
+    primary = window.viewer.document if single else window._primary_document_for_page(list(page))
     if primary is None or primary.document_id != reference_primary_id:
         raise ReviewValidationError("Primary changed during capture")
     roi = window._shared_roi

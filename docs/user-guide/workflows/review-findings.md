@@ -10,6 +10,8 @@ You can read the saved evidence without the originals and reuse it in a report.
 2. Draw a rectangle on the image. Select **View > Memo**.
 3. Type a short Title and Note, then select **Add Memo**. Wait for capture to finish:
    each image on the current page contributes a frozen ROI PNG.
+   In Single View, the memo records the visible original image; Multi View records
+   the comparison page. Recording does not change your current selection.
 4. Repeat for another ROI. Select either entry in the Memo list: the selected
    image(s), saved ROI and physical zoom/center are restored automatically.
 5. **Update Note** edits text while preserving its original crop. **Delete** removes
@@ -20,6 +22,8 @@ native numeric results, check **Include current ROI statistics** before adding.
 The current ROI Statistics must already be displayed; if they are pending, wait
 or uncheck the option. Saved CSVs identify the ROI, channels, native domain, sample
 counts and capture time. Changing a note later never recomputes its saved values.
+For a Single View note with Statistics, select only that image; use Multi View
+to keep the comparison page and its per-image Statistics together.
 
 ## Local save and reopen
 
