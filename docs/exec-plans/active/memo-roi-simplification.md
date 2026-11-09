@@ -1,6 +1,6 @@
 # ROI Memo simplification
 
-Status: Implementation finished; full validation and owner/review acceptance pending.
+Status: Implementation finished; known native validation failures and owner/review acceptance pending.
 Owner: ChatGPT-assisted, 2026-11-09.
 Branch/PR: `codex/memo-evidence-cleanup-20261109`, #227.
 
@@ -86,7 +86,7 @@ CPython 3.10.11 / PySide6 6.4.2, Windows normal automatic GC:
 
 ## Remaining gates
 
-Committed-source full Windows run, independent final-code review and owner workflow
+Resolve/recheck native full-suite failures, independent final-code review and owner workflow
 acceptance. Single View Statistics requires only that image selected; Multi View
 captures page Statistics. RAW/YUV originals need existing approved input settings.
 The inherited native decode budget is 128 MiB. Existing owner untracked diagnostic,
@@ -136,3 +136,29 @@ git diff --check
 
 Hosted full pytest is not added. Source/test changes require normal-GC local Windows
 validation; existing unrelated native failures are reported rather than masked.
+
+## Final committed-source result
+
+Tested source/test SHA: `d7d319cb1df71c11534eaaf9f882d9af4fb7900e`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --tb=short --junitxml=temp/memo-roi-full-20261109.xml
+```
+
+Observed **11 failed, 1906 passed, 1 warning in 465.00s**, exit 1. All current
+Memo-specific tests passed. Failures are the same families reproduced previously
+on pristine MAIN `98d2a603`: nine clipboard operations with COM OpenClipboard
+`0x800401d0`, RAW dialog compact-height timeout, and Difference RGB geometry parity.
+The latter was intermittent in the preceding full runs; it is not claimed fixed.
+The warning is the existing intentional duplicate-ZIP tamper test. Assertions,
+timeouts, GC and native clipboard behavior were not weakened or suppressed.
+
+The latest code also covers editing/dirty marker after saving deletion of every ROI,
+waiting for optional Statistics without another command, hidden Memo deferred work,
+and stale Open results after file reset. No reverse file discovery or key matching
+was added. Full validation is **not clean**; this remains a Draft with no MAIN merge.
+
+Commits use owner-configured Git identity and
+`Co-authored-by: ChatGPT <noreply@openai.com>`; PR/issue updates are marked
+ChatGPT-assisted. All eleven original untracked owner files are preserved. Final
+follow-up records only validation documentation, with source/test trees unchanged.
