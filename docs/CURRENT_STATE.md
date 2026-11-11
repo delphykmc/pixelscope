@@ -5,9 +5,12 @@
 > Memo ROIs, a default save filename, a generated sibling HTML/PNG/CSV report folder
 > with an Open report link, and crop filename/coordinate footers. Canonical archive
 > crops, Session and one-way/reset semantics remain unchanged. Focused regression
-> and actual Qt screenshot evidence are recorded in
-> [the feedback plan](exec-plans/active/memo-viewer-report-feedback.md); final broad
-> validation is pending. This is separate from the completed eleven-failure check.
+> Source/test `785659db` passed **1,936 tests, 1 warning in 450.57s** with normal
+> Windows GC. Independent code review found no actionable issue; its pure
+> archive/report selection passed 25 tests. Full evidence and actual screenshots
+> are in [the feedback plan](exec-plans/active/memo-viewer-report-feedback.md).
+> PR #228 tracks final review/merge. This is separate from the completed
+> eleven-failure check.
 
 > **Historical eleven-failure verification complete (2026-11-12):** at merged
 > `main@97a356f0`, the exact eleven previously failing tests passed in 8.27s and
