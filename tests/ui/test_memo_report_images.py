@@ -155,3 +155,42 @@ def test_legacy_zip_save_creates_folder_without_replacing_legacy_file(
     assert legacy.read_bytes() == original
     assert not memo.library.path.read_bytes().startswith(b"PK")
     window.close()
+
+
+def test_committed_folder_cleanup_warning_preserves_ui_revision(
+    qtbot, monkeypatch, tmp_path, request
+):
+    from pixelscope.io import memo_folder
+
+    window, memo = request.getfixturevalue("windows")()
+    source = tmp_path / "source.png"
+    assert cv2.imwrite(str(source), np.full((48, 64, 3), 70, np.uint8))
+    window.open_image_paths([source])
+    qtbot.waitUntil(
+        lambda: window.viewer.document is not None
+        and window.viewer.document.loading_state == "ready"
+        and not window.viewer._geometry_timer.isActive(),
+        timeout=10000,
+    )
+    window._shared_roi_changed(RoiBounds(2, 3, 12, 10))
+    qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=10000)
+    target = tmp_path / "notes" / "notes.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a: (str(target), ""))
+
+    def fail_cleanup(*_args):
+        raise PermissionError("backup in use")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(memo_folder, "_remove_staging", fail_cleanup)
+        memo.save_dialog()
+        qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    assert "cleanup pending" in memo.panel.status.text()
+    assert memo.panel.header.text() == "● Saved" and not memo.library.dirty
+    assert memo.library.revision == load_memo_archive(target)[1]
+    memo.panel.note_edit.setPlainText("saved after cleanup warning")
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    loaded, revision = load_memo_archive(target)
+    assert memo.library.revision == revision and not memo.library.dirty
+    assert loaded.review.findings[0].note == "saved after cleanup warning"
+    window.close()

@@ -1181,6 +1181,9 @@ retains its recovery copy. `io.memo_report` is a staging helper, not a separatel
 committed product output. PNG footer drawing remains worker-side QImage/QPainter;
 exact undecorated crops are separate external assets. ZIP loading retains its
 strict old/current renderer validation, while new maps validate asset digests.
+Post-publication cleanup failures return the committed revision and a cleanup
+warning rather than overriding success; only pre-publication failures keep the
+old revision. Staging names are isolated from user folder names.
 
 The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
 only when its explicit source ID/generation bindings match the resident ready

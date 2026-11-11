@@ -56,3 +56,20 @@ Commits use configured owner identity and `Co-authored-by: ChatGPT <noreply@open
 GitHub bodies/comments are ChatGPT-assisted. Physical DPI/multimonitor/SMB,
 packaged execution and Enterprise remain unverified. Original-source absence is
 supported, but broken/edited mapped evidence is explicitly rejected.
+
+## Review remediation before final validation
+
+Initial source checkpoint `7ee313b2` began a full run, which was interrupted before
+completion to address confirmed findings; it is not a full PASS. A user folder
+named `previous` collided with staging/backup names. Its regression failed before
+the fix; staging now uses isolated fixed child paths, and previous/next/
+presentation_report name cases pass.
+
+Independent read-only review found that post-publication backup cleanup errors
+could lose the committed revision in the UI. The writer now returns a typed
+FolderSaveResult with committed revision and cleanup warning. First-save and
+replacement cleanup-failure/retry tests passed; the coordinator carries that
+warning without changing Saved into a failed save. Pure folder selection passed
+16 tests in 5.69s after remediation. A new worker/UI regression checks Saved and
+re-saving after the same warning. Final source review/full run are pending on the
+next committed head; no PR has been created yet.

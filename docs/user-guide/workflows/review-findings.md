@@ -66,6 +66,9 @@ or unrelated files/directories are protected. Failed saving keeps the earlier
 generation, and an initial failed save leaves notes Unsaved. If rollback cannot
 restore the previous folder, the error gives its retained recovery location. Keep
 an untouched Memo folder; edit a copy of its report for your own reporting work.
+If saving succeeded but temporary backup cleanup failed, the header remains Saved
+and the status gives a cleanup warning/location. The new Memo is usable and Save
+can be retried normally.
 
 The editable notebook may contain private original paths in its internal record.
 Its HTML uses relative assets and omits automatic original paths. Share only the

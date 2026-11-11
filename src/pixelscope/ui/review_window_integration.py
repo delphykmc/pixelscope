@@ -64,6 +64,7 @@ from pixelscope.workers.thread_pools import analysis_thread_pool
 class MemoSaveResult:
     revision: str
     report_path: Path
+    cleanup_warning: str = ""
 
 
 def _memo_io(
@@ -88,8 +89,8 @@ def _memo_io(
     if archive is None:
         raise ValueError("No Memo to save")
     if operation == "save":
-        saved_revision = save_folder_memo(path, archive, revision, annotate_memo_crop)
-        return MemoSaveResult(saved_revision, path.parent)
+        saved = save_folder_memo(path, archive, revision, annotate_memo_crop)
+        return MemoSaveResult(saved.revision, path.parent, saved.cleanup_warning)
     raise ValueError("Unknown Memo operation")
 
 
@@ -766,6 +767,8 @@ class NamedReviewCoordinator:
             self.library.revision = result.revision
             self.library.dirty = self.library.document is not snapshot.review
             self.panel.show_saved_report(path, result.report_path / "index.html")
+            if result.cleanup_warning:
+                self.panel.set_status(f"Saved {path.name}. {result.cleanup_warning}")
         self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
 
     @Slot(str, object, int, object)

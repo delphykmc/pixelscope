@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from pixelscope.core.review_record import ReviewDocumentV1
@@ -14,6 +15,12 @@ from pixelscope.io.memo_report import _inventory, _is_link, _remove_staging, wri
 
 KIND = "pixelscope-memo-folder"
 MAX_BYTES = 256 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class FolderSaveResult:
+    revision: str
+    cleanup_warning: str = ""
 
 
 def metadata_path(chosen: Path) -> Path:
@@ -111,7 +118,7 @@ def save_folder_memo(
     archive: MemoArchive,
     expected_revision: str | None,
     render: Callable[[bytes, str, str], bytes],
-) -> str:
+) -> FolderSaveResult:
     """Publish the complete folder as one generation, keeping unrelated data."""
     root = path.parent
     _canonical_assets(archive)
@@ -126,9 +133,10 @@ def save_folder_memo(
         raise FileNotFoundError("Memo folder vanished")
     parent = root.parent
     stage_parent = Path(tempfile.mkdtemp(prefix=".memo-report-", dir=parent))
-    stage = stage_parent / root.name
+    stage = stage_parent / "next"
     backup = stage_parent / "previous"
     published = False
+    cleanup_warning = ""
     try:
         generated = write_memo_report(
             stage_parent / "presentation.pxmemo", archive, "staged", render
@@ -185,9 +193,14 @@ def save_folder_memo(
             if backup.exists():
                 os.rename(backup, root)
             raise
-        return _digest(raw)
     finally:
         # If rollback failed, retain the only previous copy for recovery.
         if backup.exists() and not published:
             raise OSError(f"Memo recovery copy retained at {backup}")
-        _remove_staging(stage_parent, parent)
+        try:
+            _remove_staging(stage_parent, parent)
+        except OSError as exc:
+            if not published:
+                raise
+            cleanup_warning = f"Temporary backup cleanup pending at {stage_parent}: {exc}"
+    return FolderSaveResult(_digest(raw), cleanup_warning)

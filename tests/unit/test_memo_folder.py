@@ -19,7 +19,7 @@ def render(data, _name, _coordinates):
 
 def test_metadata_only_folder_roundtrip_move_and_update(tmp_path):
     path, archive = notebook_setup(tmp_path)
-    revision = module.save_folder_memo(path, archive, None, render)
+    revision = module.save_folder_memo(path, archive, None, render).revision
     obj = json.loads(path.read_bytes())
     assert obj["kind"] == module.KIND and "base64" not in path.read_text()
     assert all(name.startswith("src/") or name == "index.html" for name in obj["assets"])
@@ -36,7 +36,7 @@ def test_metadata_only_folder_roundtrip_move_and_update(tmp_path):
     )
     new_revision = module.save_folder_memo(
         path, MemoArchive(edited, archive.crops), revision, render
-    )
+    ).revision
     assert new_revision != revision
     assert load_memo_archive(path)[0].review.findings[0].note == "edited"
 
@@ -44,7 +44,7 @@ def test_metadata_only_folder_roundtrip_move_and_update(tmp_path):
 @pytest.mark.parametrize("change", ["asset", "foreign", "revision", "directory"])
 def test_changed_or_foreign_folder_is_not_overwritten(tmp_path, change):
     path, archive = notebook_setup(tmp_path)
-    revision = module.save_folder_memo(path, archive, None, render)
+    revision = module.save_folder_memo(path, archive, None, render).revision
     if change == "asset":
         (path.parent / "index.html").write_text("user edit")
     elif change == "foreign":
@@ -61,11 +61,11 @@ def test_changed_or_foreign_folder_is_not_overwritten(tmp_path, change):
 
 def test_failed_publication_restores_previous_generation(tmp_path, monkeypatch):
     path, archive = notebook_setup(tmp_path)
-    revision = module.save_folder_memo(path, archive, None, render)
+    revision = module.save_folder_memo(path, archive, None, render).revision
     rename = module.os.rename
 
     def fail(source, target):
-        if source.name == "notes" and source.parent.name.startswith(".memo-report-"):
+        if source.name == "next" and source.parent.name.startswith(".memo-report-"):
             raise OSError("publish failed")
         return rename(source, target)
 
@@ -78,12 +78,12 @@ def test_failed_publication_restores_previous_generation(tmp_path, monkeypatch):
 
 def test_failed_rollback_retains_recoverable_previous_copy(tmp_path, monkeypatch):
     path, archive = notebook_setup(tmp_path)
-    revision = module.save_folder_memo(path, archive, None, render)
+    revision = module.save_folder_memo(path, archive, None, render).revision
     rename = module.os.rename
 
     def fail(source, target):
         if source.name == "previous" or (
-            source.name == "notes" and source.parent.name.startswith(".memo-report-")
+            source.name == "next" and source.parent.name.startswith(".memo-report-")
         ):
             raise OSError("cannot install or restore")
         return rename(source, target)
@@ -107,3 +107,34 @@ def test_metadata_cannot_escape_its_folder(tmp_path, relative):
     path.write_text(json.dumps(obj), encoding="utf-8")
     with pytest.raises(ValueError, match="relative asset"):
         load_memo_archive(path)
+
+
+@pytest.mark.parametrize("name", ["previous", "presentation_report", "next"])
+def test_user_folder_name_cannot_collide_with_internal_staging(tmp_path, name):
+    _, archive = notebook_setup(tmp_path)
+    path = tmp_path / name / f"{name}.pxmemo"
+    revision = module.save_folder_memo(path, archive, None, render).revision
+    module.save_folder_memo(path, archive, revision, render)
+    assert load_memo_archive(path)[0].review == archive.review
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_cleanup_failure_keeps_committed_revision_and_allows_retry(tmp_path, monkeypatch, existing):
+    path, archive = notebook_setup(tmp_path)
+    old_revision = (
+        module.save_folder_memo(path, archive, None, render).revision if existing else None
+    )
+    cleanup = module._remove_staging
+
+    def fail_cleanup(*_args):
+        raise PermissionError("backup held open")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "_remove_staging", fail_cleanup)
+        result = module.save_folder_memo(path, archive, old_revision, render)
+    assert "cleanup pending" in result.cleanup_warning
+    assert load_memo_archive(path)[1] == result.revision
+    retry = module.save_folder_memo(path, archive, result.revision, render)
+    assert not retry.cleanup_warning
+    assert load_memo_archive(path)[1] == retry.revision
+    assert cleanup is module._remove_staging

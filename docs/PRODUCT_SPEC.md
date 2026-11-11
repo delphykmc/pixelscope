@@ -960,6 +960,9 @@ failed installation restores the previous folder, or retains a recovery copy if
 rollback itself fails. Edited/foreign files/directories and linked asset paths
 are refused. Old ZIP `.pxmemo` and `.pxreview` remain readable; saving a legacy
 notebook creates the new folder without replacing its old file.
+If only temporary backup cleanup fails after publication, the new folder remains
+Saved with its committed revision and an explicit cleanup warning/recovery location;
+retrying Save does not falsely report an external revision conflict.
 
 **Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
 Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
