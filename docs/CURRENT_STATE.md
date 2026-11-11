@@ -7,6 +7,9 @@
 > Memo uses opaque common dock chrome and Ctrl+Shift+M. See
 > [the execution record](exec-plans/active/memo-folder-live-switch.md) for validation
 > and remaining PR/completion evidence. Earlier #228 format notes are historical.
+> Source/test `909f8932` passed **1,955 tests, 1 warning in 468.49s** with normal
+> Windows GC. Independent code re-review accepted cleanup-revision and folder-name
+> fixes. PR creation is the final delivery step; this branch is not merged.
 
 > **Memo Viewer/report feedback candidate (2026-11-12, unmerged):**
 > `codex/memo-viewer-report-20261112` adds passive labeled outlines for all current

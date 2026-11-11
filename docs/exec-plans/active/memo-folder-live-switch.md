@@ -1,6 +1,7 @@
 # Memo folder format and live ROI selection
 
-Status: Active. Owner: ChatGPT-assisted, 2026-11-12.
+Status: Implementation/validation complete; final PR delivery pending.
+Owner: ChatGPT-assisted, 2026-11-12.
 Branch: `codex/memo-folder-live-switch-20261112`.
 
 Owner scope: folder-root metadata-only `.pxmemo`, root HTML and relative `src/`
@@ -73,3 +74,56 @@ warning without changing Saved into a failed save. Pure folder selection passed
 16 tests in 5.69s after remediation. A new worker/UI regression checks Saved and
 re-saving after the same warning. Final source review/full run are pending on the
 next committed head; no PR has been created yet.
+
+## Final source validation
+
+Tested source/test: `909f89328c548d6d08c80ad820215f30f2527b22`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --tb=short --junitxml=temp/memo-folder-final-full-20261112.xml
+```
+
+Observed **1955 passed, 1 warning in 468.49s**, exit 0, normal automatic Windows
+GC, with source and HEAD unchanged throughout. The warning is the existing
+intentional duplicate ZIP member tamper test. No assertions, native checks,
+tolerances or timeouts were weakened. Full pytest is not added to CI.
+
+After review remediation, the folder/chrome/actual worker-UI warning/retry selection
+passed **24 in 13.33s**. Independent read-only review accepted source `909f8932`
+and observed pure folder **16 passed in 8.38s**, docs and diff checks clean; no
+additional actionable finding. Final documentation-only changes retain the tested
+source/test tree. Other observed gates: tracked Ruff lint/format **409 files**,
+mypy **135 source files**, docs contract, strict MkDocs, pip check and diff check
+passed. Screenshots 07/08/09 show actual Qt rendering using synthetic data.
+
+### Changed files and retained limits
+
+- `src/pixelscope/io/memo_folder.py`: metadata map, safe assets and complete folder publication.
+- `src/pixelscope/io/memo_archive.py`: compatible ZIP/map reading.
+- `src/pixelscope/ui/review_panel.py`: folder-save explanation.
+- `src/pixelscope/ui/review_restore_controller.py`: explicit live-selection acceptance.
+- `src/pixelscope/ui/review_window_integration.py`: folder persistence, live selection,
+  opaque dock chrome, shortcut and committed cleanup-warning propagation.
+- `tests/unit/test_memo_folder.py`: map move/edit/inventory/path/rollback/cleanup/name tests.
+- `tests/ui/test_memo_chrome.py`: actual floating/docked controls, opacity and shortcut.
+- `tests/ui/test_memo_evidence.py`, `test_memo_report_images.py`,
+  `test_memo_roi_workflow.py`, `test_w09b_named_findings_roundtrip.py`,
+  `test_w09b_production_wiring.py`: native format/restart/migration/cached-selection tests.
+- `docs/ARCHITECTURE.md`, `CURRENT_STATE.md`, `DECISIONS.md`, `PRODUCT_SPEC.md`,
+  `user-guide/workflows/review-findings.md`, `user-guide/reference/keyboard-shortcuts.md`:
+  narrow current contract updates.
+- This plan and `docs/ui/memo-visual-guide/README.md`, `07-folder-memo.png`,
+  `08-floating.png`, `09-docked.png`: evidence and actual-screen guidance.
+
+Physical owner/DPI/multimonitor/SMB/packaged/Enterprise acceptance remains unverified.
+Old client versions cannot read the new JSON map; current code retains old ZIP
+reading and non-destructive migration. Broken/edited bundles are rejected. External
+non-cooperating filesystem edits after the final check remain a race limitation.
+No new dependencies, numerical changes or Session changes. Existing 13 owner
+untracked entries, including the real chart Memo/report, are preserved.
+
+Final delivery: create the PR without merging, leave Issue #210 open, then use one
+explicit sleep action after reporting. No wake timer or automatic continuation is
+authorized by this final instruction. The privilege-only sleep probe passed; it
+did not suspend. Machine-local helper and state stay in ignored `temp/agent-power/`.
+Actual PR/sleep task details are to be recorded there after final delivery.
