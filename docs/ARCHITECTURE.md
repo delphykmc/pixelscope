@@ -1166,6 +1166,24 @@ target CPython 3.10.
 
 ## Named Review production ownership
 
+Memo list decorations are owned by each ImageViewer, excluded from auto-range and
+mouse interaction, cleared on source replacement and disposed during explicit
+viewer teardown. The coordinator publishes only its attested capture bindings or
+the restore authority's explicitly verified runtime ID/generation bindings.
+Canonical render completion republishes decorations across Single/Multi View;
+there is no filename matching, additional ROI authority or numerical request.
+
+Save commits the canonical archive using its existing revision guard, then stages
+a derived sibling report folder. PNG footer drawing uses QImage/QPainter on the
+worker thread; Qt-free report publication receives the renderer as a dependency.
+Original archived crops remain exact. The report marker inventories generated
+files/directories and their digests; edited/foreign output and reparse points are
+refused. Staged directory publication restores the previous report on a failed
+install. These two output paths are separate transactions: a derived-report error
+returns the successfully committed notebook revision with an explicit partial-save
+status, avoiding a false external-edit conflict on retry. Old and current generated
+archive HTML are each compared against their exact trusted rendering on load.
+
 Bootstrap installs the window-owned Named Review coordinator after W05/W06.
 `MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
 selection/page, profile, ROI/Line and physical-view owners; it does not create a

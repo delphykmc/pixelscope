@@ -2508,6 +2508,9 @@ class MainWindow(QMainWindow):
         render_trace.checkpoint("comparison_page_controls")
         self._refresh_preload_plan()
         render_trace.checkpoint("preload_planning_and_end")
+        memo = self.__dict__.get("named_review_coordinator")
+        if memo is not None:
+            memo.refresh_overlays()
 
     def _split_display_documents(
         self,

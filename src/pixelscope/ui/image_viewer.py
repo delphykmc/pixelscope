@@ -293,6 +293,8 @@ class ImageViewer(QWidget):
         self._roi.hide()
         self._roi_enabled = False
         self.view_box.addItem(self._roi)
+        self._memo_regions: tuple[tuple[str, RoiBounds, bool], ...] = ()
+        self._memo_items: list[tuple[QGraphicsRectItem, pg.TextItem]] = []
         self._line_selection: LineSelection | None = None
         self._line_item = pg.PlotCurveItem(
             pen=pg.mkPen("#00e5ff", width=2),
@@ -573,6 +575,8 @@ class ImageViewer(QWidget):
             "viewer.set_document", document_id=document.document_id if document else None
         )
         previous = self._document
+        if document is not previous:
+            self.set_memo_regions(())
         if document is None:
             self._cancel_display_preview()
             self._document = None
@@ -866,6 +870,7 @@ class ImageViewer(QWidget):
             self._watched_window = None
         if self._graphics_resources_disposed:
             return
+        self.set_memo_regions(())
         self._graphics_resources_disposed = True
 
         with suppress(RuntimeError, TypeError):
@@ -948,6 +953,35 @@ class ImageViewer(QWidget):
     @property
     def roi_enabled(self) -> bool:
         return self._roi_enabled
+
+    def set_memo_regions(self, regions: tuple[tuple[str, RoiBounds, bool], ...]) -> None:
+        """Passive reference-space bookmarks; never change the analysis ROI/range."""
+        if regions == self._memo_regions:
+            return
+        for rectangle, label in self._memo_items:
+            self.view_box.removeItem(rectangle)
+            self.view_box.removeItem(label)
+            label.deleteLater()
+        self._memo_items.clear()
+        self._memo_regions = regions
+        for text, bounds, selected in regions:
+            rectangle = QGraphicsRectItem(QRectF(bounds.x, bounds.y, bounds.width, bounds.height))
+            color = "#ffe08a" if selected else "#86c9d7"
+            pen = QPen(QColor(color))
+            pen.setCosmetic(True)
+            pen.setWidthF(2.0 if selected else 1.0)
+            rectangle.setPen(pen)
+            rectangle.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            rectangle.setZValue(18)
+            label = pg.TextItem(
+                text=text, color=color, anchor=(0, 0), fill=pg.mkBrush(21, 27, 34, 225)
+            )
+            label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            label.setZValue(22)
+            label.setPos(bounds.x, bounds.y)
+            self.view_box.addItem(rectangle, ignoreBounds=True)
+            self.view_box.addItem(label, ignoreBounds=True)
+            self._memo_items.append((rectangle, label))
 
     def enable_roi(self, enabled: bool = True) -> None:
         self._roi_enabled = enabled

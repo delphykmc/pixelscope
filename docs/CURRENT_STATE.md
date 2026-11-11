@@ -1,5 +1,26 @@
 # PixelScope current state
 
+> **Memo Viewer/report feedback candidate (2026-11-12, unmerged):**
+> `codex/memo-viewer-report-20261112` adds passive labeled outlines for all current
+> Memo ROIs, a default save filename, a generated sibling HTML/PNG/CSV report folder
+> with an Open report link, and crop filename/coordinate footers. Canonical archive
+> crops, Session and one-way/reset semantics remain unchanged. Focused regression
+> Source/test `785659db` passed **1,936 tests, 1 warning in 450.57s** with normal
+> Windows GC. Independent code review found no actionable issue; its pure
+> archive/report selection passed 25 tests. Full evidence and actual screenshots
+> are in [the feedback plan](exec-plans/active/memo-viewer-report-feedback.md).
+> PR #228 tracks final review/merge. This is separate from the completed
+> eleven-failure check.
+
+> **Historical eleven-failure verification complete (2026-11-12):** at merged
+> `main@97a356f0`, the exact eleven previously failing tests passed in 8.27s and
+> the subsequent normal-GC Windows full suite passed **1,918 tests, 1 warning in
+> 449.51s**. No production defect reproduced and no source/test changes were made.
+> Per the owner's bounded completion rule, this investigation is complete; no
+> further root-cause work is pending for those eleven failures. The original cause
+> remains unconfirmed. Issue #210 stays open for its broader scope. See
+> [the completion record](exec-plans/active/issue-210-review-merge-followup.md#bounded-eleven-failure-verification-complete).
+
 > **ROI Memo review / Windows validation (2026-11-12):** PR #227 source/test
 > `5cc63835` passed **1,918 tests, 1 warning in 447.33s**, normal Windows GC.
 > Independent review accepted the source after fixing a reproduced external-save

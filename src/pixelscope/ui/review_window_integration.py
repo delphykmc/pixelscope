@@ -7,7 +7,7 @@ through on_owner_terminal; never retry via sleeps or polling.
 from __future__ import annotations
 
 import weakref
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -24,17 +24,20 @@ from pixelscope.core.review_record import (
     ReviewValidationError,
 )
 from pixelscope.core.review_workflow import ReviewLibrary
+from pixelscope.core.roi import RoiBounds
 from pixelscope.io.memo_archive import (
     MemoArchive,
     load_memo_archive,
     memo_thumbnails,
     save_memo_archive,
 )
+from pixelscope.io.memo_report import suggested_memo_name, write_memo_report
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.io.review_repository import ReviewRepository
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.display_gain import display_gain_state
+from pixelscope.ui.memo_report_images import annotate_memo_crop
 from pixelscope.ui.review_capture_adapter import (
     AttestedFinding,
     CaptureGuiFence,
@@ -55,6 +58,13 @@ from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
+@dataclass(frozen=True)
+class MemoSaveResult:
+    revision: str
+    report_path: Path | None
+    report_error: str = ""
+
+
 def _memo_io(
     operation: str,
     path: Path,
@@ -72,7 +82,12 @@ def _memo_io(
     if archive is None:
         raise ValueError("No Memo to save")
     if operation == "save":
-        return save_memo_archive(path, archive, expected_revision=revision)
+        saved_revision = save_memo_archive(path, archive, expected_revision=revision)
+        try:
+            report_path = write_memo_report(path, archive, saved_revision, annotate_memo_crop)
+        except Exception as exc:  # noqa: BLE001 - canonical archive already committed
+            return MemoSaveResult(saved_revision, None, str(exc) or type(exc).__name__)
+        return MemoSaveResult(saved_revision, report_path)
     raise ValueError("Unknown Memo operation")
 
 
@@ -105,6 +120,7 @@ class NamedReviewCoordinator:
         self._capture_stage: StagedFinding | None = None
         self._capture_fence: CaptureGuiFence | None = None
         self._crops: dict[tuple[str, str], bytes] = {}
+        self._overlay_bindings: dict[str, tuple[str, int]] = {}
         self._thumbnails: dict[tuple[str, str], bytes] = {}
         self._io_worker: TaskWorker | None = None
         self._io_task_id: str | None = None
@@ -183,11 +199,44 @@ class NamedReviewCoordinator:
         self._skip_next_selection_restore = False
         self.authority.review = self.library.document
         self._crops.clear()
+        self._overlay_bindings.clear()
         self._thumbnails.clear()
         self.panel.set_document(self.library.document)
         self._clear_editor()
         self.panel.set_dirty(False)
         self.panel.set_status("Images changed — a new ROI memo list")
+        self.refresh_overlays()
+
+    def refresh_overlays(self) -> None:
+        if self._closed:
+            return
+        window = self._window_ref()
+        if window is None:
+            return
+        selected = self.panel.selected_finding_id
+        for viewer in (window.viewer, *window.multi_compare_view.viewers):
+            document = viewer.document
+            key = next(
+                (
+                    key
+                    for key, (document_id, generation) in self._overlay_bindings.items()
+                    if document is not None
+                    and document.document_id == document_id
+                    and document.generation == generation
+                    and window.documents.get(document_id) is document
+                ),
+                None,
+            )
+            regions = []
+            if key is not None:
+                for ordinal, finding in enumerate(self.library.document.findings, 1):
+                    if key in finding.source_keys and finding.roi_ref is not None:
+                        title = finding.title.replace("\n", " ")[:48]
+                        label = f"ROI {ordinal}"
+                        if title and title != label:
+                            label += f" · {title}"
+                        regions.append((label, RoiBounds(*finding.roi_ref), finding.id == selected))
+            viewer.set_memo_regions(tuple(regions))
 
     def _clear_editor(self) -> None:
         self.panel.findings.blockSignals(True)
@@ -414,6 +463,9 @@ class NamedReviewCoordinator:
             title, note, _tags = self.panel.metadata()
             finding = replace(value.finding, title=title or value.finding.title, note=note)
             self.library.add(finding, value.sources)
+            self._overlay_bindings.update(
+                {item.key: (item.document.document_id, item.generation) for item in value.bindings}
+            )
             self.authority.review = self.library.document
             self._crops.update({(value.finding.id, key): data for key, data in value.crops})
             self._thumbnails.update(
@@ -423,6 +475,7 @@ class NamedReviewCoordinator:
             self.panel.set_document(self.library.document, selected_id=value.finding.id)
             self._show_evidence(value.finding.id)
             self.panel.set_dirty(self.library.dirty)
+            self.refresh_overlays()
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
         except (ValueError, KeyError, RuntimeError) as exc:
             self._error(f"Finding commit refused: {exc}")
@@ -458,6 +511,7 @@ class NamedReviewCoordinator:
             if item is not None:
                 item.setText(f"ROI {ordinal + 1} · {title or 'ROI'}")
             self.panel.set_dirty(self.library.dirty)
+            self.refresh_overlays()
             self.panel.set_status("Memo updated")
         except (ValueError, KeyError) as exc:
             self._error(str(exc))
@@ -475,6 +529,7 @@ class NamedReviewCoordinator:
             self.panel.set_document(self.library.document)
             self._clear_editor()
             self.panel.set_dirty(self.library.dirty)
+            self.refresh_overlays()
             self.panel.set_status("Memo deleted")
         except KeyError as exc:
             self._error(str(exc))
@@ -490,6 +545,7 @@ class NamedReviewCoordinator:
         if self._closed:
             return
         self._show_evidence(finding_id)
+        self.refresh_overlays()
         if self._skip_next_selection_restore:
             self._skip_next_selection_restore = False
             return
@@ -581,7 +637,7 @@ class NamedReviewCoordinator:
             filename, _ = QFileDialog.getSaveFileName(
                 self.panel,
                 "Save Memo",
-                "",
+                suggested_memo_name(MemoArchive(self.library.document, self._crops)),
                 "PixelScope Memo (*.pxmemo)",
             )
             if not filename:
@@ -651,6 +707,8 @@ class NamedReviewCoordinator:
             self.library.revision = revision
             self.library.dirty = False
             self._crops = dict(archive.crops)
+            self._overlay_bindings.clear()
+            self.refresh_overlays()
             self._thumbnails = thumbnails
             self.authority.review = archive.review
             self._approved.clear()
@@ -658,11 +716,21 @@ class NamedReviewCoordinator:
             self.panel.set_document(archive.review, selected_id=first)
             if first is None:
                 self.panel.set_status("Memo opened. No saved notes yet.")
-        elif self._io_operation == "save" and isinstance(result, str):
+        elif self._io_operation == "save" and isinstance(result, MemoSaveResult):
             self.library.path = path
-            self.library.revision = result
+            self.library.revision = result.revision
             self.library.dirty = self.library.document is not snapshot.review
-            self.panel.set_status(f"Saved {path.name} — notes and stored ROI images")
+            if result.report_error:
+                self.panel.set_status(
+                    f"Saved {path.name}. Report folder failed: {result.report_error}. "
+                    "The Memo is safe; Save Memo again to retry."
+                )
+            else:
+                folder = result.report_path
+                if folder is not None:
+                    self.panel.show_saved_report(path, folder / "index.html")
+                else:
+                    self.panel.set_status(f"Saved {path.name}")
         self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
 
     @Slot(str, object, int, object)
@@ -738,6 +806,9 @@ class NamedReviewCoordinator:
     def _restored(self, report: object) -> None:
         if isinstance(report, RestoreReport) and not self._closed:
             self._restoring_memo = False
+            if report.status == "applied":
+                self._overlay_bindings.update(self.authority.memo_overlay_bindings())
+            self.refresh_overlays()
             self.panel.set_status(
                 f"Restore {report.status}: {report.reason}"
                 + (" (PARTIAL POST-COMMIT)" if report.partial_state else "")
@@ -757,6 +828,8 @@ class NamedReviewCoordinator:
             self._io_worker.cancel()
         self._io_task_id = None
         self._auto_restore_id = None
+        self._overlay_bindings.clear()
+        self.refresh_overlays()
         self._closed = True
         self.action.setEnabled(False)
 

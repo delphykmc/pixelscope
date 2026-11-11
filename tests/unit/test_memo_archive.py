@@ -263,3 +263,16 @@ def test_external_revision_after_digest_check_is_not_overwritten(tmp_path, monke
     assert target.read_bytes() == external_bytes
     assert not list(tmp_path.glob(".memo-*.tmp"))
     assert not target.with_name(f".{target.name}.lock").exists()
+
+
+def test_old_html_report_still_loads_after_caption_upgrade(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    target = tmp_path / "old-report.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._legacy_memo_html)
+        save_memo_archive(target, archive)
+    loaded, _ = load_memo_archive(target)
+    assert loaded.review == archive.review

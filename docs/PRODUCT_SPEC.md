@@ -926,6 +926,12 @@ Title/note edits update memory immediately; selecting an ROI row revisits that
 record. Add ROI and Delete operate only on ROI entries. There is no Update button,
 file catalog, source matching or file browsing inside Memo.
 
+All current Memo ROI entries are visible as passive rectangles with numbered
+top-left labels in their verified original viewers. The selected entry is
+emphasized; these decorations do not edit the analysis ROI, intercept mouse input
+or affect Fit bounds. Selection/reset/source-generation changes revoke their
+bindings rather than matching files by path or basename.
+
 Changing Selected membership/order or comparison page discards the temporary
 notebook and clears its editor. Selecting the old files never retrieves notes.
 Open Memo is the explicit way to reopen saved work; verified navigation remains
@@ -940,6 +946,17 @@ not retained across image-context changes or application close. Text edits do no
 replace crop pixels or recompute metrics. HTML omits automatic original paths;
 the editable local record can contain them. Single View captures its visible
 original, while Multi View captures the comparison page. Session v1 remains unchanged.
+
+Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time. The
+same action also creates `<name>_report/` beside the notebook, with immediately
+usable `index.html`, named PNGs and optional Statistics CSVs. **Open report** in
+the save status opens that HTML. Report PNGs place the base filename and ROI
+x/y/width/height below the crop, and HTML captions/filenames identify the region.
+The exact undecorated crop stays inside `.pxmemo`; annotation never changes native
+analysis or the archived crop. Existing generated report files may be refreshed
+only while unmodified and owned by that notebook. A report-only failure explicitly
+distinguishes the saved notebook from the failed folder and retains its revision
+for another Save. Older archive HTML remains readable.
 
 See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
 for acceptance evidence and inherited native environment limitations.

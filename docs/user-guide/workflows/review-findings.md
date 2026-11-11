@@ -16,6 +16,11 @@ Session remains the way to resume the overall inspection setup.
 5. **Add ROI** adds a blank entry for the current ROI. **Delete** removes the
    selected ROI entry. These controls operate on ROI records, not image files.
 
+Every ROI in the current Memo list is drawn in its matching original viewers with
+a numbered label at the top-left. The selected record is highlighted. These
+outlines are visual bookmarks; mouse controls and the single active analysis ROI
+continue to work as before.
+
 Single View records the visible original; Multi View records the comparison page.
 An optional **Include current ROI statistics** checkbox captures already-presented
 native ROI Statistics when an entry is added. Pending/stale results are never used.
@@ -28,15 +33,28 @@ The header uses an amber **Unsaved** marker for changes held in memory and a gre
 
 **Save Memo…** writes all ROI notes, frozen PNG crops, optional Statistics CSVs and
 an offline `index.html` into one editable `.pxmemo` file. There are no separate
-Export commands. Saving consumes the recorded evidence; it does not recrop current
+Export commands. A default filename includes the first source name and local
+date/time. Beside the notebook, Save also creates a folder with the same name
+ending in `_report`. Open its `index.html`, or click **Open report** in the Memo
+save status. The folder contains ready-to-use `images/` PNGs and any `statistics/`
+CSVs, so no extraction is needed for reporting.
+
+Report PNGs show the base filename and ROI x/y/width/height in a footer below the
+crop. HTML captions and PNG filenames also identify the crop. The archived PNGs
+remain undecorated. Saving consumes the recorded evidence; it does not recrop current
 images or recalculate Statistics. Unsaved edits are temporary and are discarded
 when the image selection changes or the application closes.
 
-A `.pxmemo` is a ZIP container. Open it in PixelScope to edit notes; extract a copy
-with a ZIP-capable archive tool to use `index.html`, `images/` PNGs and any
-`statistics/` CSVs in a report. The PNGs are canonical 8-bit previews without ROI
-outlines; CSV values retain their native numerical meaning. They are not full
-original images.
+A `.pxmemo` is also a ZIP container. Open it in PixelScope to edit notes, or extract
+a copy with an archive tool if you need its exact, undecorated 8-bit preview crops.
+CSV values retain their native numerical meaning. Full original images are not
+embedded.
+
+Saving again refreshes an unmodified generated report folder. Edited report files
+and unrelated folders are protected. If report generation fails, the status tells
+you whether the `.pxmemo` itself saved successfully. Move or rename an edited
+report folder before saving again to regenerate it. Keep the whole report folder
+together when sharing its HTML and images.
 
 The editable notebook may contain private original paths in its internal record.
 Its HTML uses relative assets and omits automatic original paths. Share only the
