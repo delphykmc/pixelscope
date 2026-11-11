@@ -938,25 +938,36 @@ Open Memo is the explicit way to reopen saved work; verified navigation remains
 one-way from Memo to the original viewer. Missing originals leave crops/text
 readable. RAW/YUV input settings can be supplied through the existing File workflow.
 
-Save Memo is the single persistence command: one `.pxmemo` ZIP contains the editable
-record, immutable PNGs, optional already-presented native ROI Statistics CSVs and
-static `index.html`. No separate Export controls are exposed. Amber Unsaved and
+Save Memo is the single persistence command: a named folder contains a same-named
+metadata-only JSON `.pxmemo`, root `index.html` and relative `src/` assets.
+No separate Export controls are exposed. Amber Unsaved and
 green Saved markers identify memory versus persisted state. Unsaved notes are
 not retained across image-context changes or application close. Text edits do not
 replace crop pixels or recompute metrics. HTML omits automatic original paths;
 the editable local record can contain them. Single View captures its visible
 original, while Multi View captures the comparison page. Session v1 remains unchanged.
 
-Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time. The
-same action also creates `<name>_report/` beside the notebook, with immediately
-usable `index.html`, named PNGs and optional Statistics CSVs. **Open report** in
+Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time and
+creates the matching folder. The map inventories files, directories, source/ROI
+metadata and content digests; it embeds no PNG/CSV payload. **Open report** in
 the save status opens that HTML. Report PNGs place the base filename and ROI
 x/y/width/height below the crop, and HTML captions/filenames identify the region.
-The exact undecorated crop stays inside `.pxmemo`; annotation never changes native
-analysis or the archived crop. Existing generated report files may be refreshed
-only while unmodified and owned by that notebook. A report-only failure explicitly
-distinguishes the saved notebook from the failed folder and retains its revision
-for another Save. Older archive HTML remains readable.
+Exact undecorated 8-bit crops are in `src/originals/`, annotated report PNGs in
+`src/crops/`, and optional native CSVs in `src/statistics/`. Annotation never changes
+native analysis or the recorded crop. Relative paths support moving the whole
+folder. Save stages and validates the complete generation before publication;
+failed installation restores the previous folder, or retains a recovery copy if
+rollback itself fails. Edited/foreign files/directories and linked asset paths
+are refused. Old ZIP `.pxmemo` and `.pxreview` remain readable; saving a legacy
+notebook creates the new folder without replacing its old file.
+
+**Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
+Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
+whose explicit runtime source IDs/generations are still ready applies only its ROI
+and note, keeping the current viewport/tool context. It does not hash/re-register,
+decode/reload or reconstruct the viewers. Opening a saved notebook, or unavailable
+runtime bindings, still uses the verified restore path. Active-ROI analysis can
+update normally; historical saved Statistics never replace live numerical authority.
 
 See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
 for acceptance evidence and inherited native environment limitations.

@@ -1,5 +1,3 @@
-import zipfile
-
 import cv2
 import numpy as np
 import pytest
@@ -56,8 +54,22 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert w._shared_roi == first
     assert all(v._memo_regions[0][2] for v in w.multi_compare_view.occupied_viewers)
     assert m.panel.note_edit.toPlainText() == "First ROI note"
+    from pixelscope.app.main_window import MainWindow
+
+    generations = [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
+
+    def forbidden_reload(*_args, **_kwargs):
+        raise AssertionError("Cached Memo selection must not rebuild or reload viewers")
+
+    with monkeypatch.context() as patch:
+        for method in ("_render_selection", "_register_input", "_mark_document_for_reload"):
+            patch.setattr(MainWindow, method, forbidden_reload)
+        for row in (1, 0, 1, 0):
+            m.panel.findings.setCurrentRow(row)
+            assert w._shared_roi == (first if row == 0 else second)
+    assert generations == [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
     m.panel.note_edit.setPlainText("Edited immediately")
-    target = tmp_path / "notes.pxmemo"
+    target = tmp_path / "notes" / "notes.pxmemo"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
     m.save_dialog()
     qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
@@ -65,19 +77,18 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     loaded, _ = load_memo_archive(target)
     assert loaded.review.findings[0].note == "Edited immediately"
     assert len(loaded.crops) == 4
-    report_folder = tmp_path / "notes_report"
+    report_folder = target.parent
     assert (report_folder / "index.html").is_file()
-    assert len(list((report_folder / "images").glob("*.png"))) == 4
+    assert len(list((report_folder / "src/crops").glob("*.png"))) == 4
     assert report_folder.name in m.panel.status.text() and "Open report" in m.panel.status.text()
     assert str(report_folder / "index.html") == m.panel.status.toolTip()
     w.set_layout_mode("Single View")
     assert len(w.viewer._memo_items) == 2
     w.set_layout_mode("Multi View")
     assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
-    with zipfile.ZipFile(target) as saved:
-        report = saved.read("index.html").decode("utf-8")
-        assert "Edited immediately" in report
-        assert str(tmp_path) not in report
+    report = (report_folder / "index.html").read_text(encoding="utf-8")
+    assert "Edited immediately" in report
+    assert str(tmp_path) not in report
 
     assert m.panel.header.text() == "● Saved"
     assert all(

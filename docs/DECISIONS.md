@@ -1058,3 +1058,18 @@ Only validation actually observed for a named head may be recorded as PASS.
   saved bounds through the same strict fit validation before any Active-ROI Difference.
 - Named/multiple ROI management remains deferred and Issue #77 remains the primary
   planning authority for WP-A/WP-B/WP-C.
+
+## 2026-11-12 — Memo folder map and resident ROI selection
+
+Owner feedback supersedes #228's ZIP-plus-report dual output. New Save produces
+one named folder with same-named JSON `.pxmemo`, root HTML and relative `src/`
+assets. The map records metadata, paths, hashes and directory inventory, not PNG
+or CSV bytes. Exact and annotated previews remain distinct so annotation does not
+alter evidence. Old ZIP/Review reading stays supported; old files are preserved
+when saving into the new format. New saves stage a complete generation and retain
+previous data/recovery on failure; no separate report-only success state is used.
+
+Memo is a lightweight ROI/note convenience. An explicitly verified resident page
+may change ROI without replaying source registration or Session-like layout/view
+restoration. Disk verification remains necessary when explicitly opening saved
+work or when runtime bindings are unavailable. No filename matching is added.

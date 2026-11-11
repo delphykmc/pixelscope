@@ -6,13 +6,15 @@ Session remains the way to resume the overall inspection setup.
 
 ## Add and edit ROI notes
 
-1. Open your images and choose **View > Memo**.
+1. Open your images and choose **View > Memo** (**Ctrl+Shift+M**).
 2. Draw a rectangular ROI with **Ctrl+drag**. A new ROI entry is captured and the
    note starts empty. Wait for the short image capture to finish, then type.
 3. Title and Note edits immediately update that entry in memory. There is no
    Update button. Captured crop pixels remain unchanged when text is edited.
 4. Draw a different ROI to start another blank note. Select an earlier entry in
-   the ROI list to see its note and return to its saved ROI and zoom.
+   the ROI list to see its note and select its ROI. For already loaded images this
+   keeps the current view and does not reload them. Opening a saved Memo can restore
+   its recorded original view after source verification.
 5. **Add ROI** adds a blank entry for the current ROI. **Delete** removes the
    selected ROI entry. These controls operate on ROI records, not image files.
 
@@ -31,34 +33,43 @@ For Statistics in Single View, select only that image; use Multi View for a page
 The header uses an amber **Unsaved** marker for changes held in memory and a green
 **Saved** marker after a successful save. Empty working state is **Ready**.
 
-**Save Memo…** writes all ROI notes, frozen PNG crops, optional Statistics CSVs and
-an offline `index.html` into one editable `.pxmemo` file. There are no separate
-Export commands. A default filename includes the first source name and local
-date/time. Beside the notebook, Save also creates a folder with the same name
-ending in `_report`. Open its `index.html`, or click **Open report** in the Memo
-save status. The folder contains ready-to-use `images/` PNGs and any `statistics/`
-CSVs, so no extraction is needed for reporting.
+**Save Memo…** creates a named folder. The suggested name includes the first source
+name and local date/time. There are no separate Export commands:
+
+```text
+Memo_scene_date/
+  Memo_scene_date.pxmemo   metadata and relative file map
+  index.html              report
+  src/
+    crops/                annotated report PNGs
+    originals/            exact undecorated 8-bit ROI previews
+    statistics/           optional native CSVs
+```
+
+Open `index.html` directly or click **Open report** in the Memo save status. Open
+the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder together;
+moving only the map loses its referenced evidence. No extraction is needed.
 
 Report PNGs show the base filename and ROI x/y/width/height in a footer below the
-crop. HTML captions and PNG filenames also identify the crop. The archived PNGs
+crop. HTML captions and PNG filenames also identify the crop. The `originals/` PNGs
 remain undecorated. Saving consumes the recorded evidence; it does not recrop current
 images or recalculate Statistics. Unsaved edits are temporary and are discarded
 when the image selection changes or the application closes.
 
-A `.pxmemo` is also a ZIP container. Open it in PixelScope to edit notes, or extract
-a copy with an archive tool if you need its exact, undecorated 8-bit preview crops.
-CSV values retain their native numerical meaning. Full original images are not
-embedded.
+Older ZIP `.pxmemo` and legacy `.pxreview` still open. Saving them creates the new
+folder and preserves the original file. Old PixelScope versions may not read the
+new map format, but the HTML and images can be opened directly. CSV values retain
+their native numerical meaning. Full original images are not copied into the folder.
 
-Saving again refreshes an unmodified generated report folder. Edited report files
-and unrelated folders are protected. If report generation fails, the status tells
-you whether the `.pxmemo` itself saved successfully. Move or rename an edited
-report folder before saving again to regenerate it. Keep the whole report folder
-together when sharing its HTML and images.
+Saving again replaces an unmodified Memo folder as a complete generation. Edited
+or unrelated files/directories are protected. Failed saving keeps the earlier
+generation, and an initial failed save leaves notes Unsaved. If rollback cannot
+restore the previous folder, the error gives its retained recovery location. Keep
+an untouched Memo folder; edit a copy of its report for your own reporting work.
 
 The editable notebook may contain private original paths in its internal record.
 Its HTML uses relative assets and omits automatic original paths. Share only the
-HTML, images and Statistics folders if original-path metadata should be excluded.
+HTML and `src/` if original-path metadata should be excluded.
 User-written titles, notes and image names are included in the report.
 
 ## Changing images and reopening

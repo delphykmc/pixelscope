@@ -229,6 +229,13 @@ class ReviewRestoreController(QObject):
         self.cancel()
         self._finding_id = finding_id
 
+    def accept_live_selection(self, finding_id: str) -> None:
+        """Record an owner-applied ROI without a source-restore transaction."""
+        if self._closing or self._phase != "idle" or self._finding_id != finding_id:
+            raise RuntimeError("Live Memo selection was superseded")
+        self.library.get(finding_id)
+        self._phase = "applied"
+
     def verify(
         self,
         finding_id: str,

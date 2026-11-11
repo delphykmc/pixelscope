@@ -366,6 +366,15 @@ def save_memo_archive(
 def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
     if not isinstance(path, Path) or path.suffix.lower() != MEMO_SUFFIX:
         raise ValueError("Select an existing .pxmemo")
+    if path.is_file():
+        with path.open("rb") as stream:
+            folder_map = stream.read(2) != b"PK"
+        if folder_map:
+            from pixelscope.io.memo_folder import load_folder_memo
+
+            return load_folder_memo(path)
+    if not isinstance(path, Path) or path.suffix.lower() != MEMO_SUFFIX:
+        raise ValueError("Select an existing .pxmemo")
     if not path.is_file() or path.stat().st_size > _MAX_TOTAL:
         raise ReviewValidationError("Missing or oversized Memo archive")
     # Read once from one descriptor: returned revision and parsed evidence must

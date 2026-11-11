@@ -1,5 +1,13 @@
 # PixelScope current state
 
+> **Memo folder/live-selection candidate (2026-11-12, unmerged):**
+> `codex/memo-folder-live-switch-20261112` stores a metadata-only map and root HTML
+> with relative `src/` evidence in one guarded folder generation. Old ZIP reading
+> is retained. Resident ROI selections avoid reload/registration/viewer rebuilding;
+> Memo uses opaque common dock chrome and Ctrl+Shift+M. See
+> [the execution record](exec-plans/active/memo-folder-live-switch.md) for validation
+> and remaining PR/completion evidence. Earlier #228 format notes are historical.
+
 > **Memo Viewer/report feedback candidate (2026-11-12, unmerged):**
 > `codex/memo-viewer-report-20261112` adds passive labeled outlines for all current
 > Memo ROIs, a default save filename, a generated sibling HTML/PNG/CSV report folder

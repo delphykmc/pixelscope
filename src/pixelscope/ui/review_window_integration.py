@@ -7,6 +7,7 @@ through on_owner_terminal; never retry via sleeps or polling.
 from __future__ import annotations
 
 import weakref
+import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
@@ -29,15 +30,16 @@ from pixelscope.io.memo_archive import (
     MemoArchive,
     load_memo_archive,
     memo_thumbnails,
-    save_memo_archive,
 )
-from pixelscope.io.memo_report import suggested_memo_name, write_memo_report
+from pixelscope.io.memo_folder import metadata_path, save_folder_memo
+from pixelscope.io.memo_report import suggested_memo_name
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.io.review_repository import ReviewRepository
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.display_gain import display_gain_state
 from pixelscope.ui.memo_report_images import annotate_memo_crop
+from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.review_capture_adapter import (
     AttestedFinding,
     CaptureGuiFence,
@@ -61,8 +63,7 @@ from pixelscope.workers.thread_pools import analysis_thread_pool
 @dataclass(frozen=True)
 class MemoSaveResult:
     revision: str
-    report_path: Path | None
-    report_error: str = ""
+    report_path: Path
 
 
 def _memo_io(
@@ -78,16 +79,17 @@ def _memo_io(
             loaded, version = MemoArchive(document, {}), None
         else:
             loaded, version = load_memo_archive(path)
-        return loaded, version, memo_thumbnails(loaded.crops)
+        return (
+            loaded,
+            version,
+            memo_thumbnails(loaded.crops),
+            (path.suffix.lower() == ".pxmemo" and not zipfile.is_zipfile(path)),
+        )
     if archive is None:
         raise ValueError("No Memo to save")
     if operation == "save":
-        saved_revision = save_memo_archive(path, archive, expected_revision=revision)
-        try:
-            report_path = write_memo_report(path, archive, saved_revision, annotate_memo_crop)
-        except Exception as exc:  # noqa: BLE001 - canonical archive already committed
-            return MemoSaveResult(saved_revision, None, str(exc) or type(exc).__name__)
-        return MemoSaveResult(saved_revision, report_path)
+        saved_revision = save_folder_memo(path, archive, revision, annotate_memo_crop)
+        return MemoSaveResult(saved_revision, path.parent)
     raise ValueError("Unknown Memo operation")
 
 
@@ -97,10 +99,18 @@ class NamedReviewCoordinator:
     def __init__(self, window: Any) -> None:
         self._window_ref = weakref.ref(window)
         self.library = ReviewLibrary()
+        self._folder_mode = False
         self.panel = ReviewPanel()
         self.dock = QDockWidget("Memo", window)
         self.dock.setObjectName("namedReviewDock")
         self.dock.setWidget(self.panel)
+        self.panel.setAutoFillBackground(True)
+        self.dock.setAutoFillBackground(True)
+        self.dock.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self._dock_title = PlotsDockTitleBar(
+            self.dock, title="Memo", geometry_setting="ui/memo_floating_geometry"
+        )
+        self.dock.setTitleBarWidget(self._dock_title)
         self.dock.setMinimumWidth(320)
         self.dock.setAllowedAreas(
             Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
@@ -139,6 +149,10 @@ class NamedReviewCoordinator:
         self.action = QAction("Memo", window)
         self.action.setToolTip("Show or hide image inspection notes")
         self.action.setCheckable(True)
+        self.action.setShortcut("Ctrl+Shift+M")
+        self.action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+        window.addAction(self.action)
+        self.dock.addAction(self.action)
         self.action.triggered.connect(self._toggle_visibility)  # type: ignore[attr-defined]
         self.dock.visibilityChanged.connect(self._dock_visibility_changed)  # type: ignore[attr-defined]
         # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
@@ -194,6 +208,7 @@ class NamedReviewCoordinator:
         self._pending_roi = False
         self.restore.cancel()
         self.library.reset()
+        self._folder_mode = False
         self._approved.clear()
         self._auto_restore_id = None
         self._skip_next_selection_restore = False
@@ -551,6 +566,29 @@ class NamedReviewCoordinator:
             return
         self.cancel_capture()
         self.restore.change_finding(finding_id)
+        finding = self.library.get(finding_id)
+        window = self.window
+        bound = [self._overlay_bindings.get(key) for key in finding.source_keys]
+        page = tuple(window.current_comparison_documents())
+        if (
+            not window._channel_split_active
+            and all(pair is not None for pair in bound)
+            and tuple(d.document_id for d in page) == tuple(pair[0] for pair in bound if pair)
+            and all(
+                pair is not None
+                and d.generation == pair[1]
+                and d.source is not None
+                and d.loading_state == "ready"
+                for d, pair in zip(page, bound, strict=True)
+            )
+            and finding.roi_ref is not None
+            and window._apply_shared_roi(RoiBounds(*finding.roi_ref), allow_channel_split=False)
+        ):
+            self.restore.accept_live_selection(finding_id)
+            self._restoring_memo = False
+            self.panel.set_status("ROI selected — using loaded images")
+            self.refresh_overlays()
+            return
         self._restoring_memo = True
         self._auto_restore_id = None
         self._approved.clear()
@@ -636,7 +674,7 @@ class NamedReviewCoordinator:
         if path is None or path.suffix.lower() != ".pxmemo":
             filename, _ = QFileDialog.getSaveFileName(
                 self.panel,
-                "Save Memo",
+                "Save Memo folder",
                 suggested_memo_name(MemoArchive(self.library.document, self._crops)),
                 "PixelScope Memo (*.pxmemo)",
             )
@@ -645,6 +683,11 @@ class NamedReviewCoordinator:
             path = Path(filename).absolute()
             if path.suffix.lower() != ".pxmemo":
                 path = path.with_suffix(".pxmemo")
+        if not (self._folder_mode and self.library.path == path):
+            if self.library.path == path:
+                path = path.parent / path.stem / path.name
+            else:
+                path = metadata_path(path)
         if path.exists() and self.library.path != path:
             self._error("Destination exists; choose another filename or open that Memo first")
             return
@@ -699,10 +742,11 @@ class NamedReviewCoordinator:
         if self.library.document.document_id != snapshot.review.document_id:
             return  # A later file selection reset this in-memory working context.
         if self._io_operation == "open" and isinstance(result, tuple):
-            archive, revision, thumbnails = result
+            archive, revision, thumbnails, folder_mode = result
             if not isinstance(archive, MemoArchive):
                 return
             self.library.document = archive.review
+            self._folder_mode = folder_mode
             self.library.path = path
             self.library.revision = revision
             self.library.dirty = False
@@ -717,20 +761,11 @@ class NamedReviewCoordinator:
             if first is None:
                 self.panel.set_status("Memo opened. No saved notes yet.")
         elif self._io_operation == "save" and isinstance(result, MemoSaveResult):
+            self._folder_mode = True
             self.library.path = path
             self.library.revision = result.revision
             self.library.dirty = self.library.document is not snapshot.review
-            if result.report_error:
-                self.panel.set_status(
-                    f"Saved {path.name}. Report folder failed: {result.report_error}. "
-                    "The Memo is safe; Save Memo again to retry."
-                )
-            else:
-                folder = result.report_path
-                if folder is not None:
-                    self.panel.show_saved_report(path, folder / "index.html")
-                else:
-                    self.panel.set_status(f"Saved {path.name}")
+            self.panel.show_saved_report(path, result.report_path / "index.html")
         self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
 
     @Slot(str, object, int, object)
@@ -823,6 +858,7 @@ class NamedReviewCoordinator:
         if self._closed:
             return
         self.cancel_capture()
+        self._dock_title.quiesce_pending_callbacks()
         self.restore.shutdown()
         if self._io_worker is not None:
             self._io_worker.cancel()

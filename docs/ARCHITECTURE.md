@@ -1173,16 +1173,23 @@ the restore authority's explicitly verified runtime ID/generation bindings.
 Canonical render completion republishes decorations across Single/Multi View;
 there is no filename matching, additional ROI authority or numerical request.
 
-Save commits the canonical archive using its existing revision guard, then stages
-a derived sibling report folder. PNG footer drawing uses QImage/QPainter on the
-worker thread; Qt-free report publication receives the renderer as a dependency.
-Original archived crops remain exact. The report marker inventories generated
-files/directories and their digests; edited/foreign output and reparse points are
-refused. Staged directory publication restores the previous report on a failed
-install. These two output paths are separate transactions: a derived-report error
-returns the successfully committed notebook revision with an explicit partial-save
-status, avoiding a false external-edit conflict on retry. Old and current generated
-archive HTML are each compared against their exact trusted rendering on load.
+Save now stages one folder generation: metadata-only `.pxmemo`, root HTML and
+relative `src/` assets. `io.memo_folder` validates bounds, paths, reparse points,
+file/directory inventories and hashes, syncs staged files and compares revisions
+before publication. Failed installation restores the old folder; failed rollback
+retains its recovery copy. `io.memo_report` is a staging helper, not a separately
+committed product output. PNG footer drawing remains worker-side QImage/QPainter;
+exact undecorated crops are separate external assets. ZIP loading retains its
+strict old/current renderer validation, while new maps validate asset digests.
+
+The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
+only when its explicit source ID/generation bindings match the resident ready
+comparison page. The restore controller records this owner-applied selection after
+revoking old callbacks; no source registration, viewport/layout reconstruction or
+native verification is started. Other cases retain the verified restore path.
+Memo's owned common dock title is quiesced before shutdown. The panel paints its
+background, and its application-scoped QAction shortcut is associated with both
+the main window and the floating dock.
 
 Bootstrap installs the window-owned Named Review coordinator after W05/W06.
 `MainWindowReviewRestoreAuthority` reuses canonical registration, generation,

@@ -13,6 +13,7 @@ from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.memo_report_images import annotate_memo_crop
 
 windows = memo_windows
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 @pytest.mark.parametrize("channels", [1, 3])
@@ -59,7 +60,7 @@ def test_passive_memo_rectangles_do_not_change_analysis_roi_or_fit_range(qtbot):
 
 
 @pytest.mark.parametrize("failure", ["folder", "renderer"])
-def test_default_save_suggestion_and_report_failure_keep_saved_revision(
+def test_default_save_suggestion_and_atomic_folder_failure_retry(
     qtbot, monkeypatch, tmp_path, request, failure
 ):
     create = request.getfixturevalue("windows")
@@ -76,13 +77,15 @@ def test_default_save_suggestion_and_report_failure_keep_saved_revision(
     )
     assert window._shared_roi_changed(RoiBounds(2, 3, 16, 12))
     qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=10000)
-    target = tmp_path / "notes.pxmemo"
-    report = tmp_path / "notes_report"
+    target = tmp_path / "notes" / "notes.pxmemo"
+    report = target.parent
     if failure == "folder":
         report.mkdir()
         (report / "user.txt").write_text("keep my file")
     else:
         from pixelscope.ui import review_window_integration as module
+
+        original_render = module.annotate_memo_crop
 
         def fail_render(*_args):
             raise RuntimeError("simulated rendering failure")
@@ -98,7 +101,16 @@ def test_default_save_suggestion_and_report_failure_keep_saved_revision(
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     assert chosen[0].startswith("Memo_reference_") and chosen[0].endswith(".pxmemo")
-    assert "Report folder failed" in memo.panel.status.text()
+    assert "failed" in memo.panel.status.text()
+    assert not target.exists() and memo.library.path is None and memo.library.dirty
+    if failure == "folder":
+        assert (report / "user.txt").read_text() == "keep my file"
+        (report / "user.txt").unlink()
+        report.rmdir()
+    else:
+        monkeypatch.setattr(module, "annotate_memo_crop", original_render)
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     _, revision = load_memo_archive(target)
     assert memo.library.revision == revision and not memo.library.dirty
     memo.panel.note_edit.setPlainText("Another edit")
@@ -107,7 +119,39 @@ def test_default_save_suggestion_and_report_failure_keep_saved_revision(
     archive, new_revision = load_memo_archive(target)
     assert memo.library.revision == new_revision != revision
     assert archive.review.findings[0].note == "Another edit"
-    if failure == "folder":
-        assert (report / "user.txt").read_text() == "keep my file"
-    assert len(chosen) == 1  # Retry uses the already saved destination.
+    assert len(chosen) == 2  # A failed initial save never attaches a destination.
+    window.close()
+
+
+def test_legacy_zip_save_creates_folder_without_replacing_legacy_file(
+    qtbot, monkeypatch, tmp_path, request
+):
+    from pixelscope.io.memo_archive import MemoArchive, save_memo_archive
+
+    window, memo = request.getfixturevalue("windows")()
+    source = tmp_path / "source.png"
+    assert cv2.imwrite(str(source), np.full((48, 64, 3), 90, np.uint8))
+    window.open_image_paths([source])
+    qtbot.waitUntil(
+        lambda: window.viewer.document is not None
+        and window.viewer.document.loading_state == "ready"
+        and not window.viewer._geometry_timer.isActive(),
+        timeout=10000,
+    )
+    window._shared_roi_changed(RoiBounds(2, 3, 12, 10))
+    qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=10000)
+    legacy = tmp_path / "legacy.pxmemo"
+    save_memo_archive(legacy, MemoArchive(memo.library.document, memo._crops))
+    original = legacy.read_bytes()
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a: (str(legacy), ""))
+    memo.open_dialog()
+    qtbot.waitUntil(
+        lambda: memo._io_worker is None and memo.restore.phase == "applied", timeout=15000
+    )
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    assert memo.library.path == tmp_path / "legacy" / "legacy.pxmemo"
+    assert memo.library.path.is_file() and not memo.library.dirty
+    assert legacy.read_bytes() == original
+    assert not memo.library.path.read_bytes().startswith(b"PK")
     window.close()

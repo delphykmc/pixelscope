@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import csv
 import io
-import zipfile
 
 import cv2
 import numpy as np
@@ -95,7 +94,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     frozen = dict(memo._crops)
     memo.edit(first.id, "Edited note", "No pixels changed", ())
     assert memo._crops == frozen
-    target = tmp_path / "inspection.pxmemo"
+    target = tmp_path / "inspection" / "inspection.pxmemo"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_kw: (str(target), ""))
     memo.save_dialog()
     _idle(qtbot, memo)
@@ -106,6 +105,9 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
 
     for path in paths:
         path.unlink()
+    relocated = tmp_path / "relocated-notebook"
+    target.parent.rename(relocated)
+    target = relocated / target.name
     fresh, offline = windows()
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_kw: (str(target), ""))
     offline.open_dialog()
@@ -121,13 +123,12 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     for index in range(3):
         offline.panel.findings.setCurrentRow(index)
         assert offline.panel.crop_previews.count() == 2
-    with zipfile.ZipFile(target) as saved:
-        pngs = [n for n in saved.namelist() if n.endswith(".png")]
-        assert len(pngs) == 6
-        assert {saved.read(n) for n in pngs} == set(frozen.values())
-        csvs = [n for n in saved.namelist() if n.endswith(".csv")]
-        assert len(csvs) == 1
-        rows = list(csv.DictReader(io.StringIO(saved.read(csvs[0]).decode("utf-8-sig"))))
+    pngs = list((target.parent / "src/originals").rglob("*.png"))
+    assert len(pngs) == 6
+    assert {p.read_bytes() for p in pngs} == set(frozen.values())
+    csvs = list((target.parent / "src/statistics").glob("*.csv"))
+    assert len(csvs) == 1
+    rows = list(csv.DictReader(io.StringIO(csvs[0].read_bytes().decode("utf-8-sig"))))
     assert rows and all(int(r["Samples"]) == 192 for r in rows)
     assert all((r["X"], r["Y"], r["Width"], r["Height"]) == ("2", "3", "16", "12") for r in rows)
     means = [float(r["Value"]) for r in rows if r["Metric"].lower() == "mean"]
@@ -140,6 +141,8 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     offline.save_dialog()
     _idle(qtbot, offline)
     assert len(load_memo_archive(target)[0].review.findings) == 2
+    assert offline.library.path == target
+    assert not (relocated / target.stem).exists()
 
 
 def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(

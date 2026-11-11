@@ -100,6 +100,9 @@ class ReviewPanel(QWidget):
         footer = QHBoxLayout()
         self.open_button = QPushButton("Open Memo…", self)
         self.save_button = QPushButton("Save Memo…", self)
+        self.save_button.setToolTip(
+            "Save a named folder containing the .pxmemo map, index.html and src assets"
+        )
         footer.addWidget(self.open_button)
         footer.addWidget(self.save_button)
         layout.addLayout(footer)

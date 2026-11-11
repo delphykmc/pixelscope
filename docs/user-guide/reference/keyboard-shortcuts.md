@@ -7,6 +7,7 @@ This reference lists shortcuts and interaction keys confirmed by the current app
 | `F1` | Open local User Guide topic for the focused workspace or Settings/RAW/YUV dialog; fall back to guide home when no topic is available |
 | `Ctrl+O` | Open Images |
 | `Ctrl+Shift+O` | Open Folder |
+| `Ctrl+Shift+M` | Show/hide Memo, including from its floating window |
 | `Ctrl+Q` | Exit |
 | `Ctrl+1` | Single View |
 | `Ctrl+2` | Multi View |

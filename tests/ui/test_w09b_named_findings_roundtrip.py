@@ -123,7 +123,7 @@ def test_native_memo_resets_on_image_set_change_and_reopens_last_roi(
             assert result.returncode == 0, result.stdout + result.stderr
         return
     tmp_path = Path(os.environ["PIXELSCOPE_FINDING_TEST_ROOT"])
-    review_path = tmp_path / "three-findings.pxmemo"
+    review_path = tmp_path / "three-findings" / "three-findings.pxmemo"
     paths, profiles = _native_inputs(tmp_path, create=stage == "save")
     errors: list[str] = []
     if stage == "restore":

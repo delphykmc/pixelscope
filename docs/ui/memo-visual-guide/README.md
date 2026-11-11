@@ -1,6 +1,6 @@
 # ROI Memo 간단 가이드
 
-실제 Qt 화면이며 합성 예시 영상 두 장을 사용했습니다. 1~4절의 화면은 이전 ROI 간소화 캡처 이력입니다. 5절은 `codex/memo-viewer-report-20261112`의 추가 피드백 구현이며 아직 MAIN에 병합되지 않았습니다.
+실제 Qt 화면이며 합성 예시 영상을 사용했습니다. 1~5절은 #228까지의 캡처 이력입니다. 6절은 `codex/memo-folder-live-switch-20261112`의 새 폴더 포맷·창 표시 수정이며 아직 MAIN 미병합입니다.
 
 ## 1. 메인 화면
 
@@ -54,3 +54,18 @@
 기존 보고서 폴더를 직접 편집했거나 다른 파일이 있으면 보호합니다. 이때 `.pxmemo` 저장 성공과 보고서 생성 실패를 구분해 알립니다. 편집한 폴더의 이름을 바꾸거나 다른 곳으로 옮긴 다음 Save Memo를 다시 누르면 보고서를 재생성할 수 있습니다.
 
 최신 구현·검증 범위는 [추가 피드백 계획](../../exec-plans/active/memo-viewer-report-feedback.md)을 참고합니다. 물리 DPI/멀티모니터/SMB/패키지 수용 검증을 대신하는 캡처는 아닙니다.
+
+## 6. 폴더 저장·창 표시·단축키·빠른 ROI 선택
+
+![폴더형 Memo 저장 화면](07-folder-memo.png)
+
+18. Save Memo는 `이름/이름.pxmemo`, `이름/index.html`, `이름/src/` 구조로 저장합니다. `.pxmemo`는 JSON 메타데이터·상대 경로 지도이며, crop/CSV bytes를 넣지 않습니다. 폴더 전체를 함께 옮기면 다시 열 수 있습니다.
+19. `src/crops/`는 정보 표기 PNG, `src/originals/`는 정확한 8-bit crop, `src/statistics/`는 선택한 native CSV입니다. HTML은 바로 열거나 하단 Open report로 엽니다. 기존 ZIP은 읽을 수 있고 새 저장 시 기존 파일을 보존합니다.
+20. 현재 비교 영상이 메모리에 남아 있고 ID/generation이 일치하면 목록 선택은 ROI·메모만 바꿉니다. 원본 재등록·디코딩·전체 Viewer 재구성을 하지 않습니다. 저장 파일을 열거나 해당 바인딩이 없을 때는 검증 복원을 수행합니다.
+21. **Ctrl+Shift+M**으로 Memo를 열거나 숨깁니다. floating 창에서도 동작합니다. 현재 floating/dock 렌더링은 아래와 같습니다.
+
+![불투명 floating Memo와 공통 아이콘](08-floating.png)
+
+![공통 아이콘을 사용한 dock Memo](09-docked.png)
+
+추가 회귀와 최종 검증은 [폴더·실시간 전환 기록](../../exec-plans/active/memo-folder-live-switch.md)에 남깁니다. 이 캡처가 모든 물리 DPI/OS 환경에서의 기존 표시 문제 원인을 확정하는 것은 아닙니다.
