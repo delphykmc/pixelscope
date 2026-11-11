@@ -1,6 +1,12 @@
 # ROI Memo simplification
 
 Status: Implementation finished; known native validation failures and owner/review acceptance pending.
+
+**November 12 checkpoint supersedes the Draft/validation gates below:** independent
+source review accepted `5cc63835` after the destination-revision race fix. The
+fixed-head normal-GC Windows full run passed **1,918 tests, 1 warning in 447.33s**.
+Historical failure investigation and physical owner acceptance remain distinct;
+merge tracking and follow-up are in [the November 12 record](issue-210-review-merge-followup.md).
 Owner: ChatGPT-assisted, 2026-11-09.
 Branch/PR: `codex/memo-evidence-cleanup-20261109`, #227.
 

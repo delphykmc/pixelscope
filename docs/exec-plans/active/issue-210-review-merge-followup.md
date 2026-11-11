@@ -62,7 +62,55 @@ does not establish a code fix for the eleven historical failures. One initial
 full run was interrupted to apply the review fix; a new normal-GC full run is
 in progress. Record its actual result before any merge decision.
 
-Pending: independent findings, remediation, exact-head acceptance, merge SHA,
-Issue #210 comment URL, replacement timer and post-wake work checkpoint. Record
-only observed results. All agent commits require the ChatGPT co-author trailer;
-GitHub comments/descriptions must say ChatGPT-assisted.
+### Fixed-head completion, November 12
+
+Source/test SHA: `5cc638357053418574fb872dafc434bf60041f78`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --tb=short --junitxml=temp/memo-review-fixed-head-full-20261112.xml
+```
+
+Observed **1918 passed, 1 warning in 447.33s** with normal Windows GC. The warning
+is the intentional duplicate-member ZIP tamper test. No skips, tolerance changes,
+timeout inflation or clipboard mocks were introduced. Independent reviewer
+`/root/independent_memo_review` accepted the exact source correction and separately
+observed **12 archive tests passed in 1.61s**, documentation and diff checks clean.
+The documentation-only successor commit retains this exact source/test tree.
+
+An earlier run started with uncommitted production changes and continued while
+the fix was committed: **1905 passed, 13 failed, 1 warning in 468.50s**. All thirteen
+failures were the Sandbox harness correctly rejecting changed production inputs.
+That run is not clean validation. The stable-head rerun above supersedes it.
+The unrelated screenshot-rendering integration group also passed **20 in 22.61s**.
+
+Additional observed gates: tracked Ruff lint/format **402 files**, mypy **132 files**,
+`scripts/check_docs.py`, `mkdocs build --strict`, `pip check` and `git diff --check`
+passed. PR source-head Windows/Ubuntu checks and automated comparison passed;
+focused Windows CI was skipped by scope selection, not represented as a pass.
+
+### Post-wake handoff
+
+The historical eleven native UI failures all passed in this full run. This is
+current-environment evidence, not eleven production fixes. Continue with explicit
+clipboard contention/desktop ownership, constrained-screen RAW sizing, and actual
+geometry-settle signals for Difference parity. Preserve existing exact assertions
+and reproduce a defect before changing behavior. Do not restore retired presets,
+file catalogs, reverse matching, Update or separate Export controls. Session v1
+stays unchanged. Physical DPI/multimonitor/SMB/private Enterprise and new human
+interaction acceptance are unverified.
+
+Merge is pending at this documentation commit; authoritative merge SHA and handoff
+comment will be recorded on PR #227 / Issue #210. The issue must remain open.
+Runtime sleep/wake and continuation details are in ignored `temp/agent-power/`;
+they are machine-local, not product source. The sleep helper explicitly enables
+SeShutdownPrivilege and checks the suspend result. Its privilege-only probe passed
+without suspending the computer. Replacement timer and automatic continuation
+remain to be registered after the merge.
+
+All agent commits use owner-configured `mc.kang` identity with
+`Co-authored-by: ChatGPT <noreply@openai.com>`; owner-authenticated GitHub activity
+is marked ChatGPT-assisted. No human commits are rewritten. Existing eleven owner
+untracked files remain untouched. All changed files in the review fix are
+`src/pixelscope/io/memo_archive.py`, `tests/unit/test_memo_archive.py` and this plan;
+the final documentation checkpoint also updates `CURRENT_STATE.md` and
+`memo-roi-simplification.md`.
