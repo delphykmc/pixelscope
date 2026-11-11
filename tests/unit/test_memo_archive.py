@@ -232,3 +232,34 @@ def test_capture_mapping_is_immutable_and_failed_save_keeps_revision(tmp_path):
     assert target.read_bytes() == raw
     assert load_memo_archive(target)[1] == first
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_external_revision_after_digest_check_is_not_overwritten(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, findings, crops = _notebook(tmp_path)
+    target = tmp_path / "shared.pxmemo"
+    revision = save_memo_archive(target, MemoArchive(library.document, crops))
+    library.edit(findings[0].id, title="External", note="Newer external edit", tags=())
+    external = tmp_path / "external.pxmemo"
+    save_memo_archive(external, MemoArchive(library.document, crops))
+    external_bytes = external.read_bytes()
+    library.edit(findings[0].id, title="Local", note="Older local save", tags=())
+    original_digest = module._digest
+    injected = False
+
+    def digest_then_external_edit(path):
+        nonlocal injected
+        result = original_digest(path)
+        if path == target and not injected:
+            injected = True
+            target.write_bytes(external_bytes)
+        return result
+
+    monkeypatch.setattr(module, "_digest", digest_then_external_edit)
+    with pytest.raises(FileExistsError, match="changed"):
+        save_memo_archive(target, MemoArchive(library.document, crops), expected_revision=revision)
+    assert injected
+    assert target.read_bytes() == external_bytes
+    assert not list(tmp_path.glob(".memo-*.tmp"))
+    assert not target.with_name(f".{target.name}.lock").exists()

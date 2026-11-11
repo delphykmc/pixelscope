@@ -305,7 +305,11 @@ def save_memo_archive(
                 if path.exists():
                     if expected_revision is None or _digest(path) != expected_revision:
                         raise FileExistsError("Memo destination changed; reload before replacing")
-                    existing, _ = load_memo_archive(path)
+                    existing, parsed_revision = load_memo_archive(path)
+                    if parsed_revision != expected_revision:
+                        raise FileExistsError(
+                            "Memo destination changed during save; reload before replacing"
+                        )
                     if existing.review.document_id != archive.review.document_id:
                         raise FileExistsError("Memo document identity changed")
                     os.replace(temp, path)
