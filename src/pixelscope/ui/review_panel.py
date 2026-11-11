@@ -1,9 +1,11 @@
 """Memo panel — one-click inspection notes, not a second Session workspace."""
 from __future__ import annotations
 
+import html
 from collections.abc import Mapping
+from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -104,6 +106,8 @@ class ReviewPanel(QWidget):
         self.status = QLabel("Select a memo to return to its saved image and ROI")
         self.status.setWordWrap(True)
         self.status.setObjectName("reviewStatusLabel")
+        self.status.setOpenExternalLinks(True)
+        self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         layout.addWidget(self.status)
 
         self.findings.currentItemChanged.connect(self._selection_changed)  # type: ignore[attr-defined]
@@ -133,7 +137,18 @@ class ReviewPanel(QWidget):
         )
 
     def set_status(self, message: str) -> None:
+        self.status.setTextFormat(Qt.TextFormat.PlainText)
+        self.status.setToolTip("")
         self.status.setText(message)
+
+    def show_saved_report(self, notebook: Path, report: Path) -> None:
+        url = html.escape(QUrl.fromLocalFile(str(report)).toString(), quote=True)
+        self.status.setTextFormat(Qt.TextFormat.RichText)
+        self.status.setText(
+            f'Saved {html.escape(notebook.name)} · <a href="{url}">Open report</a>'
+            f"<br>{html.escape(report.parent.name)} / index.html"
+        )
+        self.status.setToolTip(str(report))
 
     def show_saved_crops(self, thumbnails: Mapping[str, bytes]) -> None:
         self.crop_previews.clear()

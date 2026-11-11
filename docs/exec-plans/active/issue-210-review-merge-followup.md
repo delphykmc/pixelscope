@@ -1,6 +1,9 @@
 # Issue 210: independent review, merge and native failures
 
-Status: Active. Owner: ChatGPT-assisted, 2026-11-12 (Asia/Seoul).
+Status: Complete for review, merge and bounded eleven-failure verification.
+Owner: ChatGPT-assisted, 2026-11-12 (Asia/Seoul). The final completion record below
+supersedes earlier pending/review/automatic-continuation statements. Issue #210
+remains open for its broader scope.
 
 ## Authorized sequence
 
@@ -114,3 +117,39 @@ untracked files remain untouched. All changed files in the review fix are
 `src/pixelscope/io/memo_archive.py`, `tests/unit/test_memo_archive.py` and this plan;
 the final documentation checkpoint also updates `CURRENT_STATE.md` and
 `memo-roi-simplification.md`.
+
+## Bounded eleven-failure verification complete
+
+The owner narrowed the remaining work: check the eleven historical failures,
+fix a confirmed error if reproduced, and finish if the cause remains unconfirmed
+but a fresh full test run passes. Do not extend this into forced-environment
+experiments or indefinite root-cause research.
+
+Verified checkout: merged `main@97a356f0678793c0d6b4eee0064d3837226ddf3b`.
+No source/test or HEAD changes occurred during either run.
+
+The exact eleven node IDs were extracted from the historical failure XML and
+executed without skips, mocks, changed tolerances or timeout inflation:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import subprocess,sys,xml.etree.ElementTree as E; root=E.parse('temp/memo-roi-full-20261109.xml'); nodes=[t.attrib['classname'].replace('.','/')+'.py::'+t.attrib['name'] for t in root.iter('testcase') if t.find('failure') is not None]; assert len(nodes)==11; raise SystemExit(subprocess.call([sys.executable,'-m','pytest','-q','--tb=short','--junitxml=temp/native-eleven-recheck-20261112.xml']+nodes))"
+.\.venv\Scripts\python.exe -m pytest -q --tb=short --junitxml=temp/native-eleven-final-full-20261112.xml
+```
+
+Observed results, both exit 0:
+
+- Exact historical failures: **11 passed in 8.27s**.
+- Normal-GC Windows full suite: **1918 passed, 1 warning in 449.51s**.
+- The sole warning is the existing intentional duplicate-ZIP-member tamper test.
+- No production error reproduced; no source/test modification was needed. The
+  historical root cause remains unconfirmed, rather than claimed repaired.
+- No new manual UI/DPI/SMB/packaging/Enterprise acceptance was performed.
+
+**Complete under the owner's stated criterion.** No additional investigation of
+these eleven cases or independent review is pending. No new work automation or
+power timer was registered: the prior continuation remains PAUSED and the two
+recorded sleep/wake tasks were cancelled at the owner's request. PR #227 merged
+as `97a356f0`; Issue #210 remains open. Only this plan and `CURRENT_STATE.md` are
+updated locally for this verification; no Git commit is created. The Issue #210
+completion comment is explicitly ChatGPT-assisted. Existing owner untracked files
+remain unchanged.

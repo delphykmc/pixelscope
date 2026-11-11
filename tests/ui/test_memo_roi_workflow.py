@@ -47,10 +47,14 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert not m.panel.note_edit.toPlainText()
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
     assert len(m.library.document.findings) == 2, m.panel.status.text()
+    for viewer in w.multi_compare_view.occupied_viewers:
+        assert len(viewer._memo_items) == 2
+        assert [item[0] for item in viewer._memo_regions] == ["ROI 1", "ROI 2"]
     m.panel.note_edit.setPlainText("Second ROI note")
     m.panel.findings.setCurrentRow(0)
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
     assert w._shared_roi == first
+    assert all(v._memo_regions[0][2] for v in w.multi_compare_view.occupied_viewers)
     assert m.panel.note_edit.toPlainText() == "First ROI note"
     m.panel.note_edit.setPlainText("Edited immediately")
     target = tmp_path / "notes.pxmemo"
@@ -61,6 +65,15 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     loaded, _ = load_memo_archive(target)
     assert loaded.review.findings[0].note == "Edited immediately"
     assert len(loaded.crops) == 4
+    report_folder = tmp_path / "notes_report"
+    assert (report_folder / "index.html").is_file()
+    assert len(list((report_folder / "images").glob("*.png"))) == 4
+    assert report_folder.name in m.panel.status.text() and "Open report" in m.panel.status.text()
+    assert str(report_folder / "index.html") == m.panel.status.toolTip()
+    w.set_layout_mode("Single View")
+    assert len(w.viewer._memo_items) == 2
+    w.set_layout_mode("Multi View")
+    assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
     with zipfile.ZipFile(target) as saved:
         report = saved.read("index.html").decode("utf-8")
         assert "Edited immediately" in report
@@ -75,6 +88,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     old_snapshot = MemoArchive(m.library.document, m._crops)
     w._select_document_ids(list(reversed(ids)))
     assert not m.library.document.findings
+    assert not any(v._memo_items for v in (w.viewer, *w.multi_compare_view.viewers))
     assert not m.panel.note_edit.toPlainText()
     # A late Open callback cannot repopulate notes after the user's file reset.
     reset_document = m.library.document
@@ -91,6 +105,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
     assert len(m.library.document.findings) == 2
+    assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
     assert m.panel.note_edit.toPlainText() == "Edited immediately"
     m.panel.findings.setCurrentRow(1)
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
@@ -98,6 +113,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert m.panel.note_edit.toPlainText() == "Second ROI note"
     m.panel.delete_button.click()
     assert len(m.library.document.findings) == 1
+    assert all(len(v._memo_items) == 1 for v in w.multi_compare_view.occupied_viewers)
     m.dock.hide()
     assert w._shared_roi_changed(RoiBounds(45, 40, 10, 10))
     assert m._capture_worker is None

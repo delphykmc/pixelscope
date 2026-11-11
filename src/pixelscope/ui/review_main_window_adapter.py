@@ -68,6 +68,10 @@ class MainWindowReviewRestoreAuthority(CanonicalReviewRestoreAuthority):
             document_id for document_id, _generation in self._binding.values()
         )
 
+    def memo_overlay_bindings(self) -> dict[str, tuple[str, int]]:
+        """Copy the explicit verified restore bindings; never locate/match sources."""
+        return dict(self._binding)
+
     def prepare(self, plan: RestorePlan) -> PreparedReviewStage:
         window = self.window
         finding = plan.finding

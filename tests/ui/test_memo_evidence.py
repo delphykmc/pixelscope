@@ -112,6 +112,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     _idle(qtbot, offline)
     assert len(offline.library.document.findings) == 3
     assert not fresh.documents
+    assert not any(v._memo_items for v in (fresh.viewer, *fresh.multi_compare_view.viewers))
     assert offline.panel.crop_previews.count() == 2
     assert "unavailable" in offline.panel.status.text()
     offline.show()

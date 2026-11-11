@@ -20,6 +20,7 @@ from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
 from typing import Any, cast
+from urllib.parse import quote
 
 import cv2
 import numpy as np
@@ -201,7 +202,7 @@ def memo_thumbnails(crops: Mapping[tuple[str, str], bytes]) -> dict[tuple[str, s
     return result
 
 
-def memo_html(archive: MemoArchive) -> bytes:
+def _legacy_memo_html(archive: MemoArchive) -> bytes:
     """Static report saved inside the same notebook; no separate export choice."""
     labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}
     csvs = statistics_csvs(archive.review)
@@ -237,6 +238,43 @@ def memo_html(archive: MemoArchive) -> bytes:
         + "".join(rows)
         + "</body></html>"
     ).encode("utf-8")
+
+
+def memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Version-two presentation with a filename and explicit crop coordinates."""
+    sources = {source.source_key: source for source in archive.review.sources}
+    report = _legacy_memo_html(archive).decode("utf-8")
+    report = report.replace(
+        "<title>", '<meta name="pixelscope-report-version" content="2"><title>', 1
+    )
+    for finding in archive.review.findings:
+        if finding.roi_ref is None:
+            continue
+        x, y, width, height = finding.roi_ref
+        for number, key in enumerate(finding.source_keys, 1):
+            if (finding.id, key) not in archive.crops:
+                continue
+            asset = _asset_path(finding.id, key)
+            label = sources[key].display_tag or sources[key].locator.basename
+            old = (
+                f'<figure><img src="{asset}" alt="ROI crop">'
+                f"<figcaption>{number}. {html.escape(label)}</figcaption></figure>"
+            )
+            relative = asset if image_paths is None else image_paths[(finding.id, key)]
+            caption = f"{number}. {html.escape(sources[key].locator.basename)}"
+            tag = sources[key].display_tag
+            if tag:
+                caption += f" · {html.escape(tag)}"
+            url = html.escape(quote(relative, safe="/"), quote=True)
+            replacement = (
+                f'<figure><img src="{url}" alt="ROI crop">'
+                f"<figcaption>{caption}<br>x={x} · y={y} · width={width} · height={height}"
+                "</figcaption></figure>"
+            )
+            report = report.replace(old, replacement, 1)
+    return report.encode("utf-8")
 
 
 def _payloads(archive: MemoArchive) -> dict[str, bytes]:
@@ -415,6 +453,6 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         raise ReviewValidationError("Memo ZIP missing required evidence")
     if "index.html" in names:
         with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
-            if z.read("index.html") != memo_html(archive):
+            if z.read("index.html") not in (memo_html(archive), _legacy_memo_html(archive)):
                 raise ReviewValidationError("Memo report differs from recorded ROI evidence")
     return archive, revision
