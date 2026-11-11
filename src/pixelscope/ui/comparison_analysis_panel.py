@@ -186,6 +186,7 @@ class ComparisonAnalysisPanel(QWidget):
         "P99",
     )
     scope_changed = Signal()
+    analysis_settled = Signal()
     roi_apply_requested = Signal(object)
     roi_clear_requested = Signal()
 
@@ -1080,6 +1081,7 @@ class ComparisonAnalysisPanel(QWidget):
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
             self._refresh_pivot()
+            self.analysis_settled.emit()
 
     def _channels_changed(self, _checked: bool) -> None:
         if self.last_results and self._histogram_specs:

@@ -109,6 +109,59 @@ def _ready(view: MultiCompareView) -> str | None:
     return None
 
 
+def capture_single_memo_view_state(
+    viewer: ImageViewer,
+    source_key_map: Mapping[str, str],
+) -> ReviewCaptureResult:
+    """Capture the ordinary single-image workspace, not a hidden MultiView.
+
+    The source is an already displayed image. This preserves exact ROI-space
+    scale/center for the most common single PNG/JPEG inspection workflow.
+    """
+    if not _alive(viewer) or viewer._graphics_resources_disposed:
+        return ReviewCaptureResult(reason="single-viewer-closed")
+    document = viewer.document
+    if (
+        not viewer.isVisible()
+        or document is None
+        or viewer.presented_document is not document
+        or document.preview is None
+        or viewer._geometry_timer.isActive()
+        or viewer._display_preview_worker is not None
+    ):
+        return ReviewCaptureResult(reason="single-image-not-settled")
+    key = source_key_map.get(document.document_id)
+    viewport = _viewport(viewer)
+    if key is None or viewport is None:
+        return ReviewCaptureResult(reason="single-source-or-physical-zoom-unavailable")
+    bounds = viewer.view_box.viewRange()
+    shape = viewer._reference_shape(document)
+    try:
+        state = ReviewViewStateV1(
+            reference_source_key=key,
+            page_source_keys=(key,),
+            active_source_key=key,
+            primary_source_key=key,
+            layout_kind="Single",
+            presentation_mode="originals",
+            sync_enabled=False,
+            center_ref_xy=viewport.center_ref_xy,
+            physical_scale=viewport.physical_scale,
+            reference_shape=shape,
+            source_shapes_ref={key: shape},
+            per_source={key: viewport},
+            visible_bounds_ref=(
+                float(bounds[0][0]),
+                float(bounds[1][0]),
+                float(bounds[0][1]),
+                float(bounds[1][1]),
+            ),
+        )
+        return ReviewCaptureResult(state=state)
+    except (TypeError, ValueError, OverflowError) as exc:
+        return ReviewCaptureResult(reason=f"single-geometry-invalid: {exc}")
+
+
 def capture_review_view_state(
     view: MultiCompareView,
     source_key_map: Mapping[str, str],

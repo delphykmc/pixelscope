@@ -10,6 +10,11 @@ from pixelscope.core import review_view_state
 KEYS = tuple(str(uuid.UUID(int=i + 1)) for i in range(6))
 
 
+def test_production_two_image_side_by_side_round_trip() -> None:
+    state = dataclasses.replace(make_state(), layout_kind="Side by Side")
+    assert review_view_state.ReviewViewStateV1.from_dict(state.to_dict()) == state
+
+
 def make_state(*, count: int = 2, sync: bool = True) -> review_view_state.ReviewViewStateV1:
     keys = KEYS[:count]
     return review_view_state.ReviewViewStateV1(

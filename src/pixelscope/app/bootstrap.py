@@ -44,6 +44,7 @@ from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
+from pixelscope.ui.review_window_integration import install_named_review
 from pixelscope.ui.user_guide_help import install_user_guide_help
 from pixelscope.ui.workflow_polish import install_workflow_polish
 
@@ -135,4 +136,15 @@ def compose_main_window_presentation(
     install_large_folder_registration(window)
     install_quick_compare_workflow(window)
     install_issue77_ui_design_followup(window)
+    # W09b owns its UI and verification workers. MainWindow remains the sole
+    # registration, selection and foreground-load authority.
+    install_named_review(window)
+    for viewer in (window.viewer, *window.multi_compare_view.viewers):
+        # These are terminal viewer events, not polling or a deferred retry.
+        viewer.geometry_settled.connect(window._notify_named_review_terminal)
+        viewer.display_preview_settled.connect(window._notify_named_review_terminal)
+        viewer.first_frame_painted.connect(window._notify_named_review_terminal)
+        viewer.view_box.user_navigation_started.connect(
+            window._cancel_named_review_pending_on_navigation
+        )
     return gain_control

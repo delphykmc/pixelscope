@@ -18,7 +18,9 @@ from typing import Any
 from uuid import UUID
 
 REVIEW_VIEW_STATE_VERSION = 1
-SUPPORTED_LAYOUTS = frozenset({"Auto", "Single", "Focus + 2", "Grid 2x2", "Grid 3x2"})
+SUPPORTED_LAYOUTS = frozenset(
+    {"Auto", "Single", "Side by Side", "Focus + 2", "Grid 2x2", "Grid 3x2"}
+)
 SUPPORTED_PRESENTATIONS = frozenset(
     {"originals", "difference", "difference_focus", "single", "channel_split"}
 )

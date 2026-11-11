@@ -1,5 +1,37 @@
 # PixelScope current state
 
+> **ROI Memo review / Windows validation (2026-11-12):** PR #227 source/test
+> `5cc63835` passed **1,918 tests, 1 warning in 447.33s**, normal Windows GC.
+> Independent review accepted the source after fixing a reproduced external-save
+> revision race; the archive regression preserves the newer external bytes.
+> Tracked Ruff (402 files), mypy (132 files), docs, strict MkDocs and dependency
+> checks passed. The historical eleven UI failures did not reproduce on today's
+> 3440x1392 desktop with available native clipboard access; they are not claimed
+> repaired by the Memo change. PR #227 / Issue #210 track the merge outcome and
+> post-wake investigation. See [the review/follow-up record](exec-plans/active/issue-210-review-merge-followup.md).
+> Earlier candidate/Draft statements below are dated historical checkpoints.
+
+> **Memo evidence / preset cleanup candidate (2026-11-09, unmerged):**
+> `codex/memo-evidence-cleanup-20261109` consolidates W09b #222 and actual W05/W06
+> retirement from #224. Preset engines and hide-only toolbar compatibility are
+> removed. Memo captures per-ROI PNGs and optional presented native Statistics,
+> saves `.pxmemo` with HTML/PNG/CSV, reopens evidence without originals, and now
+> uses one current-context ROI list with immediate memory edits and selection reset.
+> Separate Export/Update/source browsing controls are retired; see
+> [the current simplification](exec-plans/active/memo-roi-simplification.md). Legacy `.pxreview` stays readable. Earlier W05/W09b records
+> below are historical acceptance for their named SHAs, not acceptance of this
+> reshaped implementation. See [the active plan](exec-plans/active/memo-evidence-cleanup.md)
+> for current scope, evidence and remaining validation. No MAIN merge is claimed.
+
+> **W09b Named Findings — PR #222 Windows integration accepted (2026-11-06):**
+> production bootstrap/terminal/teardown wiring is exercised with independent
+> save/restart processes and 3 Findings over 2/4/6 RAW/YUV sources. `Side by Side`
+> capture and restored Sync button state are fixed. Source/test `1536689f` passed
+> **1,951 tests, 1 warning** under normal Windows GC; no implicit Difference
+> Calculate during restoration. [Acceptance and environment limits](exec-plans/active/issue-210-w09b-owner-acceptance.md)
+> distinguish automated native UI evidence from independent review, which remains
+> pending. PR preparation is complete; this does not state W09b is merged into MAIN.
+
 > **W05 comparison presets — PR #218 prepared for merge (2026-11-05):**
 > runtime Original 2/4, A/B/Diff and Diff Focus now use canonical MainWindow
 > Presented/Active/residency publication and verified per-source physical-view

@@ -25,6 +25,7 @@ Task workflows:
 - workflows/use-difference.html
 - workflows/export-analysis.html
 - workflows/save-and-restore-work.html
+- workflows/review-findings.html
 - workflows/use-remote-iqa.html
 
 Features:
@@ -61,6 +62,7 @@ Question routing examples:
 - Clear a line profile? -> workflows/inspect-line-profile.html
 - Understand Primary/Active? -> getting-started/concepts.html and reference/terminology.html
 - Export Histogram or Difference? -> workflows/export-analysis.html
+- Save ROI notes, crops or an offline Memo report? -> workflows/review-findings.html
 - Submit or inspect Remote IQA? -> workflows/use-remote-iqa.html
 
 Repository-side optional agent search (not shipped with the installed Help):

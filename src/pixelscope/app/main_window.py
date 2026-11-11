@@ -58,7 +58,6 @@ from pixelscope.core import load_latency_trace
 from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
-from pixelscope.core.comparison_presets import ComparisonPlan, ComparisonPreset, plan_comparison
 from pixelscope.core.diagnostics import (
     MAX_RECENT_FAILURES,
     DifferenceCacheDiagnostics,
@@ -147,6 +146,8 @@ class MainWindow(QMainWindow):
     # Emitted only after the final Files selection has been bound to the GUI.
     # Downstream observers must not re-style viewers for intermediate drag edits.
     files_selection_committed = Signal()
+    memo_roi_changed = Signal()
+    memo_sources_changed = Signal()
 
     def __init__(
         self,
@@ -188,10 +189,9 @@ class MainWindow(QMainWindow):
         self._normal_load_stale_drop_count = 0
         self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
+        self._review_terminal_notifying = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
-        self._comparison_plan: ComparisonPlan | None = None
-        self._comparison_plan_binding: tuple[tuple[str, int, int], ...] = ()
         self._selection_order: list[str] = []
         self._folder_documents: dict[str, list[str]] = {}
         # The registration path has already resolved these folder identities.
@@ -1053,40 +1053,6 @@ class MainWindow(QMainWindow):
 
         return tuple(document.source_path for document in self.current_comparison_documents())
 
-    def _comparison_binding(self) -> tuple[tuple[str, int, int], ...]:
-        return tuple(
-            (d.document_id, id(d), d.generation) for d in self.current_comparison_documents()
-        )
-
-    def set_comparison_plan(self, plan: ComparisonPlan) -> bool:
-        """Accept a runtime presentation request without changing Selected/Page."""
-        if self._closing or not plan.available:
-            return False
-        ids = tuple(d.document_id for d in self.current_comparison_documents())
-        if plan.preset is not ComparisonPreset.WORKSPACE and (
-            plan.pair is None
-            or not plan.pair.valid_on(ids)
-            or not set(plan.source_ids).issubset(ids)
-        ):
-            return False
-        if not hasattr(self, "_preset_view_state"):
-            from pixelscope.ui.preset_view_state import PresetViewState
-
-            self._preset_view_state = PresetViewState(self)
-        self._preset_view_state.capture()
-        self._comparison_plan = None if plan.preset is ComparisonPreset.WORKSPACE else plan
-        self._comparison_plan_binding = self._comparison_binding()
-        self._render_selection(preserve_view=True)
-        return True
-
-    def _dismiss_comparison_plan(self) -> None:
-        self._comparison_plan = None
-        controller = getattr(
-            getattr(self, "quick_compare_controller", None), "comparison_presets", None
-        )
-        if controller is not None:
-            controller.dismiss()
-
     def _comparison_page_range(self) -> tuple[int, int, int]:
         documents = self.selected_documents
         if not documents:
@@ -1600,6 +1566,7 @@ class MainWindow(QMainWindow):
         self._evict_resident_documents()
         self.structured_status.task.setText("Ready")
         self.statusBar().showMessage(f"Loaded {result.display_name}", 2500)
+        self._notify_named_review_terminal()
 
     def _load_failed(
         self,
@@ -1624,6 +1591,33 @@ class MainWindow(QMainWindow):
             self._render_selection(preserve_view=True)
         self.structured_status.task.setText("Error")
         self.statusBar().showMessage(f"Failed to load {path.name}: {error.message}", 5000)
+        self._notify_named_review_terminal()
+
+    def _notify_named_review_terminal(self, *_event: object) -> None:
+        """Retry only a pending Review epoch on an owner-observed terminal event.
+
+        Foreground load, physical-geometry settle, first paint and Display Gain
+        completion are authoritative event sources. No timer/polling loop or
+        Review-owned source/selection manager is introduced.
+        """
+        if self._closing or self._review_terminal_notifying:
+            return
+        review = self.__dict__.get("named_review_coordinator")
+        if review is None or review.restore.phase != "pending":
+            return
+        self._review_terminal_notifying = True
+        try:
+            review.on_owner_terminal(review.restore.epoch)
+        finally:
+            self._review_terminal_notifying = False
+
+    def _cancel_named_review_pending_on_navigation(self, *_event: object) -> None:
+        """A real user gesture revokes an unfinished historical view restore."""
+        if self._closing:
+            return
+        review = self.__dict__.get("named_review_coordinator")
+        if review is not None and review.restore.phase == "pending":
+            review.restore.cancel()
 
     def _selected_load_batch_complete(self) -> bool:
         """Treat one Current Comparison Page as the foreground replacement batch."""
@@ -2185,15 +2179,7 @@ class MainWindow(QMainWindow):
         self.files_selection_committed.emit()
 
     def _render_selection(self, preserve_view: bool = False) -> None:
-        live_views = getattr(self, "_preset_view_state", None)
-        if live_views is not None:
-            live_views.capture()
-            live_views.cancel()
-        if (
-            self._comparison_plan is not None
-            and self._comparison_plan_binding != self._comparison_binding()
-        ):
-            self._dismiss_comparison_plan()
+        self.memo_sources_changed.emit()
         documents = self.selected_documents
         render_stage = "ready" if any(doc.source is not None for doc in documents) else "loading"
         render_trace = load_latency_trace.PhaseTimer(
@@ -2266,24 +2252,6 @@ class MainWindow(QMainWindow):
             None,
             self._shared_roi,
         )
-        preset_plan = self._comparison_plan
-        if preset_plan is not None and preset_plan.pair is not None:
-            lifecycle = getattr(self, "difference_curation_lifecycle", None)
-            if lifecycle is not None:
-                lifecycle.select_preset_pair(preset_plan.pair.source_ids)
-            selected_pair = self.difference_panel.selected_documents()
-            matches = (
-                selected_pair is not None
-                and tuple(d.document_id for d in selected_pair) == preset_plan.pair.source_ids
-            )
-            preset_plan = plan_comparison(
-                [d.document_id for d in comparison_page],
-                preset_plan.preset,
-                preset_plan.pair,
-                cached_valid=matches and self.difference_panel.has_cached_map(),
-                pending=matches and self.difference_panel._worker is not None,
-            )
-            self._comparison_plan = preset_plan
         render_trace.checkpoint("difference_panel_set_documents")
         if len(analysis_ready) == 1:
             load_latency_trace.mark(
@@ -2296,11 +2264,8 @@ class MainWindow(QMainWindow):
             if hasattr(self, "diff_action") and self.diff_action.isChecked()
             else None
         )
-        if preset_plan is not None and preset_plan.show_difference:
-            cached_display = self.difference_panel.cached_display_for_current()
         cached_six_difference = (
-            preset_plan is None
-            and cached_display is not None
+            cached_display is not None
             and len(comparison_page) >= COMPARISON_PAGE_SIZE
             and hasattr(self, "diff_action")
             and self.diff_action.isChecked()
@@ -2342,10 +2307,7 @@ class MainWindow(QMainWindow):
             and difference_document is not None
             and self._difference_result_matches_current_pair()
             and hasattr(self, "diff_action")
-            and (
-                self.diff_action.isChecked()
-                or (preset_plan is not None and preset_plan.show_difference)
-            )
+            and self.diff_action.isChecked()
         )
         if show_difference and self._layout_mode != "Single View":
             assert difference_document is not None
@@ -2380,31 +2342,6 @@ class MainWindow(QMainWindow):
             effective_layout, capacity = "Grid 3x2", COMPARISON_PAGE_SIZE
         else:
             effective_layout, capacity = self._effective_layout(len(display_documents))
-        if preset_plan is not None and preset_plan.pair is not None:
-            by_id = {d.document_id: d for d in comparison_page}
-            source_ids = preset_plan.source_ids or preset_plan.pair.source_ids
-            display_documents = [by_id[source_id] for source_id in source_ids]
-            if (
-                preset_plan.show_difference
-                and cached_display is not None
-                and self._difference_document is not None
-            ):
-                display_documents = (
-                    [self._difference_document]
-                    if preset_plan.preset is ComparisonPreset.DIFF_FOCUS
-                    else [*display_documents, self._difference_document]
-                )
-            count = len(display_documents)
-            capacity = 1 if count == 1 else 2 if count == 2 else 4
-            effective_layout = (
-                "Single"
-                if count == 1
-                else "Side by Side"
-                if count == 2
-                else "Focus + 2"
-                if count == 3
-                else "Grid 2x2"
-            )
         self._view_capacity = capacity
         render_trace.checkpoint("presentation_layout_planning")
 
@@ -2429,11 +2366,7 @@ class MainWindow(QMainWindow):
                 self.central_stack.setCurrentWidget(self.viewer)
                 visible_state = [comparison_page[0]]
             else:
-                document = (
-                    display_documents[0]
-                    if preset_plan is not None
-                    else documents[self._current_index]
-                )
+                document = documents[self._current_index]
                 local_slot = self._current_index - self._page_start + 1
                 self.viewer.set_document(document, fit=not preserve_view)
                 render_trace.checkpoint("single_viewer_set_document")
@@ -2493,34 +2426,12 @@ class MainWindow(QMainWindow):
                 self._shared_line,
                 preserve_view,
                 local_slot_by_id,
-                fixed_geometry_count=(
-                    COMPARISON_PAGE_SIZE if large_selection and preset_plan is None else None
-                ),
+                fixed_geometry_count=(COMPARISON_PAGE_SIZE if large_selection else None),
                 local_slots=large_selection,
             )
             render_trace.checkpoint("multi_viewer_set_documents")
             self.central_stack.setCurrentWidget(self.multi_compare_view)
-            visible_state = (
-                visible
-                if preset_plan is not None
-                else [d for d in visible if d is not self._difference_document]
-            )
-
-        if preset_plan is not None and preset_plan.pair is not None:
-            for tile in self.multi_compare_view.occupied_viewers:
-                doc = tile.document
-                if doc is None or doc.channel_layout == "DIFFERENCE":
-                    continue
-                slot = next((i + 1 for i, d in enumerate(comparison_page) if d is doc), 0)
-                role = (
-                    "A"
-                    if doc.document_id == preset_plan.pair.reference_id
-                    else "B"
-                    if doc.document_id == preset_plan.pair.target_id
-                    else ""
-                )
-                tile.set_tile_context(slot, f"{role}{slot}" if role else "")
-                tile.set_focus(doc.document_id == self._focus_document_id)
+            visible_state = [d for d in visible if d is not self._difference_document]
 
         render_trace.checkpoint("viewer_headers_and_stack")
         if len(analysis_ready) == 1:
@@ -2562,11 +2473,6 @@ class MainWindow(QMainWindow):
             )
         else:
             active = self.current_document
-            if preset_plan is not None:
-                active = next(
-                    (d for d in visible_state if d.document_id == self._active_document_id),
-                    visible_state[0] if visible_state else None,
-                )
             if self._view_capacity > 1 and self._focus_document_id is not None:
                 active = next(
                     (
@@ -2602,8 +2508,6 @@ class MainWindow(QMainWindow):
         render_trace.checkpoint("comparison_page_controls")
         self._refresh_preload_plan()
         render_trace.checkpoint("preload_planning_and_end")
-        if live_views is not None and preserve_view:
-            live_views.request()
 
     def _split_display_documents(
         self,
@@ -2681,7 +2585,6 @@ class MainWindow(QMainWindow):
     def set_layout_mode(self, mode: str) -> None:
         if mode not in ("Auto", "Single View", "Multi View"):
             raise ValueError(f"unsupported layout: {mode}")
-        self._dismiss_comparison_plan()
         if mode in ("Auto", "Multi View") and self._six_image_diff_locked():
             self.statusBar().showMessage(
                 "Multi View is unavailable while six images and Diff are displayed.", 3500
@@ -2793,10 +2696,7 @@ class MainWindow(QMainWindow):
 
         page = self.current_comparison_documents()
         allowed_ids = {item.document_id for item in page}
-        if (
-            self.diff_action.isChecked()
-            or (self._comparison_plan is not None and self._comparison_plan.show_difference)
-        ) and self._difference_document is not None:
+        if self.diff_action.isChecked() and self._difference_document is not None:
             allowed_ids.add(self._difference_document.document_id)
         if document_id not in allowed_ids:
             return
@@ -2836,7 +2736,7 @@ class MainWindow(QMainWindow):
         order.extend(document.document_id for document in page if document.document_id not in order)
         target_id = order[-1]
         target = source_by_id[target_id]
-        if self._layout_mode != "Single View" or self._comparison_plan is not None:
+        if self._layout_mode != "Single View":
             self._set_focus_document(target)
             return
 
@@ -3003,7 +2903,6 @@ class MainWindow(QMainWindow):
     def show_selected_image(self, local_index: int) -> None:
         if self._view_capacity != 1 or local_index < 0:
             return
-        self._dismiss_comparison_plan()
         split_documents = self._current_split_documents()
         if split_documents:
             if local_index >= len(split_documents):
@@ -3102,8 +3001,6 @@ class MainWindow(QMainWindow):
         self._update_action_states()
 
     def _navigate_single_view(self, key: str) -> None:
-        if self._comparison_plan is not None and key != "difference":
-            self._dismiss_comparison_plan()
         split_documents = self._current_split_documents()
         split_document = next(
             (document for document in split_documents if document.document_id == key),
@@ -3215,9 +3112,6 @@ class MainWindow(QMainWindow):
         documents = self.selected_documents
         if not documents:
             return
-        if self._comparison_plan is not None and self._view_capacity > 1:
-            self._cycle_visible_active(1)
-            return
         if len(documents) > COMPARISON_PAGE_SIZE:
             self._step_selected_image(1)
             return
@@ -3235,9 +3129,6 @@ class MainWindow(QMainWindow):
     def previous_image(self) -> None:
         documents = self.selected_documents
         if not documents:
-            return
-        if self._comparison_plan is not None and self._view_capacity > 1:
-            self._cycle_visible_active(-1)
             return
         if len(documents) > COMPARISON_PAGE_SIZE:
             self._step_selected_image(-1)
@@ -3351,8 +3242,6 @@ class MainWindow(QMainWindow):
     def _cycle_visible_active(self, step: int) -> bool:
         split_documents = self._current_split_documents()
         documents = split_documents or self.current_comparison_documents()
-        if self._comparison_plan is not None:
-            documents = [d for d in documents if d.document_id in self._visible_document_ids]
         if len(documents) < 2:
             return False
         ids = [document.document_id for document in documents]
@@ -3662,7 +3551,10 @@ class MainWindow(QMainWindow):
         selection_trace.checkpoint("initial_render_selection_returned")
 
     def _shared_roi_changed(self, bounds: object) -> bool:
-        return self._apply_shared_roi(bounds, allow_channel_split=False)
+        applied = self._apply_shared_roi(bounds, allow_channel_split=False)
+        if applied:
+            self.memo_roi_changed.emit()
+        return applied
 
     def _numeric_roi_requested(self, bounds: object) -> bool:
         """Apply explicit reference-space editor input, including during Split view."""
@@ -3955,30 +3847,22 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Ready: {title}", 4000)
 
     def fit_image(self) -> None:
-        self._cancel_preset_view_restore()
         if self.central_stack.currentWidget() is self.multi_compare_view:
             self.multi_compare_view.fit_images()
         else:
             self.viewer.fit_image()
 
     def zoom_100_percent(self) -> None:
-        self._cancel_preset_view_restore()
         if self.central_stack.currentWidget() is self.multi_compare_view:
             self.multi_compare_view.zoom_100_percent()
         else:
             self.viewer.zoom_100_percent()
 
     def zoom_by(self, factor: float) -> None:
-        self._cancel_preset_view_restore()
         if self.central_stack.currentWidget() is self.multi_compare_view:
             self.multi_compare_view.zoom_by(factor)
         else:
             self.viewer.zoom_by(factor)
-
-    def _cancel_preset_view_restore(self) -> None:
-        live = getattr(self, "_preset_view_state", None)
-        if live is not None:
-            live.cancel()
 
     def _inspect_pixel(self, x: int, y: int, value: object) -> None:
         document = self.viewer.document
@@ -4379,10 +4263,14 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        named_review = self.__dict__.get("named_review_coordinator")
+        if named_review is not None and not named_review.confirm_close():
+            event.ignore()
+            return
         self._closing = True
-        live_views = getattr(self, "_preset_view_state", None)
-        if live_views is not None:
-            live_views.shutdown()
+        if named_review is not None:
+            # Stop Review epochs/workers before disposing source viewports.
+            named_review.shutdown()
         self._save_ui_state()
         self._prepare_floating_workspaces_for_shutdown()
         self.viewer.shutdown()

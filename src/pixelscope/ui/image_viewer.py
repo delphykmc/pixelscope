@@ -230,6 +230,8 @@ class ImageViewer(QWidget):
     zoom_changed = Signal(float)
     document_changed = Signal(object)
     first_frame_painted = Signal(str)
+    geometry_settled = Signal()
+    display_preview_settled = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -561,6 +563,7 @@ class ImageViewer(QWidget):
             self.set_physical_zoom(target, track_target=explicit_target)
         else:
             self._update_zoom()
+        self.geometry_settled.emit()
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
         self._graphics.trace_document_id = (
@@ -816,6 +819,8 @@ class ImageViewer(QWidget):
         if worker is not None and worker.task_id == task_id:
             self._display_preview_worker = None
             self._display_preview_request_identity = None
+            if not self._graphics_resources_disposed:
+                self.display_preview_settled.emit()
 
     def _cancel_display_preview(self) -> None:
         self._display_preview_request_serial += 1

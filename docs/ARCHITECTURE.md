@@ -78,23 +78,31 @@ bounded comparison working set. The following consume the same page:
 
 Feature-owned explicit Difference pair/reference authority remains separate.
 
-W05 comparison presets submit Qt-free runtime `ComparisonPlan` values through
-`MainWindow.set_comparison_plan`. Canonical `_render_selection` revalidates page
-object/generation membership and Difference pair/channel cache authority, then
-publishes viewer capacity, Presented IDs, Active, Files state and normal residency
-protection. The Quick Compare controller owns A/B controls and intent, not a second
-post-render source registry or viewer projection. Analysis remains the entire page.
+W05 comparison-plan overlays, their ephemeral view-state owner and W06 workspace
+preset owners are retired. Canonical `_render_selection`, source selection/page,
+the existing Difference panel and Single/Multi View remain presentation authorities.
+Native dock/splitter persistence and reset remain; obsolete per-preset settings are
+removed without altering the native layout cache. W04 durable viewport restoration
+continues to serve Memo, without a second comparison planner or workspace mode.
 
-`PresetViewState` is an owned, revocable live display helper. It retains weak source
-object references plus generation/reference shape and W01-measured physical center/
-scale, never source arrays, widgets or invented durable source keys. It includes the
-Single viewer, retains hidden source geometry only on the unchanged page, waits for
-layout/display settle, and reuses MultiCompareView's W04 epoch/checkpoint rollback
-boundary. User input and explicit MainWindow zoom commands revoke pending work;
-page/source changes and shutdown prune it. A valid shared Sync anchor applies to
-newly visible tiles too. Sync-Off rebinding never propagates a common ViewBox range.
-This runtime continuity is separate from W04/W09 durable Review verification and
-never authorizes a frozen Difference measurement capture.
+Memo reuses the W09a `ReviewDocumentV1` and existing source verification/restore
+pipeline. `io/memo_archive.py` wraps that record in a bounded `.pxmemo` ZIP with
+immutable per-finding/source PNGs and optional native ROI Statistics CSVs. Legacy
+`.pxreview` imports remain metadata-only until the user creates new inspection
+points; old images are never retrospectively fabricated. The current ROI-list interaction contract is in
+[the simplification plan](exec-plans/active/memo-roi-simplification.md). Stable
+MainWindow manual-ROI and source-publication signals drive ROI creation/context
+reset; no file discovery or reverse note matching is installed. Save embeds static
+HTML alongside PNG/CSV evidence; the coordinator has no separate Export flow.
+Crop encoding, archive
+validation, thumbnails and HTML export run in bounded workers. Only small thumbnail
+PNGs reach the GUI. The capture fence rejects source/ROI/view revisions; W02 result
+revisions matter only when Statistics were explicitly requested. Text edits preserve
+pixels, and source absence never removes historical crops or notes. Save/export
+consume frozen evidence rather than current viewer pixels. Source verification
+still gates live restoration; historical CSVs never publish current analysis.
+Memo close waits for file operations; unwritten notes are temporary and do not
+request a separate discard confirmation. No Base import or forced layout of IQA contributions is introduced.
 
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always `1..6` within the Current Comparison Page. A global Selected
@@ -1155,3 +1163,21 @@ identity is established before QApplication creation. PyInstaller executable ico
 binding, shortcuts, installer identity, signing, updater, and final distribution
 remain P7. Remote REST/client boundaries remain independent of widgets. All APIs
 target CPython 3.10.
+
+## Named Review production ownership
+
+Bootstrap installs the window-owned Named Review coordinator after W05/W06.
+`MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
+selection/page, profile, ROI/Line and physical-view owners; it does not create a
+parallel Session manager. Source attestation and verification run in bounded
+workers. Historical DTOs contain no QWidget, live source array or worker ownership.
+
+MainWindow forwards foreground success/error and viewer first-paint, physical
+geometry and display-preview completion only to the current pending restore epoch,
+with reentrancy/close guards. Navigation revokes that epoch. Coordinator shutdown
+precedes viewer disposal. W04 applies settled physical view intent; only after
+Applied does the adapter mirror Sync into the QAction with signals blocked and
+refresh action states, avoiding a second range mutation. Source/recipe restoration
+does not authorize Difference Calculate or live historical metrics. See the
+[W09b integration acceptance](exec-plans/active/issue-210-w09b-owner-acceptance.md)
+for concrete native Windows evidence and remaining independent-review limits.
