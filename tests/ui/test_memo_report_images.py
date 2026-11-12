@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QFileDialog
 from test_memo_evidence import windows as memo_windows
 
@@ -10,29 +9,9 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.memo_archive import load_memo_archive
 from pixelscope.ui.image_viewer import ImageViewer
-from pixelscope.ui.memo_report_images import annotate_memo_crop
 
 windows = memo_windows
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
-
-
-@pytest.mark.parametrize("channels", [1, 3])
-def test_report_image_has_unicode_filename_coordinates_and_unchanged_crop(qapp, channels):
-    shape = (31, 43) if channels == 1 else (31, 43, 3)
-    pixels = np.random.default_rng(12).integers(0, 256, shape, dtype=np.uint8)
-    ok, png = cv2.imencode(".png", pixels)
-    assert ok
-    name = "비교 원본.png"
-    coordinates = "x=2  y=3  width=43  height=31"
-    result = annotate_memo_crop(png.tobytes(), name, coordinates)
-    image = QImage.fromData(result)
-    assert image.text("Source") == name and image.text("ROI") == coordinates
-    decoded = cv2.imdecode(np.frombuffer(result, np.uint8), cv2.IMREAD_COLOR)
-    expected = cv2.cvtColor(pixels, cv2.COLOR_GRAY2BGR) if channels == 1 else pixels
-    left = (320 - 43) // 2
-    np.testing.assert_array_equal(decoded[:31, left : left + 43], expected)
-    assert decoded.shape[:2] == (31 + 84, 320)
-    assert len(np.unique(decoded[31:].reshape(-1, 3), axis=0)) > 2  # Visible footer text.
 
 
 def test_passive_memo_rectangles_do_not_change_analysis_roi_or_fit_range(qtbot):
@@ -83,14 +62,14 @@ def test_default_save_suggestion_and_atomic_folder_failure_retry(
         report.mkdir()
         (report / "user.txt").write_text("keep my file")
     else:
-        from pixelscope.ui import review_window_integration as module
+        from pixelscope.io import memo_folder as module
 
-        original_render = module.annotate_memo_crop
+        original_render = module.write_memo_report
 
         def fail_render(*_args):
             raise RuntimeError("simulated rendering failure")
 
-        monkeypatch.setattr(module, "annotate_memo_crop", fail_render)
+        monkeypatch.setattr(module, "write_memo_report", fail_render)
     chosen = []
 
     def choose(*args):
@@ -108,7 +87,7 @@ def test_default_save_suggestion_and_atomic_folder_failure_retry(
         (report / "user.txt").unlink()
         report.rmdir()
     else:
-        monkeypatch.setattr(module, "annotate_memo_crop", original_render)
+        monkeypatch.setattr(module, "write_memo_report", original_render)
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     _, revision = load_memo_archive(target)

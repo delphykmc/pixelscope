@@ -935,8 +935,7 @@ bindings rather than matching files by path or basename.
 Changing Selected membership/order or comparison page discards the temporary
 notebook and clears its editor. Selecting the old files never retrieves notes.
 Open Memo is the explicit way to reopen saved work; verified navigation remains
-one-way from Memo to the original viewer. Missing originals leave crops/text
-readable. RAW/YUV input settings can be supplied through the existing File workflow.
+one-way from Memo to the original viewer. Missing originals leave notes readable, without an in-app fallback image. RAW/YUV input settings can be supplied through the existing File workflow.
 
 Save Memo is the single persistence command: a named folder contains a same-named
 metadata-only JSON `.pxmemo`, root `index.html` and relative `src/` assets.
@@ -950,11 +949,10 @@ original, while Multi View captures the comparison page. Session v1 remains unch
 Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time and
 creates the matching folder. The map inventories files, directories, source/ROI
 metadata and content digests; it embeds no PNG/CSV payload. **Open report** in
-the save status opens that HTML. Report PNGs place the base filename and ROI
-x/y/width/height below the crop, and HTML captions/filenames identify the region.
-Exact undecorated 8-bit crops are in `src/originals/`, annotated report PNGs in
-`src/crops/`, and optional native CSVs in `src/statistics/`. Annotation never changes
-native analysis or the recorded crop. Relative paths support moving the whole
+the save status opens that HTML. Exact undecorated ROI PNGs are in `src/crops/`,
+without text or margins. HTML and metadata contain source basename and ROI
+x/y/width/height. New saves omit duplicate src/originals assets. Optional native CSVs
+are in `src/statistics/`. Relative paths support moving the whole
 folder. Save stages and validates the complete generation before publication;
 failed installation restores the previous folder, or retains a recovery copy if
 rollback itself fails. Edited/foreign files/directories and linked asset paths
@@ -967,10 +965,13 @@ retrying Save does not falsely report an external revision conflict.
 **Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
 Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
 whose explicit runtime source IDs/generations are still ready applies only its ROI
-and note, keeping the current viewport/tool context. It does not hash/re-register,
+and note, centering visible viewers on the ROI while preserving zoom/tool context. It does not hash/re-register,
 decode/reload or reconstruct the viewers. Opening a saved notebook, or unavailable
 runtime bindings, still uses the verified restore path. Active-ROI analysis can
 update normally; historical saved Statistics never replace live numerical authority.
 
 See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
 for acceptance evidence and inherited native environment limitations.
+
+Memo has no embedded crop preview or redundant coordinate/source summary. Repeat
+saves retain the root directory, back up files and commit metadata last.

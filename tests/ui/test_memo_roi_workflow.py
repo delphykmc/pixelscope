@@ -67,6 +67,13 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
         for row in (1, 0, 1, 0):
             m.panel.findings.setCurrentRow(row)
             assert w._shared_roi == (first if row == 0 else second)
+            roi = first if row == 0 else second
+            for viewer in w.multi_compare_view.occupied_viewers:
+                ranges = viewer.view_box.viewRange()
+                np.testing.assert_allclose(
+                    [sum(ranges[0]) / 2, sum(ranges[1]) / 2],
+                    [roi.x + roi.width / 2, roi.y + roi.height / 2],
+                )
     assert generations == [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
     m.panel.note_edit.setPlainText("Edited immediately")
     target = tmp_path / "notes" / "notes.pxmemo"

@@ -728,3 +728,9 @@ P7-E Final Release Qualification                   DEFERRED
 
 Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate from MAIN gates
 ```
+
+### 2026-11-12 Memo feedback candidate (PR #229, unmerged)
+
+Exact crop-only PNGs, simpler Memo, ROI-centered navigation and native Windows
+locked-HTML repeat-save fix are tracked in
+[the feedback plan](exec-plans/active/memo-simple-crops-resave.md).

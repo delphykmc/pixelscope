@@ -5,8 +5,7 @@ import html
 from collections.abc import Mapping
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
@@ -29,7 +28,7 @@ from pixelscope.io.review_repository import SourceResolutionV1
 class ReviewPanel(QWidget):
     """Simple note list with a hidden-on-success recovery path.
 
-    The controller restores each selected Memo automatically after source checks.
+    The controller navigates resident ROIs and verifies saved originals when needed.
     No manual Verify/Activate controls are part of the everyday workflow.
     """
 
@@ -53,16 +52,8 @@ class ReviewPanel(QWidget):
         self.findings = QListWidget(self)
         self.findings.setObjectName("namedFindingList")
         self.findings.setAccessibleName("Saved image inspection memos")
-        layout.addWidget(self.findings, 3)
-
-        self.crop_previews = QListWidget(self)
-        self.crop_previews.setObjectName("memoSavedCropPreviews")
-        self.crop_previews.setViewMode(QListWidget.ViewMode.IconMode)
-        self.crop_previews.setIconSize(QSize(120, 80))
-        self.crop_previews.setToolTip("Saved ROI images — readable even without originals")
-        self.crop_previews.setMaximumHeight(160)
-        self.crop_previews.setAccessibleName("Saved ROI crops, independent of original images")
-        layout.addWidget(self.crop_previews)
+        self.findings.setMaximumHeight(180)
+        layout.addWidget(self.findings)
 
         form = QGroupBox("Memo", self)
         grid = QFormLayout(form)
@@ -71,13 +62,13 @@ class ReviewPanel(QWidget):
         self.title_edit.setMaxLength(256)
         self.note_edit = QPlainTextEdit(form)
         self.note_edit.setObjectName("findingNoteEdit")
-        self.note_edit.setMaximumHeight(115)
+        self.note_edit.setMinimumHeight(120)
         self._tags: tuple[str, ...] = ()
         grid.addRow("Title", self.title_edit)
         grid.addRow("Note", self.note_edit)
         # Legacy tags are preserved in .pxreview but not exposed as a required
         # editing workflow. They do not justify an additional form field.
-        layout.addWidget(form)
+        layout.addWidget(form, 1)
 
         self.include_statistics = QCheckBox("Include current ROI statistics", self)
         self.include_statistics.setToolTip(
@@ -93,10 +84,6 @@ class ReviewPanel(QWidget):
             row.addWidget(button)
         layout.insertLayout(2, row)
 
-        self.evidence_label = QLabel("Select a memo to revisit its ROI", self)
-        self.evidence_label.setWordWrap(True)
-        self.evidence_label.setObjectName("findingEvidenceStatus")
-        layout.addWidget(self.evidence_label)
         footer = QHBoxLayout()
         self.open_button = QPushButton("Open Memo…", self)
         self.save_button = QPushButton("Save Memo…", self)
@@ -153,24 +140,6 @@ class ReviewPanel(QWidget):
         )
         self.status.setToolTip(str(report))
 
-    def show_saved_crops(self, thumbnails: Mapping[str, bytes]) -> None:
-        self.crop_previews.clear()
-        if self._document is None:
-            return
-        labels = {s.source_key: s.display_tag or s.locator.basename for s in self._document.sources}
-        for key, data in thumbnails.items():
-            pixmap = QPixmap()
-            if pixmap.loadFromData(data):
-                scaled = pixmap.scaled(
-                    QSize(120, 80),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.FastTransformation,
-                )
-                item = QListWidgetItem(QIcon(scaled), labels.get(key, "Image"))
-                item.setToolTip("Saved 8-bit ROI preview — original pixels are unchanged")
-                self.crop_previews.addItem(item)
-        self.crop_previews.setVisible(bool(thumbnails))
-
     def set_dirty(self, dirty: bool, *, saved: bool = False) -> None:
         if not dirty and not saved and (self._document is None or not self._document.findings):
             self.header.setText("● Ready")
@@ -208,20 +177,16 @@ class ReviewPanel(QWidget):
         self._selection_changed()
 
     def show_missing_images(self, keys: tuple[str, ...]) -> None:
-        self.set_status("Original image unavailable — saved ROI crops and notes remain readable")
+        self.set_status("Original image unavailable — this ROI cannot be shown")
 
     def set_resolutions(self, resolutions: Mapping[str, SourceResolutionV1]) -> None:
         if resolutions and any(not r.may_bind_historical_finding for r in resolutions.values()):
-            self.set_status(
-                "Original image unavailable — saved ROI crops and notes remain readable"
-            )
+            self.set_status("Original image unavailable — this ROI cannot be shown")
 
     def _selection_changed(self, *_args: object) -> None:
         key = self.selected_finding_id
         if self._document is None or key is None:
-            self.show_saved_crops({})
             self._set_selection_enabled(False)
-            self.evidence_label.setText("Select a memo to revisit its ROI")
             return
         finding: ReviewFindingV1 = next(f for f in self._document.findings if f.id == key)
         self.title_edit.blockSignals(True)
@@ -231,18 +196,6 @@ class ReviewPanel(QWidget):
         self.title_edit.blockSignals(False)
         self.note_edit.blockSignals(False)
         self._tags = finding.tags
-        source_names = {
-            source.source_key: source.display_tag or source.locator.basename
-            for source in self._document.sources
-        }
-        image_labels = ", ".join(source_names[key] for key in finding.source_keys)
-        roi_label = (
-            f"ROI: x={finding.roi_ref[0]}, y={finding.roi_ref[1]}, "
-            f"{finding.roi_ref[2]}×{finding.roi_ref[3]}"
-            if finding.roi_ref is not None
-            else "Full image / no ROI"
-        )
-        self.evidence_label.setText(f"{roi_label}\nImages: {image_labels}")
         self._set_selection_enabled(True)
         self.set_resolutions({})
         self.finding_changed.emit(key)

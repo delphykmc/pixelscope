@@ -69,3 +69,17 @@
 ![공통 아이콘을 사용한 dock Memo](09-docked.png)
 
 추가 회귀와 최종 검증은 [폴더·실시간 전환 기록](../../exec-plans/active/memo-folder-live-switch.md)에 남깁니다. 이 캡처가 모든 물리 DPI/OS 환경에서의 기존 표시 문제 원인을 확정하는 것은 아닙니다.
+
+## 7. Simplified Memo and reusable crops (2026-11-12)
+
+This section supersedes earlier footer, originals and preview descriptions.
+
+1. Selecting an ROI centers the Viewer while preserving zoom.
+2. Memo keeps the list and Title/Note; preview and coordinate summary are removed.
+3. src/crops PNGs contain only captured pixels. HTML and metadata carry captions.
+4. Missing originals leave notes readable without an in-app fallback image.
+5. Repeat saving keeps the root directory stable, including when HTML is open.
+
+![Simplified Memo](10-simple-memo.png)
+
+![Exact ROI PNG without text or margins](11-exact-crop.png)

@@ -40,6 +40,14 @@ def report_directory(path: Path) -> Path:
     return path.with_name(f"{path.stem}_report")
 
 
+def crop_filename(ordinal: int, number: int, basename: str, roi: tuple[int, int, int, int]) -> str:
+    x, y, width, height = roi
+    return (
+        f"ROI_{ordinal:02d}_{number:02d}_{safe_memo_name(basename)[:48]}"
+        f"_x{x}_y{y}_w{width}_h{height}.png"
+    )
+
+
 def _inventory(directory: Path) -> dict[str, str]:
     if _is_link(directory) or not directory.is_dir():
         raise FileExistsError("Report destination is not a regular generated folder")
@@ -124,10 +132,7 @@ def write_memo_report(
                 basename = sources[key].locator.basename
                 x, y, width, height = finding.roi_ref
                 caption = f"x={x}  y={y}  width={width}  height={height}"
-                filename = (
-                    f"ROI_{ordinal:02d}_{number:02d}_{safe_memo_name(basename)[:48]}"
-                    f"_x{x}_y{y}_w{width}_h{height}.png"
-                )
+                filename = crop_filename(ordinal, number, basename, finding.roi_ref)
                 relative = f"images/{filename}"
                 payloads[relative] = render(crop, basename, caption)
                 if sum(len(data) for data in payloads.values()) > 256 * 1024 * 1024:

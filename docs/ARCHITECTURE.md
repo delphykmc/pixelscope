@@ -1178,8 +1178,12 @@ relative `src/` assets. `io.memo_folder` validates bounds, paths, reparse points
 file/directory inventories and hashes, syncs staged files and compares revisions
 before publication. Failed installation restores the old folder; failed rollback
 retains its recovery copy. `io.memo_report` is a staging helper, not a separately
-committed product output. PNG footer drawing remains worker-side QImage/QPainter;
-exact undecorated crops are separate external assets. ZIP loading retains its
+committed product output. Crop PNGs retain exact recorded bytes with no text/margins.
+Repeat saves retain the root directory, back up validated files, skip unchanged
+assets and commit metadata last. Derived HTML supports in-place writes under
+Windows write-sharing/non-delete-sharing handles. Genuine write locks still fail
+with rollback. Concurrent readers may reject intermediate inventories; this is
+not a crash-atomic whole-folder transaction. ZIP loading retains its
 strict old/current renderer validation, while new maps validate asset digests.
 Post-publication cleanup failures return the committed revision and a cleanup
 warning rather than overriding success; only pre-publication failures keep the
@@ -1189,7 +1193,9 @@ The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
 only when its explicit source ID/generation bindings match the resident ready
 comparison page. The restore controller records this owner-applied selection after
 revoking old callbacks; no source registration, viewport/layout reconstruction or
-native verification is started. Other cases retain the verified restore path.
+native verification is started. Visible viewers translate to the ROI center while
+preserving zoom. Other cases retain the verified restore path. Memo has no crop
+preview or coordinate summary, and missing originals provide no fallback image.
 Memo's owned common dock title is quiesced before shutdown. The panel paints its
 background, and its application-scoped QAction shortcut is associated with both
 the main window and the floating dock.

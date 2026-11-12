@@ -7,7 +7,7 @@ import io
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QListWidget, QMessageBox
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -88,7 +88,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
         qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=15000)
         assert len(memo.library.document.findings) == index + 1, memo.panel.status.text()
     assert len(memo._crops) == 6
-    assert memo.panel.crop_previews.count() == 2
+    assert memo.panel.findings.count() == 3
     first = memo.library.document.findings[0]
     assert first.analysis[0].status == "captured"
     frozen = dict(memo._crops)
@@ -115,17 +115,19 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert len(offline.library.document.findings) == 3
     assert not fresh.documents
     assert not any(v._memo_items for v in (fresh.viewer, *fresh.multi_compare_view.viewers))
-    assert offline.panel.crop_previews.count() == 2
+    assert offline.panel.findings.count() == 3
     assert "unavailable" in offline.panel.status.text()
     offline.show()
     qtbot.waitUntil(lambda: offline.dock.isVisible())
     assert fresh.grab().save(str(tmp_path / "memo-offline.png"))
     for index in range(3):
         offline.panel.findings.setCurrentRow(index)
-        assert offline.panel.crop_previews.count() == 2
-    pngs = list((target.parent / "src/originals").rglob("*.png"))
+        assert offline.panel.findings.count() == 3
+    pngs = list((target.parent / "src/crops").rglob("*.png"))
     assert len(pngs) == 6
     assert {p.read_bytes() for p in pngs} == set(frozen.values())
+    assert not (target.parent / "src/originals").exists()
+    assert offline.panel.findChild(QListWidget, "memoSavedCropPreviews") is None
     csvs = list((target.parent / "src/statistics").glob("*.csv"))
     assert len(csvs) == 1
     rows = list(csv.DictReader(io.StringIO(csvs[0].read_bytes().decode("utf-8-sig"))))

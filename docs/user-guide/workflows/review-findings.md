@@ -13,7 +13,7 @@ Session remains the way to resume the overall inspection setup.
    Update button. Captured crop pixels remain unchanged when text is edited.
 4. Draw a different ROI to start another blank note. Select an earlier entry in
    the ROI list to see its note and select its ROI. For already loaded images this
-   keeps the current view and does not reload them. Opening a saved Memo can restore
+   centers the Viewer on that ROI, preserves zoom and does not reload them. Opening a saved Memo can restore
    its recorded original view after source verification.
 5. **Add ROI** adds a blank entry for the current ROI. **Delete** removes the
    selected ROI entry. These controls operate on ROI records, not image files.
@@ -41,8 +41,7 @@ Memo_scene_date/
   Memo_scene_date.pxmemo   metadata and relative file map
   index.html              report
   src/
-    crops/                annotated report PNGs
-    originals/            exact undecorated 8-bit ROI previews
+    crops/                exact undecorated 8-bit ROI PNGs
     statistics/           optional native CSVs
 ```
 
@@ -50,9 +49,8 @@ Open `index.html` directly or click **Open report** in the Memo save status. Ope
 the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder together;
 moving only the map loses its referenced evidence. No extraction is needed.
 
-Report PNGs show the base filename and ROI x/y/width/height in a footer below the
-crop. HTML captions and PNG filenames also identify the crop. The `originals/` PNGs
-remain undecorated. Saving consumes the recorded evidence; it does not recrop current
+PNG files contain only captured ROI pixels without text or margins. Source basename
+and ROI x/y/width/height appear in HTML and metadata. New saves use only src/crops. Saving consumes the recorded evidence; it does not recrop current
 images or recalculate Statistics. Unsaved edits are temporary and are discarded
 when the image selection changes or the application closes.
 
@@ -61,7 +59,7 @@ folder and preserves the original file. Old PixelScope versions may not read the
 new map format, but the HTML and images can be opened directly. CSV values retain
 their native numerical meaning. Full original images are not copied into the folder.
 
-Saving again replaces an unmodified Memo folder as a complete generation. Edited
+Saving again keeps the folder in place, backs up files and commits metadata last. Edited
 or unrelated files/directories are protected. Failed saving keeps the earlier
 generation, and an initial failed save leaves notes Unsaved. If rollback cannot
 restore the previous folder, the error gives its retained recovery location. Keep
@@ -85,7 +83,12 @@ match image sets or maintain a cross-file Memo catalog.
 **Open Memo…** explicitly loads saved ROI records. Selecting an ROI attempts to
 verify and reopen its original images; this direction is Memo-to-viewer only.
 If originals are missing, changed or need unavailable RAW/YUV input settings, the
-saved crop and note remain readable. Memo has no file browser or Locate button.
+note remains readable; no image fallback is shown in Memo. Crops remain available
+in the HTML report. Memo has no file browser or Locate button.
 To supply native input settings, open originals normally through File, then open
 the Memo. Legacy `.pxreview` notes remain readable but have no stored historical
 crop; migration never invents old pixels.
+
+Memo has no crop preview or coordinate summary. A genuine write lock or denied
+write permission can still prevent saving; close the application holding the file
+or check permissions, then retry.

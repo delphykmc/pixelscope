@@ -181,27 +181,6 @@ def statistics_csvs(review: ReviewDocumentV1) -> dict[str, bytes]:
     return outputs
 
 
-def memo_thumbnails(crops: Mapping[tuple[str, str], bytes]) -> dict[tuple[str, str], bytes]:
-    """Worker-only small PNGs: the GUI never decodes full-size evidence crops."""
-    result = {}
-    for key, payload in crops.items():
-        image = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        if image is None:
-            raise ReviewValidationError("Memo crop cannot be decoded")
-        height, width = image.shape[:2]
-        factor = min(1.0, 240 / width, 160 / height)
-        small = cv2.resize(
-            image,
-            (max(1, round(width * factor)), max(1, round(height * factor))),
-            interpolation=cv2.INTER_AREA,
-        )
-        ok, encoded = cv2.imencode(".png", small)
-        if not ok:
-            raise ReviewValidationError("Memo preview cannot be encoded")
-        result[key] = encoded.tobytes()
-    return result
-
-
 def _legacy_memo_html(archive: MemoArchive) -> bytes:
     """Static report saved inside the same notebook; no separate export choice."""
     labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}

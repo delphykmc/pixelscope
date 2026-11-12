@@ -29,7 +29,6 @@ from pixelscope.core.roi import RoiBounds
 from pixelscope.io.memo_archive import (
     MemoArchive,
     load_memo_archive,
-    memo_thumbnails,
 )
 from pixelscope.io.memo_folder import metadata_path, save_folder_memo
 from pixelscope.io.memo_report import suggested_memo_name
@@ -38,7 +37,6 @@ from pixelscope.io.review_native_decoder import ENCODED_IMAGE_EXTENSIONS
 from pixelscope.io.review_repository import ReviewRepository
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.display_gain import display_gain_state
-from pixelscope.ui.memo_report_images import annotate_memo_crop
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.review_capture_adapter import (
     AttestedFinding,
@@ -83,13 +81,12 @@ def _memo_io(
         return (
             loaded,
             version,
-            memo_thumbnails(loaded.crops),
             (path.suffix.lower() == ".pxmemo" and not zipfile.is_zipfile(path)),
         )
     if archive is None:
         raise ValueError("No Memo to save")
     if operation == "save":
-        saved = save_folder_memo(path, archive, revision, annotate_memo_crop)
+        saved = save_folder_memo(path, archive, revision)
         return MemoSaveResult(saved.revision, path.parent, saved.cleanup_warning)
     raise ValueError("Unknown Memo operation")
 
@@ -132,7 +129,6 @@ class NamedReviewCoordinator:
         self._capture_fence: CaptureGuiFence | None = None
         self._crops: dict[tuple[str, str], bytes] = {}
         self._overlay_bindings: dict[str, tuple[str, int]] = {}
-        self._thumbnails: dict[tuple[str, str], bytes] = {}
         self._io_worker: TaskWorker | None = None
         self._io_task_id: str | None = None
         self._io_operation = ""
@@ -216,7 +212,6 @@ class NamedReviewCoordinator:
         self.authority.review = self.library.document
         self._crops.clear()
         self._overlay_bindings.clear()
-        self._thumbnails.clear()
         self.panel.set_document(self.library.document)
         self._clear_editor()
         self.panel.set_dirty(False)
@@ -261,9 +256,7 @@ class NamedReviewCoordinator:
         self.panel.title_edit.clear()
         self.panel.note_edit.clear()
         self.panel._tags = ()
-        self.panel.evidence_label.setText("Draw an ROI or select an ROI from the list")
         self.panel._set_selection_enabled(False)
-        self.panel.show_saved_crops({})
 
     def _new_roi(self) -> None:
         if self._closed:
@@ -484,12 +477,8 @@ class NamedReviewCoordinator:
             )
             self.authority.review = self.library.document
             self._crops.update({(value.finding.id, key): data for key, data in value.crops})
-            self._thumbnails.update(
-                {(value.finding.id, key): data for key, data in value.thumbnails}
-            )
             self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=value.finding.id)
-            self._show_evidence(value.finding.id)
             self.panel.set_dirty(self.library.dirty)
             self.refresh_overlays()
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
@@ -539,9 +528,6 @@ class NamedReviewCoordinator:
         try:
             self.library.delete(finding_id)
             self._crops = {key: data for key, data in self._crops.items() if key[0] != finding_id}
-            self._thumbnails = {
-                key: data for key, data in self._thumbnails.items() if key[0] != finding_id
-            }
             self.panel.set_document(self.library.document)
             self._clear_editor()
             self.panel.set_dirty(self.library.dirty)
@@ -550,17 +536,35 @@ class NamedReviewCoordinator:
         except KeyError as exc:
             self._error(str(exc))
 
+    def _center_roi(self, roi: tuple[int, int, int, int] | None) -> None:
+        if roi is None:
+            return
+        window = self._window_ref()
+        if window is None or window._closing:
+            return
+        viewers = (
+            (window.viewer,)
+            if window.central_stack.currentWidget() is window.viewer
+            else window.multi_compare_view.occupied_viewers
+        )
+        x, y, width, height = roi
+        for viewer in viewers:
+            ranges = viewer.view_box.viewRange()
+            viewer.view_box.translateBy(
+                x=x + width / 2 - sum(ranges[0]) / 2,
+                y=y + height / 2 - sum(ranges[1]) / 2,
+            )
+
     @Slot(str)
     def select_finding(self, finding_id: str) -> None:
         """Selecting a Memo is the one-click navigate/restore command.
 
-        Original saved paths are used only as candidates. Every source is
-        verified in the existing W09a worker before mutating the workspace.
-        Missing or ambiguous files are left for explicit user correction.
+        Resident source ID/generation bindings navigate without reloading.
+        Other saved paths are only candidates for existing worker verification;
+        missing originals never produce an in-app image fallback.
         """
         if self._closed:
             return
-        self._show_evidence(finding_id)
         self.refresh_overlays()
         if self._skip_next_selection_restore:
             self._skip_next_selection_restore = False
@@ -586,6 +590,7 @@ class NamedReviewCoordinator:
             and window._apply_shared_roi(RoiBounds(*finding.roi_ref), allow_channel_split=False)
         ):
             self.restore.accept_live_selection(finding_id)
+            self._center_roi(finding.roi_ref)
             self._restoring_memo = False
             self.panel.set_status("ROI selected — using loaded images")
             self.refresh_overlays()
@@ -635,7 +640,7 @@ class NamedReviewCoordinator:
                 self._restoring_memo = False
                 self.panel.show_missing_images(tuple(missing))
                 self.panel.set_status(
-                    "Original image unavailable. Saved crops and notes remain readable. "
+                    "Original image unavailable; this ROI cannot be shown. "
                     "Open the originals through File if needed."
                 )
                 return
@@ -702,11 +707,6 @@ class NamedReviewCoordinator:
             return
         self._start_io("save", path)
 
-    def _show_evidence(self, finding_id: str) -> None:
-        self.panel.show_saved_crops(
-            {key: data for (fid, key), data in self._thumbnails.items() if fid == finding_id}
-        )
-
     def _start_io(self, operation: str, path: Path) -> None:
         if self._closed or self._io_worker is not None:
             return
@@ -743,7 +743,7 @@ class NamedReviewCoordinator:
         if self.library.document.document_id != snapshot.review.document_id:
             return  # A later file selection reset this in-memory working context.
         if self._io_operation == "open" and isinstance(result, tuple):
-            archive, revision, thumbnails, folder_mode = result
+            archive, revision, folder_mode = result
             if not isinstance(archive, MemoArchive):
                 return
             self.library.document = archive.review
@@ -754,7 +754,6 @@ class NamedReviewCoordinator:
             self._crops = dict(archive.crops)
             self._overlay_bindings.clear()
             self.refresh_overlays()
-            self._thumbnails = thumbnails
             self.authority.review = archive.review
             self._approved.clear()
             first = archive.review.findings[0].id if archive.review.findings else None
@@ -774,9 +773,14 @@ class NamedReviewCoordinator:
     @Slot(str, object, int, object)
     def _io_failed(self, task_id: str, _doc: object, _epoch: int, error: object) -> None:
         if not self._closed and task_id == self._io_task_id:
+            hint = (
+                " A file is locked; close apps using it and check write access."
+                if getattr(error, "exception_type", "") == "PermissionError"
+                else ""
+            )
             self.panel.set_status(
                 f"Memo {self._io_operation} failed; existing notebook retained: "
-                f"{getattr(error, 'message', error)}"
+                f"{getattr(error, 'message', error)}{hint}"
             )
 
     @Slot(str)
@@ -821,8 +825,7 @@ class NamedReviewCoordinator:
                     self.activate(selected)
                     return
                 self.panel.set_status(
-                    "Original image differs or is unavailable; "
-                    "stored ROI evidence remains readable."
+                    "Original image differs or is unavailable; this ROI cannot be shown."
                 )
             self._auto_restore_id = None
             self._restoring_memo = False
@@ -846,6 +849,9 @@ class NamedReviewCoordinator:
             self._restoring_memo = False
             if report.status == "applied":
                 self._overlay_bindings.update(self.authority.memo_overlay_bindings())
+                selected = self.panel.selected_finding_id
+                if selected is not None:
+                    self._center_roi(self.library.get(selected).roi_ref)
             self.refresh_overlays()
             self.panel.set_status(
                 f"Restore {report.status}: {report.reason}"

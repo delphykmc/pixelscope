@@ -38,7 +38,6 @@ from pixelscope.core.review_record import (
     utc_now,
 )
 from pixelscope.core.roi import RoiBounds, roi_fits_shape
-from pixelscope.io.memo_archive import memo_thumbnails
 from pixelscope.io.memo_images import encode_roi_png
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.review_native_decoder import (
@@ -196,7 +195,6 @@ class AttestedFinding:
     sources: tuple[ReviewSourceV1, ...]
     bindings: tuple[CaptureSource, ...]
     crops: tuple[tuple[str, bytes], ...] = ()
-    thumbnails: tuple[tuple[str, bytes], ...] = ()
 
 
 def stage_named_finding(
@@ -444,11 +442,9 @@ def attest_staged_finding(
             crops.append((pending.key, encode_roi_png(preview, roi)))
             if sum(len(data) for _, data in crops) > 128 * 1024 * 1024:
                 raise ReviewValidationError("Memo crops exceed capture budget")
-    thumbs = memo_thumbnails({(finding.id, key): data for key, data in crops})
     return AttestedFinding(
         finding,
         tuple(verified_sources),
         stage.sources,
         tuple(crops),
-        tuple((key, data) for (_, key), data in thumbs.items()),
     )

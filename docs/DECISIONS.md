@@ -1073,3 +1073,17 @@ Memo is a lightweight ROI/note convenience. An explicitly verified resident page
 may change ROI without replaying source registration or Session-like layout/view
 restoration. Disk verification remains necessary when explicitly opening saved
 work or when runtime bindings are unavailable. No filename matching is added.
+
+## 2026-11-12 - Memo exact crops and stable repeat-save directory
+
+Export exact ROI PNG bytes without margins or text; put descriptions in HTML and
+metadata. New folders use src/crops without duplicate originals. Remove embedded
+preview/coordinate summary; ROI selection centers resident viewers preserving zoom.
+Missing originals leave notes readable without an image fallback.
+
+Windows reproduction confirmed WinError5 when an open index.html lacks delete
+sharing and its parent is renamed. Repeat saving retains the root, backs up files,
+skips unchanged assets and commits metadata last. Write-sharing HTML handles permit
+in-place derived HTML writes; true write locks require retry. Rollback restores old
+files or retains recovery data. Concurrent readers can reject intermediate
+inventories; crash-atomic publication is not promised.

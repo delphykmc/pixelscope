@@ -4,14 +4,20 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import tempfile
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from pixelscope.core.review_record import ReviewDocumentV1
-from pixelscope.io.memo_archive import MemoArchive, _asset_path, _canonical_assets
-from pixelscope.io.memo_report import _inventory, _is_link, _remove_staging, write_memo_report
+from pixelscope.io.memo_archive import MemoArchive, _canonical_assets
+from pixelscope.io.memo_report import (
+    _inventory,
+    _is_link,
+    _remove_staging,
+    crop_filename,
+    write_memo_report,
+)
 
 KIND = "pixelscope-memo-folder"
 MAX_BYTES = 256 * 1024 * 1024
@@ -21,6 +27,79 @@ MAX_BYTES = 256 * 1024 * 1024
 class FolderSaveResult:
     revision: str
     cleanup_warning: str = ""
+
+
+class MemoRecoveryError(OSError):
+    """Publication failed and the complete old folder is retained for recovery."""
+
+
+def _replace_data(destination: Path, data: bytes, temporary: Path) -> None:
+    if destination.is_file() and destination.read_bytes() == data:
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix="write-", dir=temporary)
+    staged = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.replace(staged, destination)
+        except PermissionError:
+            if destination.name != "index.html":
+                raise
+            # A browser can retain a non-delete-sharing HTML handle while still
+            # permitting writes. HTML is derived; the map remains the last commit.
+            with destination.open("wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def _publish_existing(root: Path, stage: Path, backup: Path, metadata: str, revision: str) -> None:
+    """Keep the directory handle stable; back up files and commit the map last."""
+    shutil.copytree(root, backup)
+    if (
+        load_folder_memo(backup / metadata)[1] != revision
+        or load_folder_memo(root / metadata)[1] != revision
+    ):
+        raise FileExistsError("Memo changed during save")
+    old = {p.relative_to(backup): p for p in backup.rglob("*") if p.is_file()}
+    new = {p.relative_to(stage): p for p in stage.rglob("*") if p.is_file()}
+    old_dirs = {p.relative_to(backup) for p in backup.rglob("*") if p.is_dir()}
+    new_dirs = {p.relative_to(stage) for p in stage.rglob("*") if p.is_dir()}
+    try:
+        for relative, source in new.items():
+            if relative.as_posix() != metadata:
+                _replace_data(root / relative, source.read_bytes(), stage.parent)
+        for relative in old.keys() - new.keys():
+            (root / relative).unlink()
+        for relative in sorted(old_dirs - new_dirs, key=lambda p: len(p.parts), reverse=True):
+            (root / relative).rmdir()
+        _replace_data(root / metadata, (stage / metadata).read_bytes(), stage.parent)
+    except (OSError, ValueError) as error:
+        try:
+            for relative in new.keys() - old.keys():
+                (root / relative).unlink(missing_ok=True)
+            for directory in backup.rglob("*"):
+                if directory.is_dir():
+                    (root / directory.relative_to(backup)).mkdir(parents=True, exist_ok=True)
+            for relative, source in old.items():
+                _replace_data(root / relative, source.read_bytes(), stage.parent)
+            for relative in sorted(new_dirs - old_dirs, key=lambda p: len(p.parts), reverse=True):
+                directory = root / relative
+                if directory.exists():
+                    directory.rmdir()
+            if load_folder_memo(root / metadata)[1] != revision:
+                raise OSError("Rollback validation failed")
+        except (OSError, ValueError) as rollback_error:
+            raise MemoRecoveryError(
+                f"Memo recovery copy retained at {backup}: {rollback_error}"
+            ) from error
+        raise
 
 
 def metadata_path(chosen: Path) -> Path:
@@ -117,7 +196,6 @@ def save_folder_memo(
     path: Path,
     archive: MemoArchive,
     expected_revision: str | None,
-    render: Callable[[bytes, str, str], bytes],
 ) -> FolderSaveResult:
     """Publish the complete folder as one generation, keeping unrelated data."""
     root = path.parent
@@ -136,10 +214,14 @@ def save_folder_memo(
     stage = stage_parent / "next"
     backup = stage_parent / "previous"
     published = False
+    recovery_needed = False
     cleanup_warning = ""
     try:
         generated = write_memo_report(
-            stage_parent / "presentation.pxmemo", archive, "staged", render
+            stage_parent / "presentation.pxmemo",
+            archive,
+            "staged",
+            lambda data, _name, _coords: data,
         )
         generated.rename(stage)
         (stage / ".pixelscope-memo-report.json").unlink()
@@ -155,12 +237,17 @@ def save_folder_memo(
         )
         (stage / "index.html").write_text(html, encoding="utf-8")
         rows = []
-        for (finding, source), data in archive.crops.items():
-            relative = "src/originals/" + _asset_path(finding, source)
-            destination = stage / relative
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(data)
-            rows.append({"finding_id": finding, "source_key": source, "path": relative})
+        sources = {source.source_key: source for source in archive.review.sources}
+        for ordinal, finding in enumerate(archive.review.findings, 1):
+            for number, source in enumerate(finding.source_keys, 1):
+                if (finding.id, source) not in archive.crops or finding.roi_ref is None:
+                    continue
+                relative = "src/crops/" + crop_filename(
+                    ordinal, number, sources[source].locator.basename, finding.roi_ref
+                )
+                if (stage / relative).read_bytes() != archive.crops[(finding.id, source)]:
+                    raise ValueError("Report crop must be the exact recorded PNG")
+                rows.append({"finding_id": finding.id, "source_key": source, "path": relative})
         inventory = _inventory(stage)
         assets = {name: digest for name, digest in inventory.items() if digest != "directory"}
         obj = {
@@ -183,20 +270,19 @@ def save_folder_memo(
         if before is not None:
             if load_folder_memo(path)[1] != before:
                 raise FileExistsError("Memo changed during save")
-            os.rename(root, backup)
-        try:
-            if before is not None and load_folder_memo(backup / path.name)[1] != before:
-                raise FileExistsError("Memo changed during publication")
+            try:
+                _publish_existing(root, stage, backup, path.name, before)
+            except MemoRecoveryError:
+                recovery_needed = True
+                raise
+            published = True
+        else:
             os.rename(stage, root)
             published = True
-        except (OSError, ValueError):
-            if backup.exists():
-                os.rename(backup, root)
-            raise
     finally:
         # If rollback failed, retain the only previous copy for recovery.
-        if backup.exists() and not published:
-            raise OSError(f"Memo recovery copy retained at {backup}")
+        if recovery_needed:
+            raise MemoRecoveryError(f"Memo recovery copy retained at {backup}")
         try:
             _remove_staging(stage_parent, parent)
         except OSError as exc:
