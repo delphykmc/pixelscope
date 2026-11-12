@@ -1096,3 +1096,14 @@ an old ROI. Remove redundant Add/Delete buttons and scope Delete to the focused 
 list. Esc keeps its ROI-clear meaning, also canceling Memo work/deselecting the note
 without deleting existing records. Internal restore clears remain separate from user
 intent, so restoring legacy records cannot cancel itself.
+
+### Memo switch, fit and clean footer follow-up
+
+Replace the recording button with an accessible pill switch, unavailable without
+ready selected images. Batch Delete supports Ctrl+A and selects the next record;
+clear the removed active box. Hiding clears current analysis ROI and passive Memo
+boxes, retaining notes. Fit ROI plus context through existing physical-zoom and
+MultiCompareView sync ownership rather than a separate viewport authority. Reuse
+existing native Statistics/Histogram caches and flush canonical pending analysis on
+explicit list navigation. Remove inline status/report links; successful Save opens
+HTML automatically, errors remain warning dialogs and the header marker remains.

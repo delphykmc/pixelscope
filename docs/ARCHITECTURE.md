@@ -1193,8 +1193,13 @@ The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
 only when its explicit source ID/generation bindings match the resident ready
 comparison page. The restore controller records this owner-applied selection after
 revoking old callbacks; no source registration, viewport/layout reconstruction or
-native verification is started. Visible viewers translate to the ROI center while
-preserving zoom. Other cases retain the verified restore path. Memo has no crop
+native verification is started. ImageViewer.fit_roi uses canonical physical zoom
+to fit ROI context, shifting near image edges. MultiCompareView owns one fitting
+transaction with range-sync forwarding suppressed and restores its prior flag.
+Sync On uses the minimum fitting physical scale across tiles and a common center
+inside all ROI-visible intervals before canonical range propagation; Sync Off fits
+independently. Unequal focus layouts preserve the Sync scale/center contract.
+Other cases retain the verified restore path. Memo has no crop
 preview or coordinate summary, and missing originals provide no fallback image.
 Memo's owned common dock title is quiesced before shutdown. The panel paints its
 background, and its application-scoped QAction shortcut is associated with both
@@ -1203,7 +1208,9 @@ the main window and the floating dock.
 Memo's explicit recording toggle gates user-ROI capture independently of note
 navigation/editing. Hiding/off cancels capture epochs and pending statistics/ROI
 retries; reopening/on never replays a previously drawn ROI. A QListWidget-owned
-WidgetShortcut QAction handles Delete without intercepting text-editor Delete.
+WidgetShortcut QAction handles batch Delete without intercepting text-editor Delete.
+ExtendedSelection provides Ctrl+A; deletion clears analysis ROI and selects one next
+remaining record. Hidden docks clear analysis ROI/passive boxes but retain notes.
 MainWindow's user Esc/analysis Clear intent emits memo_roi_cancelled before its
 existing clear_roi path; coordinator cancels capture/restore and deselects the note.
 Internal restore clear_roi does not emit that user-intent signal, avoiding recursive
@@ -1224,3 +1231,11 @@ refresh action states, avoiding a second range mutation. Source/recipe restorati
 does not authorize Difference Calculate or live historical metrics. See the
 [W09b integration acceptance](exec-plans/active/issue-210-w09b-owner-acceptance.md)
 for concrete native Windows evidence and remaining independent-review limits.
+
+Memo list navigation calls flush_pending_analysis after canonical ROI application.
+The existing producer/delegate owns native Statistics+Histogram cache keys/results;
+no Memo cache or historical numeric injection is introduced. Canceled stale workers
+are detached before replay; normal task/signature fences reject late callbacks.
+The accessible QCheckBox pill switch is disabled without ready selected sources.
+Routine footer status is diagnostic only; IO failure warnings remain visible.
+Successful save dispatches the root HTML via QDesktopServices after publication.

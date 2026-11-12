@@ -77,10 +77,17 @@ def test_default_save_suggestion_and_atomic_folder_failure_retry(
         return str(target), ""
 
     monkeypatch.setattr(QFileDialog, "getSaveFileName", choose)
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QMessageBox
+
+    opened, warnings = [], []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     assert chosen[0].startswith("Memo_reference_") and chosen[0].endswith(".pxmemo")
-    assert "failed" in memo.panel.status.text()
+    assert "failed" in memo.panel.last_status
+    assert not opened and warnings  # failures stay visible without a footer label
     assert not target.exists() and memo.library.path is None and memo.library.dirty
     if failure == "folder":
         assert (report / "user.txt").read_text() == "keep my file"
@@ -91,6 +98,7 @@ def test_default_save_suggestion_and_atomic_folder_failure_retry(
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     _, revision = load_memo_archive(target)
+    assert len(opened) == 1 and opened[0].toLocalFile().endswith("/index.html")
     assert memo.library.revision == revision and not memo.library.dirty
     memo.panel.note_edit.setPlainText("Another edit")
     memo.save_dialog()
@@ -163,7 +171,7 @@ def test_committed_folder_cleanup_warning_preserves_ui_revision(
         patch.setattr(memo_folder, "_remove_staging", fail_cleanup)
         memo.save_dialog()
         qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
-    assert "cleanup pending" in memo.panel.status.text()
+    assert "cleanup pending" in memo.panel.last_status
     assert memo.panel.header.text() == "● Saved" and not memo.library.dirty
     assert memo.library.revision == load_memo_archive(target)[1]
     memo.panel.note_edit.setPlainText("saved after cleanup warning")
@@ -172,4 +180,25 @@ def test_committed_folder_cleanup_warning_preserves_ui_revision(
     loaded, revision = load_memo_archive(target)
     assert memo.library.revision == revision and not memo.library.dirty
     assert loaded.review.findings[0].note == "saved after cleanup warning"
+    window.close()
+
+
+def test_existing_destination_refusal_is_visible_without_footer(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QMessageBox
+
+    window, memo = windows()
+    target = tmp_path / "occupied" / "occupied.pxmemo"
+    target.parent.mkdir()
+    target.write_bytes(b"owner data")
+    warnings, opened = [], []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a: (str(target), ""))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
+    memo.save_dialog()
+    assert warnings and "Destination exists" in warnings[0][2]
+    assert not opened and memo._io_worker is None and memo.library.path is None
+    assert target.read_bytes() == b"owner data"
     window.close()

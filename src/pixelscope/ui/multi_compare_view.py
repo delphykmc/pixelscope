@@ -584,6 +584,43 @@ class MultiCompareView(QWidget):
         finally:
             self._syncing_range = False
 
+    def fit_roi(self, bounds: RoiBounds) -> None:
+        """One owner transaction; fitting tiles must not replay range sync."""
+        was_syncing = self._syncing_range
+        self._syncing_range = True
+        try:
+            for viewer in self.occupied_viewers:
+                viewer.fit_roi(bounds)
+            if self.sync_enabled and self.occupied_viewers:
+                anchor = min(
+                    self.occupied_viewers,
+                    key=lambda viewer: viewer.measure_physical_zoom().percent or float("inf"),
+                )
+                self._apply_range(anchor.view_box.viewRange(), anchor)
+                # Edge clamping for a large tile can hide the ROI in a short
+                # follower. Constrain the shared center to their intersection.
+                half_width = min(
+                    (v.view_box.viewRange()[0][1] - v.view_box.viewRange()[0][0]) / 2
+                    for v in self.occupied_viewers
+                )
+                half_height = min(
+                    (v.view_box.viewRange()[1][1] - v.view_box.viewRange()[1][0]) / 2
+                    for v in self.occupied_viewers
+                )
+                x, y = anchor.view_box.viewRange()
+                center_x = min(
+                    max(sum(x) / 2, bounds.x + bounds.width - half_width), bounds.x + half_width
+                )
+                center_y = min(
+                    max(sum(y) / 2, bounds.y + bounds.height - half_height), bounds.y + half_height
+                )
+                percent = anchor.measure_physical_zoom().percent
+                if percent is not None:
+                    anchor.set_physical_zoom(percent, (center_x, center_y))
+                    self._apply_range(anchor.view_box.viewRange(), anchor)
+        finally:
+            self._syncing_range = was_syncing
+
     def _current_shared_range(self) -> list[list[float]] | None:
         for viewer in self.visible_viewers:
             if viewer.document is not None and viewer.document.preview is not None:

@@ -925,6 +925,28 @@ class ImageViewer(QWidget):
         height, width = self._reference_shape(self._document)
         self.set_physical_zoom(100.0, (width / 2.0, height / 2.0))
 
+    def fit_roi(self, bounds: RoiBounds) -> None:
+        """Frame a reference-space ROI with context via canonical physical zoom."""
+        if self._document is None or self._document.preview is None:
+            return
+        percent = self.measure_physical_zoom().percent
+        if percent is None:
+            return
+        ranges = self.view_box.viewRange()
+        range_width = ranges[0][1] - ranges[0][0]
+        range_height = ranges[1][1] - ranges[1][0]
+        factor = min(range_width / (bounds.width * 1.4), range_height / (bounds.height * 1.4))
+        height, width = self._reference_shape(self._document)
+        half_width, half_height = range_width / factor / 2, range_height / factor / 2
+        # Near image edges shift the context instead of centering on black space.
+        center_x = min(max(bounds.x + bounds.width / 2, half_width), width - half_width)
+        center_y = min(max(bounds.y + bounds.height / 2, half_height), height - half_height)
+        if half_width * 2 >= width:
+            center_x = width / 2
+        if half_height * 2 >= height:
+            center_y = height / 2
+        self.set_physical_zoom(percent * factor, (center_x, center_y))
+
     def zoom_by(self, factor: float) -> None:
         if self._document is not None and factor > 0:
             self._clear_physical_target()

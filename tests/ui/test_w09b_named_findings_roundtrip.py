@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QFileDialog
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
@@ -22,6 +23,11 @@ from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
+
+
+@pytest.fixture(autouse=True)
+def _reports_do_not_launch_external_apps(monkeypatch):
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda _url: True)
 
 
 def _native_inputs(
@@ -218,7 +224,7 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
             timeout=10000,
         )  # type: ignore[attr-defined]
         assert not errors
-        assert fresh.restore.phase == "applied", fresh.panel.status.text()
+        assert fresh.restore.phase == "applied", fresh.panel.last_status
         assert len(restored.current_comparison_documents()) == len(finding.source_keys)
         assert restored._shared_roi == RoiBounds(*finding.roi_ref)
         assert restored._shared_line == LineSelection(*finding.line_ref)
@@ -238,14 +244,10 @@ def _restore_library(qtbot, monkeypatch, paths, profiles, errors, review_path, c
         assert restored.difference_panel.gain.value() == intent.gain
         assert restored.difference_panel.threshold.value() == intent.threshold
         for viewer in restored.multi_compare_view.occupied_viewers:
-            key = restored.comparison_analysis_panel.source_key_for_document(
-                viewer.document.document_id
-            )
-            viewport = finding.view_state.per_source.get(key)
-            expected_scale = (
-                viewport.physical_scale if viewport else finding.view_state.physical_scale
-            )
-            assert viewer.measure_physical_zoom().percent == pytest.approx(100 * expected_scale)
+            x, y = viewer.view_box.viewRange()
+            roi = finding.roi_ref
+            assert x[0] <= roi[0] and x[1] >= roi[0] + roi[2]
+            assert y[0] <= roi[1] and y[1] >= roi[1] + roi[3]
         assert not restored.diff_action.isChecked()
         assert restored.difference_panel.get_presented_difference_token() is None
         assert restored.difference_panel.last_result is None

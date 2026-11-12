@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFileDialog, QPushButton
+from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtWidgets import QFileDialog, QLabel, QPushButton
 from test_memo_evidence import windows as memo_windows
 
 from pixelscope.core.roi import RoiBounds
@@ -39,13 +41,13 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     second = RoiBounds(30, 20, 20, 16)
     assert w._shared_roi_changed(first)
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
-    assert len(m.library.document.findings) == 1, m.panel.status.text()
+    assert len(m.library.document.findings) == 1, m.panel.last_status
     m.panel.note_edit.setPlainText("First ROI note")
     assert m.library.document.findings[0].note == "First ROI note"
     assert w._shared_roi_changed(second)
     assert not m.panel.note_edit.toPlainText()
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
-    assert len(m.library.document.findings) == 2, m.panel.status.text()
+    assert len(m.library.document.findings) == 2, m.panel.last_status
     for viewer in w.multi_compare_view.occupied_viewers:
         assert len(viewer._memo_items) == 2
         assert [item[0] for item in viewer._memo_regions] == ["ROI 1", "ROI 2"]
@@ -71,13 +73,22 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
             roi = first if row == 0 else second
             for viewer in w.multi_compare_view.occupied_viewers:
                 ranges = viewer.view_box.viewRange()
-                np.testing.assert_allclose(
-                    [sum(ranges[0]) / 2, sum(ranges[1]) / 2],
-                    [roi.x + roi.width / 2, roi.y + roi.height / 2],
+                assert ranges[0][0] <= roi.x and ranges[0][1] >= roi.x + roi.width
+                assert ranges[1][0] <= roi.y and ranges[1][1] >= roi.y + roi.height
+                assert (
+                    max(
+                        roi.width / (ranges[0][1] - ranges[0][0]),
+                        roi.height / (ranges[1][1] - ranges[1][0]),
+                    )
+                    > 0.5
                 )
     assert generations == [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
     m.panel.note_edit.setPlainText("Edited immediately")
     target = tmp_path / "notes" / "notes.pxmemo"
+    from PySide6.QtGui import QDesktopServices
+
+    opened_reports = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened_reports.append(url) or True)
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
     m.save_dialog()
     qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
@@ -87,9 +98,9 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert len(loaded.crops) == 4
     report_folder = target.parent
     assert (report_folder / "index.html").is_file()
+    assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
     assert len(list((report_folder / "src/crops").glob("*.png"))) == 4
-    assert report_folder.name in m.panel.status.text() and "Open report" in m.panel.status.text()
-    assert str(report_folder / "index.html") == m.panel.status.toolTip()
+    assert m.panel.findChild(QLabel, "reviewStatusLabel") is None
     w.set_layout_mode("Single View")
     assert len(w.viewer._memo_items) == 2
     w.set_layout_mode("Multi View")
@@ -126,7 +137,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert len(m.library.document.findings) == 2
     assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
     assert m.panel.note_edit.toPlainText() == "Edited immediately"
-    m.panel.findings.setCurrentRow(1)
+    m.panel.findings.setCurrentRow(1, QItemSelectionModel.SelectionFlag.ClearAndSelect)
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
     assert w._shared_roi == second
     assert m.panel.note_edit.toPlainText() == "Second ROI note"
@@ -135,6 +146,8 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert len(m.library.document.findings) == 1
     assert all(len(v._memo_items) == 1 for v in w.multi_compare_view.occupied_viewers)
     m.dock.hide()
+    assert w._shared_roi is None
+    assert not any(v._memo_items for v in (w.viewer, *w.multi_compare_view.viewers))
     assert w._shared_roi_changed(RoiBounds(45, 40, 10, 10))
     assert m._capture_worker is None
     assert len(m.library.document.findings) == 1  # hidden Memo does no capture work
@@ -210,7 +223,7 @@ def test_recording_toggle_escape_and_delete_are_independent(
     assert not any(b.text() in ("Add ROI", "Delete") for b in m.panel.findChildren(QPushButton))
     assert w._shared_roi_changed(RoiBounds(2, 3, 16, 12))
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
-    assert len(m.library.document.findings) == 1, m.panel.status.text()
+    assert len(m.library.document.findings) == 1, m.panel.last_status
     m.panel.note_edit.setPlainText("Keep this note")
     m._wait_for_statistics("Waiting for ROI Statistics")
     m.panel.record_button.click()
@@ -251,4 +264,170 @@ def test_recording_toggle_escape_and_delete_are_independent(
     assert not m.library.document.findings and m.library.dirty
     assert not w.viewer._memo_items
     qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)  # empty list is harmless
+    w.close()
+
+
+def test_memo_cache_fit_bulk_delete_and_empty_recording(qtbot, monkeypatch, tmp_path, windows):
+    from PySide6.QtWidgets import QApplication
+
+    from pixelscope.ui import comparison_analysis_panel as analysis
+
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"cache{index}.png"
+        assert cv2.imwrite(str(path), np.full((240, 320, 3), 30 + index, np.uint8))
+        paths.append(path)
+    w, m = windows()
+    assert not m.panel.record_button.isEnabled() and not m.panel.record_button.isChecked()
+    qtbot.keyClick(m.panel.record_button, Qt.Key.Key_Space)
+    assert not m.panel.record_button.isChecked()
+    w.open_image_paths(paths)
+    w.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(w.multi_compare_view.occupied_viewers) == 2
+        and all(
+            v.document is not None
+            and v.document.loading_state == "ready"
+            and v.measure_physical_zoom().valid
+            and not v._geometry_timer.isActive()
+            for v in w.multi_compare_view.occupied_viewers
+        ),
+        timeout=15000,
+    )
+    panel = w.comparison_analysis_panel
+    qtbot.waitUntil(
+        lambda: not w.multi_compare_view._layout_refit_active
+        and not panel._refresh_timer.isActive()
+        and panel._worker is None
+        and all(not v._geometry_timer.isActive() for v in w.multi_compare_view.occupied_viewers),
+        timeout=15000,
+    )
+    rois = [RoiBounds(2, 3, 24, 18), RoiBounds(120, 90, 30, 20), RoiBounds(260, 190, 28, 24)]
+    results = []
+    for index, roi in enumerate(rois):
+        assert w._shared_roi_changed(roi)
+        qtbot.waitUntil(
+            lambda: m._capture_worker is None
+            and panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=15000,
+        )
+        assert len(m.library.document.findings) == index + 1, (
+            m.panel.last_status,
+            m.panel.record_button.isChecked(),
+        )
+        results.append(panel.last_results)
+    assert len(m.library.document.findings) == 3
+    original_analyze = analysis.analyze_roi
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            analysis, "analyze_roi", lambda *_a, **_k: pytest.fail("must reuse cached numerics")
+        )
+        for sync in (False, True):
+            w.multi_compare_view.set_sync_enabled(sync)
+            for row in (0, 1, 2, 0):
+                m.panel.findings.setCurrentRow(
+                    row, QItemSelectionModel.SelectionFlag.ClearAndSelect
+                )
+                assert all(a is b for a, b in zip(panel.last_results, results[row], strict=True))
+                assert not panel._refresh_timer.isActive() and panel._worker is None
+                assert panel.get_current_analysis_token() == panel.get_presented_analysis_token()
+                assert panel.get_current_histogram_token() == panel.get_presented_histogram_token()
+                assert w.multi_compare_view.sync_enabled == sync
+                roi = rois[row]
+                for viewer in w.multi_compare_view.occupied_viewers:
+                    x, y = viewer.view_box.viewRange()
+                    assert x[0] <= roi.x and x[1] >= roi.x + roi.width
+                    assert y[0] <= roi.y and y[1] >= roi.y + roi.height
+                    assert max(roi.width / (x[1] - x[0]), roi.height / (y[1] - y[0])) > 0.5
+    calls = []
+
+    def counted(*args, **kwargs):
+        calls.append(True)
+        return original_analyze(*args, **kwargs)
+
+    monkeypatch.setattr(analysis, "analyze_roi", counted)
+    panel.histogram_bins.setCurrentText("1024")
+    qtbot.waitUntil(
+        lambda: bool(calls) and panel.get_current_analysis_token() is not None, timeout=15000
+    )
+    assert panel.last_results[0] is not results[0][0]  # bin change invalidates the cache key
+    QApplication.setActiveWindow(w)
+    m.panel.findings.setFocus()
+    m.panel.findings.setCurrentRow(0, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 2
+    assert w._shared_roi == rois[1]  # next record replaces the deleted yellow box
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 1 and w._shared_roi == rois[2]
+    m.dock.hide()
+    assert w._shared_roi is None and not m.panel.record_button.isChecked()
+    assert len(m.library.document.findings) == 1
+    assert not any(
+        v._memo_items or v.roi_enabled for v in (w.viewer, *w.multi_compare_view.viewers)
+    )
+    m.show()
+    assert m.panel.record_button.isChecked()
+    assert w._shared_roi_changed(rois[0])
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 2
+    QApplication.setActiveWindow(w)
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    assert len(m.panel.findings.selectedItems()) == 2
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert not m.library.document.findings and w._shared_roi is None
+    assert not any(
+        v._memo_items or v.roi_enabled for v in (w.viewer, *w.multi_compare_view.viewers)
+    )
+    w._select_document_ids([])
+    assert not m.panel.record_button.isEnabled() and not m.panel.record_button.isChecked()
+    w.close()
+
+
+def test_memo_fit_keeps_sync_scale_in_unequal_focus_tiles(qtbot, tmp_path, windows):
+    paths = []
+    for index in range(3):
+        path = tmp_path / f"focus{index}.png"
+        assert cv2.imwrite(str(path), np.full((300, 400, 3), index, np.uint8))
+        paths.append(path)
+    w, m = windows()
+    w.open_image_paths(paths)
+    w.set_layout_mode("Multi View")
+    multi = w.multi_compare_view
+    qtbot.waitUntil(
+        lambda: len(multi.occupied_viewers) == 3
+        and not multi._layout_refit_active
+        and all(
+            v.document.source is not None
+            and v.measure_physical_zoom().valid
+            and not v._geometry_timer.isActive()
+            for v in multi.occupied_viewers
+        ),
+        timeout=15000,
+    )
+    w.quick_compare_controller.set_three_view_variant("Focus")
+    qtbot.waitUntil(
+        lambda: len({tuple(v.size().toTuple()) for v in multi.occupied_viewers}) > 1
+        and all(not v._geometry_timer.isActive() for v in multi.occupied_viewers),
+        timeout=15000,
+    )
+    roi = RoiBounds(1, 2, 18, 80)
+    multi.set_sync_enabled(True)
+    multi.fit_roi(roi)
+    scales = [v.measure_physical_zoom().percent for v in multi.occupied_viewers]
+    np.testing.assert_allclose(scales, scales[0])
+    centers = []
+    for v in multi.occupied_viewers:
+        x, y = v.view_box.viewRange()
+        centers.append([sum(x) / 2, sum(y) / 2])
+        assert x[0] <= roi.x and x[1] >= roi.x + roi.width
+        assert y[0] <= roi.y and y[1] >= roi.y + roi.height
+    np.testing.assert_allclose(centers, [centers[0]] * 3)
+    assert multi.sync_enabled and not multi._syncing_range
+    multi.set_sync_enabled(False)
+    multi.fit_roi(roi)
+    scales = [v.measure_physical_zoom().percent for v in multi.occupied_viewers]
+    assert max(scales) > min(scales) * 1.1
+    assert not multi.sync_enabled and not multi._syncing_range
     w.close()

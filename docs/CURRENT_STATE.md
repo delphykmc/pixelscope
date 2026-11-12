@@ -738,3 +738,7 @@ locked-HTML repeat-save fix are tracked in
 Additional controls: [explicit Memo recording](exec-plans/active/memo-recording-controls.md)
 adds On/Off, list-only Delete, removes redundant Add/Delete buttons and cancels
 pending Memo work on Esc while retaining notes. PR #229 remains unmerged.
+
+Latest PR #229 follow-up: [switch/fit/clean-footer plan](exec-plans/active/memo-switch-fit-clean-footer.md)
+tracks accessible recording, bulk deletion, ROI fit, native cache reuse and automatic
+HTML opening. The PR remains unmerged; native full-suite constraints remain open.

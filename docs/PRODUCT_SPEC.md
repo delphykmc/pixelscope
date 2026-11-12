@@ -948,8 +948,8 @@ original, while Multi View captures the comparison page. Session v1 remains unch
 
 Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time and
 creates the matching folder. The map inventories files, directories, source/ROI
-metadata and content digests; it embeds no PNG/CSV payload. **Open report** in
-the save status opens that HTML. Exact undecorated ROI PNGs are in `src/crops/`,
+metadata and content digests; it embeds no PNG/CSV payload. Successful Save
+opens the HTML in the default browser automatically. Exact undecorated ROI PNGs are in `src/crops/`,
 without text or margins. HTML and metadata contain source basename and ROI
 x/y/width/height. New saves omit duplicate src/originals assets. Optional native CSVs
 are in `src/statistics/`. Relative paths support moving the whole
@@ -965,7 +965,8 @@ retrying Save does not falsely report an external revision conflict.
 **Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
 Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
 whose explicit runtime source IDs/generations are still ready applies only its ROI
-and note, centering visible viewers on the ROI while preserving zoom/tool context. It does not hash/re-register,
+and note, fitting visible viewers around the ROI with context through canonical
+physical zoom while preserving tool context. It does not hash/re-register,
 decode/reload or reconstruct the viewers. Opening a saved notebook, or unavailable
 runtime bindings, still uses the verified restore path. Active-ROI analysis can
 update normally; historical saved Statistics never replace live numerical authority.
@@ -976,10 +977,19 @@ for acceptance evidence and inherited native environment limitations.
 Memo has no embedded crop preview or redundant coordinate/source summary. Repeat
 saves retain the root directory, back up files and commit metadata last.
 
-Memo exposes one checkable **Record ROI: On/Off** button. Opening enables recording
-of future user-drawn ROIs; hiding disables it and cancels pending capture. Off keeps
+Memo exposes an accessible pill **Record ROI** switch, disabled without ready
+selected originals. Opening enables recording
+of future user-drawn ROIs; hiding disables it, cancels pending capture, clears the
+active analysis ROI and hides all Memo boxes while retaining note records. Off keeps
 notes visible/editable while ROI gestures follow ordinary analysis behavior. Turning
 on or reopening does not capture a pre-existing ROI. Add/Delete buttons are removed;
-Delete removes the selected record only when the ROI list has keyboard focus.
+Delete removes selected records only when the ROI list has keyboard focus, then
+selects the next remaining record. Ctrl+A selects all; deleting clears old analysis
+boxes before showing the next ROI.
 Esc/analysis Clear cancels Memo capture/statistics/restore and clears its selection
 without deleting records, before the canonical analysis ROI clear runs.
+
+Memo has no routine footer notifications or report link: only Open/Save buttons.
+Errors use a warning dialog; header Saved/Unsaved remains. Native Statistics and
+Histogram share the existing per-document cache; explicit list navigation flushes
+the canonical pending request without creating a second producer or cache.
