@@ -133,7 +133,7 @@ def test_single_rgb_memo_click_restores_roi_after_reopening(
     root = Path(str(tmp_path))
     image = root / "inspection_rgb.png"
     assert cv2.imwrite(str(image), np.full((72, 96, 3), (15, 65, 155), dtype=np.uint8))
-    memo_file = root / "inspection.pxmemo"
+    memo_file = root / "inspection" / "inspection.pxmemo"
 
     first_roi = RoiBounds(4, 5, 24, 18)
     second_roi = RoiBounds(38, 30, 26, 20)

@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import csv
 import io
-import zipfile
 
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QFileDialog, QListWidget, QMessageBox
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -21,6 +21,8 @@ pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 @pytest.fixture
 def windows(qtbot, monkeypatch):
     opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda _url: True)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *_a, **_kw: QMessageBox.StandardButton.Ok)
     monkeypatch.setattr(QMessageBox, "question", lambda *_a, **_kw: QMessageBox.StandardButton.Yes)
 
     def create():
@@ -85,27 +87,30 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
                 )
 
             qtbot.waitUntil(statistics_ready, timeout=10000)
-        memo.panel.add_button.click()
+        memo.add()
         qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=15000)
-        assert len(memo.library.document.findings) == index + 1, memo.panel.status.text()
+        assert len(memo.library.document.findings) == index + 1, memo.panel.last_status
     assert len(memo._crops) == 6
-    assert memo.panel.crop_previews.count() == 2
+    assert memo.panel.findings.count() == 3
     first = memo.library.document.findings[0]
     assert first.analysis[0].status == "captured"
     frozen = dict(memo._crops)
     memo.edit(first.id, "Edited note", "No pixels changed", ())
     assert memo._crops == frozen
-    target = tmp_path / "inspection.pxmemo"
+    target = tmp_path / "inspection" / "inspection.pxmemo"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_kw: (str(target), ""))
     memo.save_dialog()
     _idle(qtbot, memo)
-    assert target.is_file() and not memo.library.dirty, memo.panel.status.text()
+    assert target.is_file() and not memo.library.dirty, memo.panel.last_status
     archive, _ = load_memo_archive(target)
     assert dict(archive.crops) == frozen
     window.close()
 
     for path in paths:
         path.unlink()
+    relocated = tmp_path / "relocated-notebook"
+    target.parent.rename(relocated)
+    target = relocated / target.name
     fresh, offline = windows()
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_kw: (str(target), ""))
     offline.open_dialog()
@@ -113,21 +118,22 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert len(offline.library.document.findings) == 3
     assert not fresh.documents
     assert not any(v._memo_items for v in (fresh.viewer, *fresh.multi_compare_view.viewers))
-    assert offline.panel.crop_previews.count() == 2
-    assert "unavailable" in offline.panel.status.text()
+    assert offline.panel.findings.count() == 3
+    assert "unavailable" in offline.panel.last_status
     offline.show()
     qtbot.waitUntil(lambda: offline.dock.isVisible())
     assert fresh.grab().save(str(tmp_path / "memo-offline.png"))
     for index in range(3):
         offline.panel.findings.setCurrentRow(index)
-        assert offline.panel.crop_previews.count() == 2
-    with zipfile.ZipFile(target) as saved:
-        pngs = [n for n in saved.namelist() if n.endswith(".png")]
-        assert len(pngs) == 6
-        assert {saved.read(n) for n in pngs} == set(frozen.values())
-        csvs = [n for n in saved.namelist() if n.endswith(".csv")]
-        assert len(csvs) == 1
-        rows = list(csv.DictReader(io.StringIO(saved.read(csvs[0]).decode("utf-8-sig"))))
+        assert offline.panel.findings.count() == 3
+    pngs = list((target.parent / "src/crops").rglob("*.png"))
+    assert len(pngs) == 6
+    assert {p.read_bytes() for p in pngs} == set(frozen.values())
+    assert not (target.parent / "src/originals").exists()
+    assert offline.panel.findChild(QListWidget, "memoSavedCropPreviews") is None
+    csvs = list((target.parent / "src/statistics").glob("*.csv"))
+    assert len(csvs) == 1
+    rows = list(csv.DictReader(io.StringIO(csvs[0].read_bytes().decode("utf-8-sig"))))
     assert rows and all(int(r["Samples"]) == 192 for r in rows)
     assert all((r["X"], r["Y"], r["Width"], r["Height"]) == ("2", "3", "16", "12") for r in rows)
     means = [float(r["Value"]) for r in rows if r["Metric"].lower() == "mean"]
@@ -140,6 +146,8 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     offline.save_dialog()
     _idle(qtbot, offline)
     assert len(load_memo_archive(target)[0].review.findings) == 2
+    assert offline.library.path == target
+    assert not (relocated / target.stem).exists()
 
 
 def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(
@@ -155,7 +163,7 @@ def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(
     memo._start_io("open", broken)
     _idle(qtbot, memo)
     assert memo.library.document is document
-    assert "failed" in memo.panel.status.text()
+    assert "failed" in memo.panel.last_status
     memo.library.dirty = True
     assert window.close()
     assert window._closing and memo._closed
@@ -163,8 +171,8 @@ def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(
 
 def test_missing_roi_does_not_create_memo(qtbot, windows):
     window, memo = windows()
-    memo.panel.add_button.click()
-    assert "Draw an ROI" in memo.panel.status.text()
+    memo.add()
+    assert "Draw an ROI" in memo.panel.last_status
     assert not memo.library.document.findings
     window.close()
 
@@ -195,7 +203,7 @@ def test_single_view_records_visible_image_when_several_sources_are_selected(
     window._primary_page_slot = 1
     memo.add()
     qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=15000)
-    assert len(memo.library.document.findings) == 1, memo.panel.status.text()
+    assert len(memo.library.document.findings) == 1, memo.panel.last_status
     finding = memo.library.document.findings[0]
     assert len(finding.source_keys) == 1 and len(memo._crops) == 1
     assert memo.library.document.sources[0].locator.local_path == str(shown.source_path)
@@ -203,5 +211,5 @@ def test_single_view_records_visible_image_when_several_sources_are_selected(
     assert window._primary_page_slot == 1
     memo.panel.include_statistics.setChecked(True)
     memo.add()
-    assert "Multi View" in memo.panel.status.text()
+    assert "Multi View" in memo.panel.last_status
     assert len(memo.library.document.findings) == 1

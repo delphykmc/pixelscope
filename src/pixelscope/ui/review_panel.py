@@ -1,13 +1,12 @@
 """Memo panel — one-click inspection notes, not a second Session workspace."""
 from __future__ import annotations
 
-import html
 from collections.abc import Mapping
-from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QFormLayout,
     QGroupBox,
@@ -26,16 +25,53 @@ from pixelscope.core.review_record import ReviewDocumentV1, ReviewFindingV1
 from pixelscope.io.review_repository import SourceResolutionV1
 
 
+class RecordSwitch(QCheckBox):
+    """Quiet pill switch with native checkbox keyboard/accessibility behavior."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__("Record ROI", parent)
+        self.setAccessibleName("Record ROI")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def sizeHint(self) -> QSize:
+        return QSize(self.fontMetrics().horizontalAdvance(self.text()) + 62, 30)
+
+    def hitButton(self, pos: QPoint) -> bool:
+        return self.rect().contains(pos)
+
+    def paintEvent(self, event: object) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(
+            self.palette().windowText().color() if self.isEnabled() else QColor("#999999")
+        )
+        painter.drawText(
+            self.rect().adjusted(2, 0, -52, 0), Qt.AlignmentFlag.AlignVCenter, self.text()
+        )
+        track = QRectF(self.width() - 44, (self.height() - 22) / 2, 40, 22)
+        color = "#23844b" if self.isChecked() and self.isEnabled() else "#999999"
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(color))
+        painter.drawRoundedRect(track, 11, 11)
+        painter.setBrush(QColor("#ffffff"))
+        x = track.right() - 20 if self.isChecked() else track.left() + 2
+        painter.drawEllipse(QRectF(x, track.top() + 2, 18, 18))
+        if self.hasFocus():
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(self.palette().highlight().color(), 1, Qt.PenStyle.DashLine))
+            painter.drawRoundedRect(QRectF(self.rect().adjusted(1, 1, -1, -1)), 4, 4)
+
+
 class ReviewPanel(QWidget):
     """Simple note list with a hidden-on-success recovery path.
 
-    The controller restores each selected Memo automatically after source checks.
+    The controller navigates resident ROIs and verifies saved originals when needed.
     No manual Verify/Activate controls are part of the everyday workflow.
     """
 
-    add_requested = Signal()
+    recording_changed = Signal(bool)
     edit_requested = Signal(str, str, str, object)
-    delete_requested = Signal(str)
+    delete_requested = Signal(object)
     open_requested = Signal()
     save_requested = Signal()
     finding_changed = Signal(str)
@@ -50,19 +86,20 @@ class ReviewPanel(QWidget):
         self.header = QLabel("Memo — notes linked to image regions")
         self.header.setObjectName("reviewEvidenceHeader")
         layout.addWidget(self.header)
+        self.record_button = RecordSwitch(self)
+        self.record_button.setObjectName("memoRecordRoiButton")
+        self.record_button.setCheckable(True)
+        self.record_button.setToolTip(
+            "On: drawing a new ROI adds a memo. Off: inspect ROIs without adding notes."
+        )
+        layout.addWidget(self.record_button)
         self.findings = QListWidget(self)
         self.findings.setObjectName("namedFindingList")
         self.findings.setAccessibleName("Saved image inspection memos")
-        layout.addWidget(self.findings, 3)
-
-        self.crop_previews = QListWidget(self)
-        self.crop_previews.setObjectName("memoSavedCropPreviews")
-        self.crop_previews.setViewMode(QListWidget.ViewMode.IconMode)
-        self.crop_previews.setIconSize(QSize(120, 80))
-        self.crop_previews.setToolTip("Saved ROI images — readable even without originals")
-        self.crop_previews.setMaximumHeight(160)
-        self.crop_previews.setAccessibleName("Saved ROI crops, independent of original images")
-        layout.addWidget(self.crop_previews)
+        self.findings.setToolTip("Select an ROI to revisit it. Press Delete to remove its memo.")
+        self.findings.setMaximumHeight(180)
+        self.findings.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        layout.addWidget(self.findings)
 
         form = QGroupBox("Memo", self)
         grid = QFormLayout(form)
@@ -71,13 +108,13 @@ class ReviewPanel(QWidget):
         self.title_edit.setMaxLength(256)
         self.note_edit = QPlainTextEdit(form)
         self.note_edit.setObjectName("findingNoteEdit")
-        self.note_edit.setMaximumHeight(115)
+        self.note_edit.setMinimumHeight(120)
         self._tags: tuple[str, ...] = ()
         grid.addRow("Title", self.title_edit)
         grid.addRow("Note", self.note_edit)
         # Legacy tags are preserved in .pxreview but not exposed as a required
         # editing workflow. They do not justify an additional form field.
-        layout.addWidget(form)
+        layout.addWidget(form, 1)
 
         self.include_statistics = QCheckBox("Include current ROI statistics", self)
         self.include_statistics.setToolTip(
@@ -86,33 +123,25 @@ class ReviewPanel(QWidget):
         )
         layout.addWidget(self.include_statistics)
 
-        row = QHBoxLayout()
-        self.add_button = QPushButton("Add ROI", self)
-        self.delete_button = QPushButton("Delete", self)
-        for button in (self.add_button, self.delete_button):
-            row.addWidget(button)
-        layout.insertLayout(2, row)
+        self.delete_action = QAction("Delete ROI", self.findings)
+        self.delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+        self.findings.addAction(self.delete_action)
 
-        self.evidence_label = QLabel("Select a memo to revisit its ROI", self)
-        self.evidence_label.setWordWrap(True)
-        self.evidence_label.setObjectName("findingEvidenceStatus")
-        layout.addWidget(self.evidence_label)
         footer = QHBoxLayout()
         self.open_button = QPushButton("Open Memo…", self)
         self.save_button = QPushButton("Save Memo…", self)
+        self.save_button.setToolTip(
+            "Save a named folder containing the .pxmemo map, index.html and src assets"
+        )
         footer.addWidget(self.open_button)
         footer.addWidget(self.save_button)
         layout.addLayout(footer)
-        self.status = QLabel("Select a memo to return to its saved image and ROI")
-        self.status.setWordWrap(True)
-        self.status.setObjectName("reviewStatusLabel")
-        self.status.setOpenExternalLinks(True)
-        self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        layout.addWidget(self.status)
+        self.last_status = ""  # Diagnostic only; no routine footer notifications.
 
         self.findings.currentItemChanged.connect(self._selection_changed)  # type: ignore[attr-defined]
-        self.add_button.clicked.connect(self.add_requested.emit)  # type: ignore[attr-defined]
-        self.delete_button.clicked.connect(self._request_delete)  # type: ignore[attr-defined]
+        self.record_button.toggled.connect(self._recording_toggled)  # type: ignore[attr-defined]
+        self.delete_action.triggered.connect(self._request_delete)  # type: ignore[attr-defined]
         self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
         self.title_edit.textEdited.connect(self._request_edit)  # type: ignore[attr-defined]
@@ -120,9 +149,13 @@ class ReviewPanel(QWidget):
         self._set_selection_enabled(False)
 
     def _set_selection_enabled(self, has_finding: bool) -> None:
-        self.delete_button.setEnabled(has_finding)
+        self.delete_action.setEnabled(has_finding)
         self.title_edit.setEnabled(has_finding)
         self.note_edit.setEnabled(has_finding)
+
+    def _recording_toggled(self, enabled: bool) -> None:
+        self.record_button.setAccessibleDescription("On" if enabled else "Off")
+        self.recording_changed.emit(enabled)
 
     @property
     def selected_finding_id(self) -> str | None:
@@ -137,36 +170,7 @@ class ReviewPanel(QWidget):
         )
 
     def set_status(self, message: str) -> None:
-        self.status.setTextFormat(Qt.TextFormat.PlainText)
-        self.status.setToolTip("")
-        self.status.setText(message)
-
-    def show_saved_report(self, notebook: Path, report: Path) -> None:
-        url = html.escape(QUrl.fromLocalFile(str(report)).toString(), quote=True)
-        self.status.setTextFormat(Qt.TextFormat.RichText)
-        self.status.setText(
-            f'Saved {html.escape(notebook.name)} · <a href="{url}">Open report</a>'
-            f"<br>{html.escape(report.parent.name)} / index.html"
-        )
-        self.status.setToolTip(str(report))
-
-    def show_saved_crops(self, thumbnails: Mapping[str, bytes]) -> None:
-        self.crop_previews.clear()
-        if self._document is None:
-            return
-        labels = {s.source_key: s.display_tag or s.locator.basename for s in self._document.sources}
-        for key, data in thumbnails.items():
-            pixmap = QPixmap()
-            if pixmap.loadFromData(data):
-                scaled = pixmap.scaled(
-                    QSize(120, 80),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.FastTransformation,
-                )
-                item = QListWidgetItem(QIcon(scaled), labels.get(key, "Image"))
-                item.setToolTip("Saved 8-bit ROI preview — original pixels are unchanged")
-                self.crop_previews.addItem(item)
-        self.crop_previews.setVisible(bool(thumbnails))
+        self.last_status = message
 
     def set_dirty(self, dirty: bool, *, saved: bool = False) -> None:
         if not dirty and not saved and (self._document is None or not self._document.findings):
@@ -185,9 +189,11 @@ class ReviewPanel(QWidget):
             self.edit_requested.emit(key, title, note, tags)
 
     def _request_delete(self) -> None:
-        key = self.selected_finding_id
-        if key is not None:
-            self.delete_requested.emit(key)
+        keys = tuple(
+            str(item.data(Qt.ItemDataRole.UserRole)) for item in self.findings.selectedItems()
+        )
+        if keys:
+            self.delete_requested.emit(keys)
 
     def set_document(self, document: ReviewDocumentV1, *, selected_id: str | None = None) -> None:
         self._document = document
@@ -205,20 +211,16 @@ class ReviewPanel(QWidget):
         self._selection_changed()
 
     def show_missing_images(self, keys: tuple[str, ...]) -> None:
-        self.set_status("Original image unavailable — saved ROI crops and notes remain readable")
+        self.set_status("Original image unavailable — this ROI cannot be shown")
 
     def set_resolutions(self, resolutions: Mapping[str, SourceResolutionV1]) -> None:
         if resolutions and any(not r.may_bind_historical_finding for r in resolutions.values()):
-            self.set_status(
-                "Original image unavailable — saved ROI crops and notes remain readable"
-            )
+            self.set_status("Original image unavailable — this ROI cannot be shown")
 
     def _selection_changed(self, *_args: object) -> None:
         key = self.selected_finding_id
         if self._document is None or key is None:
-            self.show_saved_crops({})
             self._set_selection_enabled(False)
-            self.evidence_label.setText("Select a memo to revisit its ROI")
             return
         finding: ReviewFindingV1 = next(f for f in self._document.findings if f.id == key)
         self.title_edit.blockSignals(True)
@@ -228,18 +230,6 @@ class ReviewPanel(QWidget):
         self.title_edit.blockSignals(False)
         self.note_edit.blockSignals(False)
         self._tags = finding.tags
-        source_names = {
-            source.source_key: source.display_tag or source.locator.basename
-            for source in self._document.sources
-        }
-        image_labels = ", ".join(source_names[key] for key in finding.source_keys)
-        roi_label = (
-            f"ROI: x={finding.roi_ref[0]}, y={finding.roi_ref[1]}, "
-            f"{finding.roi_ref[2]}×{finding.roi_ref[3]}"
-            if finding.roi_ref is not None
-            else "Full image / no ROI"
-        )
-        self.evidence_label.setText(f"{roi_label}\nImages: {image_labels}")
         self._set_selection_enabled(True)
         self.set_resolutions({})
         self.finding_changed.emit(key)

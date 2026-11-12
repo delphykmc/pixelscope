@@ -1,5 +1,16 @@
 # PixelScope current state
 
+> **Memo folder/live-selection candidate (2026-11-12, unmerged):**
+> `codex/memo-folder-live-switch-20261112` stores a metadata-only map and root HTML
+> with relative `src/` evidence in one guarded folder generation. Old ZIP reading
+> is retained. Resident ROI selections avoid reload/registration/viewer rebuilding;
+> Memo uses opaque common dock chrome and Ctrl+Shift+M. See
+> [the execution record](exec-plans/active/memo-folder-live-switch.md) for validation
+> and remaining PR/completion evidence. Earlier #228 format notes are historical.
+> Source/test `909f8932` passed **1,955 tests, 1 warning in 468.49s** with normal
+> Windows GC. Independent code re-review accepted cleanup-revision and folder-name
+> fixes. PR creation is the final delivery step; this branch is not merged.
+
 > **Memo Viewer/report feedback candidate (2026-11-12, unmerged):**
 > `codex/memo-viewer-report-20261112` adds passive labeled outlines for all current
 > Memo ROIs, a default save filename, a generated sibling HTML/PNG/CSV report folder
@@ -717,3 +728,31 @@ P7-E Final Release Qualification                   DEFERRED
 
 Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate from MAIN gates
 ```
+
+### 2026-11-12 Memo feedback candidate (PR #229, unmerged)
+
+Exact crop-only PNGs, simpler Memo, ROI-centered navigation and native Windows
+locked-HTML repeat-save fix are tracked in
+[the feedback plan](exec-plans/active/memo-simple-crops-resave.md).
+
+Additional controls: [explicit Memo recording](exec-plans/active/memo-recording-controls.md)
+adds On/Off, list-only Delete, removes redundant Add/Delete buttons and cancels
+pending Memo work on Esc while retaining notes. PR #229 remains unmerged.
+
+Latest PR #229 follow-up: [switch/fit/clean-footer plan](exec-plans/active/memo-switch-fit-clean-footer.md)
+tracks accessible recording, bulk deletion, ROI fit, native cache reuse and automatic
+HTML opening. The PR remains unmerged; native full-suite constraints remain open.
+
+### 2026-11-13 Memo final review and validation
+
+Owner accepted the visible workflow and authorized review, merge and six-hour sleep.
+PR #229 source/test HEAD `db351ef863ae6da4fd2a9d9139723fd6b361dfa7` passed normal-GC
+native Windows full pytest: **1961 passed, 1 intentional ZIP-tamper warning in
+467.40s**. Independent read-only source review is **PASS**. All executed CI checks,
+tracked-Python Ruff/format and pip check passed. The earlier native gate is resolved;
+older failure records remain historical rather than current blockers.
+The [merge-readiness closeout](exec-plans/active/memo-switch-fit-clean-footer.md#2026-11-13-merge-readiness-closeout)
+records exact commands, reviewed scope and remaining physical DPI/SMB/packaged
+execution limits. Only documentation follows that tested source. PR #229 records
+the actual merge outcome; Issue #210 receives a comment without changing its
+already-closed state. No automatic work continuation is authorized after wake.

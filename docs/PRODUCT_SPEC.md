@@ -921,9 +921,9 @@ interpolation.
 ## Memo inspection evidence
 
 **View > Memo** is an optional ROI list for the current image comparison. A manual
-ROI gesture captures a new record with a blank note and per-source 8-bit PNG crops.
+ROI gesture with Record ROI enabled captures a blank note and per-source 8-bit PNG crops.
 Title/note edits update memory immediately; selecting an ROI row revisits that
-record. Add ROI and Delete operate only on ROI entries. There is no Update button,
+record. Delete works on the focused ROI list. There is no Add/Delete or Update button,
 file catalog, source matching or file browsing inside Memo.
 
 All current Memo ROI entries are visible as passive rectangles with numbered
@@ -935,28 +935,61 @@ bindings rather than matching files by path or basename.
 Changing Selected membership/order or comparison page discards the temporary
 notebook and clears its editor. Selecting the old files never retrieves notes.
 Open Memo is the explicit way to reopen saved work; verified navigation remains
-one-way from Memo to the original viewer. Missing originals leave crops/text
-readable. RAW/YUV input settings can be supplied through the existing File workflow.
+one-way from Memo to the original viewer. Missing originals leave notes readable, without an in-app fallback image. RAW/YUV input settings can be supplied through the existing File workflow.
 
-Save Memo is the single persistence command: one `.pxmemo` ZIP contains the editable
-record, immutable PNGs, optional already-presented native ROI Statistics CSVs and
-static `index.html`. No separate Export controls are exposed. Amber Unsaved and
+Save Memo is the single persistence command: a named folder contains a same-named
+metadata-only JSON `.pxmemo`, root `index.html` and relative `src/` assets.
+No separate Export controls are exposed. Amber Unsaved and
 green Saved markers identify memory versus persisted state. Unsaved notes are
 not retained across image-context changes or application close. Text edits do not
 replace crop pixels or recompute metrics. HTML omits automatic original paths;
 the editable local record can contain them. Single View captures its visible
 original, while Multi View captures the comparison page. Session v1 remains unchanged.
 
-Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time. The
-same action also creates `<name>_report/` beside the notebook, with immediately
-usable `index.html`, named PNGs and optional Statistics CSVs. **Open report** in
-the save status opens that HTML. Report PNGs place the base filename and ROI
-x/y/width/height below the crop, and HTML captions/filenames identify the region.
-The exact undecorated crop stays inside `.pxmemo`; annotation never changes native
-analysis or the archived crop. Existing generated report files may be refreshed
-only while unmodified and owned by that notebook. A report-only failure explicitly
-distinguishes the saved notebook from the failed folder and retains its revision
-for another Save. Older archive HTML remains readable.
+Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time and
+creates the matching folder. The map inventories files, directories, source/ROI
+metadata and content digests; it embeds no PNG/CSV payload. Successful Save
+opens the HTML in the default browser automatically. Exact undecorated ROI PNGs are in `src/crops/`,
+without text or margins. HTML and metadata contain source basename and ROI
+x/y/width/height. New saves omit duplicate src/originals assets. Optional native CSVs
+are in `src/statistics/`. Relative paths support moving the whole
+folder. Save stages and validates the complete generation before publication;
+failed installation restores the previous folder, or retains a recovery copy if
+rollback itself fails. Edited/foreign files/directories and linked asset paths
+are refused. Old ZIP `.pxmemo` and `.pxreview` remain readable; saving a legacy
+notebook creates the new folder without replacing its old file.
+If only temporary backup cleanup fails after publication, the new folder remains
+Saved with its committed revision and an explicit cleanup warning/recovery location;
+retrying Save does not falsely report an external revision conflict.
+
+**Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
+Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
+whose explicit runtime source IDs/generations are still ready applies only its ROI
+and note, fitting visible viewers around the ROI with context through canonical
+physical zoom while preserving tool context. It does not hash/re-register,
+decode/reload or reconstruct the viewers. Opening a saved notebook, or unavailable
+runtime bindings, still uses the verified restore path. Active-ROI analysis can
+update normally; historical saved Statistics never replace live numerical authority.
 
 See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
 for acceptance evidence and inherited native environment limitations.
+
+Memo has no embedded crop preview or redundant coordinate/source summary. Repeat
+saves retain the root directory, back up files and commit metadata last.
+
+Memo exposes an accessible pill **Record ROI** switch, disabled without ready
+selected originals. Opening enables recording
+of future user-drawn ROIs; hiding disables it, cancels pending capture, clears the
+active analysis ROI and hides all Memo boxes while retaining note records. Off keeps
+notes visible/editable while ROI gestures follow ordinary analysis behavior. Turning
+on or reopening does not capture a pre-existing ROI. Add/Delete buttons are removed;
+Delete removes selected records only when the ROI list has keyboard focus, then
+selects the next remaining record. Ctrl+A selects all; deleting clears old analysis
+boxes before showing the next ROI.
+Esc/analysis Clear cancels Memo capture/statistics/restore and clears its selection
+without deleting records, before the canonical analysis ROI clear runs.
+
+Memo has no routine footer notifications or report link: only Open/Save buttons.
+Errors use a warning dialog; header Saved/Unsaved remains. Native Statistics and
+Histogram share the existing per-document cache; explicit list navigation flushes
+the canonical pending request without creating a second producer or cache.

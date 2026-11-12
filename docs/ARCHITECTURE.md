@@ -1173,16 +1173,48 @@ the restore authority's explicitly verified runtime ID/generation bindings.
 Canonical render completion republishes decorations across Single/Multi View;
 there is no filename matching, additional ROI authority or numerical request.
 
-Save commits the canonical archive using its existing revision guard, then stages
-a derived sibling report folder. PNG footer drawing uses QImage/QPainter on the
-worker thread; Qt-free report publication receives the renderer as a dependency.
-Original archived crops remain exact. The report marker inventories generated
-files/directories and their digests; edited/foreign output and reparse points are
-refused. Staged directory publication restores the previous report on a failed
-install. These two output paths are separate transactions: a derived-report error
-returns the successfully committed notebook revision with an explicit partial-save
-status, avoiding a false external-edit conflict on retry. Old and current generated
-archive HTML are each compared against their exact trusted rendering on load.
+Save now stages one folder generation: metadata-only `.pxmemo`, root HTML and
+relative `src/` assets. `io.memo_folder` validates bounds, paths, reparse points,
+file/directory inventories and hashes, syncs staged files and compares revisions
+before publication. Failed installation restores the old folder; failed rollback
+retains its recovery copy. `io.memo_report` is a staging helper, not a separately
+committed product output. Crop PNGs retain exact recorded bytes with no text/margins.
+Repeat saves retain the root directory, back up validated files, skip unchanged
+assets and commit metadata last. Derived HTML supports in-place writes under
+Windows write-sharing/non-delete-sharing handles. Genuine write locks still fail
+with rollback. Concurrent readers may reject intermediate inventories; this is
+not a crash-atomic whole-folder transaction. ZIP loading retains its
+strict old/current renderer validation, while new maps validate asset digests.
+Post-publication cleanup failures return the committed revision and a cleanup
+warning rather than overriding success; only pre-publication failures keep the
+old revision. Staging names are isolated from user folder names.
+
+The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
+only when its explicit source ID/generation bindings match the resident ready
+comparison page. The restore controller records this owner-applied selection after
+revoking old callbacks; no source registration, viewport/layout reconstruction or
+native verification is started. ImageViewer.fit_roi uses canonical physical zoom
+to fit ROI context, shifting near image edges. MultiCompareView owns one fitting
+transaction with range-sync forwarding suppressed and restores its prior flag.
+Sync On uses the minimum fitting physical scale across tiles and a common center
+inside all ROI-visible intervals before canonical range propagation; Sync Off fits
+independently. Unequal focus layouts preserve the Sync scale/center contract.
+Other cases retain the verified restore path. Memo has no crop
+preview or coordinate summary, and missing originals provide no fallback image.
+Memo's owned common dock title is quiesced before shutdown. The panel paints its
+background, and its application-scoped QAction shortcut is associated with both
+the main window and the floating dock.
+
+Memo's explicit recording toggle gates user-ROI capture independently of note
+navigation/editing. Hiding/off cancels capture epochs and pending statistics/ROI
+retries; reopening/on never replays a previously drawn ROI. A QListWidget-owned
+WidgetShortcut QAction handles batch Delete without intercepting text-editor Delete.
+ExtendedSelection provides Ctrl+A; deletion clears analysis ROI and selects one next
+remaining record. Hidden docks clear analysis ROI/passive boxes but retain notes.
+MainWindow's user Esc/analysis Clear intent emits memo_roi_cancelled before its
+existing clear_roi path; coordinator cancels capture/restore and deselects the note.
+Internal restore clear_roi does not emit that user-intent signal, avoiding recursive
+self-cancellation. Clearing the analysis ROI may still schedule normal analysis.
 
 Bootstrap installs the window-owned Named Review coordinator after W05/W06.
 `MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
@@ -1199,3 +1231,11 @@ refresh action states, avoiding a second range mutation. Source/recipe restorati
 does not authorize Difference Calculate or live historical metrics. See the
 [W09b integration acceptance](exec-plans/active/issue-210-w09b-owner-acceptance.md)
 for concrete native Windows evidence and remaining independent-review limits.
+
+Memo list navigation calls flush_pending_analysis after canonical ROI application.
+The existing producer/delegate owns native Statistics+Histogram cache keys/results;
+no Memo cache or historical numeric injection is introduced. Canceled stale workers
+are detached before replay; normal task/signature fences reject late callbacks.
+The accessible QCheckBox pill switch is disabled without ready selected sources.
+Routine footer status is diagnostic only; IO failure warnings remain visible.
+Successful save dispatches the root HTML via QDesktopServices after publication.

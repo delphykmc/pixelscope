@@ -912,6 +912,18 @@ class ComparisonAnalysisPanel(QWidget):
             return
         self.refresh_default()
 
+    def flush_pending_analysis(self) -> None:
+        """Explicit navigation reuses the normal cache without a debounce flash.
+
+        Cache keys/results remain owned by the existing native producer, including
+        delegated YUV semantics. No historical Memo statistics are injected.
+        """
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+            if self._worker is not None and self._worker.is_cancelled:
+                self._worker = None
+            self.refresh()
+
     def refresh_default(self) -> None:
         if self._histogram_resources_disposed:
             return
