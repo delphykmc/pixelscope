@@ -70,15 +70,15 @@
 
 추가 회귀와 최종 검증은 [폴더·실시간 전환 기록](../../exec-plans/active/memo-folder-live-switch.md)에 남깁니다. 이 캡처가 모든 물리 DPI/OS 환경에서의 기존 표시 문제 원인을 확정하는 것은 아닙니다.
 
-## 7. Simplified Memo and reusable crops (2026-11-12)
+## 7. 간단해진 Memo와 재사용 crop (2026-11-12)
 
-This section supersedes earlier footer, originals and preview descriptions.
+이 절이 위의 과거 footer·originals·미리보기 설명을 대체합니다.
 
-1. Selecting an ROI centers the Viewer while preserving zoom.
-2. Memo keeps the list and Title/Note; preview and coordinate summary are removed.
-3. src/crops PNGs contain only captured pixels. HTML and metadata carry captions.
-4. Missing originals leave notes readable without an in-app fallback image.
-5. Repeat saving keeps the root directory stable, including when HTML is open.
+1. ROI를 선택하면 확대율을 유지하면서 Viewer가 해당 위치로 이동합니다.
+2. Memo는 목록과 Title/Note 중심입니다. 미리보기와 좌표 요약란은 제거했습니다.
+3. `src/crops/` PNG에는 crop 픽셀만 있습니다. 설명과 좌표는 HTML·메타데이터에서 확인합니다.
+4. 원본이 없으면 메모는 읽되 Memo 안에 대체 영상을 보여주지 않습니다.
+5. 열린 HTML 때문에 폴더 교체가 거부되던 재저장을 수정했습니다. 실제 쓰기 잠금은 해제 후 재시도해야 합니다.
 
 ![Simplified Memo](10-simple-memo.png)
 
