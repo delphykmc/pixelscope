@@ -1,6 +1,7 @@
 # Memo reusable crops and simple editor
 
-Status: Implemented; full native validation blocked by runtime conditions.
+Status: Implemented; earlier native validation block resolved on 2026-11-13.
+See the [final merge-readiness record](memo-switch-fit-clean-footer.md#2026-11-13-merge-readiness-closeout).
 Owner: ChatGPT-assisted, 2026-11-12.
 Continuation of open PR #229; no sleep or wake schedule is requested here.
 

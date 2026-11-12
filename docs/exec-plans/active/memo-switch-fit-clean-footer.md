@@ -1,6 +1,6 @@
 # Memo switch, ROI fit and clean footer
 
-Status: Implemented; inherited full native validation gate remains blocked.
+Status: Implementation, full local validation and independent source review complete.
 Owner: ChatGPT-assisted. Date: 2026-11-12. PR #229.
 
 ## Scope and invariants
@@ -99,3 +99,36 @@ display space. Older 1946-pass/10-fail evidence is not a result for this source;
 there is no new full-suite PASS or merge approval. No merge or sleep performed.
 Commits use owner authentication with ChatGPT coauthor; PR/comment updates are
 marked ChatGPT-assisted. No existing human commit is rewritten.
+
+## 2026-11-13 merge-readiness closeout
+
+This dated record supersedes the earlier deferred gate above. Owner explicitly
+authorized independent review, merge, then sleep with wake six hours after suspend.
+The verified source/test HEAD is `db351ef863ae6da4fd2a9d9139723fd6b361dfa7`;
+base MAIN is `de4e7daa1993141e65ae6b869e02685e9d4e28da`. Only documentation changes
+follow this validation. Actual merge SHA and power times are recorded in PR #229's
+delivery comment and machine-local ignored temp/agent-power state.
+
+- `.venv/Scripts/python -m pytest -q --tb=short
+  --junitxml=temp/memo-merge-full-20261113.xml`: **1961 passed, 1 warning in
+  467.40s**, normal GC/native Windows, exit 0. The warning is the intentional
+  duplicate ZIP member in test_reject_manifest_tamper. Earlier clipboard/geometry
+  failures did not reproduce; their original causes are not retroactively claimed.
+- Ruff check and format --check over all **408 Git-tracked Python files**: exit 0,
+  408 already formatted. File arguments were obtained from `git ls-files -z '*.py'`
+  and passed directly to `.venv/Scripts/python -m ruff`. Existing owner untracked
+  diagnostic scripts were neither changed nor included in that tracked-file gate.
+- `.venv/Scripts/python -m pip check`: No broken requirements found.
+- GitHub checks on db351ef8: all executed checks succeeded. Scope-skipped checks
+  are not counted as executed tests; full pytest was owner/local only.
+- Independent read-only reviewer inspected the full XML (1961 tests, zero
+  failures/errors/skips), aggregate source/docs diff and provenance: **PASS** for
+  source merge-readiness, no actionable findings or required gaps. Final docs-only
+  successor requires parity confirmation before merge.
+
+Product behavior/files/manual screenshots remain as listed above. Remaining scope
+limits are physical owner/DPI/multimonitor, SMB, packaged execution and Enterprise;
+none is newly claimed verified. Metadata-last publication is not crash-atomic.
+Existing owner files and human commits remain untouched. Issue #210 was discovered
+already closed; this delivery adds a handoff comment without changing its state.
+No automatic work continuation is scheduled after the six-hour wake.

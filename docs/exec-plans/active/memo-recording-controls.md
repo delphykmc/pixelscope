@@ -1,6 +1,7 @@
 # Memo explicit recording controls
 
-Status: Implemented; inherited full native validation gate remains blocked.
+Status: Implemented; inherited full native gate resolved on 2026-11-13.
+See the [final merge-readiness record](memo-switch-fit-clean-footer.md#2026-11-13-merge-readiness-closeout).
 Owner: ChatGPT-assisted. Date: 2026-11-12.
 Branch/PR: codex/memo-folder-live-switch-20261112 / PR #229.
 

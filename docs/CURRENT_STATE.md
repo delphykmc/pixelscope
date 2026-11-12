@@ -742,3 +742,17 @@ pending Memo work on Esc while retaining notes. PR #229 remains unmerged.
 Latest PR #229 follow-up: [switch/fit/clean-footer plan](exec-plans/active/memo-switch-fit-clean-footer.md)
 tracks accessible recording, bulk deletion, ROI fit, native cache reuse and automatic
 HTML opening. The PR remains unmerged; native full-suite constraints remain open.
+
+### 2026-11-13 Memo final review and validation
+
+Owner accepted the visible workflow and authorized review, merge and six-hour sleep.
+PR #229 source/test HEAD `db351ef863ae6da4fd2a9d9139723fd6b361dfa7` passed normal-GC
+native Windows full pytest: **1961 passed, 1 intentional ZIP-tamper warning in
+467.40s**. Independent read-only source review is **PASS**. All executed CI checks,
+tracked-Python Ruff/format and pip check passed. The earlier native gate is resolved;
+older failure records remain historical rather than current blockers.
+The [merge-readiness closeout](exec-plans/active/memo-switch-fit-clean-footer.md#2026-11-13-merge-readiness-closeout)
+records exact commands, reviewed scope and remaining physical DPI/SMB/packaged
+execution limits. Only documentation follows that tested source. PR #229 records
+the actual merge outcome; Issue #210 receives a comment without changing its
+already-closed state. No automatic work continuation is authorized after wake.
