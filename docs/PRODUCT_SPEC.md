@@ -921,9 +921,9 @@ interpolation.
 ## Memo inspection evidence
 
 **View > Memo** is an optional ROI list for the current image comparison. A manual
-ROI gesture captures a new record with a blank note and per-source 8-bit PNG crops.
+ROI gesture with Record ROI enabled captures a blank note and per-source 8-bit PNG crops.
 Title/note edits update memory immediately; selecting an ROI row revisits that
-record. Add ROI and Delete operate only on ROI entries. There is no Update button,
+record. Delete works on the focused ROI list. There is no Add/Delete or Update button,
 file catalog, source matching or file browsing inside Memo.
 
 All current Memo ROI entries are visible as passive rectangles with numbered
@@ -975,3 +975,11 @@ for acceptance evidence and inherited native environment limitations.
 
 Memo has no embedded crop preview or redundant coordinate/source summary. Repeat
 saves retain the root directory, back up files and commit metadata last.
+
+Memo exposes one checkable **Record ROI: On/Off** button. Opening enables recording
+of future user-drawn ROIs; hiding disables it and cancels pending capture. Off keeps
+notes visible/editable while ROI gestures follow ordinary analysis behavior. Turning
+on or reopening does not capture a pre-existing ROI. Add/Delete buttons are removed;
+Delete removes the selected record only when the ROI list has keyboard focus.
+Esc/analysis Clear cancels Memo capture/statistics/restore and clears its selection
+without deleting records, before the canonical analysis ROI clear runs.

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
@@ -32,7 +33,7 @@ class ReviewPanel(QWidget):
     No manual Verify/Activate controls are part of the everyday workflow.
     """
 
-    add_requested = Signal()
+    recording_changed = Signal(bool)
     edit_requested = Signal(str, str, str, object)
     delete_requested = Signal(str)
     open_requested = Signal()
@@ -49,9 +50,17 @@ class ReviewPanel(QWidget):
         self.header = QLabel("Memo — notes linked to image regions")
         self.header.setObjectName("reviewEvidenceHeader")
         layout.addWidget(self.header)
+        self.record_button = QPushButton("Record ROI: Off", self)
+        self.record_button.setObjectName("memoRecordRoiButton")
+        self.record_button.setCheckable(True)
+        self.record_button.setToolTip(
+            "On: drawing a new ROI adds a memo. Off: inspect ROIs without adding notes."
+        )
+        layout.addWidget(self.record_button)
         self.findings = QListWidget(self)
         self.findings.setObjectName("namedFindingList")
         self.findings.setAccessibleName("Saved image inspection memos")
+        self.findings.setToolTip("Select an ROI to revisit it. Press Delete to remove its memo.")
         self.findings.setMaximumHeight(180)
         layout.addWidget(self.findings)
 
@@ -77,12 +86,10 @@ class ReviewPanel(QWidget):
         )
         layout.addWidget(self.include_statistics)
 
-        row = QHBoxLayout()
-        self.add_button = QPushButton("Add ROI", self)
-        self.delete_button = QPushButton("Delete", self)
-        for button in (self.add_button, self.delete_button):
-            row.addWidget(button)
-        layout.insertLayout(2, row)
+        self.delete_action = QAction("Delete ROI", self.findings)
+        self.delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+        self.findings.addAction(self.delete_action)
 
         footer = QHBoxLayout()
         self.open_button = QPushButton("Open Memo…", self)
@@ -101,8 +108,8 @@ class ReviewPanel(QWidget):
         layout.addWidget(self.status)
 
         self.findings.currentItemChanged.connect(self._selection_changed)  # type: ignore[attr-defined]
-        self.add_button.clicked.connect(self.add_requested.emit)  # type: ignore[attr-defined]
-        self.delete_button.clicked.connect(self._request_delete)  # type: ignore[attr-defined]
+        self.record_button.toggled.connect(self._recording_toggled)  # type: ignore[attr-defined]
+        self.delete_action.triggered.connect(self._request_delete)  # type: ignore[attr-defined]
         self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
         self.title_edit.textEdited.connect(self._request_edit)  # type: ignore[attr-defined]
@@ -110,9 +117,13 @@ class ReviewPanel(QWidget):
         self._set_selection_enabled(False)
 
     def _set_selection_enabled(self, has_finding: bool) -> None:
-        self.delete_button.setEnabled(has_finding)
+        self.delete_action.setEnabled(has_finding)
         self.title_edit.setEnabled(has_finding)
         self.note_edit.setEnabled(has_finding)
+
+    def _recording_toggled(self, enabled: bool) -> None:
+        self.record_button.setText("Record ROI: On" if enabled else "Record ROI: Off")
+        self.recording_changed.emit(enabled)
 
     @property
     def selected_finding_id(self) -> str | None:

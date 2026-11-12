@@ -734,3 +734,7 @@ Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate 
 Exact crop-only PNGs, simpler Memo, ROI-centered navigation and native Windows
 locked-HTML repeat-save fix are tracked in
 [the feedback plan](exec-plans/active/memo-simple-crops-resave.md).
+
+Additional controls: [explicit Memo recording](exec-plans/active/memo-recording-controls.md)
+adds On/Off, list-only Delete, removes redundant Add/Delete buttons and cancels
+pending Memo work on Esc while retaining notes. PR #229 remains unmerged.

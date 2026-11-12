@@ -83,3 +83,15 @@
 ![Simplified Memo](10-simple-memo.png)
 
 ![Exact ROI PNG without text or margins](11-exact-crop.png)
+
+## 8. 명시적인 ROI 기록 (2026-11-12)
+
+1. 창을 열면 **Record ROI: On**입니다. 새 ROI를 그릴 때만 목록에 추가합니다.
+2. 버튼을 눌러 **Off**로 바꾸면 메모를 보면서 일반 ROI 분석을 할 수 있습니다.
+3. 다시 켜거나 창을 다시 열어도 기존 ROI를 중복 추가하지 않습니다.
+4. 목록을 선택하고 **Delete** 키로 삭제합니다. Add/Delete 버튼은 제거했습니다.
+5. **Esc**는 분석 ROI와 Memo 선택을 해제하고 대기 중인 Memo 작업을 취소합니다.
+   저장하거나 작성한 메모 자체는 남깁니다. Floating 창에서도 같은 Esc 명령을 사용합니다.
+6. Esc 후 일반 분석 결과는 갱신될 수 있지만, 취소한 Memo 캡처는 다시 시작하지 않습니다.
+
+![Record ROI 토글과 간단한 목록](12-recording-controls.png)

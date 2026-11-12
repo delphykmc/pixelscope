@@ -150,6 +150,8 @@ class NamedReviewCoordinator:
         self.action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
         window.addAction(self.action)
         self.dock.addAction(self.action)
+        # Reuse the canonical Esc command while the floating Memo has focus.
+        self.dock.addAction(window.action_map["Clear ROI"])
         self.action.triggered.connect(self._toggle_visibility)  # type: ignore[attr-defined]
         self.dock.visibilityChanged.connect(self._dock_visibility_changed)  # type: ignore[attr-defined]
         # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
@@ -158,7 +160,7 @@ class NamedReviewCoordinator:
         # QAction.menu() may have lost their native object during Qt composition.
         view_menu.addAction(self.action)
 
-        self.panel.add_requested.connect(self._new_roi)
+        self.panel.recording_changed.connect(self._recording_changed)
         self.panel.edit_requested.connect(self.edit)
         self.panel.delete_requested.connect(self.delete)
         self.panel.open_requested.connect(self.open_dialog)
@@ -170,6 +172,7 @@ class NamedReviewCoordinator:
         self.panel.set_document(self.library.document)
         self.panel.set_dirty(False)
         window.memo_roi_changed.connect(self._new_roi)
+        window.memo_roi_cancelled.connect(self._roi_cancelled)
         window.memo_sources_changed.connect(self._sources_changed)
         window.comparison_analysis_panel.analysis_settled.connect(self._resume_statistics)
         self.panel.include_statistics.toggled.connect(self._resume_statistics)  # type: ignore[attr-defined]
@@ -261,9 +264,11 @@ class NamedReviewCoordinator:
     def _new_roi(self) -> None:
         if self._closed:
             return
+        if not self.panel.record_button.isChecked() or not self.dock.isVisible():
+            return
         if self._io_worker is not None and self._io_operation == "open":
             return
-        if self._io_worker is not None or not self.dock.isVisible():
+        if self._io_worker is not None:
             self._pending_roi = True
             self.cancel_capture()
             self._clear_editor()
@@ -274,9 +279,34 @@ class NamedReviewCoordinator:
             return
         self.restore.cancel()
         self._restoring_memo = False
+        self._auto_restore_id = None
         self._clear_editor()
         self.panel.set_dirty(True)
         self.add()
+
+    @Slot(bool)
+    def _recording_changed(self, enabled: bool) -> None:
+        if not enabled:
+            self._pending_roi = False
+            self.cancel_capture()
+            self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
+        self.panel.set_status(
+            "Draw a new ROI to add a memo" if enabled else "Recording off — inspect ROIs normally"
+        )
+
+    @Slot()
+    def _roi_cancelled(self) -> None:
+        if self._closed:
+            return
+        self._pending_roi = False
+        self.cancel_capture()
+        self.restore.cancel()
+        self._restoring_memo = False
+        self._auto_restore_id = None
+        self._clear_editor()
+        self.refresh_overlays()
+        self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
+        self.panel.set_status("ROI selection cleared; existing notes kept")
 
     def show(self) -> None:
         """Expose the notes dock without silently changing the workspace layout."""
@@ -284,10 +314,7 @@ class NamedReviewCoordinator:
             return
         self.dock.show()
         self.dock.raise_()
-        if self._pending_roi or (
-            not self.library.document.findings and self.window._shared_roi is not None
-        ):
-            self._new_roi()
+        self.panel.record_button.setChecked(True)
 
     @Slot(bool)
     def _toggle_visibility(self, show: bool) -> None:
@@ -304,6 +331,7 @@ class NamedReviewCoordinator:
         """The dock X button and the View checkmark are one visibility state."""
         if self._closed:
             return
+        self.panel.record_button.setChecked(visible)
         blocked = self.action.blockSignals(True)
         try:
             self.action.setChecked(visible)

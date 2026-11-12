@@ -1087,3 +1087,12 @@ skips unchanged assets and commits metadata last. Write-sharing HTML handles per
 in-place derived HTML writes; true write locks require retry. Rollback restores old
 files or retains recovery data. Concurrent readers can reject intermediate
 inventories; crash-atomic publication is not promised.
+
+### Memo recording intent and deletion keys
+
+An explicit Record ROI toggle separates new-note capture from keeping the dock open.
+Opening defaults On; hiding defaults Off. Neither reopening nor enabling recaptures
+an old ROI. Remove redundant Add/Delete buttons and scope Delete to the focused ROI
+list. Esc keeps its ROI-clear meaning, also canceling Memo work/deselecting the note
+without deleting existing records. Internal restore clears remain separate from user
+intent, so restoring legacy records cannot cancel itself.

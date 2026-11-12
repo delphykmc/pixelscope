@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
     # Downstream observers must not re-style viewers for intermediate drag edits.
     files_selection_committed = Signal()
     memo_roi_changed = Signal()
+    memo_roi_cancelled = Signal()
     memo_sources_changed = Signal()
 
     def __init__(
@@ -294,7 +295,7 @@ class MainWindow(QMainWindow):
         self.viewer.navigation_requested.connect(self._navigate_single_view)
         self.comparison_analysis_panel.scope_changed.connect(self._analysis_scope_changed)
         self.comparison_analysis_panel.roi_apply_requested.connect(self._numeric_roi_requested)
-        self.comparison_analysis_panel.roi_clear_requested.connect(self.clear_roi)
+        self.comparison_analysis_panel.roi_clear_requested.connect(self._escape_action)
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
         self.difference_panel.map_cached.connect(lambda _pair: self._update_action_states())
@@ -720,6 +721,7 @@ class MainWindow(QMainWindow):
         self._update_action_states()
 
     def _escape_action(self) -> None:
+        self.memo_roi_cancelled.emit()
         self.clear_roi()
 
     def _show_bottom_results(self) -> None:

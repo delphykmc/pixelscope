@@ -84,7 +84,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
                 )
 
             qtbot.waitUntil(statistics_ready, timeout=10000)
-        memo.panel.add_button.click()
+        memo.add()
         qtbot.waitUntil(lambda: memo._capture_worker is None, timeout=15000)
         assert len(memo.library.document.findings) == index + 1, memo.panel.status.text()
     assert len(memo._crops) == 6
@@ -168,7 +168,7 @@ def test_corrupt_open_retains_notebook_and_unsaved_memory_is_discardable(
 
 def test_missing_roi_does_not_create_memo(qtbot, windows):
     window, memo = windows()
-    memo.panel.add_button.click()
+    memo.add()
     assert "Draw an ROI" in memo.panel.status.text()
     assert not memo.library.document.findings
     window.close()

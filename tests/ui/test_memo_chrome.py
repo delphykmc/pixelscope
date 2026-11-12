@@ -25,6 +25,12 @@ def test_memo_floating_docked_chrome_and_shortcut(qtbot, request):
     assert title is memo._dock_title
     assert not title.float_button.icon().isNull()
     assert not title.close_button.icon().isNull()
+    clear_spy = QSignalSpy(window.action_map["Clear ROI"].triggered)
+    memo._wait_for_statistics("Waiting for ROI Statistics")
+    memo.panel.findings.setFocus()
+    qtbot.keyClick(memo.panel.findings, Qt.Key.Key_Escape)
+    assert clear_spy.count() == 1  # same Esc command, including floating focus
+    assert not memo._pending_statistics and memo.restore.phase == "idle"
     output = Path.cwd() / "temp/memo-chrome"
     output.mkdir(parents=True, exist_ok=True)
     assert memo.dock.grab().save(str(output / "floating.png"))

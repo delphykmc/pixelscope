@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QPushButton
 from test_memo_evidence import windows as memo_windows
 
@@ -129,7 +130,8 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
     assert w._shared_roi == second
     assert m.panel.note_edit.toPlainText() == "Second ROI note"
-    m.panel.delete_button.click()
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
     assert len(m.library.document.findings) == 1
     assert all(len(v._memo_items) == 1 for v in w.multi_compare_view.occupied_viewers)
     m.dock.hide()
@@ -137,6 +139,10 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert m._capture_worker is None
     assert len(m.library.document.findings) == 1  # hidden Memo does no capture work
     m.show()
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 1  # reopening does not capture an old ROI
+    assert m.panel.record_button.isChecked()
+    assert w._shared_roi_changed(RoiBounds(46, 40, 10, 10))
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
     assert len(m.library.document.findings) == 2
     assert not m.panel.note_edit.toPlainText()
@@ -178,4 +184,71 @@ def test_roi_statistics_waits_for_existing_analysis_without_extra_user_command(
     assert memo.panel.note_edit.isEnabled()
     memo.panel.note_edit.setPlainText("ROI statistics are stored with this note")
     assert memo.library.document.findings[0].note == "ROI statistics are stored with this note"
+    w.close()
+
+
+@pytest.mark.parametrize("floating", [False, True])
+def test_recording_toggle_escape_and_delete_are_independent(
+    qtbot, monkeypatch, tmp_path, windows, floating
+):
+    from PySide6.QtWidgets import QApplication
+
+    path = tmp_path / "record.png"
+    assert cv2.imwrite(str(path), np.full((72, 96, 3), 80, np.uint8))
+    w, m = windows()
+    m.dock.setFloating(floating)
+    m.show()
+    w.open_image_paths([path])
+    qtbot.waitUntil(
+        lambda: w.viewer.document is not None
+        and w.viewer.document.loading_state == "ready"
+        and w.viewer.measure_physical_zoom().valid
+        and not w.viewer._geometry_timer.isActive(),
+        timeout=15000,
+    )
+    assert m.panel.record_button.isChecked()
+    assert not any(b.text() in ("Add ROI", "Delete") for b in m.panel.findChildren(QPushButton))
+    assert w._shared_roi_changed(RoiBounds(2, 3, 16, 12))
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 1, m.panel.status.text()
+    m.panel.note_edit.setPlainText("Keep this note")
+    m._wait_for_statistics("Waiting for ROI Statistics")
+    m.panel.record_button.click()
+    assert not m.panel.record_button.isChecked()
+    assert not m._pending_statistics and not m._pending_roi
+    epoch = m._capture_epoch
+    assert w._shared_roi_changed(RoiBounds(30, 20, 20, 16))
+    assert m._capture_epoch == epoch and m._capture_worker is None
+    assert len(m.library.document.findings) == 1
+    # Viewing/editing old notes is independent of recording new ROIs.
+    m.panel.findings.setCurrentRow(-1)
+    m.panel.findings.setCurrentRow(0)
+    assert w._shared_roi == RoiBounds(2, 3, 16, 12)
+    assert m.panel.note_edit.toPlainText() == "Keep this note"
+    m.panel.record_button.click()
+    assert len(m.library.document.findings) == 1  # enabling does not recapture
+    m._wait_for_statistics("Waiting for ROI Statistics")
+    m._pending_roi = True
+    epoch = m._capture_epoch
+    restore_epoch = m.restore.epoch
+    w.action_map["Clear ROI"].trigger()  # the canonical Esc command
+    assert w._shared_roi is None
+    assert not m._pending_statistics and not m._pending_roi
+    assert m._capture_worker is None and m._capture_epoch > epoch
+    assert m.restore.epoch > restore_epoch and m.restore.phase == "idle"
+    assert m.panel.selected_finding_id is None and not m.panel.note_edit.toPlainText()
+    assert len(m.library.document.findings) == 1
+    with monkeypatch.context() as patch:
+        patch.setattr(m, "add", lambda: pytest.fail("cancelled work must not restart"))
+        m._resume_statistics()
+    m.panel.findings.setCurrentRow(0)
+    QApplication.setActiveWindow(m.dock if floating else w)
+    m.panel.note_edit.setFocus()
+    qtbot.keyClick(m.panel.note_edit, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 1  # text Delete never deletes an ROI
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert not m.library.document.findings and m.library.dirty
+    assert not w.viewer._memo_items
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)  # empty list is harmless
     w.close()

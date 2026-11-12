@@ -1200,6 +1200,15 @@ Memo's owned common dock title is quiesced before shutdown. The panel paints its
 background, and its application-scoped QAction shortcut is associated with both
 the main window and the floating dock.
 
+Memo's explicit recording toggle gates user-ROI capture independently of note
+navigation/editing. Hiding/off cancels capture epochs and pending statistics/ROI
+retries; reopening/on never replays a previously drawn ROI. A QListWidget-owned
+WidgetShortcut QAction handles Delete without intercepting text-editor Delete.
+MainWindow's user Esc/analysis Clear intent emits memo_roi_cancelled before its
+existing clear_roi path; coordinator cancels capture/restore and deselects the note.
+Internal restore clear_roi does not emit that user-intent signal, avoiding recursive
+self-cancellation. Clearing the analysis ROI may still schedule normal analysis.
+
 Bootstrap installs the window-owned Named Review coordinator after W05/W06.
 `MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
 selection/page, profile, ROI/Line and physical-view owners; it does not create a

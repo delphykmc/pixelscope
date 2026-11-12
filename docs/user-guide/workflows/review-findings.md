@@ -7,7 +7,8 @@ Session remains the way to resume the overall inspection setup.
 ## Add and edit ROI notes
 
 1. Open your images and choose **View > Memo** (**Ctrl+Shift+M**).
-2. Draw a rectangular ROI with **Ctrl+drag**. A new ROI entry is captured and the
+2. Opening Memo turns **Record ROI: On** on. Draw a rectangular ROI with
+   **Ctrl+drag**. A new ROI entry is captured and the
    note starts empty. Wait for the short image capture to finish, then type.
 3. Title and Note edits immediately update that entry in memory. There is no
    Update button. Captured crop pixels remain unchanged when text is edited.
@@ -15,8 +16,14 @@ Session remains the way to resume the overall inspection setup.
    the ROI list to see its note and select its ROI. For already loaded images this
    centers the Viewer on that ROI, preserves zoom and does not reload them. Opening a saved Memo can restore
    its recorded original view after source verification.
-5. **Add ROI** adds a blank entry for the current ROI. **Delete** removes the
-   selected ROI entry. These controls operate on ROI records, not image files.
+5. Set recording to **Record ROI: Off** to keep reading/editing notes while drawing ordinary
+   analysis ROIs without adding records. Turning recording back on only captures
+   future ROI gestures; it does not duplicate the currently selected ROI.
+6. With the ROI list focused, press **Delete** to remove its selected entry.
+   There are no Add/Delete buttons. Delete inside Title/Note edits text normally.
+7. **Esc** clears the active analysis ROI and Memo list selection, cancels pending
+   Memo capture/statistics/restore, and keeps existing notes. Normal analysis may
+   still refresh after clearing its ROI; Memo does not restart canceled capture.
 
 Every ROI in the current Memo list is drawn in its matching original viewers with
 a numbered label at the top-left. The selected record is highlighted. These
@@ -79,6 +86,9 @@ Changing selected images, their order or the comparison page clears the current
 ROI list and editor and starts a new temporary notebook. Returning to previous
 images does not retrieve notes automatically. The program does not scan files,
 match image sets or maintain a cross-file Memo catalog.
+
+Hiding Memo disables recording and cancels pending capture. Reopening enables
+recording for future ROI gestures, without capturing ROIs drawn while it was hidden.
 
 **Open Memo…** explicitly loads saved ROI records. Selecting an ROI attempts to
 verify and reopen its original images; this direction is Memo-to-viewer only.
