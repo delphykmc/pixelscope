@@ -1239,3 +1239,9 @@ are detached before replay; normal task/signature fences reject late callbacks.
 The accessible QCheckBox pill switch is disabled without ready selected sources.
 Routine footer status is diagnostic only; IO failure warnings remain visible.
 Successful save dispatches the root HTML via QDesktopServices after publication.
+
+The owned Issue77UiDesignFollowup controller handles Region resize/show/font events
+with an idempotent ROI-summary reflow. Width need is derived from font metrics,
+existing label/Edit sizes and layout margins; no new minimum sidebar width or
+runtime method replacement is added. Reflow retains the same widgets and only
+moves grid items, with no ROI application, source registration or numerical request.

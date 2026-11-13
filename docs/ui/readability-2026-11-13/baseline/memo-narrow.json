@@ -1,0 +1,26 @@
+{
+  "source_sha": "603626d14a479a2a7ad3de74d5b23f57a50abc0c",
+  "scenario": "memo-narrow",
+  "method": "production Qt composition/QWidget.grab; synthetic inputs; isolated QSettings",
+  "requested": [
+    1024,
+    720
+  ],
+  "actual": [
+    1024,
+    720
+  ],
+  "screen_available": [
+    1024,
+    720
+  ],
+  "dpr": 1.0,
+  "sidebar_width": 167,
+  "memo_width": 328,
+  "bounds_text": "(0, 0) \u00b7 640 \u00d7 360",
+  "bounds_painted": "\u2026 360",
+  "bounds_width": 36,
+  "stats_table_width": 137,
+  "stats_horizontal_scroll_max": 6,
+  "image_sha256": "11f73db5284e0a253f59b91657c570eae7af2062956c740767f37bd5ad27b387"
+}

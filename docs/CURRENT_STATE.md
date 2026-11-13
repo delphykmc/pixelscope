@@ -729,7 +729,7 @@ P7-E Final Release Qualification                   DEFERRED
 Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate from MAIN gates
 ```
 
-### 2026-11-12 Memo feedback candidate (PR #229, unmerged)
+### 2026-11-12 Memo feedback candidate (historical pre-merge record)
 
 Exact crop-only PNGs, simpler Memo, ROI-centered navigation and native Windows
 locked-HTML repeat-save fix are tracked in
@@ -737,11 +737,11 @@ locked-HTML repeat-save fix are tracked in
 
 Additional controls: [explicit Memo recording](exec-plans/active/memo-recording-controls.md)
 adds On/Off, list-only Delete, removes redundant Add/Delete buttons and cancels
-pending Memo work on Esc while retaining notes. PR #229 remains unmerged.
+pending Memo work on Esc while retaining notes. This was the pre-merge state.
 
 Latest PR #229 follow-up: [switch/fit/clean-footer plan](exec-plans/active/memo-switch-fit-clean-footer.md)
 tracks accessible recording, bulk deletion, ROI fit, native cache reuse and automatic
-HTML opening. The PR remains unmerged; native full-suite constraints remain open.
+HTML opening. This historical candidate preceded the resolved gate recorded below.
 
 ### 2026-11-13 Memo final review and validation
 
@@ -756,3 +756,15 @@ records exact commands, reviewed scope and remaining physical DPI/SMB/packaged
 execution limits. Only documentation follows that tested source. PR #229 records
 the actual merge outcome; Issue #210 receives a comment without changing its
 already-closed state. No automatic work continuation is authorized after wake.
+
+### 2026-11-13 screenshot-led sequential UI follow-up
+
+PR #229 merged at `603626d14a479a2a7ad3de74d5b23f57a50abc0c`; Memo implementation
+and its independent review/full local gate are complete. Historical #210 is closed;
+its latest summary links [#230](https://github.com/delphykmc/pixelscope/issues/230).
+The original W00-W13 table is not the current implementation queue. Retired presets,
+multiple Memo exports and automatic matching remain retired; format/matching
+expansion still requires concrete needs. Current work is
+[the sequential readability plan](exec-plans/active/ui-readability-sequential.md).
+UI-01 (#231) reflows only the ROI summary at narrow sidebar widths; other visual
+candidates require their own capture evidence. No new merge/sleep is authorized.

@@ -10,11 +10,13 @@ Use **Ctrl+drag** in Image View to create the shared ROI rectangle. PixelScope e
 
 ## Enter an exact ROI
 
-For repeatable measurements, open **Statistics** and enter **X**, **Y**, **Width**, and **Height**, then apply the region. Exact entry is preferable when you must compare the same coordinates across data sets.
+For repeatable measurements, open **Statistics > Region > Edit**, enter **X**, **Y**, **Width**, and **Height** in the ROI dialog, then apply the region. Exact entry is preferable when you must compare the same coordinates across data sets.
+
+Region shows a compact bounds summary with full coordinates in its tooltip. In a narrow sidebar, the summary moves below Bounds/Edit to use the available width; widening restores the compact layout. This does not change the selected ROI or its numerical results.
 
 ## Clear the ROI
 
-Use `Esc` in the ROI interaction context or **Edit > Clear ROI** / `Ctrl+Shift+R` for the application action.
+Use `Esc` or **Edit > Clear ROI** for the application action.
 
 ## What uses the ROI
 
@@ -26,4 +28,4 @@ Temporary Pick membership does not replace the Current Comparison Page as the no
 
 ## Troubleshooting keywords
 
-**Ctrl+drag**, **exact ROI**, **X Y width height**, **ROI cleared**, **full image**, **Ctrl+Shift+R**, **Esc**.
+**Ctrl+drag**, **exact ROI**, **X Y width height**, **ROI cleared**, **full image**, **Esc**.

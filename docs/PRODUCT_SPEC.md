@@ -993,3 +993,13 @@ Memo has no routine footer notifications or report link: only Open/Save buttons.
 Errors use a warning dialog; header Saved/Unsaved remains. Native Statistics and
 Histogram share the existing per-document cache; explicit list navigation flushes
 the canonical pending request without creating a second producer or cache.
+
+### Narrow ROI context presentation
+
+The existing Analysis Region summary reflows below Bounds/Edit when the sidebar
+cannot fit the full context row. It returns to the compact two-row form when width
+allows. The narrow layout omits the redundant Scope caption while keeping the
+selected scope value and accessible control name. Edit remains reachable and full coordinates remain in
+tooltip/accessibility. This changes presentation only; the sidebar remains
+collapsible, and numerical ROI/source/analysis identities are unchanged. Extremely
+small collapsed widths can still elide content.
