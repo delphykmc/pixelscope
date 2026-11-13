@@ -998,7 +998,8 @@ the canonical pending request without creating a second producer or cache.
 
 The existing Analysis Region summary reflows below Bounds/Edit when the sidebar
 cannot fit the full context row. It returns to the compact two-row form when width
-allows. Scope may shrink, Edit remains reachable, and full coordinates remain in
+allows. The narrow layout omits the redundant Scope caption while keeping the
+selected scope value and accessible control name. Edit remains reachable and full coordinates remain in
 tooltip/accessibility. This changes presentation only; the sidebar remains
 collapsible, and numerical ROI/source/analysis identities are unchanged. Extremely
 small collapsed widths can still elide content.

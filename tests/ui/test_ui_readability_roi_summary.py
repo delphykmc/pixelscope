@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -37,9 +38,18 @@ def test_memo_narrow_roi_summary_reflows_without_changing_analysis(qtbot):
         panel._request_signature,
     )
     for width in (320, 167, 390, 180):
+        window.setFixedSize(1400 if width >= 320 else 1024, 720)
+        QApplication.processEvents()
         total = sum(window.main_splitter.sizes())
         window.main_splitter.setSizes([width, max(1, total - width)])
         qtbot.waitUntil(lambda: panel.roi_label._paint_text() == panel.roi_label.text())
+        expected = (1, 1, 1, 1) if width >= 320 else (2, 0, 1, 3)
+        qtbot.waitUntil(
+            lambda expected=expected: panel.region_layout.getItemPosition(
+                panel.region_layout.indexOf(panel.roi_label)
+            )
+            == expected
+        )
         for control in (panel.roi_label, panel.region_scope, followup.roi_edit_button):
             assert control.geometry().left() >= 0
             assert control.geometry().right() < panel.region_group.width()
@@ -49,5 +59,12 @@ def test_memo_narrow_roi_summary_reflows_without_changing_analysis(qtbot):
             panel._request_signature,
         )
     assert "Width 640" in panel.roi_label.toolTip()
+    original_font = panel.region_group.font()
+    larger_font = panel.region_group.font()
+    larger_font.setPointSizeF(original_font.pointSizeF() + 1)
+    panel.region_group.setFont(larger_font)
+    qtbot.waitUntil(lambda: panel.roi_label._paint_text() == panel.roi_label.text())
+    panel.region_group.setFont(original_font)
+    qtbot.waitUntil(lambda: panel.roi_label._paint_text() == panel.roi_label.text())
     assert followup.roi_edit_button.isEnabled()
     window.close()

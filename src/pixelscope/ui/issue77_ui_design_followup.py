@@ -192,6 +192,7 @@ class Issue77UiDesignFollowup(QObject):
         panel.region_scope.setMinimumWidth(0)
         panel.region_scope.setMaximumWidth(120)
         panel.region_scope.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        panel.region_scope.setAccessibleName("Analysis region scope")
         panel.region_group.installEventFilter(self)
 
         original_update_region_label = OwnerCallback(panel._update_region_label)
@@ -231,14 +232,17 @@ class Issue77UiDesignFollowup(QObject):
         if compact == self._roi_summary_compact:
             return
         self._roi_summary_compact = compact
+        # The selected scope already names itself (Full image / Active ROI).
+        # Keep that value legible instead of clipping it beside a redundant caption.
+        panel.scope_label.setVisible(not compact)
         for control in (panel.region_scope, panel.roi_label):
             layout.removeWidget(control)
         layout.addWidget(
             panel.region_scope,
             0,
+            0 if compact else 1,
             1,
-            1,
-            2 if compact else 1,
+            3 if compact else 1,
             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
         if compact:
@@ -260,6 +264,7 @@ class Issue77UiDesignFollowup(QObject):
                 panel.roi_label.clear()
                 panel.roi_label.setToolTip("")
                 panel.roi_label.setAccessibleName("ROI bounds")
+                self._reflow_roi_summary()
                 return
             height, width = panel._documents[0].reference_shape
             if height <= 0 or width <= 0:

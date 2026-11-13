@@ -70,3 +70,12 @@ commit; canonical guide screenshots are not auto-promoted.
 - User Guide exactROI entry now names the existing Region/Edit dialog and Esc
   action; stale inline-field/ControlShiftR text was corrected from actual code.
 - Review, final after screenshots and static/docs closeout remain pending here.
+
+UI-01 refinement: narrow Scope caption is omitted so the self-describing Full image/
+Active ROI value keeps its full selector width; accessible name remains Analysis
+region scope. The same wide caption returns automatically. Final regression adds
+explicit two/three-row geometry and font-change checks. Window-size transitions
+are used for wide cases because the narrow central workspace cannot allocate a
+320px sidebar while Memo is docked; no assertion/timeout was relaxed.
+Final focused command above: **82 passed in 24.79s**, with mypy134 success,
+Ruff source/tests exit0 and format355 unchanged. Updated before/after evidence follows.
