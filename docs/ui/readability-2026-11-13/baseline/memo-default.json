@@ -21,5 +21,6 @@
   "bounds_painted": "(0, 0) \u00b7 640 \u00d7 360",
   "bounds_width": 98,
   "stats_table_width": 360,
-  "stats_horizontal_scroll_max": 1
+  "stats_horizontal_scroll_max": 1,
+  "image_sha256": "a9f2dd5992917e412aa00bdbaa21c34a043cd978848b6b165d9eee947c0044c3"
 }

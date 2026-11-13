@@ -79,3 +79,22 @@ are used for wide cases because the narrow central workspace cannot allocate a
 320px sidebar while Memo is docked; no assertion/timeout was relaxed.
 Final focused command above: **82 passed in 24.79s**, with mypy134 success,
 Ruff source/tests exit0 and format355 unchanged. Updated before/after evidence follows.
+
+## UI-01 final candidate
+
+Final implementation/test SHA: 058aced3e8ef60d9191ca294d9f4788cf6053fea.
+Baseline603626d1 images11 and after images3 were captured successfully. Same
+167pxsidebar: bounds width36→129px and fulltext restored; 1400px wide row98px
+unchanged. Source hashes, actual geometry, DPR and image hashes accompany captures.
+[Numbered visual report](../../ui/readability-2026-11-13/README.md) links all images,
+observations and deferred MemoFloat/longnames/HTML-browser cases.
+
+Final82focusedPASS24.79s includes explicit narrow/wide grid positions and fontchange.
+Ruff source/tests exit0, format355 unchanged, mypy134 success, docs/strictMkDocs passed.
+Changed files: ui/issue77_ui_design_followup.py, newtest_ui_readability_roi_summary.py,
+CURRENT_STATE, PRODUCT_SPEC, ARCHITECTURE, canonical inspect-roi workflow, thisplan
+and newvisualreport/captureassets. No canonical approved screenshot was replaced.
+New whole-repository pytest is not run; merge-readiness remains a separate gate.
+Owner Git identity with ChatGPT coauthor, GitHub ChatGPT-assisted attribution; no
+humancommitrewrite, no automatic merge/sleep. Source implementation review and
+exactfinalhead confirmation are recorded on the draft PR.
