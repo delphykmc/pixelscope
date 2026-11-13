@@ -3,7 +3,7 @@ from __future__ import annotations
 import weakref
 from typing import Any
 
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QToolButton,
     QVBoxLayout,
@@ -124,6 +125,7 @@ class Issue77UiDesignFollowup(QObject):
             raise RuntimeError("Issue #77 UI follow-up requires Quick Compare composition")
         self._quick_compare_ref = weakref.ref(controller)
         self._active_roi_dialog: RoiEditorDialog | None = None
+        self._roi_summary_compact: bool | None = None
 
         self._install_roi_affordance()
         self._install_three_view_affordance()
@@ -185,6 +187,12 @@ class Issue77UiDesignFollowup(QObject):
         )
         panel.region_layout.setColumnStretch(1, 1)
         panel.region_layout.setColumnStretch(2, 0)
+        # The sidebar remains collapsible. Reflow context, not the pane width,
+        # when a dock leaves too little space for Bounds + value + Edit.
+        panel.region_scope.setMinimumWidth(0)
+        panel.region_scope.setMaximumWidth(120)
+        panel.region_scope.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        panel.region_group.installEventFilter(self)
 
         original_update_region_label = OwnerCallback(panel._update_region_label)
 
@@ -194,6 +202,55 @@ class Issue77UiDesignFollowup(QObject):
 
         panel._update_region_label = update_region_label
         self._sync_roi_summary()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        window = self._window_ref()
+        if window is not None and not window._closing:
+            panel = window.comparison_analysis_panel
+            if watched is panel.region_group and event.type() in (
+                QEvent.Type.Resize,
+                QEvent.Type.Show,
+                QEvent.Type.FontChange,
+            ):
+                self._reflow_roi_summary()
+        return super().eventFilter(watched, event)
+
+    def _reflow_roi_summary(self) -> None:
+        panel = self.window.comparison_analysis_panel
+        layout = panel.region_layout
+        margins = layout.contentsMargins()
+        required = (
+            self.roi_bounds_label.width()
+            + panel.roi_label.fontMetrics().horizontalAdvance(panel.roi_label.text())
+            + self.roi_edit_button.width()
+            + 2 * layout.horizontalSpacing()
+            + margins.left()
+            + margins.right()
+        )
+        compact = panel.region_group.contentsRect().width() < required
+        if compact == self._roi_summary_compact:
+            return
+        self._roi_summary_compact = compact
+        for control in (panel.region_scope, panel.roi_label):
+            layout.removeWidget(control)
+        layout.addWidget(
+            panel.region_scope,
+            0,
+            1,
+            1,
+            2 if compact else 1,
+            alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
+        if compact:
+            layout.addWidget(panel.roi_label, 2, 0, 1, 3)
+        else:
+            layout.addWidget(
+                panel.roi_label,
+                1,
+                1,
+                alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            )
+        panel.region_group.updateGeometry()
 
     def _sync_roi_summary(self) -> None:
         panel = self.window.comparison_analysis_panel
@@ -218,6 +275,7 @@ class Issue77UiDesignFollowup(QObject):
             "ROI bounds: "
             f"X {bounds.x}, Y {bounds.y}, Width {bounds.width}, Height {bounds.height}"
         )
+        self._reflow_roi_summary()
 
     def _default_roi(self) -> RoiBounds | None:
         active = self.window._shared_roi
