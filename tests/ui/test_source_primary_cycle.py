@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QKeyEvent, QTransform
 from PySide6.QtWidgets import QApplication, QLineEdit
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
@@ -40,6 +40,24 @@ def _visible_source_ids(window: MainWindow) -> list[str]:
     ]
 
 
+def _image_view_oracle(viewer: ImageViewer) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Independent mapping for this test's untransformed 320x240 Gray inputs.
+
+    Integer mapFromScene endpoints have at most one physical-pixel rounding
+    error over a 2048-native-pixel baseline. No production zoom helper is used.
+    """
+    image = viewer.image_item
+    graphics = viewer._graphics
+    origin = graphics.mapFromScene(image.mapToScene(QPointF(0.5, 0.5)))
+    px = graphics.mapFromScene(image.mapToScene(QPointF(2048.5, 0.5)))
+    py = graphics.mapFromScene(image.mapToScene(QPointF(0.5, 2048.5)))
+    dpr = graphics.viewport().devicePixelRatioF()
+    scale = ((px.x() - origin.x()) * dpr / 2048, (py.y() - origin.y()) * dpr / 2048)
+    box = viewer.view_box
+    center = image.mapFromScene(box.mapToScene(QPointF(box.width() / 2, box.height() / 2)))
+    return scale, (center.x(), center.y())
+
+
 @pytest.mark.parametrize("count", (2, 3, 4, 5, 6))
 def test_t_rotates_last_source_to_primary_without_image_upload(
     qtbot: object, monkeypatch: pytest.MonkeyPatch, count: int
@@ -58,6 +76,7 @@ def test_t_rotates_last_source_to_primary_without_image_upload(
         viewer.document.document_id: (
             viewer.measure_physical_zoom().percent,
             [sum(axis) / 2 for axis in viewer.view_box.viewRange()],
+            _image_view_oracle(viewer),
         )
         for viewer in window.multi_compare_view.occupied_viewers
         if viewer.document is not None
@@ -87,17 +106,46 @@ def test_t_rotates_last_source_to_primary_without_image_upload(
         # rather than comparing endpoints from different viewport dimensions.
         for viewer in window.multi_compare_view.occupied_viewers:
             assert viewer.document is not None
-            percent, center = before_views[viewer.document.document_id]
+            percent, center, (oracle_scale, oracle_center) = before_views[
+                viewer.document.document_id
+            ]
             measurement = viewer.measure_physical_zoom()
             assert measurement.valid and percent is not None
             assert measurement.percent == pytest.approx(percent, rel=0.005)
             assert [sum(axis) / 2 for axis in viewer.view_box.viewRange()] == pytest.approx(
                 center, abs=1e-8, rel=0
             )
+            actual_scale, actual_center = _image_view_oracle(viewer)
+            assert actual_scale == pytest.approx(
+                oracle_scale, abs=2 * viewer._graphics.viewport().devicePixelRatioF() / 2048, rel=0
+            )
+            assert actual_center == pytest.approx(oracle_center, abs=1e-8, rel=0)
         before_order = expected
     assert uploads == []
     assert before_order == selected_ids
     window.close()
+
+
+@pytest.mark.parametrize("distortion", ["translate", "scale"])
+def test_primary_oracle_detects_image_transform_errors(qtbot, distortion) -> None:
+    window, _ = _window(qtbot, 2)
+    viewer = window.multi_compare_view.occupied_viewers[0]
+    qtbot.waitUntil(lambda: not viewer._geometry_timer.isActive())
+    before_scale, before_center = _image_view_oracle(viewer)
+    position, transform = viewer.image_item.pos(), viewer.image_item.transform()
+    try:
+        if distortion == "translate":
+            viewer.image_item.setPos(position + QPointF(7, 5))
+            _, center = _image_view_oracle(viewer)
+            assert center == pytest.approx((before_center[0] - 7, before_center[1] - 5))
+        else:
+            viewer.image_item.setTransform(QTransform().scale(1.1, 1.1))
+            scale, _ = _image_view_oracle(viewer)
+            assert scale == pytest.approx(tuple(s * 1.1 for s in before_scale), abs=2 / 2048, rel=0)
+    finally:
+        viewer.image_item.setPos(position)
+        viewer.image_item.setTransform(transform)
+        window.close()
 
 
 def test_t_rotates_in_single_view_without_displaying_diff(

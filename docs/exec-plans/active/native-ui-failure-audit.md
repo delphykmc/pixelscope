@@ -126,3 +126,85 @@ Draft fix PR #237 on #234; investigation #236. UI approvals for #232/#234 remain
 valid, technical merge is held for unresolved native clipboard acceptance.
 Exact source independent review accepts both corrections; no lifecycle safety or
 full-PASS claim is inferred. Historical #210 remains closed and preserved.
+
+## 2026-11-15 renewed audit of all ten failed nodes
+
+Owner explicitly requested investigation of all ten, including Primary. Original
+XML was re-extracted rather than assuming only nine remained. The exact ten nodes
+were rerun with `.venv/Scripts/python -c` extracting classname/name from
+temp/native-ui-fix-full-20261114.xml and invoking `-m pytest -q --tb=short
+--junitxml=temp/native-ten-audit-20261115.xml` with all ten IDs. Observed result:
+**nine clipboard failures, one Primary pass in11.95s**.
+No full rerun or full PASS is implied.
+
+### Nine clipboard cases: rejected hypotheses and remaining causal gap
+
+Read-only fresh-process ctypes probe temp/clipboard_access_audit.py does not
+import Qt/PixelScope, read clipboard data, empty it, change permissions, or alter
+session/lock state. Standard and require_escalated JSON evidence is under
+temp/clipboard-audit-{standard,elevated}-20261115.json.
+
+- Actual station is WinSta0, desktop Default. NtQueryObject granted masks are
+  0x20327 (standard) and0xf037f (escalated), both including clipboard right0x4.
+- AccessCheck using the actual station descriptor and duplicated caller token
+  succeeds and grants0x4. A missing window-station DACL right is not established.
+- OpenClipboard(NULL) and OpenClipboard(own valid hidden native HWND) both fail
+  with error5. The hidden window is destroyed deterministically. This rules out
+  absence of a caller HWND as the explanation; no app QWidget teardown is required.
+- Standard token is low-integrity/AppContainer; escalated is medium-integrity,
+  non-AppContainer. Both have IsTokenRestricted false and zero restricting SIDs.
+  TokenHasRestrictions=1 was initially misinterpreted in commentary; it is not
+  proof of a currently restricted token. The interpretation was corrected.
+  AppContainer alone cannot explain the escalated failure.
+- Current job UI restriction flags0 and no open clipboard window were observed.
+  These observations do not prove absence of all host/security restrictions.
+- Escalated WTS session query returns232bytes, Level1, Active console session1,
+  SessionFlags0 (documented locked). Input-desktop query nevertheless reports
+  Default. No unlocked-session control observation is available, so lock-state
+  causality is a hypothesis, not a confirmed root cause. Owner was asked to
+  confirm physical lock state; no unlock/security-policy changes were attempted.
+
+API references: [window-station rights](https://learn.microsoft.com/en-us/windows/win32/winstation/window-station-security-and-access-rights),
+[WTS session flags](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w).
+Next discriminating observation is the same read-only probe in an independently
+confirmed unlocked interactive session, with token/station/ACL state recorded.
+Do not call the nine harmless, repaired, or proven sandbox failures.
+
+### Tenth case: independently check actual image geometry
+
+The historical three-source endpoint assertion remains explained by integer tile
+width redistribution at the same physical scale/center. Independent review found
+an additional coverage gap: production scale measurement plus ViewBox center
+alone could miss ImageItem translation. The test now adds native-local image
+points mapped with QGraphicsView.mapFromScene over512pixels, and inverse-maps the
+actual scene viewport center into the image. It does not use production zoom,
+reference-transform or presentation-rectangle helpers. It checks every retained
+document, leaving source order/selection/no-upload assertions intact.
+
+The independent integer scale oracle allows at most two endpoint-rounding pixels
+when comparing two samples; the original strict center check is retained. Negative
+controls inject +7/+5 image translation and1.1x image scale, verify that the oracle
+detects each, then restore transforms in finally. These are test-only mutations,
+not production fixes or GC/timing workarounds.
+
+`.venv/Scripts/python -m pytest -q --tb=short
+tests/ui/test_source_primary_cycle.py
+--junitxml=temp/primary-independent-oracle-20261115.xml`:
+**14 passed13.80s**. Product source remains ffa2aad0; merge remains held while
+native copy acceptance and its causal environmental condition are unresolved.
+
+Independent review accepted the oracle's separate mapping and its two negative
+controls. A broader normal-GC check of Primary, physical zoom, Issue81 native
+lifecycle, Issue121 GC lifecycle and the pure lifecycle-architecture contract:
+`.venv/Scripts/python -m pytest -q --tb=short
+tests/ui/test_source_primary_cycle.py tests/ui/test_w01_physical_zoom.py
+tests/ui/test_issue81_qt_lifecycle.py tests/ui/test_issue121_qt_gc_lifecycle.py
+tests/unit/test_qt_lifecycle_architecture.py
+--junitxml=temp/native-cause-geometry-lifecycle-20261115.xml`:
+**59 passed24.52s**. This selected run is not proof of all lifecycle safety.
+Final oracle baseline is increased to2048native pixels to reduce integer rounding
+error (the bound stays two logical endpoint pixels timesDPR, not a looser check).
+Final2048pixel oracle module: **14 passed11.09s**, XML
+temp/primary-independent-oracle-final-20261115.xml. Ruff/format, mypy134,
+documentation contract/strict MkDocs and diff checks passed; no product source,
+dependencies, permissions, packaging or owner-untracked files changed.
