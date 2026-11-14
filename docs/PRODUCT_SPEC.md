@@ -1016,6 +1016,14 @@ keys and numerical requests remain unchanged.
 
 Memo Viewer bookmark labels use compact ROI ordinals. Full titles remain in the
 ROI list, editor and saved evidence; changing a title does not widen the overlay.
+Labels use compact normal-weight type and minimal background padding. Colliding
+labels move below or beside their ROI and stay within the visible viewer where
+space allows; zoom and resize update placement without moving ROI rectangles.
+If all labels cannot physically fit, placement minimizes overlap without dropping
+records.
+Labels for offscreen ROI rectangles hide and reappear with the rectangle. Dense
+placement uses a fixed work budget to keep pan/zoom responsive, preferring the
+best tested position if the budget is exhausted.
 
 ### Native UI sizing and retained physical view
 
