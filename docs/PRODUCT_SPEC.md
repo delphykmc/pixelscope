@@ -1012,6 +1012,11 @@ again. Standalone inputs with only a bare basename retain their legacy folder/na
 fallback. Labels are presentation only; source IDs, generations, arrays, cache
 keys and numerical requests remain unchanged.
 
+### Compact Memo bookmark labels
+
+Memo Viewer bookmark labels use compact ROI ordinals. Full titles remain in the
+ROI list, editor and saved evidence; changing a title does not widen the overlay.
+
 ### Native UI sizing and retained physical view
 
 RAW profile auto sizing reserves native window chrome within the available screen

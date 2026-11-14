@@ -48,6 +48,11 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert not m.panel.note_edit.toPlainText()
     qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
     assert len(m.library.document.findings) == 2, m.panel.last_status
+    first_finding = m.library.document.findings[0]
+    long_title = "Long inspection title that must remain in Memo, not cover the Viewer"
+    m.edit(first_finding.id, long_title, first_finding.note, ())
+    assert m.library.document.findings[0].title == long_title
+    assert long_title in m.panel.findings.item(0).text()
     for viewer in w.multi_compare_view.occupied_viewers:
         assert len(viewer._memo_items) == 2
         assert [item[0] for item in viewer._memo_regions] == ["ROI 1", "ROI 2"]
