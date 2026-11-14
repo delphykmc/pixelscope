@@ -70,3 +70,20 @@ human commits and 13 owner untracked entries remain untouched.
 Focused command above: **67 passed in 22.44s**, exit0. Ruff source/tests exit0,
 format355 unchanged, mypy134 success, docs contract passed. Source/test files were
 unchanged from the pre-interruption implementation during this rerun.
+
+## Draft delivery evidence
+
+Committed source/test: 6f83fdbba0d0d38711b6aa51b59dc753b4e5ef6f.
+Independent read-only exact-source review PASS for draft preparation, no findings;
+reviewer inspected the 67-test XML (zero failures/errors/skips). After captures:
+three paired scenarios and two extra actual Histogram/Line title views, all exit0.
+The [numbered visual report](../../ui/source-labels-2026-11-13/README.md) distinguishes
+visible tabs from hidden widget title metadata and states physical display limits.
+All capture pairs are hash-checked and after canonical/Files/Viewer/Statistics/Line
+label strings match. Final documentation/assets parity review follows.
+
+Static/docs commands: `.venv/Scripts/python -m ruff check src tests`,
+`-m ruff format --check src tests`, `-m mypy src`, `scripts/check_docs.py`,
+`-m mkdocs build --strict` and `git diff --check`. Results are source/tests lint0,
+355 files formatted, 134 source files typechecked, docs contract/strict build passed
+and whitespace clean. No package/dependency/physical DPI/SMB tests are claimed.
