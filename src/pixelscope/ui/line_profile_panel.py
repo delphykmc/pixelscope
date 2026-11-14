@@ -35,6 +35,7 @@ from pixelscope.core.review_analysis import (
     freeze_series_values,
 )
 from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
+from pixelscope.core.source_presentation import contextual_display_label
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
@@ -1002,9 +1003,7 @@ class LineProfilePanel(QWidget):
 
     @staticmethod
     def _document_label(document: ImageDocument) -> str:
-        if document.source_path is None:
-            return document.display_name
-        return f"{document.source_path.parent.name} / {document.display_name}"
+        return contextual_display_label(document.display_name, document.source_path)
 
     def shutdown(self) -> None:
         if self._worker is not None:

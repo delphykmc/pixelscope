@@ -10,6 +10,7 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.folder_display_tags import install_folder_display_tags
+from pixelscope.ui.plot_text import middle_elide
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -40,6 +41,22 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
     window.set_layout_mode("Multi View")
     window.show()
     qtbot.wait(20)  # type: ignore[attr-defined]
+    analysis = window.comparison_analysis_panel
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(analysis.last_results) == 4 and analysis._worker is None,
+        timeout=5000,
+    )
+
+    def assert_analysis_labels():
+        assert [analysis.image_summary.item(i, 1).text() for i in range(4)] == [
+            document.display_name for document in documents
+        ]
+        assert [plot.plotItem.titleLabel.text for plot in analysis.plots[:4]] == [
+            middle_elide(f"{i + 1} · {document.display_name}")
+            for i, document in enumerate(documents)
+        ]
+
+    assert_analysis_labels()
 
     presented = [viewer for viewer in window.multi_compare_view.occupied_viewers if viewer.document]
     assert {viewer.header._display_name for viewer in presented} == {
@@ -57,11 +74,11 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
     from pixelscope.ui.comparison_analysis_panel import comparison_labels
 
     assert all(
-        document.display_name in label
+        document.display_name == label
         for document, label in zip(documents, comparison_labels(documents), strict=True)
     )
     assert all(
-        document.display_name in window.line_profile_panel._document_label(document)
+        document.display_name == window.line_profile_panel._document_label(document)
         for document in documents
     )
     assert all(
@@ -89,9 +106,15 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
     before_arrays = tuple(id(doc.source) for doc in documents)
     before_selected = tuple(window._selection_order)
     before_cache_key = window.difference_panel._cache_key()
+    previous_statistics = analysis.last_results
+    previous_analysis_request = analysis._request_signature
 
     tags.set_tag(paths[0].parent, "Reference")
     assert documents[0].display_name == "[Reference] chart.png"
+    assert_analysis_labels()
+    assert analysis.last_results is previous_statistics
+    assert analysis._request_signature == previous_analysis_request
+    assert analysis._worker is None
     assert tuple(window.documents) == before_ids
     assert tuple(doc.generation for doc in documents) == before_generations
     assert tuple(id(doc.source) for doc in documents) == before_arrays
@@ -106,6 +129,7 @@ def test_four_duplicate_sources_share_display_alias_across_presentations(
 
     tags.set_tag(paths[0].parent, "")
     assert documents[0].display_name == "base / chart.png"
+    assert_analysis_labels()
     window.close()
 
 
@@ -208,6 +232,7 @@ def test_tag_updates_line_reference_labels_without_changing_analysis_or_referenc
 
     for tag in ("Reference", ""):
         tags.set_tag(documents[1].source_path.parent, tag)
+        assert line._document_label(documents[1]) == documents[1].display_name
         assert line.reference_selector.currentData() == documents[1].document_id
         assert line.reference_selector.itemText(1) == (f"2 · {line._document_label(documents[1])}")
         assert (line._reference_document_id, line._reference_locked) == reference

@@ -28,7 +28,8 @@ restart. Changing or deleting a tag only changes names; it does not reload
 images, change selected/primary/picked roles, or recalculate a Difference.
 Long labels are shortened in the tile, with the full source path in its
 tooltip. Statistics, Histogram, Line and Difference use the same resolved
-source names.
+source names. Analysis does not add the parent folder again to an already
+resolved alias or tag.
 
 ## Preserve selection
 

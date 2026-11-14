@@ -70,6 +70,7 @@ from pixelscope.core.review_analysis import (
 )
 from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
+from pixelscope.core.source_presentation import contextual_display_label
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
@@ -121,12 +122,10 @@ class ImageGroupSeparatorDelegate(QStyledItemDelegate):
 
 
 def comparison_labels(documents: list[ImageDocument]) -> list[str]:
-    """Return folder-qualified labels so duplicate basenames remain distinct."""
+    """Reuse resolved source aliases, with legacy context for bare basenames."""
 
     return [
-        f"{document.source_path.parent.name} / {document.display_name}"
-        if document.source_path is not None
-        else document.display_name
+        contextual_display_label(document.display_name, document.source_path)
         for document in documents
     ]
 
@@ -1404,11 +1403,7 @@ class ComparisonAnalysisPanel(QWidget):
                         (image_index, channel_name, x_values, y_values)
                     )
                     plotted_channels.add(channel_name)
-                title = (
-                    f"{document.source_path.parent.name} / {document.display_name}"
-                    if document.source_path is not None
-                    else document.display_name
-                )
+                title = labels[image_index]
                 if not overlay:
                     plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
                 self._set_plot_axes_visible(plot, True)

@@ -33,6 +33,18 @@ def normalized_label_key(value: str) -> str:
     return normalize("NFC", value).casefold()
 
 
+def contextual_display_label(display_name: str, source_path: PurePath | None) -> str:
+    """Keep owner-resolved aliases; qualify only an otherwise bare basename.
+
+    Standalone analysis widgets may receive unaliased documents. Their existing
+    immediate-folder context is retained without prepending it to resolved tags,
+    unique parent suffixes or custom labels. This never changes source identity.
+    """
+    if source_path is None or display_name != source_path.name or not source_path.parent.name:
+        return display_name
+    return f"{source_path.parent.name} / {display_name}"
+
+
 def _parts(source: SourceLabelInput) -> tuple[str, tuple[str, ...], str]:
     path = source.source_path
     basename = path.name if path is not None else source.fallback_name

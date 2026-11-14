@@ -1,0 +1,43 @@
+{
+  "source_sha": "3d8dc8feb75623265740e2dd14ec69a41cd2bdfb",
+  "scenario": "two-tagged",
+  "method": "production Qt composition/QWidget.grab; synthetic input; isolated QSettings",
+  "actual_widget": [
+    1400,
+    880
+  ],
+  "screen_available": [
+    1024,
+    720
+  ],
+  "dpr": 1.0,
+  "image_sha256": "39cab5cc7e619706afc21949ce12ba869ca013c27b893c76b40d7cc8d2210669",
+  "canonical_labels": [
+    "[Reference] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "[Processed] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "files_labels": [
+    "[Reference] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "[Processed] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "viewer_labels": [
+    "[Reference] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "[Processed] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "viewer_painted": [
+    "[Reference…026_11.png",
+    "[Processed] chart_01_col…era_pipeline_2026_11.png"
+  ],
+  "statistics_labels": [
+    "capture / [Reference] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "capture / [Processed] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "histogram_titles": [
+    "1 · capture / [Reference] chart_01_c…er_long_camera_pipeline_2026_11.png",
+    "2 · capture / [Processed] chart_01_c…er_long_camera_pipeline_2026_11.png"
+  ],
+  "line_labels": [
+    "capture / [Reference] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "capture / [Processed] chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ]
+}
