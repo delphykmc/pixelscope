@@ -231,6 +231,25 @@ def test_raw_dialog_round_trips_alignment_and_bayer_levels(qtbot: object) -> Non
     assert dialog.profile() == profile
 
 
+def test_raw_dialog_small_screen_keeps_footer_visible_and_respects_manual_size(qtbot, monkeypatch):
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QScreen
+
+    monkeypatch.setattr(QScreen, "availableGeometry", lambda _screen: QRect(0, 0, 1024, 480))
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitUntil(lambda: dialog.isVisible() and dialog.height() == dialog.sizeHint().height())
+    assert dialog.frameGeometry().height() <= 480
+    assert dialog.footer.geometry().bottom() < dialog.height()
+    assert dialog.body_scroll.verticalScrollBar().maximum() > 0
+    dialog.resize(dialog.width() + 20, 320)
+    manual = dialog.size()
+    dialog.layout_kind.setCurrentText("BAYER")
+    qtbot.waitUntil(lambda: dialog.black_level_stack.currentWidget().isVisible())
+    assert dialog.size() == manual
+
+
 def test_raw_dialog_gray_bayer_gray_restores_compact_height(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
@@ -244,15 +263,20 @@ def test_raw_dialog_gray_bayer_gray_restores_compact_height(qtbot: object) -> No
     gray_dialog_height = dialog.height()
     dialog.layout_kind.setCurrentText("BAYER")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dialog.height() > gray_dialog_height,
+        lambda: dialog.height() == dialog.sizeHint().height()
+        and dialog.black_level_stack.height() > gray_stack_height,
         timeout=1000,
     )
     bayer_dialog_height = dialog.height()
     assert dialog.black_level_stack.height() > gray_stack_height
+    assert bayer_dialog_height >= gray_dialog_height
+    if bayer_dialog_height == gray_dialog_height:
+        assert dialog.body_scroll.verticalScrollBar().maximum() > 0
 
     dialog.layout_kind.setCurrentText("GRAY")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dialog.height() < bayer_dialog_height,
+        lambda: dialog.height() == dialog.sizeHint().height()
+        and dialog.black_level_stack.height() == gray_stack_height,
         timeout=1000,
     )
     assert dialog.black_level_stack.height() == gray_stack_height
