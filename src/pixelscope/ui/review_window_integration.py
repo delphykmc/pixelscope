@@ -248,10 +248,9 @@ class NamedReviewCoordinator:
             if key is not None and self.dock.isVisible():
                 for ordinal, finding in enumerate(self.library.document.findings, 1):
                     if key in finding.source_keys and finding.roi_ref is not None:
-                        title = finding.title.replace("\n", " ")[:48]
+                        # Keep viewer bookmarks compact; the Memo list/editor
+                        # owns the full title and saved evidence retains it.
                         label = f"ROI {ordinal}"
-                        if title and title != label:
-                            label += f" · {title}"
                         regions.append((label, RoiBounds(*finding.roi_ref), finding.id == selected))
             viewer.set_memo_regions(tuple(regions))
 

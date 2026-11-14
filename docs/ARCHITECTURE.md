@@ -1260,3 +1260,9 @@ range in a new viewport to determine preserved scale. Saved-range restore keeps
 its separate existing semantics. RAW auto-fit caps its client height using the
 available screen and native chrome; its body remains scrollable and user resizing
 remains authoritative. Neither change adds QObject ownership or worker retention.
+
+Memo label collision placement is local to ImageViewer in scene-pixel coordinates.
+It uses the existing range/geometry lifecycle, ignores plot auto-bounds, and never
+changes ROI or numerical requests. Its stable range callback is disconnected on
+graphics disposal. Candidate fallback is lazy and bounded by visible viewport
+space; no new QObject helper graph, timer or cache authority is installed.

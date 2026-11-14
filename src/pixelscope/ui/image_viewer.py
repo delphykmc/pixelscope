@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from itertools import chain
 from math import ceil, cos, floor, isfinite, radians, sin
 from typing import Any, cast
 
@@ -51,6 +52,7 @@ from pixelscope.ui.tile_header import TileHeader
 from pixelscope.workers.task_worker import TaskWorker
 
 _DISPLAY_PREVIEW_MAX_THREADS = 2
+_MEMO_LABEL_INTERSECTION_BUDGET = 8192
 _DISPLAY_PREVIEW_POOL_ATTRIBUTE = "_pixelscope_display_preview_thread_pool"
 
 
@@ -329,6 +331,7 @@ class ImageViewer(QWidget):
         self.view_box.roi_reset_requested.connect(self._reset_overlays)
         self.view_box.sigRangeChanged.connect(self._update_zoom)
         self.view_box.sigRangeChanged.connect(self._position_loading_item)
+        self.view_box.sigRangeChanged.connect(self._position_memo_labels)
         self.view_box.wheel_zoom_started.connect(self._clear_physical_target)
         self.set_active(False)
 
@@ -566,6 +569,7 @@ class ImageViewer(QWidget):
         else:
             self._update_zoom()
         self.geometry_settled.emit()
+        self._position_memo_labels()
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
         self._graphics.trace_document_id = (
@@ -885,6 +889,7 @@ class ImageViewer(QWidget):
             (self.view_box.roi_reset_requested, self._reset_overlays),
             (self.view_box.sigRangeChanged, self._update_zoom),
             (self.view_box.sigRangeChanged, self._position_loading_item),
+            (self.view_box.sigRangeChanged, self._position_memo_labels),
             (self.view_box.wheel_zoom_started, self._clear_physical_target),
             (self._geometry_timer.timeout, self._settle_physical_zoom),  # type: ignore[attr-defined]
         )
@@ -999,11 +1004,72 @@ class ImageViewer(QWidget):
                 text=text, color=color, anchor=(0, 0), fill=pg.mkBrush(21, 27, 34, 225)
             )
             label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            font = self.font()
+            font.setPointSizeF(8)
+            font.setBold(False)
+            label.setFont(font)
+            label.textItem.document().setDocumentMargin(1)
             label.setZValue(22)
             label.setPos(bounds.x, bounds.y)
             self.view_box.addItem(rectangle, ignoreBounds=True)
             self.view_box.addItem(label, ignoreBounds=True)
             self._memo_items.append((rectangle, label))
+        self._position_memo_labels()
+
+    def _position_memo_labels(self, *_args: object) -> None:
+        """Place passive labels in scene pixels; never move analysis geometry."""
+        if self._graphics_resources_disposed or not self._memo_items:
+            return
+        viewport = self.view_box.sceneBoundingRect().adjusted(2, 2, -2, -2)
+        occupied: list[QRectF] = []
+        remaining_checks = _MEMO_LABEL_INTERSECTION_BUDGET
+        for rectangle, label in self._memo_items:
+            roi = rectangle.sceneBoundingRect()
+            label.setVisible(roi.intersects(viewport))
+            if not label.isVisible():
+                continue
+            size = label.sceneBoundingRect().size()
+            width, height = size.width(), size.height()
+            if width <= 0 or height <= 0:
+                continue
+            candidates = [
+                (roi.left(), roi.top()),
+                (roi.left(), roi.bottom() + 2),
+                (roi.right() + 2, roi.top()),
+                (roi.left() - width - 2, roi.top()),
+                (roi.left(), roi.top() - height - 2),
+            ]
+            # Dense nearby ROIs may exhaust their own sides. Search visible
+            # space as a bounded fallback, retaining every label when it fits.
+            fallback = (
+                (viewport.left() + x, viewport.top() + y)
+                for y in range(0, max(1, int(viewport.height())), max(1, ceil(height + 2)))
+                for x in range(0, max(1, int(viewport.width())), max(1, ceil(width + 2)))
+            )
+            best: QRectF | None = None
+            best_overlap = float("inf")
+            for x, y in chain(candidates, fallback):
+                x = max(viewport.left(), min(x, viewport.right() - width))
+                y = max(viewport.top(), min(y, viewport.bottom() - height))
+                candidate = QRectF(x, y, width, height)
+                if best is None:
+                    best = candidate
+                # Bound work across the entire relayout, including dense
+                # notebooks that cannot fit. Never stall pan/zoom to pack labels.
+                if len(occupied) > remaining_checks:
+                    break
+                remaining_checks -= len(occupied)
+                overlap = 0.0
+                for other in occupied:
+                    intersection = candidate.intersected(other)
+                    overlap += intersection.width() * intersection.height()
+                if overlap < best_overlap:
+                    best, best_overlap = candidate, overlap
+                if overlap == 0:
+                    break
+            if best is not None:
+                label.setPos(self.view_box.mapSceneToView(best.topLeft()))
+                occupied.append(best.adjusted(-1, -1, 1, 1))
 
     def enable_roi(self, enabled: bool = True) -> None:
         self._roi_enabled = enabled
