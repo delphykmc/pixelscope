@@ -252,6 +252,19 @@ inspect the smallest runtime predicates, then change code only at the layer the
 evidence identifies. This reduces the chance that a harness defect turns into a
 production regression.
 
+### Recurring native failures need a cause, not only a later PASS
+
+A failure also occurring on unchanged MAIN proves that a new PR is not its sole
+origin; it does not prove safety. A dated successful rerun establishes only that
+run's source and environment. If the same failure returns, retain the old record
+and track the recurrence explicitly instead of treating it as already resolved.
+Use independent native probes before importing Qt to separate access failures
+from application lifecycle paths. For geometry, record actual screen bounds,
+auto-fit guards, physical zoom targets and transition indices; an idle layout flag
+or a larger timeout is not a substitute for the relevant ownership contract.
+Preserve failed native acceptance as blocked evidence even after other product
+defects are fixed. See the [recurring failure audit](exec-plans/active/native-ui-failure-audit.md).
+
 ### Qt cyclic-lifetime hardening from Issue #81
 
 Issue #81 proved that a small Python strongly-connected component can retain an

@@ -83,3 +83,46 @@ and an independent Qt coordinate oracle. Broader final validation follows.
 Temporary raw/native probe: temp/native_ui_failure_probe.py. Full/retry/baseline
 XML/logs: temp/ui01-ui02-merge-20261114.*, temp/ui-merge-native-focused-20261114.*,
 temp/ui-merge-baseline-focused-20261114.*. No product clipboard content captured.
+
+## Exact-source broader run and final contract checks
+
+Source ffa2aad03608e7625e322825dffdc9ab1eae2cc8 normal-GC Windows:
+`.venv/Scripts/python -m pytest -q --tb=short
+--junitxml=temp/native-ui-fix-full-20261114.xml`:
+**1964 passed,10 failed,1 intentional ZIP warning in463.84s**, exit1.
+RAW and Difference parity now pass. Nine clipboard failures remain; the tenth
+is test_source_primary_cycle's three-source raw-range endpoint comparison.
+Do not call this full validation successful.
+
+Primary trace verifies physical percent57.391826923076 and reference center160,120
+unchanged while integer ViewBox widths redistribute191px to192/189/192px.
+Different viewport widths imply different range endpoints at the same scale.
+The test now checks every retained document's measured scale/center after layout
+and geometry timers settle, retaining upload0/source-order/selection checks.
+It uses0.5% physical-scale accuracy and center absolute1e-8 with rel0; no timeout
+or old tolerance was inflated. Independent review confirms this contract change.
+
+Seven-module focused command above plus tests/ui/test_source_primary_cycle.py:
+**85 passed27.08s** (temp/native-ui-fix-final-focused-20261114.xml). Final stricter
+center assertion: `.venv/Scripts/python -m pytest -q --tb=short
+tests/ui/test_source_primary_cycle.py
+--junitxml=temp/native-ui-primary-final-20261114.xml`: **12 passed9.90s**.
+Product source is unchanged since the full run; later changes are test/docs only.
+No post-test-change full-suite result is claimed.
+
+Tracked409 Ruff/format and mypy134 passed; source/tests Ruff/format355 and mypy134
+also passed after final test edit. Docs contract and strict MkDocs passed before
+the final evidence-only closeout. Broad dot-Ruff still includes preserved owner
+untracked diagnostics; it is not a tracked-code PASS.
+
+Production bootstrap/isolated settings QWidget.grab captures under
+temp/raw-screen-fit/{before,after}.png with JSON source/hash/geometry metadata:
+MAIN frame280x780 exceeds available1024x720; fixed frame280x720 fits, scrollable
+body retained. These are widget renders, not physical OS-screen acceptance.
+Plain native probe additionally reports no open clipboard window and current-job
+UI restrictions0; this does not identify the host's exact access restriction.
+
+Draft fix PR #237 on #234; investigation #236. UI approvals for #232/#234 remain
+valid, technical merge is held for unresolved native clipboard acceptance.
+Exact source independent review accepts both corrections; no lifecycle safety or
+full-PASS claim is inferred. Historical #210 remains closed and preserved.

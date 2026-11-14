@@ -48,7 +48,20 @@ def test_t_rotates_last_source_to_primary_without_image_upload(
     selected_ids = [document.document_id for document in documents]
     window.set_layout_mode("Multi View")
     before_order = _visible_source_ids(window)
-    before_range = window.multi_compare_view.capture_view_state()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not window.multi_compare_view._layout_refit_active
+        and all(
+            not v._geometry_timer.isActive() for v in window.multi_compare_view.occupied_viewers
+        )
+    )
+    before_views = {
+        viewer.document.document_id: (
+            viewer.measure_physical_zoom().percent,
+            [sum(axis) / 2 for axis in viewer.view_box.viewRange()],
+        )
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+    }
     uploads: list[str] = []
     original_upload = ImageViewer._upload_preview
 
@@ -63,11 +76,24 @@ def test_t_rotates_last_source_to_primary_without_image_upload(
         assert _visible_source_ids(window) == expected
         assert window._focus_document_id == expected[0]
         assert [document.document_id for document in window.selected_documents] == selected_ids
-        assert np.allclose(
-            window.multi_compare_view.capture_view_state().ranges,
-            before_range.ranges,
-            rtol=0.05,
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: not window.multi_compare_view._layout_refit_active
+            and all(
+                not v._geometry_timer.isActive() for v in window.multi_compare_view.occupied_viewers
+            )
         )
+        # Integer tile-width redistribution changes visible endpoints at the
+        # same physical scale. Check each retained source's scale and center,
+        # rather than comparing endpoints from different viewport dimensions.
+        for viewer in window.multi_compare_view.occupied_viewers:
+            assert viewer.document is not None
+            percent, center = before_views[viewer.document.document_id]
+            measurement = viewer.measure_physical_zoom()
+            assert measurement.valid and percent is not None
+            assert measurement.percent == pytest.approx(percent, rel=0.005)
+            assert [sum(axis) / 2 for axis in viewer.view_box.viewRange()] == pytest.approx(
+                center, abs=1e-8, rel=0
+            )
         before_order = expected
     assert uploads == []
     assert before_order == selected_ids
