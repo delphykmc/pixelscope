@@ -1245,3 +1245,9 @@ with an idempotent ROI-summary reflow. Width need is derived from font metrics,
 existing label/Edit sizes and layout margins; no new minimum sidebar width or
 runtime method replacement is added. Reflow retains the same widgets and only
 moves grid items, with no ROI application, source registration or numerical request.
+
+The Qt-free source_presentation.contextual_display_label formats analysis context.
+It retains resolved/custom display_name and adds legacy parent context only when
+that name equals the path basename. It does not parse tags, rerun alias resolution
+or establish source identity. Statistics, Histogram titles and Line Profile share
+this adapter instead of each prepending source_path.parent.name.

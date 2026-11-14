@@ -768,3 +768,10 @@ expansion still requires concrete needs. Current work is
 [the sequential readability plan](exec-plans/active/ui-readability-sequential.md).
 UI-01 (#231) reflows only the ROI summary at narrow sidebar widths; other visual
 candidates require their own capture evidence. No new merge/sleep is authorized.
+
+UI-02 (#233) follows on a separate branch stacked on UI-01 Draft #232. Actual
+long/duplicate-name captures found redundant immediate-parent prefixes in analysis
+labels despite resolved Files/Viewer aliases. The
+[source-label plan](exec-plans/active/ui-source-labels.md) preserves resolved aliases
+and standalone basename fallback without changing source/cache authority. Focused
+results do not imply new whole-repository validation or merge approval.

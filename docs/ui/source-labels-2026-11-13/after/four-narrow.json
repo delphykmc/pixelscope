@@ -1,0 +1,57 @@
+{
+  "source_sha": "6f83fdbba0d0d38711b6aa51b59dc753b4e5ef6f",
+  "scenario": "four-narrow",
+  "method": "production Qt composition/QWidget.grab; synthetic input; isolated QSettings",
+  "actual_widget": [
+    1024,
+    720
+  ],
+  "screen_available": [
+    1024,
+    720
+  ],
+  "dpr": 1.0,
+  "image_sha256": "9dc236734730355453333bbc0a87de4911f5f912196323663b7b71b48531e75b",
+  "canonical_labels": [
+    "reference_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "processed_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "denoised_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "sharpened_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "files_labels": [
+    "reference_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "processed_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "denoised_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "sharpened_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "viewer_labels": [
+    "reference_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "processed_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "denoised_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "sharpened_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "viewer_painted": [
+    "referen…_11.png",
+    "process…_11.png",
+    "denoise…_11.png",
+    "sharpen…_11.png"
+  ],
+  "statistics_labels": [
+    "reference_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "processed_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "denoised_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "sharpened_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ],
+  "histogram_titles": [
+    "1 · reference_run / capture / chart_…er_long_camera_pipeline_2026_11.png",
+    "2 · processed_run / capture / chart_…er_long_camera_pipeline_2026_11.png",
+    "3 · denoised_run / capture / chart_0…er_long_camera_pipeline_2026_11.png",
+    "4 · sharpened_run / capture / chart_…er_long_camera_pipeline_2026_11.png"
+  ],
+  "line_labels": [
+    "reference_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "processed_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "denoised_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png",
+    "sharpened_run / capture / chart_01_color_gradient_after_long_camera_pipeline_2026_11.png"
+  ]
+}

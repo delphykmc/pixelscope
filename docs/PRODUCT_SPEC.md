@@ -1003,3 +1003,11 @@ selected scope value and accessible control name. Edit remains reachable and ful
 tooltip/accessibility. This changes presentation only; the sidebar remains
 collapsible, and numerical ROI/source/analysis identities are unchanged. Extremely
 small collapsed widths can still elide content.
+
+### Analysis source label context
+
+Images/Statistics context, Histogram titles and Line Profile retain an already
+resolved source alias or explicit tag without prepending the immediate folder
+again. Standalone inputs with only a bare basename retain their legacy folder/name
+fallback. Labels are presentation only; source IDs, generations, arrays, cache
+keys and numerical requests remain unchanged.

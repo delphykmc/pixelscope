@@ -6,6 +6,7 @@ import pytest
 
 from pixelscope.core.source_presentation import (
     SourceLabelInput,
+    contextual_display_label,
     normalized_label_key,
     resolve_display_alias,
     resolve_display_aliases,
@@ -14,6 +15,29 @@ from pixelscope.core.source_presentation import (
 
 def _source(key: str, path: str, tag: str = "") -> SourceLabelInput:
     return SourceLabelInput(key, PurePosixPath(path), display_tag=tag)
+
+
+@pytest.mark.parametrize(
+    ("name", "path", "expected"),
+    [
+        ("chart.png", PureWindowsPath("C:/ref/chart.png"), "ref / chart.png"),
+        ("ref / chart.png", PureWindowsPath("C:/ref/chart.png"), "ref / chart.png"),
+        (
+            "run / capture / chart.png",
+            PurePosixPath("/run/capture/chart.png"),
+            "run / capture / chart.png",
+        ),
+        ("[Reference] chart.png", PurePosixPath("/ref/chart.png"), "[Reference] chart.png"),
+        ("[Ref] run / chart.png", PurePosixPath("/run/chart.png"), "[Ref] run / chart.png"),
+        ("기준 / 카페.png", PurePosixPath("/기준/카페.png"), "기준 / 카페.png"),
+        ("Custom source", PurePosixPath("/ref/chart.png"), "Custom source"),
+        ("Difference: 1 vs 2", None, "Difference: 1 vs 2"),
+        ("chart.png", PurePosixPath("chart.png"), "chart.png"),
+        ("[literal].png", PurePosixPath("/raw/[literal].png"), "raw / [literal].png"),
+    ],
+)
+def test_context_labels_preserve_aliases_and_legacy_basename_context(name, path, expected):
+    assert contextual_display_label(name, path) == expected
 
 
 def test_four_identical_names_use_shortest_parent_suffix() -> None:
