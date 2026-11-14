@@ -431,8 +431,21 @@ class RawOpenDialog(QDialog):
             return hint
         return QSize(
             hint.width(),
-            body.sizeHint().height() + self.footer.sizeHint().height(),
+            min(
+                body.sizeHint().height() + self.footer.sizeHint().height(),
+                self._available_content_height(),
+            ),
         )
+
+    def _available_content_height(self) -> int:
+        # Reserve native chrome before show as well: an OS-clamped first size
+        # must not be mistaken for a manual resize by the auto-fit guard.
+        frame = max(
+            self.frameGeometry().height() - self.height(),
+            self.style().pixelMetric(QStyle.PixelMetric.PM_TitleBarHeight)
+            + 2 * self.style().pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth),
+        )
+        return max(self.minimumHeight(), self.screen().availableGeometry().height() - frame)
 
     @staticmethod
     def _spin(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -834,7 +847,7 @@ class RawOpenDialog(QDialog):
         if dialog_layout is not None:
             dialog_layout.invalidate()
             dialog_layout.activate()
-        target_height = body.sizeHint().height() + self.footer.sizeHint().height()
+        target_height = self.sizeHint().height()
         if self.height() != target_height:
             self.resize(self.width(), target_height)
         self._last_auto_fit_size = self.size()

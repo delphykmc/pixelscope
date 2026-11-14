@@ -775,3 +775,13 @@ labels despite resolved Files/Viewer aliases. The
 [source-label plan](exec-plans/active/ui-source-labels.md) preserves resolved aliases
 and standalone basename fallback without changing source/cache authority. Focused
 results do not imply new whole-repository validation or merge approval.
+
+### 2026-11-14 recurring native UI failure audit
+
+Owner approved UI-01/UI-02 screenshots but raised the repeated eleven failures as
+a merge concern. The [native failure audit](exec-plans/active/native-ui-failure-audit.md)
+supersedes any inference that their earlier non-reproduction resolved their cause;
+dated historical PASS records remain intact. Merge is held. Clipboard access fails
+in a fresh Win32-only process before Qt import. RAW screen-clamp auto-fit and
+Difference relayout physical-scale preservation defects are reproduced and being
+fixed on a separate branch; focused results are not a whole-repository PASS.

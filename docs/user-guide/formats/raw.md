@@ -6,6 +6,10 @@ PixelScope can open headerless RAW-like data when enough metadata is available t
 
 ## RAW-like files
 
+The profile dialog fits the available screen height. On a small screen, scroll
+the fields while the confirmation buttons remain visible. You can resize the
+dialog yourself; changing Gray/Bayer fields preserves that manual size.
+
 `.raw` and `.data` use the RAW profile workflow. A `.yuv` file can also use **Generic RAW profile...** when it is intentionally being interpreted as raw Gray/Bayer data rather than native YUV.
 
 ## Metadata resolution

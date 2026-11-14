@@ -160,6 +160,22 @@ class MultiCompareView(QWidget):
         anchor_range = (
             self._current_shared_range() if not requires_refit and self.sync_enabled else None
         )
+        # A range alone encodes the old viewport dimensions. Re-measuring it
+        # after rearranging tiles can silently replace the physical zoom.
+        anchor = next(
+            (
+                v
+                for v in self.visible_viewers
+                if v.document is not None and v.document.preview is not None
+            ),
+            None,
+        )
+        preserved_percent = (
+            anchor.measure_physical_zoom().percent
+            if anchor_range is not None and anchor is not None
+            else None
+        )
+        document_versions = tuple((d.document_id, d.generation, id(d.source)) for d in documents)
         self._prepare_viewers_for_documents(documents)
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
@@ -231,7 +247,19 @@ class MultiCompareView(QWidget):
         if active is not None:
             self._activate_viewer(active)
         if anchor_range is not None:
-            self._apply_range(anchor_range)
+            if preserved_percent is None:
+                self._apply_range(anchor_range)
+            elif document_versions == tuple(
+                (d.document_id, d.generation, id(d.source)) for d in documents
+            ):
+                center = tuple(sum(axis) / 2 for axis in anchor_range)
+                was_syncing = self._syncing_range
+                self._syncing_range = True
+                try:
+                    for viewer in self.occupied_viewers:
+                        viewer.set_physical_zoom(preserved_percent, (center[0], center[1]))
+                finally:
+                    self._syncing_range = was_syncing
         elif (
             requires_refit
             and documents
