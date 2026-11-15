@@ -221,6 +221,36 @@ def test_multi_tiles_have_same_actual_physical_zoom_with_uneven_layout(
         assert measurement.percent == pytest.approx(percent, rel=0.005)
 
 
+def test_preserved_synced_zoom_survives_two_three_tile_relayout(qtbot) -> None:
+    multi = MultiCompareView()
+    qtbot.addWidget(multi)
+    multi.resize(900, 560)
+    multi.set_capacity(4)
+    documents = [_checkerboard(), _checkerboard()]
+    derived = ImageDocument.from_array(
+        np.zeros((64, 64), np.uint8), "Diff", channel_layout="DIFFERENCE"
+    )
+    multi.set_documents(documents, 0, 2, None, None)
+    multi.show()
+
+    def settled():
+        return not multi._layout_refit_active and all(
+            not v._geometry_timer.isActive() and v.measure_physical_zoom().valid
+            for v in multi.occupied_viewers
+        )
+
+    qtbot.waitUntil(settled)
+    assert multi.visible_viewers[0].set_physical_zoom(150, (20, 30)).achieved
+    for visible in (documents + [derived], documents):
+        multi.set_documents(visible, 0, 2, None, None, preserve_view=True)
+        qtbot.waitUntil(settled)
+        for viewer in multi.occupied_viewers:
+            assert viewer.measure_physical_zoom().percent == pytest.approx(150, rel=0.005)
+            assert _qt_oracle_scale(viewer) == pytest.approx((1.5, 1.5), abs=0.005)
+            ranges = viewer.view_box.viewRange()
+            assert [sum(axis) / 2 for axis in ranges] == pytest.approx((20, 30))
+
+
 def test_unsynchronized_zoom_does_not_change_other_tile_on_pan(
     qtbot: object,
 ) -> None:

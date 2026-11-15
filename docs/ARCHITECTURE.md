@@ -1251,3 +1251,12 @@ It retains resolved/custom display_name and adds legacy parent context only when
 that name equals the path basename. It does not parse tags, rerun alias resolution
 or establish source identity. Statistics, Histogram titles and Line Profile share
 this adapter instead of each prepending source_path.parent.name.
+
+MultiCompareView.set_documents snapshots measured physical zoom and reference
+center before synchronized preserve-view relayout. It reapplies them with the
+canonical ImageViewer.set_physical_zoom under its range-sync guard after target
+document ID/generation/source versions are checked. It does not remeasure an old
+range in a new viewport to determine preserved scale. Saved-range restore keeps
+its separate existing semantics. RAW auto-fit caps its client height using the
+available screen and native chrome; its body remains scrollable and user resizing
+remains authoritative. Neither change adds QObject ownership or worker retention.

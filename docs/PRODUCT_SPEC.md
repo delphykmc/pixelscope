@@ -1011,3 +1011,15 @@ resolved source alias or explicit tag without prepending the immediate folder
 again. Standalone inputs with only a bare basename retain their legacy folder/name
 fallback. Labels are presentation only; source IDs, generations, arrays, cache
 keys and numerical requests remain unchanged.
+
+### Native UI sizing and retained physical view
+
+RAW profile auto sizing reserves native window chrome within the available screen
+height. The body scrolls when necessary while the action footer stays reachable;
+manual user sizing is retained. GRAY/BAYER content expands independently of the
+outer window when the available height already caps both layouts.
+
+When a synchronized comparison changes tile geometry while preserving its view,
+retain the pre-layout physical zoom and reference center. Reinterpreting the old
+range using new viewport dimensions must not change that scale. Saved-range
+restoration and unsynchronized viewer navigation retain their existing contracts.
