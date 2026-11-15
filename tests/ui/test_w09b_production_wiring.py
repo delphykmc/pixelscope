@@ -27,18 +27,25 @@ def _window(qtbot: object) -> tuple[MainWindow, NamedReviewCoordinator]:
     return window, owner
 
 
+@pytest.mark.parametrize("width", [960, 1400])
 def test_production_composition_exposes_named_review_without_toolbar_overflow(
     qtbot: object,
+    width: int,
 ) -> None:
     window, review = _window(qtbot)
     view = window._menu_map["View"]
     assert review.action in view.actions()
-    assert review.action not in window.main_toolbar.actions()
+    assert window.main_toolbar.actions().count(review.action) == 1
     assert review.dock in window._contributed_docks
     assert review.dock.isHidden()
     assert review.panel.findings.count() == 0
 
+    window.setFixedSize(width, 800)
     window.show()
+    for action in (window.plots_action, review.action, window.export_toolbar_action):
+        button = window.main_toolbar.widgetForAction(action)
+        qtbot.waitUntil(button.isVisible)  # type: ignore[attr-defined]
+        assert window.main_toolbar.rect().contains(button.geometry())
     original_layout = window._layout_mode
     assert review.action.isCheckable()
     assert not review.action.isChecked()

@@ -208,3 +208,51 @@ Final2048pixel oracle module: **14 passed11.09s**, XML
 temp/primary-independent-oracle-final-20261115.xml. Ruff/format, mypy134,
 documentation contract/strict MkDocs and diff checks passed; no product source,
 dependencies, permissions, packaging or owner-untracked files changed.
+
+## 2026-11-15 owner-authorized sequential merge scope
+
+Owner now explicitly authorizes recording nine clipboard failures as potentially
+lock-dependent environment behavior, checking all other tests and sequentially
+merging232/234/237/238. This supersedes the earlier conditional merge hold, not
+causal uncertainty or native clipboard acceptance. No test is permanently skipped,
+mocked, suppressed or weakened to obtain a full PASS. No new power action.
+
+Tested cumulative product source:41b49b3fd9fcd3183f6d05dd51fd2e17d3d62569.
+The exact nine node IDs were extracted from temp/native-ui-fix-full-20261114.xml,
+excluding only its Primary testcase, asserted len9, and saved to
+temp/sequential-merge-deselected-20261115.json. Command construction:
+`[sys.executable,'-m','pytest','-q','--tb=short',
+'--junitxml=temp/sequential-merge-selected-20261115.xml'] +
+['--deselect='+node for node in nodes]`.
+**1968 passed,3 failed,9 deselected,1 intentional ZIP warning510.00s**, normalGC.
+This is an observed partial failure, not a full-suite PASS.
+
+The other failures were investigated, not added to the clipboard exception:
+
+- Two Git screenshot-history tests: traced Git128 stderr is failed-to-stat
+  revision:path / Filename too long under the deep temporary directory. Identical
+  tests with `--basetemp=temp/merge-git-short` in the same unprivileged context
+  pass2/2 in5.68s (temp/sequential-merge-git-short-20261115.xml). Elevated context
+  also passes2/2 in4.76s; do not misclassify this as a permission root cause.
+  Deep-temp Git path robustness is a separate harness improvement candidate.
+- One W09b assertion required Memo NOT to be in the toolbar, superseded by the
+  owner's explicit toolbar request. It now requires exactly one canonical action
+  and visible/contained Plots/Memo/Export controls at960 and1400px. Original dock,
+  menu, check-state and no-layout-preset contracts remain.
+
+Recheck command: `.venv/Scripts/python -m pytest -q --tb=short
+tests/ui/test_w09b_production_wiring.py tests/ui/test_memo_chrome.py
+tests/ui/test_source_primary_cycle.py tests/ui/test_p1c_raw_dialog.py
+tests/ui/test_issue192_diff_preview_ui.py
+--junitxml=temp/sequential-merge-contract-recheck-20261115.xml`:
+**33 passed20.59s**. Product source unchanged; later changes are this contract test
+and narrow cumulative closeout docs. No combined post-edit full run is claimed.
+Tracked410 Ruff/format, mypy134, pip check, docs contract, strict MkDocs and diff
+checks passed. Applicable evidence is the selected run plus explicit rechecks,
+under the owner's stated native clipboard scope exception.
+
+Earlier exact-source reviews accepted all four branches. Each head's three CI
+workflows passed before integration. Independent combined-source/XML review and
+test-only contract correction are recorded in PR comments; actual merge outcomes
+are recorded after each mutation. Agent commits and merge messages include ChatGPT
+coauthor; GitHub comments are ChatGPT-assisted. Owner untracked files untouched.
