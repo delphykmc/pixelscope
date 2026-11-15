@@ -55,6 +55,7 @@ from pixelscope.ui.review_restore_controller import (
     RestoreReport,
     ReviewRestoreController,
 )
+from pixelscope.ui.toolbar_icons import toolbar_icon
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -145,6 +146,7 @@ class NamedReviewCoordinator:
             + tuple(d.document_id for d in window.current_comparison_documents())
         )
         self.action = QAction("Memo", window)
+        self.action.setIcon(toolbar_icon("memo"))
         self.action.setToolTip("Show or hide image inspection notes")
         self.action.setCheckable(True)
         self.action.setShortcut("Ctrl+Shift+M")
@@ -155,7 +157,10 @@ class NamedReviewCoordinator:
         self.dock.addAction(window.action_map["Clear ROI"])
         self.action.triggered.connect(self._toggle_visibility)  # type: ignore[attr-defined]
         self.dock.visibilityChanged.connect(self._dock_visibility_changed)  # type: ignore[attr-defined]
-        # Keep the W05/W06 critical toolbar footprint unchanged at 960/1400px.
+        # Reuse one action so menu, toolbar and shortcut share dock state.
+        toolbar = window.main_toolbar
+        after_plots = toolbar.actions()[toolbar.actions().index(window.plots_action) + 1]
+        toolbar.insertAction(after_plots, self.action)
         view_menu = window._menu_map["View"]
         # Use the strongly owned canonical menu; transient QMenu wrappers from
         # QAction.menu() may have lost their native object during Qt composition.

@@ -18,6 +18,7 @@ _ICON_KINDS = {
     "sync",
     "difference",
     "plots",
+    "memo",
     "dock",
     "export",
     "pin",
@@ -142,6 +143,10 @@ def _draw_icon(kind: str, color_name: str, *, filled: bool = False) -> QPixmap:
                 )
             )
         )
+    elif kind == "memo":
+        painter.drawRoundedRect(QRectF(3.0, 2.0, 10.0, 12.0), 1.0, 1.0)
+        for y in (5.0, 8.0, 11.0):
+            painter.drawLine(QPointF(5.5, y), QPointF(10.5, y))
     elif kind == "dock":
         painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
         painter.drawLine(QPointF(2.0, 10.0), QPointF(14.0, 10.0))

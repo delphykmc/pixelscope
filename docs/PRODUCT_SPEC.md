@@ -1014,6 +1014,10 @@ keys and numerical requests remain unchanged.
 
 ### Compact Memo bookmark labels
 
+The main toolbar includes a Memo button next to Plots, using the same line-icon
+style and checked-state treatment. It shares the View > Memo / Ctrl+Shift+M action;
+closing or floating the dock keeps its checked state synchronized with visibility.
+
 Memo Viewer bookmark labels use compact ROI ordinals. Full titles remain in the
 ROI list, editor and saved evidence; changing a title does not widen the overlay.
 Labels use compact normal-weight type and minimal background padding. Colliding

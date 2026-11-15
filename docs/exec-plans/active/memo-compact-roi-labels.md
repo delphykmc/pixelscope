@@ -53,3 +53,21 @@ regression. Independent working-diff re-review accepted both fixes. A viewport
 smaller than one label cannot fully contain its text; that physical limit and
 budget-exhaustion overlap are retained as explicit constraints. Ruff source/tests,
 mypy134 and docs/diff checks passed again. Exact-commit capture/review follows.
+
+## Memo toolbar access
+
+Owner requested a consistent Memo toolbar icon. Add a compact notepad glyph to
+the existing toolbar icon renderer (same size/stroke/palette/state rendering).
+Insert the canonical Memo QAction after Plots; no duplicate visibility controller
+or shortcut is created. Regression verifies menu/action/toolbar checked state after
+clicks, floating-close and reopening. Existing View/keyboard behavior is retained.
+This request does not authorize a new sleep cycle or alter the existing wake task.
+
+Toolbar validation: `.venv/Scripts/python -m pytest -q --tb=short
+tests/ui/test_memo_chrome.py tests/ui/test_memo_roi_workflow.py
+tests/ui/test_issue77_ui_design_followup.py
+--junitxml=temp/memo-toolbar-20261115.xml`: **14 passed13.17s**.
+Initial test assumed hidden dock despite the fixture showing it; corrected to
+verify the existing visible state before explicitly toggling it off/on. No product
+workaround or assertion timeout change. Ruff source/tests, format3files, mypy134,
+docs contract/strict MkDocs/diff checks passed. No full-suite result claimed.
