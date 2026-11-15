@@ -785,3 +785,16 @@ dated historical PASS records remain intact. Merge is held. Clipboard access fai
 in a fresh Win32-only process before Qt import. RAW screen-clamp auto-fit and
 Difference relayout physical-scale preservation defects are reproduced and being
 fixed on a separate branch; focused results are not a whole-repository PASS.
+
+### 2026-11-15 owner-authorized sequential integration
+
+Owner explicitly accepts recording the nine clipboard failures with session lock
+as a potential environmental cause and authorizes sequential integration of
+#232, #234, #237 and #238 after checking other tests. This supersedes the merge
+hold above, not the unresolved cause: clipboard success in an unlocked session
+has not been established. No clean full-suite or comprehensive lifecycle claim.
+Reviewed source41b49b3f includes narrow ROI summaries, source-label consistency,
+RAW screen fit/physical-zoom fixes, compact collision-aware Memo labels and the
+canonical toolbar Memo action. See the [audit closeout](exec-plans/active/native-ui-failure-audit.md)
+for exact results, exceptions and later test/docs-only successor; PR comments
+record actual sequential merge SHAs. Historical failure records are preserved.

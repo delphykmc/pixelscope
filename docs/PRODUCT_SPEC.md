@@ -1012,6 +1012,23 @@ again. Standalone inputs with only a bare basename retain their legacy folder/na
 fallback. Labels are presentation only; source IDs, generations, arrays, cache
 keys and numerical requests remain unchanged.
 
+### Compact Memo bookmark labels
+
+The main toolbar includes a Memo button next to Plots, using the same line-icon
+style and checked-state treatment. It shares the View > Memo / Ctrl+Shift+M action;
+closing or floating the dock keeps its checked state synchronized with visibility.
+
+Memo Viewer bookmark labels use compact ROI ordinals. Full titles remain in the
+ROI list, editor and saved evidence; changing a title does not widen the overlay.
+Labels use compact normal-weight type and minimal background padding. Colliding
+labels move below or beside their ROI and stay within the visible viewer where
+space allows; zoom and resize update placement without moving ROI rectangles.
+If all labels cannot physically fit, placement minimizes overlap without dropping
+records.
+Labels for offscreen ROI rectangles hide and reappear with the rectangle. Dense
+placement uses a fixed work budget to keep pan/zoom responsive, preferring the
+best tested position if the budget is exhausted.
+
 ### Native UI sizing and retained physical view
 
 RAW profile auto sizing reserves native window chrome within the available screen
