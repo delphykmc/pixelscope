@@ -210,9 +210,10 @@ def _legacy_memo_html(archive: MemoArchive) -> bytes:
         '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; '
         'img-src &#39;self&#39;; style-src &#39;unsafe-inline&#39;">'
         "<title>PixelScope Memo</title><style>body{font-family:system-ui;max-width:1100px;"
-        "margin:2rem auto;padding:1rem}section{border-top:1px solid #aaa;padding:1rem 0}"
+        "margin:2rem auto;padding:1rem;overflow-wrap:anywhere}"
+        "section{border-top:1px solid #aaa;padding:1rem 0}"
         ".note{white-space:pre-wrap}figure{display:inline-block;margin:0 1rem 1rem 0;"
-        "vertical-align:top}img{max-width:100%;height:auto}</style></head>"
+        "vertical-align:top;max-width:100%}img{max-width:100%;height:auto}</style></head>"
         "<body><h1>PixelScope Memo</h1><p>Saved 8-bit ROI preview images</p>"
         + "".join(rows)
         + "</body></html>"

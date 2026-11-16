@@ -810,3 +810,13 @@ classifying this recurrence as lock-dependent native execution behavior, without
 a clipboard product-code fix. Historical failures remain recorded; this focused
 PASS does not replace the repository-wide validation record. See the
 [audit](exec-plans/active/native-ui-failure-audit.md) for context and limits.
+
+### 2026-11-17 Memo HTML readability candidate
+
+After PR239 merge e6e2265a, actual Chrome review reproduced long report text
+overflow (1689px viewport/4760px document). A bounded HTML style change wraps text
+and constrains figure width without changing crops, CSV/map data or Save workflow.
+Browser2/4/6-source fixtures and960px width are recorded in the
+[HTML readability plan](exec-plans/active/memo-html-readability.md). This candidate
+is separate from merged work and remains subject to UI review; file-URL automation
+was policy-blocked, so browser evidence uses permitted synthetic-only loopbackHTTP.

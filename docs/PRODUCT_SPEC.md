@@ -1029,6 +1029,10 @@ Labels for offscreen ROI rectangles hide and reappear with the rectangle. Dense
 placement uses a fixed work budget to keep pan/zoom responsive, preferring the
 best tested position if the budget is exhausted.
 
+Generated Memo HTML wraps long titles, note tokens and filenames within the report
+width. Stored text and note line breaks remain intact; figures constrain preview
+display width without changing saved crop PNGs or metadata/CSV assets.
+
 ### Native UI sizing and retained physical view
 
 RAW profile auto sizing reserves native window chrome within the available screen

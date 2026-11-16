@@ -36,6 +36,21 @@ def test_default_name_has_source_timestamp_and_windows_safe_basename(tmp_path):
     assert module.safe_memo_name("bad:<name>? .") == "bad__name__"
 
 
+def test_long_report_text_is_preserved_with_crop_paths_and_note_line_breaks(tmp_path):
+    archive = notebook(tmp_path)
+    title = "Inspection_" + "unbroken_identifier_" * 8
+    note = "First line\n" + "LongUnbrokenToken" * 30 + "\n<script>literal</script>"
+    first = replace(archive.review.findings[0], title=title, note=note)
+    updated = MemoArchive(
+        replace(archive.review, findings=(first, *archive.review.findings[1:])), archive.crops
+    )
+    folder = write_memo_report(tmp_path / "long.pxmemo", updated, "long-text", identity)
+    report = (folder / "index.html").read_text(encoding="utf-8")
+    assert title in report and note.replace("<", "&lt;").replace(">", "&gt;") in report
+    assert len(list((folder / "images").glob("*.png"))) == len(archive.crops)
+    assert dict(updated.crops) == dict(archive.crops)
+
+
 def test_report_is_ready_to_use_with_named_images_coordinates_and_no_private_record(tmp_path):
     archive = notebook(tmp_path)
     target = tmp_path / "notes.pxmemo"
