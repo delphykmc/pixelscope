@@ -182,7 +182,7 @@ def statistics_csvs(review: ReviewDocumentV1) -> dict[str, bytes]:
 
 
 def _legacy_memo_html(archive: MemoArchive) -> bytes:
-    """Static report saved inside the same notebook; no separate export choice."""
+    """Frozen legacy HTML required for exact historical ZIP validation."""
     labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}
     csvs = statistics_csvs(archive.review)
     rows = []
@@ -210,20 +210,19 @@ def _legacy_memo_html(archive: MemoArchive) -> bytes:
         '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; '
         'img-src &#39;self&#39;; style-src &#39;unsafe-inline&#39;">'
         "<title>PixelScope Memo</title><style>body{font-family:system-ui;max-width:1100px;"
-        "margin:2rem auto;padding:1rem;overflow-wrap:anywhere}"
-        "section{border-top:1px solid #aaa;padding:1rem 0}"
+        "margin:2rem auto;padding:1rem}section{border-top:1px solid #aaa;padding:1rem 0}"
         ".note{white-space:pre-wrap}figure{display:inline-block;margin:0 1rem 1rem 0;"
-        "vertical-align:top;max-width:100%}img{max-width:100%;height:auto}</style></head>"
+        "vertical-align:top}img{max-width:100%;height:auto}</style></head>"
         "<body><h1>PixelScope Memo</h1><p>Saved 8-bit ROI preview images</p>"
         + "".join(rows)
         + "</body></html>"
     ).encode("utf-8")
 
 
-def memo_html(
+def _v2_memo_html(
     archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
 ) -> bytes:
-    """Version-two presentation with a filename and explicit crop coordinates."""
+    """Frozen version two with filename and explicit crop coordinates."""
     sources = {source.source_key: source for source in archive.review.sources}
     report = _legacy_memo_html(archive).decode("utf-8")
     report = report.replace(
@@ -254,6 +253,23 @@ def memo_html(
                 "</figcaption></figure>"
             )
             report = report.replace(old, replacement, 1)
+    return report.encode("utf-8")
+
+
+def memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Readable version three; historical trusted renderers remain frozen."""
+    report = _v2_memo_html(archive, image_paths=image_paths).decode("utf-8")
+    report = report.replace(
+        'name="pixelscope-report-version" content="2"',
+        'name="pixelscope-report-version" content="3"',
+        1,
+    )
+    report = report.replace(
+        "margin:2rem auto;padding:1rem}", "margin:2rem auto;padding:1rem;overflow-wrap:anywhere}", 1
+    )
+    report = report.replace("vertical-align:top}", "vertical-align:top;max-width:100%}", 1)
     return report.encode("utf-8")
 
 
@@ -442,6 +458,10 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         raise ReviewValidationError("Memo ZIP missing required evidence")
     if "index.html" in names:
         with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
-            if z.read("index.html") not in (memo_html(archive), _legacy_memo_html(archive)):
+            if z.read("index.html") not in (
+                memo_html(archive),
+                _v2_memo_html(archive),
+                _legacy_memo_html(archive),
+            ):
                 raise ReviewValidationError("Memo report differs from recorded ROI evidence")
     return archive, revision

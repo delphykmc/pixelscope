@@ -1,0 +1,9 @@
+{
+  "source_sha": "e6e2265a9e61e2eb64b8d6b82459cf981fcce616",
+  "generator": "baseline tests/unit/test_memo_archive.py::_notebook and save_memo_archive; legacy uses baseline _legacy_memo_html",
+  "synthetic": true,
+  "sha256": {
+    "legacy.pxmemo": "5c0bfb267653a9d1d6370407175b2d30a286c9d86ebe144fd889021cfa624688",
+    "v2.pxmemo": "e44513e4f6f4831b482d5a16edba9571ed8c106ae438f36bdc433f585a4588cc"
+  }
+}

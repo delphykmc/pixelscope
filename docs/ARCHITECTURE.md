@@ -1266,3 +1266,9 @@ It uses the existing range/geometry lifecycle, ignores plot auto-bounds, and nev
 changes ROI or numerical requests. Its stable range callback is disconnected on
 graphics disposal. Candidate fallback is lazy and bounded by visible viewport
 space; no new QObject helper graph, timer or cache authority is installed.
+
+Memo HTML version-three styling derives from frozen v2/legacy renderers. Historical
+ZIP validation accepts only exact known renderings; presentation changes must not
+retroactively change those trusted templates. Frozen baseline archives and a
+report-tampering test with recomputed manifest digest guard this boundary. Folder
+map/schema, preview pixel data and Statistics CSV generation remain unchanged.

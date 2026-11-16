@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
+from pathlib import Path
 from uuid import uuid4
 
 import cv2
@@ -53,6 +54,42 @@ def _sources(tmp_path):
         )
         for n in range(2)
     )
+
+
+@pytest.mark.parametrize("version", ["legacy", "v2"])
+def test_load_frozen_pre_readability_archive(version):
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "memo_html_e6e2265a"
+        / f"{version}.pxmemo"
+    )
+    archive, _ = load_memo_archive(path)
+    assert len(archive.review.findings) == 3 and len(archive.crops) == 6
+
+
+@pytest.mark.parametrize("version", ["legacy", "v2"])
+def test_frozen_archive_report_tampering_still_rejected(version, tmp_path):
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "memo_html_e6e2265a"
+        / f"{version}.pxmemo"
+    )
+    target = tmp_path / "tampered.pxmemo"
+    with zipfile.ZipFile(path) as old:
+        entries = {name: old.read(name) for name in old.namelist()}
+    entries["index.html"] += b"<!-- changed report -->"
+    manifest = json.loads(entries["manifest.json"])
+    for asset in manifest["assets"]:
+        if asset["path"] == "index.html":
+            asset["sha256"] = hashlib.sha256(entries["index.html"]).hexdigest()
+    entries["manifest.json"] = json.dumps(manifest).encode("utf-8")
+    with zipfile.ZipFile(target, "w") as new:
+        for name, data in entries.items():
+            new.writestr(name, data)
+    with pytest.raises(ReviewValidationError, match="Memo report differs"):
+        load_memo_archive(target)
 
 
 def _finding(sources, roi, title):
