@@ -60,3 +60,13 @@ temp/memo-html-readability-final-20261117.xml. No crop/schema/Save change.
 Stronger tamper regression updates the manifest digest to match the modified HTML
 and still requires the exact-renderer rejection, rather than passing only through
 the existing digest mismatch check. Final same selection: **49 passed11.03s**.
+
+Final source56224493 independently reviewedPASS. UI Memo evidence/image tests:
+**10 passed14.94s**, XML temp/memo-html-ui-20261117.xml. Actual Chrome recheck
+confirmsversion3,2/4/6source large reports with4/8/12loadedimages and2CSVlinks,
+no horizontal overflow at1689px/default or960px/narrow; viewport reset afterward.
+PNG crop-byte hash multisets match earlier large fixtures for all source counts.
+[Numbered guide and browser screenshots](../../ui/memo-html-2026-11-17/README.md)
+include baseline/after provenance and image hashes. Ruff source/tests, format,
+mypy134, docs contract/strict MkDocs/diff checks passed. No new full pytest.
+Owner UI acceptance and merge remain pending; no new sleep authorized.

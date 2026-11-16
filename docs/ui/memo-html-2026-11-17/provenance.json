@@ -1,0 +1,11 @@
+{
+  "baseline_source_sha": "e6e2265a9e61e2eb64b8d6b82459cf981fcce616",
+  "after_source_sha": "562244935fe859e23d7f6dcb3a8887940867be20",
+  "method": "Actual Chrome Browser Use screenshots; production-generated synthetic reports served via loopbackHTTP; viewport override reset",
+  "sha256": {
+    "after-large.jpg": "13e18a2857c71ba8aa4e4e4990ae0fe1503b3ec2234a5331d275d01b768d608a",
+    "after-narrow.jpg": "79f57aaddb13003bc546a5c19900308aacb1e0dfbc86216819b995317127be29",
+    "after.jpg": "ab20b91d0aa5950f63aed2f756476b999f0be37feb23dc5e2b8cdaa9336c8c47",
+    "before.jpg": "d0f2c5b873e35037e31e95eb9cca1644424cc38182d1041e98fa37f7bd37c5a6"
+  }
+}
