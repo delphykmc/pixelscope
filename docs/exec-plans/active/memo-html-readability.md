@@ -70,3 +70,64 @@ PNG crop-byte hash multisets match earlier large fixtures for all source counts.
 include baseline/after provenance and image hashes. Ruff source/tests, format,
 mypy134, docs contract/strict MkDocs/diff checks passed. No new full pytest.
 Owner UI acceptance and merge remain pending; no new sleep authorized.
+
+## Owner design feedback — cards, badges and local actions
+
+Owner requested a more polished, intuitive report with clear ROI identity,
+badged metadata, crop download buttons and a code-style memo copy action. Choose
+a restrained card-based inspection notebook, keeping memo text plain. Continue
+PR241 rather than adding export modes. All PNG downloads must reuse exact saved
+crop bytes. Note copy is local, explicit user-click only, with accessible success
+or failure feedback; never claim success after a denied copy operation.
+
+Freeze v3 alongside earlier renderers before v4 markup changes. The only script
+allowed by report CSP is a fixed hash-pinned copy helper: no unsafe-inline script,
+external libraries/fonts/telemetry, dynamic note interpolation into JavaScript or
+automatic clipboard access. Text/attributes stay escaped; downloads use existing
+relative crop paths. Recheck actual Chrome default/narrow layouts, copy text and
+download bytes, plus archive compatibility/tamper/PNG regressions.
+
+
+### V4 implementation and validation (2026-11-17)
+
+Changed production files: memo_html_presentation.py (new Qt-free renderer),
+memo_archive.py (frozen v3 compatibility), memo_folder.py (published download URL).
+Unit changes: test_memo_archive.py, test_memo_report.py, test_memo_folder.py;
+frozen v3 fixture/provenance and numbered UI guide/screenshots are added.
+
+Owner additionally requested saved Stat tables. Present existing statistics_csvs
+values, escaped, without recomputation; Image/Channel/Metric/Value/Samples/State
+columns plus native context. Wide tables scroll locally. No new export mode.
+
+Independent initial review found folder download href still used images/ after
+publication moved assets to src/crops/. Fixed href rewriting and added a final
+published-folder URL/byte regression. Exact historical v3 fixture loads and a
+modified report with recomputed digest is still rejected.
+
+Observed validation commands/results:
+
+- `.venv/Scripts/python -m pytest -q --tb=short tests/unit/test_memo_archive.py tests/unit/test_memo_report.py tests/unit/test_memo_folder.py tests/ui/test_memo_report_images.py tests/ui/test_w09b_named_findings_roundtrip.py`: **61 passed in 29.36s**.
+- `.venv/Scripts/python -m ruff check src tests`: passed.
+- `.venv/Scripts/python -m ruff format --check` on the six changed Python files: **6 files already formatted**.
+- `.venv/Scripts/python -m mypy src`: **Success: no issues found in 135 source files**.
+- `.venv/Scripts/python scripts/check_docs.py`: **Documentation contract passed**.
+- `.venv/Scripts/python -m mkdocs build --strict`: **built in 1.52 seconds**.
+- `git diff --check`: passed. Durable docs contain narrow additions, no broad contractions.
+
+Actual Chrome: synthetic 2/4/6-source reports, two ROIs, default/960px widths,
+4/8/12 crops; no document overflow. Initial six-source read sampled loading,
+subsequent DOM observation verified all 12 images loaded. Copy button followed by
+real Ctrl+V into a separate synthetic textarea matches exact note and newlines.
+Browser runtime clipboard.readText returned empty and was not used as evidence.
+Actual PNG download SHA-256 matches stored crop:
+2d431c8f6d97fcd4a591cc53b359dc4e84ee7458293ebcf776b581d88bc207fe.
+Cards screenshots use shorter synthetic titles; narrow stress screenshot retains
+long unbroken text. Neither is image quality acceptance evidence.
+
+Limits/deferred: direct file URL UI was policy-blocked earlier, so browser checks
+use localhost-only synthetic HTML; file-context clipboard behavior, CSV button
+click, other browsers, print/PDF and a new full pytest run remain unverified.
+Owner UI acceptance and merge remain pending. Commit attribution uses
+Co-authored-by: ChatGPT <noreply@openai.com>; PR activity is ChatGPT-assisted.
+
+Final review evidence rerun with `--junitxml=temp/memo-cards-final.xml`: **61 passed in 29.63s**. Independent re-review confirmed the download correction and saved-CSV table escaping; no further confirmed source finding. Local synthetic HTTP server was stopped after browser checks.

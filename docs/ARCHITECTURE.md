@@ -1272,3 +1272,10 @@ ZIP validation accepts only exact known renderings; presentation changes must no
 retroactively change those trusted templates. Frozen baseline archives and a
 report-tampering test with recomputed manifest digest guard this boundary. Folder
 map/schema, preview pixel data and Statistics CSV generation remain unchanged.
+
+Memo HTML v4 presentation is isolated in io/memo_html_presentation.py. Frozen
+v3/v2/legacy renderers remain exact historical ZIP-validation alternatives. The
+only executable report script is a constant SHA-256 CSP-pinned, explicit-click
+copy helper; user text is never interpolated into JavaScript. Crop downloads
+resolve to the same stored bytes as displayed images after folder publication.
+Statistics tables escape the existing CSV output without recalculating values.

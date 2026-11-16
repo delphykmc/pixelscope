@@ -57,8 +57,8 @@ def test_report_is_ready_to_use_with_named_images_coordinates_and_no_private_rec
     folder = write_memo_report(target, archive, "revision", identity)
     assert folder == report_directory(target)
     report = (folder / "index.html").read_text(encoding="utf-8")
-    assert "source0.raw" in report and "width=" in report and "height=" in report
-    assert "&lt;script&gt;" in report and "<script>" not in report
+    assert "source0.raw" in report and "width <strong>" in report and "height <strong>" in report
+    assert "&lt;script&gt;" in report and "<script>alert(1)</script>" not in report
     assert "review.json" not in tree(folder)
     assert str(tmp_path) not in report
     pngs = list((folder / "images").glob("*.png"))
@@ -146,3 +146,74 @@ def test_edit_during_rename_is_preserved_in_restored_report(tmp_path, monkeypatc
         write_memo_report(path, archive, "second", identity)
     assert (folder / changed).read_text() == "external edit during save"
     assert not list(tmp_path.glob(".memo-report-*"))
+
+
+def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
+    import base64
+    import hashlib
+    from html.parser import HTMLParser
+
+    from pixelscope.io.memo_archive import memo_html
+
+    class Elements(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags = []
+            self.scripts = []
+            self.in_script = False
+
+        def handle_starttag(self, tag, attrs):
+            self.tags.append((tag, dict(attrs)))
+            self.in_script = tag == "script"
+
+        def handle_endtag(self, tag):
+            if tag == "script":
+                self.in_script = False
+
+        def handle_data(self, data):
+            if self.in_script:
+                self.scripts.append(data)
+
+    archive = notebook(tmp_path)
+    markup = memo_html(archive).decode()
+    parsed = Elements()
+    parsed.feed(markup)
+    assert len(parsed.scripts) == 1
+    script = parsed.scripts[0]
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    policy = next(
+        attrs["content"]
+        for tag, attrs in parsed.tags
+        if tag == "meta" and attrs.get("http-equiv") == "Content-Security-Policy"
+    )
+    assert f"script-src 'sha256-{digest}'" in policy
+    assert "script-src 'unsafe-inline'" not in policy
+    assert "alert(1)" not in script
+    assert all(not key.startswith("on") for _, attrs in parsed.tags for key in attrs)
+    assert all("src" not in attrs for tag, attrs in parsed.tags if tag == "script")
+    images = [attrs["src"] for tag, attrs in parsed.tags if tag == "img"]
+    downloads = [
+        attrs["href"]
+        for tag, attrs in parsed.tags
+        if tag == "a" and attrs.get("aria-label", "").startswith("Download ROI")
+    ]
+    assert downloads == images and len(images) == len(archive.crops)
+    assert sum(tag == "button" and "data-copy-note" in attrs for tag, attrs in parsed.tags) == sum(
+        bool(f.note) for f in archive.review.findings
+    )
+    assert "button.closest('.memo')" in script
+    assert "addEventListener('click'" in script
+
+
+def test_statistics_table_preserves_saved_values_and_escapes_text():
+    from pixelscope.io.memo_html_presentation import _statistics_table
+
+    data = (
+        b"Source,Image,Channel,Metric,Value,State,Samples,Domain,"
+        b"Native dtype,Effective bits,Definition\n"
+        b"1,<img onerror=alert(1)>,R,Mean,23.125,finite,20,native,uint16,12,native-v1\n"
+    )
+    table = _statistics_table(data)
+    assert "<table>" in table and '<th scope="col">Value</th>' in table
+    assert "23.125" in table and "uint16" in table and "native-v1" in table
+    assert "&lt;img onerror=alert(1)&gt;" in table and "<img " not in table

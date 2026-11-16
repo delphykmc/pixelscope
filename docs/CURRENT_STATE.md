@@ -820,3 +820,11 @@ Browser2/4/6-source fixtures and960px width are recorded in the
 [HTML readability plan](exec-plans/active/memo-html-readability.md). This candidate
 is separate from merged work and remains subject to UI review; file-URL automation
 was policy-blocked, so browser evidence uses permitted synthetic-only loopbackHTTP.
+
+### Memo HTML cards candidate — PR #241 (2026-11-17, unmerged)
+
+Owner feedback extends the report with prominent ROI cards, metadata badges,
+per-crop PNG download and explicit memo copy. Saved Statistics now appear in a
+readable table alongside CSV. Historical v3/v2/legacy ZIP readers remain guarded.
+See [execution evidence](exec-plans/active/memo-html-readability.md). Owner UI
+acceptance and merge remain pending.

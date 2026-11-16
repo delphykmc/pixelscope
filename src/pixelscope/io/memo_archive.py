@@ -256,7 +256,7 @@ def _v2_memo_html(
     return report.encode("utf-8")
 
 
-def memo_html(
+def _v3_memo_html(
     archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
 ) -> bytes:
     """Readable version three; historical trusted renderers remain frozen."""
@@ -271,6 +271,19 @@ def memo_html(
     )
     report = report.replace("vertical-align:top}", "vertical-align:top;max-width:100%}", 1)
     return report.encode("utf-8")
+
+
+def memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    from pixelscope.io.memo_html_presentation import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review))
 
 
 def _payloads(archive: MemoArchive) -> dict[str, bytes]:
@@ -460,6 +473,7 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
             if z.read("index.html") not in (
                 memo_html(archive),
+                _v3_memo_html(archive),
                 _v2_memo_html(archive),
                 _legacy_memo_html(archive),
             ):

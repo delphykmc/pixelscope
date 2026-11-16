@@ -199,3 +199,30 @@ def test_cleanup_failure_keeps_committed_revision_and_allows_retry(tmp_path, mon
     assert not retry.cleanup_warning
     assert load_memo_archive(path)[1] == retry.revision
     assert cleanup is module._remove_staging
+
+
+def test_saved_folder_downloads_resolve_to_exact_displayed_crops(tmp_path):
+    from html.parser import HTMLParser
+    from urllib.parse import unquote
+
+    class Assets(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.images = []
+            self.downloads = []
+
+        def handle_starttag(self, tag, attributes):
+            attrs = dict(attributes)
+            if tag == "img":
+                self.images.append(attrs["src"])
+            if tag == "a" and attrs.get("aria-label", "").startswith("Download ROI"):
+                self.downloads.append(attrs["href"])
+
+    path, archive = notebook_setup(tmp_path)
+    module.save_folder_memo(path, archive, None)
+    parsed = Assets()
+    parsed.feed((path.parent / "index.html").read_text(encoding="utf-8"))
+    assert parsed.images == parsed.downloads
+    assert sorted((path.parent / unquote(url)).read_bytes() for url in parsed.downloads) == sorted(
+        archive.crops.values()
+    )

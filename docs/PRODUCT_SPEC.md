@@ -1044,3 +1044,8 @@ When a synchronized comparison changes tile geometry while preserving its view,
 retain the pre-layout physical zoom and reference center. Reinterpreting the old
 range using new viewport dimensions must not change that scale. Saved-range
 restoration and unsynchronized viewer navigation retain their existing contracts.
+
+Generated Memo reports use ROI cards, metadata badges, a local Copy memo action
+and per-crop Download PNG links to the exact stored preview. When saved native ROI
+Statistics are available, an escaped, readable table accompanies the CSV link;
+values are not recomputed. Narrow tables scroll within their own region.

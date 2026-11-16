@@ -56,24 +56,24 @@ def _sources(tmp_path):
     )
 
 
-@pytest.mark.parametrize("version", ["legacy", "v2"])
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3"])
 def test_load_frozen_pre_readability_archive(version):
     path = (
         Path(__file__).resolve().parents[1]
         / "fixtures"
-        / "memo_html_e6e2265a"
+        / ("memo_html_dc0dfa35" if version == "v3" else "memo_html_e6e2265a")
         / f"{version}.pxmemo"
     )
     archive, _ = load_memo_archive(path)
     assert len(archive.review.findings) == 3 and len(archive.crops) == 6
 
 
-@pytest.mark.parametrize("version", ["legacy", "v2"])
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3"])
 def test_frozen_archive_report_tampering_still_rejected(version, tmp_path):
     path = (
         Path(__file__).resolve().parents[1]
         / "fixtures"
-        / "memo_html_e6e2265a"
+        / ("memo_html_dc0dfa35" if version == "v3" else "memo_html_e6e2265a")
         / f"{version}.pxmemo"
     )
     target = tmp_path / "tampered.pxmemo"
@@ -165,7 +165,7 @@ def test_multi_roi_archive_survives_missing_originals_and_exports_safe_html(tmp_
     with zipfile.ZipFile(path) as saved:
         markup = saved.read("index.html").decode("utf-8")
         pngs = [name for name in saved.namelist() if name.endswith(".png")]
-    assert "&lt;script&gt;" in markup and "<script>" not in markup
+    assert "&lt;script&gt;" in markup and "<script>alert(1)</script>" not in markup
     assert str(tmp_path) not in markup
     assert len(pngs) == 6
     for finding in findings:

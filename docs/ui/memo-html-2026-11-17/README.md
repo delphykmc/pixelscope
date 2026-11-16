@@ -38,3 +38,20 @@ PNG·브라우저 JPG는 이미지 품질 알고리즘 수용 증거가 아니�
 허용된 loopback HTTP는 합성 보고서 폴더만 제공했으며 외부에 공개하지 않았다.
 파일 직접 열기·CSV 다운로드 UI·물리 DPI·인쇄/PDF·모든 브라우저·신규 full pytest는
 미검증이다. 원본 영상·사용자 저장물이나 공식 승인 User Guide PNG는 변경하지 않았다.
+
+## 카드형 보고서와 Stat 표 — 추가 피드백 반영
+
+1. ROI 번호와 제목을 카드 상단에 표시하고 좌표·크기를 배지로 분리했다.
+2. 메모는 일반 텍스트와 줄바꿈을 유지하며 Copy memo로 복사한다.
+3. 각 그림의 Download PNG는 여백·주석 없는 저장 crop 자체를 내려받는다.
+4. 저장된 Stat이 있으면 영상·채널·지표·값·샘플·상태를 표로 표시한다.
+   Native context도 함께 남기고 CSV 링크를 유지한다. 새로 계산하지 않는다.
+
+![카드형 보고서와 저장된 Stat 표](cards.jpg)
+
+[전체 화면](cards-stat-full.jpg), [긴 텍스트·960px 화면](cards-narrow.jpg),
+[브라우저 검증 결과](cards-checks.json). 합성 데이터로 촬영했다.
+실제 Chrome Copy 클릭 후 별도 합성 textarea에 Ctrl+V하여 줄바꿈 포함 일치를
+확인했다. PNG 다운로드 파일 SHA-256은 저장 crop과 일치했다. 런타임 clipboard
+readText는 빈 값이어서 복사 판정에는 실제 붙여넣기를 사용했다.
+직접 파일 열기, CSV 버튼 클릭, 인쇄/PDF 및 모든 브라우저는 미검증이다.
