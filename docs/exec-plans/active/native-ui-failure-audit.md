@@ -256,3 +256,45 @@ workflows passed before integration. Independent combined-source/XML review and
 test-only contract correction are recorded in PR comments; actual merge outcomes
 are recorded after each mutation. Agent commits and merge messages include ChatGPT
 coauthor; GitHub comments are ChatGPT-assisted. Owner untracked files untouched.
+
+## 2026-11-16 unlocked-session control
+
+Owner unlocked Windows and explicitly requested rerunning the failures. At merged
+main ba0afd00ac84a75d6eb1e025714b4435817c6b95, the unchanged Qt-free probe reports:
+
+| Observation | Earlier locked control | Current unlocked control |
+|---|---|---|
+| WTS Level1 SessionFlags | 0 | 1 |
+| Station / desktop | WinSta0 / Default | WinSta0 / Default |
+| Non-AppContainer probe integrity | medium8192 | medium8192 |
+| Restricting SID count | 0 | 0 |
+| Station clipboard right / AccessCheck | granted / allowed | granted / allowed |
+| OpenClipboard(NULL) | false/error5 | true/error0 |
+| OpenClipboard(own native HWND) | false/error5 | true/error0 |
+
+Probe: `.venv/Scripts/python temp/clipboard_access_audit.py`, same escalated-tool
+execution mode, no Qt/PixelScope import and no clipboard contents read/changed.
+Evidence JSON: temp/clipboard-audit-elevated-20261115.json and
+temp/clipboard-audit-unlocked-elevated-20261116.json.
+
+Exact nine IDs from temp/sequential-merge-deselected-20261115.json were passed to
+`.venv/Scripts/python -m pytest -q --tb=short
+--junitxml=temp/clipboard-unlocked-20261116.xml <nine exact node IDs>`:
+**9 passed8.68s**, no failures/errors/skips. No assertion, timeout, mock, permanent
+skip or product clipboard code was changed. Other UI work was merged between
+earlier runs and this control, but the native diagnostic imports none of it and
+clipboard_support.py is unchanged from53b3f1a2 to current main.
+
+This fills the missing unlocked-control observation and strongly supports
+lock-dependent native access as the explanation for this recurrence. It is not
+a proof of every historical clipboard failure's cause, Windows internal mechanism
+or comprehensive lifecycle safety. The earlier owner exception/full and selected
+results remain intact; focused success is not a new full-suite PASS. No relocking,
+security-policy change, packaging or dependency change was performed.
+
+For completeness, extracted all ten failed IDs directly from
+temp/native-ui-fix-full-20261114.xml and passed them to the same pytest command,
+with `--junitxml=temp/native-ten-unlocked-20261116.xml`: **10 passed6.35s**,
+including Primary. Native clipboard tests use actual Qt clipboard access; this
+does not substitute their existing narrow helper mocks for end-to-end copying.
+This update changes only CURRENT_STATE and this cumulative evidence record.

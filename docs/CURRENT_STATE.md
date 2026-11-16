@@ -798,3 +798,15 @@ RAW screen fit/physical-zoom fixes, compact collision-aware Memo labels and the
 canonical toolbar Memo action. See the [audit closeout](exec-plans/active/native-ui-failure-audit.md)
 for exact results, exceptions and later test/docs-only successor; PR comments
 record actual sequential merge SHAs. Historical failure records are preserved.
+
+### 2026-11-16 unlocked native clipboard verification
+
+At merged main ba0afd00, owner unlocked Windows and requested the failed cases be
+rerun. WTS SessionFlags changed from0 (locked) to1 (unlocked); the unchanged
+Qt-free native probe now opens the clipboard successfully with both NULL and its
+own window handle. The exact nine previously failing clipboard nodes passed
+**9 tests in8.68s**. This supplies the missing unlocked-session control and supports
+classifying this recurrence as lock-dependent native execution behavior, without
+a clipboard product-code fix. Historical failures remain recorded; this focused
+PASS does not replace the repository-wide validation record. See the
+[audit](exec-plans/active/native-ui-failure-audit.md) for context and limits.
