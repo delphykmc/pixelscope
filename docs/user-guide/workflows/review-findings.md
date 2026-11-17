@@ -59,9 +59,23 @@ Memo_scene_date/
     statistics/           optional native CSVs
 ```
 
-Successful Save opens `index.html` automatically in the default browser. Open
-the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder together;
-moving only the map loses its referenced evidence. No extraction is needed.
+Successful Save opens `index.html` automatically in the default browser. The
+Memo footer also provides an **Open saved HTML** icon. It is enabled only for a
+loaded or successfully saved folder-style Memo with an existing `index.html`;
+it reopens the last saved report without saving pending note edits. Newly
+created/unsaved Memo sessions and legacy ZIP/.pxreview files have no standalone
+HTML icon action.
+
+The report header has a folder icon opening the **stored crop PNG** directory
+(`src/crops/`) in a new browser tab. Each crop's action opens its exact PNG
+in a **new tab** rather than replacing the report; use the browser's Save image
+as command if a copy is needed. The directory is a list of saved 8-bit crops,
+not the original input source files. Browser directory-listing presentation
+depends on local `file://` handling.
+
+Open the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder
+together; moving only the map loses its referenced evidence. No extraction is
+needed.
 
 PNG files contain only captured ROI pixels without text or margins. Source basename
 and ROI x/y/width/height appear in HTML and metadata. New saves use only src/crops. Saving consumes the recorded evidence; it does not recrop current
@@ -102,7 +116,9 @@ recording for future ROI gestures, without capturing ROIs drawn while it was hid
 verify and reopen its original images; this direction is Memo-to-viewer only.
 If originals are missing, changed or need unavailable RAW/YUV input settings, the
 note remains readable; no image fallback is shown in Memo. Crops remain available
-in the HTML report. Memo has no file browser or Locate button.
+in the HTML report. Memo has no file browser or Locate button. The saved-preview
+PSNR chips have a subtle violet tint for visibility; their colors indicate no
+quality direction and never change the underlying 8-bit PSNR calculation.
 To supply native input settings, open originals normally through File, then open
 the Memo. Legacy `.pxreview` notes remain readable but have no stored historical
 crop; migration never invents old pixels.

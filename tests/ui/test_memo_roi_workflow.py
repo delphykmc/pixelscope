@@ -108,10 +108,14 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
     assert m.panel.open_html_button.isEnabled()
     assert m.panel.open_html_button.toolTip().startswith("Open last saved")
+    m.panel.note_edit.setPlainText("Unsaved after saving")
+    assert m.library.dirty
     opened_before = len(opened_reports)
     m.panel.open_html_button.click()
     assert len(opened_reports) == opened_before + 1
     assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
+    assert "Unsaved after saving" not in (report_folder / "index.html").read_text(encoding="utf-8")
+    assert m.library.dirty  # Reopening HTML never saves pending Memo edits.
     assert len(list((report_folder / "src/crops").glob("*.png"))) == 4
     assert m.panel.findChild(QLabel, "reviewStatusLabel") is None
     w.set_layout_mode("Single View")

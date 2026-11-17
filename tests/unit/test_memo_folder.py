@@ -201,7 +201,7 @@ def test_cleanup_failure_keeps_committed_revision_and_allows_retry(tmp_path, mon
     assert cleanup is module._remove_staging
 
 
-def test_saved_folder_downloads_resolve_to_exact_displayed_crops(tmp_path):
+def test_saved_folder_new_tab_crop_links_resolve_to_exact_displayed_crops(tmp_path):
     from html.parser import HTMLParser
     from urllib.parse import unquote
 
@@ -209,20 +209,33 @@ def test_saved_folder_downloads_resolve_to_exact_displayed_crops(tmp_path):
         def __init__(self):
             super().__init__()
             self.images = []
-            self.downloads = []
+            self.crop_links = []
+            self.folder_link = None
 
         def handle_starttag(self, tag, attributes):
             attrs = dict(attributes)
             if tag == "img":
                 self.images.append(attrs["src"])
-            if tag == "a" and attrs.get("aria-label", "").startswith("Download ROI"):
-                self.downloads.append(attrs["href"])
+            if tag == "a" and attrs.get("aria-label", "").startswith("Open ROI"):
+                self.crop_links.append(attrs)
+            if tag == "a" and attrs.get("class") == "icon-button source-folder-link":
+                self.folder_link = attrs
 
     path, archive = notebook_setup(tmp_path)
     module.save_folder_memo(path, archive, None)
     parsed = Assets()
     parsed.feed((path.parent / "index.html").read_text(encoding="utf-8"))
-    assert parsed.images == parsed.downloads
-    assert sorted((path.parent / unquote(url)).read_bytes() for url in parsed.downloads) == sorted(
-        archive.crops.values()
+    assert parsed.images == [attrs["href"] for attrs in parsed.crop_links]
+    assert all(
+        attrs.get("target") == "_blank"
+        and attrs.get("rel") == "noopener noreferrer"
+        and "download" not in attrs
+        for attrs in parsed.crop_links
     )
+    assert parsed.folder_link is not None
+    assert parsed.folder_link["href"] == "src/crops/"
+    assert parsed.folder_link["target"] == "_blank"
+    assert (path.parent / parsed.folder_link["href"]).is_dir()
+    assert sorted(
+        (path.parent / unquote(attrs["href"])).read_bytes() for attrs in parsed.crop_links
+    ) == sorted(archive.crops.values())
