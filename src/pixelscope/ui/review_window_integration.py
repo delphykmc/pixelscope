@@ -21,10 +21,11 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from pixelscope.core.review_analysis import capture_presented_analysis
+from pixelscope.core.review_analysis import capture_presented_analysis, parse_analysis_context
 from pixelscope.core.review_record import (
     ReviewAnalysisCaptureV1,
     ReviewDifferenceIntentV1,
+    ReviewFindingV1,
     ReviewValidationError,
 )
 from pixelscope.core.review_workflow import ReviewLibrary
@@ -60,6 +61,32 @@ from pixelscope.ui.review_restore_controller import (
 from pixelscope.ui.toolbar_icons import toolbar_icon
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+def _has_roi_statistics(finding: ReviewFindingV1) -> bool:
+    """A captured feature is not necessarily Statistics (Histogram/Line/etc).
+
+    Require native ROI Statistics for this finding's exact channel and source
+    order, with measurements for all sources. Used consistently at staging,
+    late attachment/backfill and the Save gate.
+    """
+    if finding.roi_ref is None:
+        return False
+    for captured in finding.analysis:
+        if captured.status != "captured" or captured.context_json is None:
+            continue
+        context = parse_analysis_context(captured.context_json)
+        if (
+            context["feature"] == "statistics"
+            and context["roi_ref"] == list(finding.roi_ref)
+            and context["channel"] == finding.channel
+            and tuple(item["source_key"] for item in context["sources"])
+            == finding.source_keys
+            and {row["source_key"] for row in context["measurements"]}
+            == set(finding.source_keys)
+        ):
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -440,7 +467,7 @@ class NamedReviewCoordinator:
             return
         changed = False
         for finding in tuple(self.library.document.findings):
-            if any(item.status == "captured" for item in finding.analysis):
+            if _has_roi_statistics(finding):
                 continue
             bindings = tuple(self._overlay_bindings.get(key) for key in finding.source_keys)
             if finding.roi_ref is None or any(binding is None for binding in bindings):
@@ -470,10 +497,7 @@ class NamedReviewCoordinator:
         self._backfill_roi_statistics()
         if self._pending_statistics:
             if self._statistics_target_id is not None:
-                if any(
-                    c.status == "captured"
-                    for c in self.library.get(self._statistics_target_id).analysis
-                ):
+                if _has_roi_statistics(self.library.get(self._statistics_target_id)):
                     self._statistics_target_id = None
                     self._pending_statistics = False
                     self.panel.title_edit.setEnabled(True)
@@ -500,12 +524,12 @@ class NamedReviewCoordinator:
         if (
             self._capture_worker is None
             and target is not None
-            and not any(c.status == "captured" for c in self.library.get(target).analysis)
+            and not _has_roi_statistics(self.library.get(target))
         ):
             self._statistics_target_id = target
             self._attach_selected_statistics()
         complete = sum(
-            any(c.status == "captured" for c in finding.analysis)
+            _has_roi_statistics(finding)
             for finding in self.library.document.findings
         )
         total = len(self.library.document.findings)
@@ -561,6 +585,10 @@ class NamedReviewCoordinator:
             return
         try:
             capture = ReviewAnalysisCaptureV1.from_snapshot(result.snapshot)
+            if not _has_roi_statistics(
+                replace(finding, analysis=(capture,), availability="available")
+            ):
+                raise ReviewValidationError("Presented capture is not native ROI Statistics")
             self.library.attach_analysis(target, capture)
         except (ValueError, KeyError) as exc:
             self.cancel_capture()
@@ -607,6 +635,14 @@ class NamedReviewCoordinator:
                     )
                     return
             panel = window.comparison_analysis_panel
+            if self.panel.include_statistics.isChecked():
+                current_token = panel.get_current_analysis_token()
+                if current_token is not None and current_token.feature != "statistics":
+                    self._error(
+                        "Show native ROI Statistics before including them in this Memo",
+                        notify=True,
+                    )
+                    return
             keys = {d.document_id: panel.source_key_for_document(d.document_id) for d in page}
             panel.bind_review_source_keys(keys)
             primary = page[0] if single else window._primary_document_for_page(list(page))
@@ -652,8 +688,8 @@ class NamedReviewCoordinator:
                 persist_local_paths=True,
                 single_viewer=(window.viewer if single else None),
             )
-            if self.panel.include_statistics.isChecked() and not any(
-                capture.status == "captured" for capture in stage.finding.analysis
+            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(
+                stage.finding
             ):
                 self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
                 return
@@ -702,8 +738,8 @@ class NamedReviewCoordinator:
                 raise ReviewValidationError("source generation changed during capture")
             if {key for key, _ in value.crops} != set(value.finding.source_keys):
                 raise ReviewValidationError("Ready image previews are required for every ROI crop")
-            if any(c.status == "captured" for c in stage.finding.analysis) and not any(
-                c.status == "captured" for c in value.finding.analysis
+            if _has_roi_statistics(stage.finding) and not _has_roi_statistics(
+                value.finding
             ):
                 raise ReviewValidationError("ROI Statistics changed; retry after Statistics settle")
             title, note, _tags = self.panel.metadata()
@@ -721,9 +757,7 @@ class NamedReviewCoordinator:
             self.panel.set_dirty(self.library.dirty)
             self.refresh_overlays()
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
-            if self.panel.include_statistics.isChecked() and not any(
-                c.status == "captured" for c in finding.analysis
-            ):
+            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(finding):
                 self._statistics_target_id = finding.id
                 self._attach_selected_statistics()
         except (ValueError, KeyError, RuntimeError) as exc:
@@ -943,7 +977,7 @@ class NamedReviewCoordinator:
             missing = [
                 i
                 for i, finding in enumerate(self.library.document.findings, 1)
-                if not any(c.status == "captured" for c in finding.analysis)
+                if not _has_roi_statistics(finding)
             ]
             if missing:
                 labels = ", ".join(str(i) for i in missing[:8])

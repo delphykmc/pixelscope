@@ -220,7 +220,9 @@ def test_statistics_table_preserves_saved_values_and_escapes_text():
     )
     table = _statistics_table(data)
     assert '<table class="stat-table">' in table and '<th scope="col">Mean</th>' in table
-    assert "23.125" in table and "uint16" in table and "native-v1" in table
+    assert "23.125" in table
+    assert "uint16" not in table and "native-v1" not in table
+    assert b"uint16" in data and b"native-v1" in data
     assert "&lt;img onerror=alert(1)&gt;" in table and "<img " not in table
 
 

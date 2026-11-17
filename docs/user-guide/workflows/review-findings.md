@@ -161,3 +161,11 @@ same row as the ROI Statistics heading. Two short provenance lines remain under
 the dB values; on narrow screens the summary stacks and left-aligns. Repeated
 ROI spacing, memo empty-status gaps and table row padding are tightened without
 altering crop pixels, source labels or numerical evidence.
+
+Review P1 follow-up: a generic captured Histogram/Line/Difference context does
+**not** satisfy the Include Statistics requirement. Only valid ROI-native
+Statistics for the exact source keys, channel and ROI with source measurements
+qualify at initial capture, late backfill and save. The exported CSV retains
+the native dtype/definition metadata even though the deliberately compact HTML
+table omits them. HTML layout tests assert the V7 table semantics rather than
+legacy literal table tags or deleted overview prose.

@@ -507,7 +507,9 @@ def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
     assert loaded.review.findings[0].analysis[0].status == "captured"
     assert loaded.review.findings[0].availability == "available"
     assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 1
-    assert "<table>" in (target.parent / "index.html").read_text(encoding="utf-8")
+    assert '<table class="stat-table">' in (
+        target.parent / "index.html"
+    ).read_text(encoding="utf-8")
     w.close()
 
 
@@ -556,5 +558,7 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
     assert all(f.analysis[0].status == "captured" for f in saved.review.findings)
     assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 2
     html = (target.parent / "index.html").read_text(encoding="utf-8")
-    assert html.count("RGB mean comparison") == 2
+    assert html.count('<table class="stat-table">') == 2
+    assert html.count('aria-label="Download ROI ') >= 2
+    assert "RGB mean comparison" not in html
     w.close()
