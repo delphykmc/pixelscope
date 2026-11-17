@@ -220,9 +220,10 @@ def _statistics_table(data: bytes) -> str:
                     if _native_comparable(record, reference) and base_value is not None:
                         delta = number - base_value
                         if math.isfinite(delta):
-                            if delta > 0:
+                            shown_delta = float(f"{delta:.4f}")
+                            if shown_delta > 0:
                                 arrow, style, sign = "↑", "stat-up", "+"
-                            elif delta < 0:
+                            elif shown_delta < 0:
                                 arrow, style, sign = "↓", "stat-down", ""
                             else:
                                 arrow, style, sign = "→", "stat-flat", ""

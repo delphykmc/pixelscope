@@ -293,11 +293,13 @@ def test_rgb_difference_refuses_cross_bitdepth_native_comparison():
     assert "Δ +385" not in report
 
 
-
 def test_statistics_rounding_and_all_metric_deltas_without_changing_csv():
     from pixelscope.io.memo_html_presentation import _statistics_table
 
-    columns = "Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition"
+    columns = (
+        "Source,Image,Channel,Metric,Value,State,Samples,Domain,"
+        "Native dtype,Effective bits,Definition"
+    )
     raw = "\n".join(
         [
             columns,
@@ -348,7 +350,10 @@ def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(
     archive = notebook(tmp_path)
     finding = archive.review.findings[0]
     first, second = finding.source_keys
-    columns = "Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition\n"
+    columns = (
+        "Source,Image,Channel,Metric,Value,State,Samples,Domain,"
+        "Native dtype,Effective bits,Definition\n"
+    )
     csv = (
         columns
         + "1,first,R,Mean,50,finite,4,native,uint8,8,native-v1\n"

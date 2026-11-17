@@ -1286,3 +1286,18 @@ ReviewLibrary.attach_analysis replaces only evidence on the same immutable Findi
 ReviewDocument retains interpretation/fingerprint validation. Pending attachment
 uses analysis_settled and canonical cancellation, with no new timer or worker.
 V5 compact presentation retains exact v4 ZIP validation via compact=False.
+
+Memo HTML v7 freezes the complete v6 renderer for exact prior ZIP validation.
+The HTML report now renders a single source-by-channel native Statistics table,
+with per-metric signed direction/delta relative to the first image; this is
+presentation-only and never changes the evidence CSV's precision or native
+sample definitions. Display precision is bounded to four decimal places.
+CSV downloads share the accessible icon affordance and align to the Statistics
+section's bottom-right. A separate Qt-free `io/memo_preview_metrics.py`
+computes bounded, read-only PSNR of the **recorded 8-bit preview PNG samples**
+(peak 255, identical shape/channel layout required) during offline report
+generation. It does not read originals, register images or modify numerical
+native Statistics; MSE is pooled across three channels or grayscale and
+noncomparable/absent previews are explicitly N/A. Both zip and folder report
+paths use this presentation, while historical v4/v5/v6 ZIPs remain verifiable
+against frozen templates.
