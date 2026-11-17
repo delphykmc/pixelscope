@@ -126,8 +126,24 @@ Statistics settle. Save is blocked while the checkbox is enabled and any recorde
 ROI lacks captured Statistics. Uncheck it to save images/notes without requiring
 complete Statistics; already attached evidence remains in the Memo.
 
-HTML report version 6 displays each crop in a separate card with accessible icon
+HTML report version 7 displays each crop in a separate card with accessible icon
 actions. Per-ROI native CSVs remain complete; the report pivots Min, Max, Mean, Std,
 P1, P50 and P99 into per-image RGB rows, with display-only RGB Mean deltas relative
 to image 01 when native formats and definition match. Historical v4/v5 report
 validation uses frozen templates.
+
+HTML v7 uses a single channel-grouped native Statistics table. The first image is
+the baseline; subsequent image rows show colored up/down Δ for **all** seven
+measures when native dtype/domain/effective-bit/definition are compatible. Color
+indicates direction, not quality. Display numbers are rounded to at most four
+decimals; saved CSV precision remains unchanged. The CSV action is an icon
+aligned to the bottom-right of the ROI Statistics section.
+
+When at least two stored crops exist, the report also shows **8-bit preview PSNR**
+for image 01 against each subsequent image, computed directly from the saved,
+pixel-aligned 8-bit PNG values (peak = 255, pooling RGB channels). Identical
+previews display infinite PSNR. Different sizes/channel layouts or missing
+previews display N/A. This preview-domain measurement is not native RAW PSNR,
+not geometrically registered, and does not imply perceptual quality ordering.
+The original crops are not changed; no new evidence is written to the CSV.
+Prior v6 ZIP HTML is still validated by a frozen byte-identical renderer.
