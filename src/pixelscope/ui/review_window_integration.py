@@ -450,7 +450,8 @@ class NamedReviewCoordinator:
             ):
                 continue
             # The key combines ROI, durable source keys and exact loaded generations.
-            identity = (finding.roi_ref, finding.source_keys, bindings)
+            verified_bindings = tuple(binding for binding in bindings if binding is not None)
+            identity = (finding.roi_ref, finding.source_keys, verified_bindings)
             capture = self._statistics_evidence.get(identity)
             if capture is None:
                 continue

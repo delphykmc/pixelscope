@@ -156,8 +156,8 @@ def _statistics_table(data: bytes) -> str:
     for row in rows:
         if row.get("Metric") not in _METRICS:
             continue
-        identity = (row.get("Source", ""), row.get("Image", ""))
-        sources.setdefault(identity, {}).setdefault(row.get("Channel", ""), {})[
+        identity = (row.get("Source") or "", row.get("Image") or "")
+        sources.setdefault(identity, {}).setdefault(row.get("Channel") or "", {})[
             row["Metric"]
         ] = row
     if not sources:
@@ -170,7 +170,8 @@ def _statistics_table(data: bytes) -> str:
         for channel in _RGB:
             current = channels.get(channel, {}).get("Mean")
             reference = baseline.get(channel, {}).get("Mean")
-            values = (_finite_mean(current), _finite_mean(reference))
+            current_value = _finite_mean(current)
+            reference_value = _finite_mean(reference)
             comparable = (
                 current is not None
                 and reference is not None
@@ -178,9 +179,12 @@ def _statistics_table(data: bytes) -> str:
                     current.get(key) == reference.get(key)
                     for key in ("Domain", "Native dtype", "Effective bits", "Definition")
                 )
-                and all(value is not None for value in values)
             )
-            difference = values[0] - values[1] if comparable else None
+            difference = (
+                current_value - reference_value
+                if comparable and current_value is not None and reference_value is not None
+                else None
+            )
             deltas[identity, channel] = (
                 difference if difference is not None and math.isfinite(difference) else None
             )
@@ -239,7 +243,7 @@ def _statistics_table(data: bytes) -> str:
             cells = []
             for metric in _METRICS:
                 record = metrics.get(metric, {})
-                value = html.escape(record.get("Value", "—"))
+                value = html.escape(record.get("Value") or "—")
                 state = record.get("State", "")
                 label = f' title="{html.escape(state, quote=True)}"' if state and state != "finite" else ""
                 cells.append(f'<td class="numeric"{label}>{value}</td>')
