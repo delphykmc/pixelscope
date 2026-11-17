@@ -524,7 +524,7 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
         paths.append(path)
     w, memo = windows()
     memo.show()
-    w.open_files(paths)
+    w.open_image_paths(paths)
     qtbot.waitUntil(
         lambda: len(w.current_comparison_documents()) == 2
         and all(d.loading_state == "ready" for d in w.current_comparison_documents()),
@@ -649,9 +649,13 @@ def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), ""))
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
-    assert (destination.parent / "src/statistics").is_dir()
-    assert len(list((destination.parent / "src/statistics").glob("*.csv"))) == 1
-    assert '<table class="stat-table">' in (destination.parent / "index.html").read_text(
+    from pixelscope.io.memo_folder import metadata_path
+
+    published = metadata_path(destination).parent
+    assert memo.library.path == metadata_path(destination), memo.panel.last_status
+    assert (published / "src/statistics").is_dir()
+    assert len(list((published / "src/statistics").glob("*.csv"))) == 1
+    assert '<table class="stat-table">' in (published / "index.html").read_text(
         encoding="utf-8"
     )
     w.close()
