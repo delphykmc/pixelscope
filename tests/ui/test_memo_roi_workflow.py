@@ -655,7 +655,5 @@ def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
     assert memo.library.path == metadata_path(destination), memo.panel.last_status
     assert (published / "src/statistics").is_dir()
     assert len(list((published / "src/statistics").glob("*.csv"))) == 1
-    assert '<table class="stat-table">' in (published / "index.html").read_text(
-        encoding="utf-8"
-    )
+    assert '<table class="stat-table">' in (published / "index.html").read_text(encoding="utf-8")
     w.close()
