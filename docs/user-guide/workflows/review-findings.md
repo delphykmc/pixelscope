@@ -154,3 +154,10 @@ The two brief PSNR caveat lines are aligned beneath the values. Redundant
 introductory native Statistics labels and per-source metadata paragraphs between
 PSNR and the unified table are omitted; original CSV remains the complete
 typed, unrounded evidence.
+
+Compact layout review: the 8-bit PSNR numbers remain unchanged, but their
+standalone bordered panel is replaced by a small right-aligned summary in the
+same row as the ROI Statistics heading. Two short provenance lines remain under
+the dB values; on narrow screens the summary stacks and left-aligns. Repeated
+ROI spacing, memo empty-status gaps and table row padding are tightened without
+altering crop pixels, source labels or numerical evidence.

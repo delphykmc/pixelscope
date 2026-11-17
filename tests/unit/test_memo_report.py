@@ -379,6 +379,12 @@ def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(
     assert "8-bit Preview PSNR" in report
     assert 'aria-label="Image 01 vs 02' in report
     assert 'class="stat-psnr-note"' in report
+    assert 'class="stat-head"' in report
+    assert '<h3>ROI statistics</h3><div class="stat-psnr">' in report
+    assert ".stat-psnr{display:grid;" in report
+    assert "background:#f7fafd;border:1px solid #dfe8f4" not in report
+    assert ".copy-status:empty{display:none}" in report
+    assert ".stat-table-box{margin:0 0 4px" in report
     assert "Stored 8-bit crop · pixel-aligned · peak 255" in report
     assert "Image 01 reference · not native RAW PSNR" in report
     assert ">01 vs 02 ·" not in report

@@ -76,7 +76,7 @@ h1{font-size:32px;letter-spacing:-.035em;line-height:1.2;margin:8px 0}h2{font-si
 .note{white-space:pre-wrap;margin:10px 0 0;color:#334155}.note:empty:before{content:'No memo';color:#8995a6}
 .button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #d5dfed;background:white;color:#325b99;border-radius:6px;font:600 12px/1.4 system-ui;min-height:32px;padding:6px 11px;cursor:pointer}
 .button:hover{background:#edf3ff;border-color:#b4c8ea}.button:focus-visible,.roi-index a:focus-visible{outline:3px solid #91b8ff;outline-offset:3px}.button:disabled{opacity:.5;cursor:default}
-.copy-status{font-size:11px;color:#536f95;min-height:1.6em;margin-top:4px}.crop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
+.copy-status{font-size:11px;color:#536f95;margin-top:4px}.copy-status:empty{display:none}.crop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
 figure{min-width:0;margin:0;border:1px solid #e0e7f0;border-radius:10px;overflow:hidden;background:#fff}.image-stage{background:#eef2f7;display:flex;align-items:center;justify-content:center;padding:14px;min-height:100px}
 img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain}.crop-caption{padding:15px}.source-name{font-size:13px;font-weight:650;margin:0 0 10px;color:#273b57}.source-tag{color:#3564bc;font-weight:500}
 .crop-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}.file-type{font-size:11px;color:#8290a3}.statistics{margin-top:20px;padding-top:16px;border-top:1px solid #edf0f5}.footer{font-size:11px;text-align:center;color:#8a98aa;margin-top:26px}
@@ -84,29 +84,32 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 @media(max-width:640px){main{padding:24px 14px}.masthead{display:block}.summary{justify-content:flex-start;margin-top:16px}h1{font-size:27px}.roi-header,.content{padding:18px}.title-row{gap:10px}h2{font-size:19px}.memo{padding:14px}}
 @media print{body{background:white}main{padding:0}.roi-card{box-shadow:none}.button,.roi-index,.copy-status{display:none}.crop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}figure,.memo,.roi-header{break-inside:avoid}}
 /* V6: visually distinct crops, compact icon actions and source-grouped statistics. */
-.crop-grid{gap:14px;align-items:stretch}
+.crop-grid{gap:12px;align-items:stretch}
 .crop-card{background:#fff;border:1px solid #cbd8e9;border-radius:11px;box-shadow:0 2px 8px #1832530c;overflow:hidden}
 .crop-card .image-stage{background:#f1f5fa;min-height:124px;padding:12px;border-bottom:1px solid #e2eaf3}
-.crop-card .crop-caption{padding:11px 13px}
+.crop-card .crop-caption{padding:9px 12px}
 .crop-card .source-name{font-size:12px;margin:0;line-height:1.5;min-width:0}
-.crop-card .crop-footer{margin-top:7px;min-height:27px}
+.crop-card .crop-footer{margin-top:5px;min-height:27px}
 .icon-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex:0 0 28px;padding:0;background:white;border:1px solid #cbd8e9;border-radius:6px;color:#285b9a;cursor:pointer;text-decoration:none}
 .icon-button:hover{background:#e9f1fd;border-color:#a6bfdf}
 .icon-button:focus-visible{outline:3px solid #91b8ff;outline-offset:2px}
 .icon-button:disabled{opacity:.5;cursor:default}
 .icon-button svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon-button[data-state="copied"]{background:#e6f4ec;color:#26764a}
-.stat-psnr{margin:10px 0 12px;background:#f7fafd;border:1px solid #dfe8f4;border-radius:10px;padding:11px 13px}
-.stat-psnr-head{font-size:13px;font-weight:700;color:#334b6c}
-.stat-psnr-list{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-.psnr-chip{display:inline-flex;justify-content:center;align-items:center;border:1px solid #d3dfef;background:white;border-radius:7px;padding:6px 10px;min-width:105px}
-.psnr-chip strong{font-size:15px;font-variant-numeric:tabular-nums}
-.psnr-na{color:#8994a4}
-.stat-psnr-note{font-size:11px;line-height:1.45;color:#64748b;text-align:left}
+.stat-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin:0 0 8px}
+.stat-head h3{flex:0 0 auto;padding-top:3px;font-size:15px;line-height:1.35}
+.stat-psnr{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;row-gap:3px;align-items:center;justify-items:end;min-width:0}
+.stat-psnr-head{grid-column:1;grid-row:1;font-size:11px;font-weight:700;white-space:nowrap;color:#536b8d}
+.stat-psnr-list{grid-column:2;grid-row:1;display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;min-width:0}
+.psnr-chip{display:inline-flex;justify-content:center;align-items:center;min-width:84px;padding:3px 8px;background:#f5f8fc;border:1px solid #d7e2f0;border-radius:6px;line-height:1.35}
+.psnr-chip strong{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;color:#294873}
+.psnr-chip strong.psnr-na{color:#8994a4}
+.stat-psnr-note{grid-column:1/-1;grid-row:2;font-size:10px;line-height:1.3;color:#8391a4;text-align:right}
 .stat-psnr-note span{display:block}
-.stat-table-box{margin:12px 0 5px;overflow-x:auto;border:1px solid #dce6f2;border-radius:10px}
+@media(max-width:760px){.stat-head{display:block}.stat-head h3{padding-top:0}.stat-psnr{grid-template-columns:auto minmax(0,1fr);justify-items:start;margin-top:5px}.stat-psnr-list{justify-content:flex-start}.stat-psnr-note{text-align:left}}
+.stat-table-box{margin:0 0 4px;overflow-x:auto;border:1px solid #dce6f2;border-radius:10px}
 .stat-table{width:100%;min-width:840px;border-collapse:collapse;table-layout:auto;font-size:12px}
-.stat-table th,.stat-table td{padding:9px 10px;vertical-align:middle;border-bottom:1px solid #e4ebf3}
+.stat-table th,.stat-table td{padding:7px 9px;vertical-align:middle;border-bottom:1px solid #e4ebf3}
 .stat-table thead th{background:#eef3f9;color:#526680;text-align:center;font-weight:700}
 .stat-table thead th:nth-child(-n+2){text-align:left}
 .stat-table tbody tr:last-child>*{border-bottom:0}
@@ -120,8 +123,8 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-cell .stat-value{display:block;font-size:12px;color:#223047}
 .stat-cell .stat-change{display:block;font-size:10px;line-height:1.6;font-weight:700}
 .stat-up{color:#cb4f57}.stat-down{color:#2d79b3}.stat-flat{color:#79889e}.stat-na{color:#9aa6b6}
-.stat-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:12px}
-@media(max-width:640px){.stat-psnr{padding:10px}.stat-table th,.stat-table td{padding:8px 7px}}
+.stat-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:7px}
+@media(max-width:640px){.stat-table th,.stat-table td{padding:7px 7px}}
 @media print{.stat-psnr,.stat-table-box{break-inside:avoid}.stat-table{min-width:0}.stat-table th,.stat-table td{padding:4px}.stat-footer{display:none}}
 
 
@@ -341,7 +344,8 @@ def render_memo_report(
             else ""
         )
         statistics = (
-            f'<div class="statistics"><h3>ROI statistics</h3>{psnr}{table}{csv_action}</div>'
+            '<div class="statistics"><div class="stat-head">'
+            f'<h3>ROI statistics</h3>{psnr}</div>{table}{csv_action}</div>'
             if csv in statistics_paths or psnr
             else ""
         )
@@ -366,7 +370,13 @@ def render_memo_report(
     )
     style = _STYLE
     if compact:
-        style += ".content{padding:18px 22px}.memo{margin-bottom:16px}.roi-header{padding:18px 22px}.roi-card{margin:16px 0}"
+        style += (
+            ".content{padding:14px 22px}.memo{padding:13px 15px;margin-bottom:12px}"
+            ".note{margin-top:6px}.roi-header{padding:15px 22px}"
+            ".title-row{margin-bottom:9px}.capture-time{margin-top:7px}"
+            ".roi-card{margin:13px 0}.statistics{margin-top:14px;padding-top:12px}"
+            "@media(max-width:640px){.content,.roi-header{padding:14px}}"
+        )
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
