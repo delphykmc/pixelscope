@@ -206,7 +206,8 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
         for attrs in crop_links
     )
     crop_browser = [
-        attrs for tag, attrs in parsed.tags
+        attrs
+        for tag, attrs in parsed.tags
         if tag == "a" and attrs.get("class") == "icon-button source-folder-link"
     ]
     assert len(crop_browser) == 1
