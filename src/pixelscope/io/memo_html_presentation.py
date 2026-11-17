@@ -157,12 +157,14 @@ def _decimal(value: float) -> str:
     return "0" if rounded in ("-0", "") else rounded
 
 
-def _native_comparable(
-    a: dict[str, str] | None, b: dict[str, str] | None
-) -> bool:
-    return a is not None and b is not None and all(
-        a.get(key) == b.get(key)
-        for key in ("Domain", "Native dtype", "Effective bits", "Definition")
+def _native_comparable(a: dict[str, str] | None, b: dict[str, str] | None) -> bool:
+    return (
+        a is not None
+        and b is not None
+        and all(
+            a.get(key) == b.get(key)
+            for key in ("Domain", "Native dtype", "Effective bits", "Definition")
+        )
     )
 
 
@@ -175,9 +177,7 @@ def _statistics_table(data: bytes) -> str:
         if metric not in _METRICS:
             continue
         identity = (row.get("Source") or "", row.get("Image") or "")
-        sources.setdefault(identity, {}).setdefault(row.get("Channel") or "", {})[
-            metric
-        ] = row
+        sources.setdefault(identity, {}).setdefault(row.get("Channel") or "", {})[metric] = row
     if not sources:
         return "<p>No saved native ROI measurements.</p>"
 
@@ -205,7 +205,7 @@ def _statistics_table(data: bytes) -> str:
                 )
             cells.append(
                 f'<th scope="row" class="stat-image">{html.escape(ordinal)}'
-                f'<small>{html.escape(name)}</small></th>'
+                f"<small>{html.escape(name)}</small></th>"
             )
             for metric in _METRICS:
                 record = metrics.get(metric)
@@ -249,7 +249,7 @@ def _statistics_table(data: bytes) -> str:
         description = " · ".join(
             part
             for part in (
-                f'{ordinal}: {name}',
+                f"{ordinal}: {name}",
                 source_record.get("Domain") or "",
                 source_record.get("Native dtype") or "",
                 f"{bits} bits" if bits else "",

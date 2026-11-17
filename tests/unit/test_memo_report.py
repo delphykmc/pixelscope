@@ -270,7 +270,7 @@ def test_statistics_pivots_seven_metrics_and_compares_rgb_means():
     assert table.count('<table class="stat-table">') == 1
     assert table.count('<th scope="col">Mean</th>') == 1
     assert table.count('<th scope="col">P99</th>') == 1
-    assert table.count('<tr class=') == 6  # R 01/02, G 01/02, B 01/02
+    assert table.count("<tr class=") == 6  # R 01/02, G 01/02, B 01/02
     assert 'rowspan="2"' in table
     assert "↑ Δ +2" in table and "↓ Δ -1" in table and "→ Δ 0" in table
     assert 'class="stat-change stat-up"' in table
@@ -333,9 +333,7 @@ def test_preview_psnr_uses_stored_8bit_pixels_only_and_handles_missing_types():
     same = _png((0, 0, 2, 2), 50)
     plus_ten = _png((0, 0, 2, 2), 60)
     assert psnr_8bit_png(reference, same) == math.inf
-    assert psnr_8bit_png(reference, plus_ten) == pytest.approx(
-        20 * math.log10(255.0 / 10.0)
-    )
+    assert psnr_8bit_png(reference, plus_ten) == pytest.approx(20 * math.log10(255.0 / 10.0))
     assert psnr_8bit_png(reference, _png((0, 0, 3, 2), 60)) is None
     assert psnr_8bit_png(reference, b"not a png") is None
     rgba = np.zeros((2, 2, 4), dtype=np.uint8)

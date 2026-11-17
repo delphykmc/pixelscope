@@ -339,7 +339,6 @@ def test_loads_pre_v6_trusted_v5_report_without_rewriting_it(tmp_path, monkeypat
     assert path.read_bytes() == saved
 
 
-
 def test_pre_v7_zip_with_v6_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
     from pixelscope.io import memo_archive as module
 
