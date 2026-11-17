@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 if TYPE_CHECKING:
+    from pixelscope.core.review_record import ReviewFindingV1
     from pixelscope.io.memo_archive import MemoArchive
 
 _COPY_SCRIPT = """document.querySelectorAll('[data-copy-note]').forEach(button => {
@@ -268,7 +269,9 @@ def _statistics_table(data: bytes) -> str:
     )
 
 
-def _preview_psnr(archive: MemoArchive, finding: object, source_labels: Mapping[str, str]) -> str:
+def _preview_psnr(
+    archive: MemoArchive, finding: ReviewFindingV1, source_labels: Mapping[str, str]
+) -> str:
     """Show PSNR from the exact stored 8-bit crops, never native Statistics."""
     from pixelscope.io.memo_preview_metrics import psnr_8bit_png
 

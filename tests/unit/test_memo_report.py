@@ -199,7 +199,7 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
     ]
     assert downloads == images and len(images) == len(archive.crops)
     assert markup.count('class="crop-card"') == len(archive.crops)
-    assert 'name="pixelscope-report-version" content="6"' in markup
+    assert 'name="pixelscope-report-version" content="7"' in markup
     assert '<svg viewBox="0 0 24 24" aria-hidden="true">' in markup
     assert markup.count("width <strong>") == len(archive.review.findings)
     assert markup.count("height <strong>") == len(archive.review.findings)
@@ -219,7 +219,7 @@ def test_statistics_table_preserves_saved_values_and_escapes_text():
         b"1,<img onerror=alert(1)>,R,Mean,23.125,finite,20,native,uint16,12,native-v1\n"
     )
     table = _statistics_table(data)
-    assert "<table>" in table and '<th scope="col">Mean</th>' in table
+    assert '<table class="stat-table">' in table and '<th scope="col">Mean</th>' in table
     assert "23.125" in table and "uint16" in table and "native-v1" in table
     assert "&lt;img onerror=alert(1)&gt;" in table and "<img " not in table
 
@@ -267,12 +267,16 @@ def test_statistics_pivots_seven_metrics_and_compares_rgb_means():
                     )
                 )
     table = _statistics_table(output.getvalue().encode())
-    assert table.count('<th scope="col">Mean</th>') == 2
-    assert table.count('<th scope="col">P99</th>') == 2
-    assert table.count('<tr><th scope="row"') == 6  # RGB once per image, not 42 metric rows
-    assert "Δ +2" in table and "Δ -1" in table and "Δ +0" in table
+    assert table.count('<table class="stat-table">') == 1
+    assert table.count('<th scope="col">Mean</th>') == 1
+    assert table.count('<th scope="col">P99</th>') == 1
+    assert table.count('<tr class=') == 6  # R 01/02, G 01/02, B 01/02
+    assert 'rowspan="2"' in table
+    assert "↑ Δ +2" in table and "↓ Δ -1" in table and "→ Δ 0" in table
+    assert 'class="stat-change stat-up"' in table
+    assert 'class="stat-change stat-down"' in table
     assert "image1.raw" in table and "image2.raw" in table
-    assert "RGB mean comparison" in table
+    assert "RGB mean comparison" not in table
 
 
 def test_rgb_difference_refuses_cross_bitdepth_native_comparison():
@@ -287,3 +291,86 @@ def test_rgb_difference_refuses_cross_bitdepth_native_comparison():
     report = _statistics_table(data)
     assert "Δ n/a" in report
     assert "Δ +385" not in report
+
+
+
+def test_statistics_rounding_and_all_metric_deltas_without_changing_csv():
+    from pixelscope.io.memo_html_presentation import _statistics_table
+
+    columns = "Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition"
+    raw = "\n".join(
+        [
+            columns,
+            "1,a,R,Mean,1.1234567,finite,20,native,uint16,12,native-v1",
+            "2,b,R,Mean,2.9876543,finite,20,native,uint16,12,native-v1",
+            "1,a,R,Std,0.1234567,finite,20,native,uint16,12,native-v1",
+            "2,b,R,Std,0.2234567,finite,20,native,uint16,12,native-v1",
+            "1,a,R,P99,14.9999999,finite,20,native,uint16,12,native-v1",
+            "2,b,R,P99,13.9999999,finite,20,native,uint16,12,native-v1",
+        ]
+    ).encode()
+    html = _statistics_table(raw)
+    assert "1.1235" in html and "2.9877" in html
+    assert "1.1234567" not in html and "2.9876543" not in html
+    assert "↑ Δ +1.8642" in html  # Mean delta, not only mean heatmap
+    assert "↑ Δ +0.1" in html  # Std delta
+    assert "↓ Δ -1" in html  # P99 delta
+    assert raw.endswith(b"native-v1")
+
+
+def test_preview_psnr_uses_stored_8bit_pixels_only_and_handles_missing_types():
+    import math
+
+    import cv2
+    import numpy as np
+    from test_memo_archive import _png
+
+    from pixelscope.io.memo_preview_metrics import psnr_8bit_png
+
+    reference = _png((0, 0, 2, 2), 50)
+    same = _png((0, 0, 2, 2), 50)
+    plus_ten = _png((0, 0, 2, 2), 60)
+    assert psnr_8bit_png(reference, same) == math.inf
+    assert psnr_8bit_png(reference, plus_ten) == pytest.approx(
+        20 * math.log10(255.0 / 10.0)
+    )
+    assert psnr_8bit_png(reference, _png((0, 0, 3, 2), 60)) is None
+    assert psnr_8bit_png(reference, b"not a png") is None
+    rgba = np.zeros((2, 2, 4), dtype=np.uint8)
+    ok, encoded = cv2.imencode(".png", rgba)
+    assert ok
+    assert psnr_8bit_png(reference, encoded.tobytes()) is None
+
+
+def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(tmp_path):
+    from pixelscope.io.memo_html_presentation import render_memo_report
+
+    archive = notebook(tmp_path)
+    finding = archive.review.findings[0]
+    first, second = finding.source_keys
+    columns = "Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition\n"
+    csv = (
+        columns
+        + "1,first,R,Mean,50,finite,4,native,uint8,8,native-v1\n"
+        + "2,second,R,Mean,51,finite,4,native,uint8,8,native-v1\n"
+    ).encode()
+    paths = {
+        (finding.id, first): "images/first.png",
+        (finding.id, second): "images/second.png",
+    }
+    only_first = MemoArchive(
+        replace(archive.review, findings=(finding,)),
+        {key: data for key, data in archive.crops.items() if key[0] == finding.id},
+    )
+    report = render_memo_report(
+        only_first, paths, {f"statistics/{finding.id}.csv": csv}, compact=True
+    ).decode()
+    assert report.count('<table class="stat-table">') == 1
+    assert 'class="stat-footer"' in report and "justify-content:flex-end" in report
+    assert 'aria-label="Download ROI 1 Statistics CSV"' in report
+    assert 'title="Download ROI Statistics CSV"' in report
+    assert 'href="statistics/' in report
+    assert "8-bit Preview PSNR" in report and "48.1308 dB" in report
+    assert report.index("8-bit Preview PSNR") < report.index('<table class="stat-table">')
+    assert "Native Statistics" in report
+    assert csv.endswith(b"native-v1\n")  # Original evidence is not reformatted.
