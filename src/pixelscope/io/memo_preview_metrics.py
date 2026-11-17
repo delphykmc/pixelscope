@@ -2,16 +2,18 @@
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 _MAX_PNG_BYTES = 64 * 1024 * 1024
 _MAX_PIXELS = 16 * 1024 * 1024
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def _decode_png(payload: bytes) -> np.ndarray | None:
+def _decode_png(payload: bytes) -> NDArray[np.uint8] | None:
     if (
         not isinstance(payload, bytes)
         or not 32 <= len(payload) <= _MAX_PNG_BYTES
@@ -37,7 +39,7 @@ def _decode_png(payload: bytes) -> np.ndarray | None:
         return None
     # RGBA is deliberately not conflated with RGB; alpha-composite PSNR is undefined
     # without an explicit background and color-space contract.
-    return decoded
+    return cast(NDArray[np.uint8], decoded)
 
 
 def psnr_8bit_png(reference: bytes, target: bytes) -> float | None:
