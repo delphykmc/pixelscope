@@ -508,9 +508,9 @@ def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
     assert loaded.review.findings[0].analysis[0].status == "captured"
     assert loaded.review.findings[0].availability == "available"
     assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 1
-    assert '<table class="stat-table">' in (
-        target.parent / "index.html"
-    ).read_text(encoding="utf-8")
+    assert '<table class="stat-table">' in (target.parent / "index.html").read_text(
+        encoding="utf-8"
+    )
     w.close()
 
 
@@ -563,7 +563,6 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
     assert html.count('href="src/statistics/') == 2
     assert "RGB mean comparison" not in html
     w.close()
-
 
 
 def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
@@ -647,14 +646,12 @@ def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
     # A correctly captured native Statistics token qualifies the same ROI.
     memo.library.attach_analysis(finding.id, native)
     assert _has_roi_statistics(memo.library.get(finding.id))
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), "")
-    )
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), ""))
     memo.save_dialog()
     qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
     assert (destination.parent / "src/statistics").is_dir()
     assert len(list((destination.parent / "src/statistics").glob("*.csv"))) == 1
-    assert '<table class="stat-table">' in (
-        destination.parent / "index.html"
-    ).read_text(encoding="utf-8")
+    assert '<table class="stat-table">' in (destination.parent / "index.html").read_text(
+        encoding="utf-8"
+    )
     w.close()

@@ -80,10 +80,8 @@ def _has_roi_statistics(finding: ReviewFindingV1) -> bool:
             context["feature"] == "statistics"
             and context["roi_ref"] == list(finding.roi_ref)
             and context["channel"] == finding.channel
-            and tuple(item["source_key"] for item in context["sources"])
-            == finding.source_keys
-            and {row["source_key"] for row in context["measurements"]}
-            == set(finding.source_keys)
+            and tuple(item["source_key"] for item in context["sources"]) == finding.source_keys
+            and {row["source_key"] for row in context["measurements"]} == set(finding.source_keys)
         ):
             return True
     return False
@@ -528,10 +526,7 @@ class NamedReviewCoordinator:
         ):
             self._statistics_target_id = target
             self._attach_selected_statistics()
-        complete = sum(
-            _has_roi_statistics(finding)
-            for finding in self.library.document.findings
-        )
+        complete = sum(_has_roi_statistics(finding) for finding in self.library.document.findings)
         total = len(self.library.document.findings)
         if total and complete < total and not self._pending_statistics:
             self.panel.set_status(
@@ -688,9 +683,7 @@ class NamedReviewCoordinator:
                 persist_local_paths=True,
                 single_viewer=(window.viewer if single else None),
             )
-            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(
-                stage.finding
-            ):
+            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(stage.finding):
                 self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
                 return
             fence = capture_gui_fence(window, stage)
@@ -738,9 +731,7 @@ class NamedReviewCoordinator:
                 raise ReviewValidationError("source generation changed during capture")
             if {key for key, _ in value.crops} != set(value.finding.source_keys):
                 raise ReviewValidationError("Ready image previews are required for every ROI crop")
-            if _has_roi_statistics(stage.finding) and not _has_roi_statistics(
-                value.finding
-            ):
+            if _has_roi_statistics(stage.finding) and not _has_roi_statistics(value.finding):
                 raise ReviewValidationError("ROI Statistics changed; retry after Statistics settle")
             title, note, _tags = self.panel.metadata()
             finding = replace(value.finding, title=title or value.finding.title, note=note)
