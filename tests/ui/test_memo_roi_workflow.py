@@ -25,6 +25,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
         paths.append(path)
     w, m = windows()
     m.show()
+    assert not m.panel.open_html_button.isEnabled()
     w.open_image_paths(paths)
     w.set_layout_mode("Multi View")
     qtbot.waitUntil(
@@ -105,6 +106,12 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     report_folder = target.parent
     assert (report_folder / "index.html").is_file()
     assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
+    assert m.panel.open_html_button.isEnabled()
+    assert m.panel.open_html_button.toolTip().startswith("Open last saved")
+    opened_before = len(opened_reports)
+    m.panel.open_html_button.click()
+    assert len(opened_reports) == opened_before + 1
+    assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
     assert len(list((report_folder / "src/crops").glob("*.png"))) == 4
     assert m.panel.findChild(QLabel, "reviewStatusLabel") is None
     w.set_layout_mode("Single View")
@@ -123,6 +130,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     ids = [d.document_id for d in w.current_comparison_documents()]
     old_snapshot = MemoArchive(m.library.document, m._crops)
     w._select_document_ids(list(reversed(ids)))
+    assert not m.panel.open_html_button.isEnabled()
     assert not m.library.document.findings
     assert not any(v._memo_items for v in (w.viewer, *w.multi_compare_view.viewers))
     assert not m.panel.note_edit.toPlainText()
@@ -139,6 +147,7 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(target), ""))
     m.open_dialog()
     qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
+    assert m.panel.open_html_button.isEnabled()
     qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
     assert len(m.library.document.findings) == 2
     assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)

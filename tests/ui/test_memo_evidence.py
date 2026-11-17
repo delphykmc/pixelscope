@@ -130,6 +130,9 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert len(pngs) == 6
     assert {p.read_bytes() for p in pngs} == set(frozen.values())
     assert not (target.parent / "src/originals").exists()
+    assert offline.panel.open_html_button.isEnabled()
+    offline.show()
+    assert offline.panel.open_html_button.isEnabled()
     assert offline.panel.findChild(QListWidget, "memoSavedCropPreviews") is None
     csvs = list((target.parent / "src/statistics").glob("*.csv"))
     assert len(csvs) == 1

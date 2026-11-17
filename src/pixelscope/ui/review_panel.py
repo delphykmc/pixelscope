@@ -17,12 +17,14 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPlainTextEdit,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from pixelscope.core.review_record import ReviewDocumentV1, ReviewFindingV1
 from pixelscope.io.review_repository import SourceResolutionV1
+from pixelscope.ui.toolbar_icons import toolbar_icon
 
 
 class RecordSwitch(QCheckBox):
@@ -74,6 +76,7 @@ class ReviewPanel(QWidget):
     delete_requested = Signal(object)
     open_requested = Signal()
     save_requested = Signal()
+    open_html_requested = Signal()
     finding_changed = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -138,6 +141,16 @@ class ReviewPanel(QWidget):
         )
         footer.addWidget(self.open_button)
         footer.addWidget(self.save_button)
+        footer.addStretch(1)
+        self.open_html_button = QToolButton(self)
+        self.open_html_button.setObjectName("memoOpenSavedHtmlButton")
+        self.open_html_button.setIcon(toolbar_icon("report"))
+        self.open_html_button.setIconSize(QSize(18, 18))
+        self.open_html_button.setFixedSize(34, 34)
+        self.open_html_button.setAccessibleName("Open saved HTML report")
+        self.open_html_button.setToolTip("No saved HTML report for this Memo")
+        self.open_html_button.setEnabled(False)
+        footer.addWidget(self.open_html_button)
         layout.addLayout(footer)
         self.last_status = ""  # Diagnostic only; no routine footer notifications.
 
@@ -146,6 +159,7 @@ class ReviewPanel(QWidget):
         self.delete_action.triggered.connect(self._request_delete)  # type: ignore[attr-defined]
         self.open_button.clicked.connect(self.open_requested.emit)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self.save_requested.emit)  # type: ignore[attr-defined]
+        self.open_html_button.clicked.connect(self.open_html_requested.emit)  # type: ignore[attr-defined]
         self.title_edit.textEdited.connect(self._request_edit)  # type: ignore[attr-defined]
         self.note_edit.textChanged.connect(self._request_edit)  # type: ignore[attr-defined]
         self._set_selection_enabled(False)
@@ -182,6 +196,14 @@ class ReviewPanel(QWidget):
         self.header.setText("● Unsaved" if dirty else "● Saved")
         self.header.setStyleSheet(
             "color: #c77a00; font-weight: bold" if dirty else "color: #23844b; font-weight: bold"
+        )
+
+    def set_html_report_available(self, available: bool) -> None:
+        self.open_html_button.setEnabled(available)
+        self.open_html_button.setToolTip(
+            "Open last saved HTML report (unsaved edits are not included)"
+            if available
+            else "No saved HTML report for this Memo"
         )
 
     def _request_edit(self, *_args: object) -> None:

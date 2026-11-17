@@ -205,6 +205,7 @@ class NamedReviewCoordinator:
         self.panel.delete_requested.connect(self.delete_many)
         self.panel.open_requested.connect(self.open_dialog)
         self.panel.save_requested.connect(self.save_dialog)
+        self.panel.open_html_requested.connect(self.open_saved_html)
         self.panel.finding_changed.connect(self.select_finding)
         self.restore.verification_completed.connect(self._verified)
         self.restore.verification_failed.connect(self._verification_failed)
@@ -261,6 +262,7 @@ class NamedReviewCoordinator:
         self.panel.set_document(self.library.document)
         self._clear_editor()
         self.panel.set_dirty(False)
+        self._refresh_html_report_link()
         self.panel.set_status("Images changed — a new ROI memo list")
         self.refresh_overlays()
 
@@ -364,6 +366,7 @@ class NamedReviewCoordinator:
         """Expose the notes dock without silently changing the workspace layout."""
         if self._closed:
             return
+        self._refresh_html_report_link()
         self.dock.show()
         self.dock.raise_()
         self._update_recording_availability()
@@ -937,6 +940,28 @@ class NamedReviewCoordinator:
             self._restoring_memo = False
             self.panel.set_status(f"Memo cannot be reopened: {exc}")
 
+    def _saved_html_report(self) -> Path | None:
+        """Only a published folder-mode Memo has an independently openable HTML."""
+        path = self.library.path
+        if not self._folder_mode or path is None or path.suffix.lower() != ".pxmemo":
+            return None
+        report = path.parent / "index.html"
+        return report if report.is_file() and not report.is_symlink() else None
+
+    def _refresh_html_report_link(self) -> None:
+        self.panel.set_html_report_available(self._saved_html_report() is not None)
+
+    @Slot()
+    def open_saved_html(self) -> None:
+        """Open the existing report without saving or regenerating it."""
+        report = self._saved_html_report()
+        self._refresh_html_report_link()
+        if report is None:
+            self._error("No saved HTML report is available for this Memo", notify=True)
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(report))):
+            self._error("Saved HTML report could not be opened", notify=True)
+
     def open_dialog(self) -> None:
         if self._io_worker is not None:
             self._error("Wait for the current Memo file operation", notify=True)
@@ -1079,6 +1104,7 @@ class NamedReviewCoordinator:
             if result.cleanup_warning:
                 self._error(f"Saved {path.name}. {result.cleanup_warning}", notify=True)
         self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
+        self._refresh_html_report_link()
 
     @Slot(str, object, int, object)
     def _io_failed(self, task_id: str, _doc: object, _epoch: int, error: object) -> None:
