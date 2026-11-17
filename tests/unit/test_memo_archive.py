@@ -321,3 +321,19 @@ def test_old_html_report_still_loads_after_caption_upgrade(tmp_path, monkeypatch
         save_memo_archive(target, archive)
     loaded, _ = load_memo_archive(target)
     assert loaded.review == archive.review
+
+
+def test_loads_pre_v6_trusted_v5_report_without_rewriting_it(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v5-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v5_memo_html)
+        save_memo_archive(path, archive)
+    saved = path.read_bytes()
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == saved

@@ -216,6 +216,44 @@ def test_statistics_table_preserves_saved_values_and_escapes_text():
         b"1,<img onerror=alert(1)>,R,Mean,23.125,finite,20,native,uint16,12,native-v1\n"
     )
     table = _statistics_table(data)
-    assert "<table>" in table and '<th scope="col">Value</th>' in table
+    assert "<table>" in table and '<th scope="col">Mean</th>' in table
     assert "23.125" in table and "uint16" in table and "native-v1" in table
     assert "&lt;img onerror=alert(1)&gt;" in table and "<img " not in table
+
+
+def test_statistics_pivots_seven_metrics_and_compares_rgb_means():
+    from pixelscope.io.memo_html_presentation import _statistics_table
+
+    import csv
+    import io
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("Source", "Image", "Channel", "Metric", "Value", "State", "Samples",
+                     "Domain", "Native dtype", "Effective bits", "Definition"))
+    values = {"R": (10, 12), "G": (20, 19), "B": (30, 30)}
+    for source in (1, 2):
+        for channel, pair in values.items():
+            for metric in ("Min", "Max", "Mean", "Std", "P1", "P50", "P99"):
+                writer.writerow((source, f"image{source}.raw", channel, metric,
+                                 pair[source - 1], "finite", 40, "native", "uint8", 8, "native-v1"))
+    table = _statistics_table(output.getvalue().encode())
+    assert table.count('<th scope="col">Mean</th>') == 2
+    assert table.count('<th scope="col">P99</th>') == 2
+    assert table.count('<tr><th scope="row"') == 6  # RGB once per image, not 42 metric rows
+    assert "Δ +2" in table and "Δ -1" in table and "Δ +0" in table
+    assert "image1.raw" in table and "image2.raw" in table
+    assert "RGB mean comparison" in table
+
+
+def test_rgb_difference_refuses_cross_bitdepth_native_comparison():
+    from pixelscope.io.memo_html_presentation import _statistics_table
+
+    data = (
+        b"Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition\n"
+        b"1,first,R,Mean,127,finite,16,native,uint8,8,native-v1\n"
+        b"2,second,R,Mean,512,finite,16,native,uint16,10,native-v1\n"
+    )
+    report = _statistics_table(data)
+    assert "Δ n/a" in report
+    assert "Δ +385" not in report

@@ -7,6 +7,7 @@ import csv
 import hashlib
 import html
 import io
+import math
 from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -49,9 +50,11 @@ _COPY_SCRIPT = """document.querySelectorAll('[data-copy-note]').forEach(button =
       }
     }
     status.textContent = copied ? 'Copied to clipboard' : 'Copy unavailable — select and copy the memo text.';
-    button.textContent = copied ? 'Copied' : 'Copy memo';
+    button.dataset.state = copied ? 'copied' : 'ready';
+    button.setAttribute('aria-label', copied ? 'Memo copied' : 'Copy memo');
+    button.title = copied ? 'Copied' : 'Copy memo';
     button.disabled = false;
-    window.setTimeout(() => { button.textContent = 'Copy memo'; }, 1600);
+    window.setTimeout(() => { button.dataset.state = 'ready'; button.setAttribute('aria-label', 'Copy memo'); button.title = 'Copy memo'; }, 1600);
   });
 });"""
 
@@ -79,35 +82,179 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .table-scroll{overflow-x:auto;margin:12px 0 16px}table{min-width:680px;width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#526680;background:#f1f5fb;font-weight:650}th,td{padding:10px 12px;border-bottom:1px solid #e4ebf3;vertical-align:top}tbody tr:nth-child(even){background:#fafbfd}.numeric{font-variant-numeric:tabular-nums;white-space:nowrap}.stat-source{width:30%;max-width:280px}th{white-space:nowrap}h3{font-size:16px;margin:0}
 @media(max-width:640px){main{padding:24px 14px}.masthead{display:block}.summary{justify-content:flex-start;margin-top:16px}h1{font-size:27px}.roi-header,.content{padding:18px}.title-row{gap:10px}h2{font-size:19px}.memo{padding:14px}}
 @media print{body{background:white}main{padding:0}.roi-card{box-shadow:none}.button,.roi-index,.copy-status{display:none}.crop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}figure,.memo,.roi-header{break-inside:avoid}}
+/* V6: visually distinct crops, compact icon actions and source-grouped statistics. */
+.crop-grid{gap:14px;align-items:stretch}
+.crop-card{background:#fff;border:1px solid #cbd8e9;border-radius:11px;box-shadow:0 2px 8px #1832530c;overflow:hidden}
+.crop-card .image-stage{background:#f1f5fa;min-height:124px;padding:12px;border-bottom:1px solid #e2eaf3}
+.crop-card .crop-caption{padding:11px 13px}
+.crop-card .source-name{font-size:12px;margin:0;line-height:1.5;min-width:0}
+.crop-card .crop-footer{margin-top:7px;min-height:27px}
+.icon-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex:0 0 28px;padding:0;background:white;border:1px solid #cbd8e9;border-radius:6px;color:#285b9a;cursor:pointer;text-decoration:none}
+.icon-button:hover{background:#e9f1fd;border-color:#a6bfdf}
+.icon-button:focus-visible{outline:3px solid #91b8ff;outline-offset:2px}
+.icon-button:disabled{opacity:.5;cursor:default}
+.icon-button svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon-button[data-state="copied"]{background:#e6f4ec;color:#26764a}
+.stat-caption{font-size:12px;color:#657891;margin:5px 0 13px}
+.stat-overview{background:#f7fafd;border:1px solid #e1eaf4;border-radius:10px;padding:12px 14px;margin:12px 0}
+.stat-overview h4{margin:0 0 7px;font-size:12px;color:#3d5573}
+.stat-compare-head,.stat-compare-line{display:grid;grid-template-columns:minmax(130px,1fr) repeat(3,minmax(0,1.1fr));align-items:center;gap:7px}
+.stat-compare-head{font-size:11px;color:#697b91;border-bottom:1px solid #e3eaf4;padding-bottom:7px;font-weight:700}
+.stat-compare-line{padding:8px 0;border-bottom:1px solid #e8edf5}
+.stat-compare-line:last-child{border-bottom:0;padding-bottom:0}
+.stat-image-label{font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.stat-rgb{display:flex;min-width:0;flex-direction:column;gap:2px}
+.stat-rgb-value{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat-delta{font-size:11px;color:#637992;white-space:nowrap}
+.stat-track{height:5px;position:relative;background:#e2eaf3;border-radius:4px;overflow:hidden}
+.stat-track::after{content:"";position:absolute;left:50%;height:100%;width:1px;background:#8596ad}
+.stat-track .bar{position:absolute;height:100%;border-radius:3px}
+.stat-r .bar{background:#db5c63}.stat-g .bar{background:#3b9b70}.stat-b .bar{background:#4b7ed7}
+.stat-source-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px;margin:14px 0}
+.stat-source-card{min-width:0;border:1px solid #dfe8f3;border-radius:9px;overflow:hidden;background:white}
+.stat-source-head{font-size:13px;font-weight:700;background:#f4f7fb;border-bottom:1px solid #e4eaf2;margin:0;padding:10px 12px}
+.stat-source-meta{font-size:11px;font-weight:400;color:#64748b;display:block;margin-top:2px}
+.stat-source-card .table-scroll{margin:0;overflow-x:auto}
+.stat-source-card table{min-width:570px;width:100%;font-size:11px;border-collapse:collapse}
+.stat-source-card th,.stat-source-card td{padding:7px 8px}
+.stat-source-card thead th{font-size:11px}
+.stat-source-card tbody th{font-weight:700;white-space:nowrap}
+.stat-source-card tbody tr:nth-child(even){background:#f8fafd}
+.channel-r{color:#b44952}.channel-g{color:#248258}.channel-b{color:#346ab7}
+@media(max-width:760px){.stat-compare-head,.stat-compare-line{grid-template-columns:minmax(88px,1fr) repeat(3,minmax(0,1fr));gap:3px}.stat-overview{padding:10px}.stat-rgb-value{font-size:11px}.stat-delta{font-size:10px}}
+@media print{.crop-card,.stat-source-card,.stat-overview{break-inside:avoid}.crop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 """
+
+
+_DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/></svg>'
+_COPY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>'
 
 
 def _url(value: str) -> str:
     return html.escape(quote(value, safe="/"), quote=True)
 
 
+_METRICS = ("Min", "Max", "Mean", "Std", "P1", "P50", "P99")
+_RGB = ("R", "G", "B")
+
+
+def _finite_mean(record: dict[str, str] | None) -> float | None:
+    if not record or record.get("State") != "finite":
+        return None
+    try:
+        value = float(record.get("Value", ""))
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
 def _statistics_table(data: bytes) -> str:
-    """Present the saved CSV values verbatim; never recalculate statistics."""
+    """Pivot the exact saved native CSV. Deltas are *display-only*, never evidence."""
     rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
-    columns = ("Channel", "Metric", "Value", "Samples", "State")
-    headings = (
-        '<th scope="col">Image</th>'
-        + "".join(f'<th scope="col">{html.escape(name)}</th>' for name in columns)
-        + '<th scope="col">Native context</th>'
-    )
-    body_rows = []
+    sources: dict[tuple[str, str], dict[str, dict[str, dict[str, str]]]] = {}
     for row in rows:
-        image = f'<td class="stat-source"><strong>{html.escape(row.get("Source", ""))}</strong> · {html.escape(row.get("Image", ""))}</td>'
-        cells = "".join(
-            f'<td class="numeric">{html.escape(row.get(name, ""))}</td>' for name in columns
+        if row.get("Metric") not in _METRICS:
+            continue
+        identity = (row.get("Source", ""), row.get("Image", ""))
+        sources.setdefault(identity, {}).setdefault(row.get("Channel", ""), {})[
+            row["Metric"]
+        ] = row
+    if not sources:
+        return "<p>No saved native ROI measurements.</p>"
+
+    identities = list(sources)
+    baseline = sources[identities[0]]
+    deltas: dict[tuple[tuple[str, str], str], float | None] = {}
+    for identity, channels in sources.items():
+        for channel in _RGB:
+            current = channels.get(channel, {}).get("Mean")
+            reference = baseline.get(channel, {}).get("Mean")
+            values = (_finite_mean(current), _finite_mean(reference))
+            comparable = (
+                current is not None
+                and reference is not None
+                and all(
+                    current.get(key) == reference.get(key)
+                    for key in ("Domain", "Native dtype", "Effective bits", "Definition")
+                )
+                and all(value is not None for value in values)
+            )
+            deltas[identity, channel] = (
+                values[0] - values[1] if comparable else None
+            )
+    finite_deltas = [abs(value) for value in deltas.values() if value is not None]
+    scale = max(finite_deltas, default=0.0)
+
+    overview = ['<div class="stat-overview"><h4>RGB mean comparison</h4>',
+                '<p class="stat-caption">Native mean and Δ vs image 01. Bars show relative differences within this ROI, not an absolute quality score. Incompatible native formats are not compared.</p>',
+                '<div class="stat-compare-head"><span>Image</span><span class="channel-r">R</span><span class="channel-g">G</span><span class="channel-b">B</span></div>']
+    for identity in identities:
+        ordinal, name = identity
+        cells = [f'<div class="stat-compare-line"><div class="stat-image-label">{html.escape(ordinal)} · {html.escape(name)}</div>']
+        for channel in _RGB:
+            record = sources[identity].get(channel, {}).get("Mean")
+            delta = deltas[identity, channel]
+            if record is None:
+                cells.append('<div class="stat-rgb"><span class="stat-rgb-value">—</span></div>')
+                continue
+            literal = html.escape(record.get("Value", ""))
+            if delta is None:
+                note = "Δ n/a"
+                bar = ""
+            else:
+                note = f"Δ {delta:+.4g}"
+                width = 45.0 * abs(delta) / scale if scale else 0.0
+                side = "left:50%" if delta >= 0 else f"left:{50.0-width:.3f}%"
+                bar = f'<span class="bar" style="{side};width:{width:.3f}%"></span>'
+            cells.append(
+                f'<div class="stat-rgb stat-{channel.lower()}"><span class="stat-rgb-value">{literal}</span>'
+                f'<span class="stat-delta">{html.escape(note)}</span>'
+                f'<div class="stat-track" aria-hidden="true">{bar}</div></div>'
+            )
+        cells.append("</div>")
+        overview.extend(cells)
+    overview.append("</div>")
+
+    cards = ['<div class="stat-source-cards">']
+    headers = "".join(f'<th scope="col">{label}</th>' for label in ("Channel", *_METRICS))
+    for ordinal, name in identities:
+        channel_rows = sources[ordinal, name]
+        source_record = next(
+            (record for metrics in channel_rows.values() for record in metrics.values()), {}
         )
-        context = "<br>".join(
-            html.escape(row.get(name, "")) for name in ("Domain", "Native dtype", "Definition")
+        meta = " · ".join(
+            value for value in (
+                source_record.get("Domain", ""),
+                source_record.get("Native dtype", ""),
+                f'{source_record["Effective bits"]} bits' if source_record.get("Effective bits") else "",
+                f'{source_record["Samples"]} samples' if source_record.get("Samples") else "",
+            ) if value
         )
-        context += f'<br>{html.escape(row.get("Effective bits", ""))} effective bits'
-        body_rows.append(f"<tr>{image}{cells}<td>{context}</td></tr>")
-    body = "".join(body_rows)
-    return f'<div class="table-scroll" role="region" aria-label="Saved ROI statistics" tabindex="0"><table><thead><tr>{headings}</tr></thead><tbody>{body}</tbody></table></div>'
+        body_rows = []
+        for channel in sorted(channel_rows, key=lambda value: (_RGB.index(value) if value in _RGB else 3, value)):
+            metrics = channel_rows[channel]
+            highlight = f' class="channel-{channel.lower()}"' if channel in _RGB else ""
+            cells = []
+            for metric in _METRICS:
+                record = metrics.get(metric, {})
+                value = html.escape(record.get("Value", "—"))
+                state = record.get("State", "")
+                label = f' title="{html.escape(state, quote=True)}"' if state and state != "finite" else ""
+                cells.append(f'<td class="numeric"{label}>{value}</td>')
+            body_rows.append(
+                f'<tr><th scope="row"{highlight}>{html.escape(channel)}</th>{"".join(cells)}</tr>'
+            )
+        cards.append(
+            '<section class="stat-source-card">'
+            f'<h4 class="stat-source-head">{html.escape(ordinal)} · {html.escape(name)}'
+            f'<span class="stat-source-meta">{html.escape(meta)}</span></h4>'
+            '<div class="table-scroll" role="region" aria-label="Saved native ROI metrics" tabindex="0">'
+            f'<table><thead><tr>{headers}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'
+            '</div></section>'
+        )
+    cards.append("</div>")
+    return "".join(overview + cards)
 
 
 def render_memo_report(
@@ -138,13 +285,13 @@ def render_memo_report(
             tag = sources[key].display_tag
             tag_html = f' <span class="source-tag">· {html.escape(tag)}</span>' if tag else ""
             cards.append(
-                '<figure><div class="image-stage">'
+                '<figure class="crop-card"><div class="image-stage">'
                 f'<img src="{_url(relative)}" alt="ROI {ordinal}, image {number}: {basename}"></div>'
                 f'<figcaption class="crop-caption"><p class="source-name">{number:02d} · {basename}{tag_html}</p>'
                 + ("" if compact else f'<div class="badges">{badges}</div>')
                 + '<div class="crop-footer"><span class="file-type">PNG · 8-bit preview</span>'
-                f'<a class="button" href="{_url(relative)}" download="{html.escape(PurePosixPath(relative).name, quote=True)}" '
-                f'aria-label="Download ROI {ordinal} image {number} PNG">Download PNG</a></div></figcaption></figure>'
+                f'<a class="icon-button" href="{_url(relative)}" download="{html.escape(PurePosixPath(relative).name, quote=True)}" '
+                f'aria-label="Download ROI {ordinal} image {number} PNG" title="Download PNG">{_DOWNLOAD_ICON}</a></div></figcaption></figure>'
             )
         csv = f"statistics/{finding.id}.csv"
         table = _statistics_table(statistics_paths[csv]) if csv in statistics_paths else ""
@@ -154,7 +301,7 @@ def render_memo_report(
             else ""
         )
         copy = (
-            '<button type="button" class="button" data-copy-note disabled>Copy memo</button>'
+            f'<button type="button" class="icon-button" data-copy-note title="Copy memo" aria-label="Copy memo" disabled>{_COPY_ICON}</button>'
             if finding.note
             else ""
         )
@@ -174,11 +321,11 @@ def render_memo_report(
     )
     style = _STYLE
     if compact:
-        style += "figure{border:0;border-radius:0;background:transparent}.image-stage{padding:0;min-height:0;background:transparent}.crop-caption{padding:8px 0 0}.source-name{margin:0;font-size:12px}.crop-footer{margin-top:5px}.crop-grid{gap:14px}.content{padding:18px 22px}.memo{margin-bottom:16px}.roi-header{padding:18px 22px}.roi-card{margin:16px 0}"
+        style += ".content{padding:18px 22px}.memo{margin-bottom:16px}.roi-header{padding:18px 22px}.roi-card{margin:16px 0}"
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<meta name="pixelscope-report-version" content="{5 if compact else 4}">'
+        f'<meta name="pixelscope-report-version" content="{6 if compact else 4}">'
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(policy, quote=True)}">'
         f'<title>PixelScope Memo</title><style>{style}</style></head><body><main>'
         '<header class="masthead"><div><div class="brand">PixelScope</div><h1>ROI inspection notes</h1>'
