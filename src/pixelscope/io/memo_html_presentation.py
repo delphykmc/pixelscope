@@ -345,7 +345,7 @@ def render_memo_report(
         )
         statistics = (
             '<div class="statistics"><div class="stat-head">'
-            f'<h3>ROI statistics</h3>{psnr}</div>{table}{csv_action}</div>'
+            f"<h3>ROI statistics</h3>{psnr}</div>{table}{csv_action}</div>"
             if csv in statistics_paths or psnr
             else ""
         )
