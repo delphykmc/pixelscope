@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -115,7 +116,7 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
         memo.edit(first.id, "Edited note", "Unsaved edit not yet exported", ())
         assert memo.library.dirty
         memo.panel.open_html_button.click()
-    assert reopened == [str(report)]
+    assert [Path(value) for value in reopened] == [report]
     assert memo.library.dirty  # Reopening never commits the unsaved edit.
     assert report.read_bytes() == saved_report
     window.close()
