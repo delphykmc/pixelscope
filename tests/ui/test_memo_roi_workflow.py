@@ -477,6 +477,9 @@ def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
             and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
             timeout=10000,
         )
+        # Simulate genuinely unavailable evidence. A previously captured ready
+        # snapshot can now be reused, even while the live presentation is pending.
+        memo._statistics_evidence.clear()
         with monkeypatch.context() as patch:
             patch.setattr(type(panel), "get_presented_analysis_token", lambda _self: None)
             memo.panel.include_statistics.setChecked(True)
@@ -534,8 +537,9 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
             and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
             timeout=15000,
         )
-        memo._remember_ready_statistics()
+        panel.analysis_settled.emit()  # production owner signal retains immutable evidence
     assert len(memo.library.document.findings) == 2
+    assert len(memo._statistics_evidence) == 2
     assert all(not any(c.status == "captured" for c in f.analysis)
                for f in memo.library.document.findings)
     memo.panel.include_statistics.setChecked(True)

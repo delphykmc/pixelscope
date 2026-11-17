@@ -180,8 +180,9 @@ def _statistics_table(data: bytes) -> str:
                 )
                 and all(value is not None for value in values)
             )
+            difference = values[0] - values[1] if comparable else None
             deltas[identity, channel] = (
-                values[0] - values[1] if comparable else None
+                difference if difference is not None and math.isfinite(difference) else None
             )
     finite_deltas = [abs(value) for value in deltas.values() if value is not None]
     scale = max(finite_deltas, default=0.0)
