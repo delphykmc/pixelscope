@@ -632,6 +632,9 @@ def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
         memo.panel.include_statistics.blockSignals(previous)
     memo._statistics_evidence.clear()
     destination = tmp_path / "must-not-save" / "notes.pxmemo"
+    # QFileDialog returns a path inside an existing parent directory. The
+    # folder publisher stages its temporary directory in that parent.
+    destination.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
         QFileDialog,
         "getSaveFileName",
