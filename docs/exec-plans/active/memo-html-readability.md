@@ -131,3 +131,92 @@ Owner UI acceptance and merge remain pending. Commit attribution uses
 Co-authored-by: ChatGPT <noreply@openai.com>; PR activity is ChatGPT-assisted.
 
 Final review evidence rerun with `--junitxml=temp/memo-cards-final.xml`: **61 passed in 29.63s**. Independent re-review confirmed the download correction and saved-CSV table escaping; no further confirmed source finding. Local synthetic HTTP server was stopped after browser checks.
+
+
+## Owner follow-up — compact crops and late Statistics opt-in
+
+Owner observed repeated x/y/width/height for every crop and asked for tighter
+presentation. V5 keeps shared ROI badges only in the ROI header, removes crop card
+borders/background/padding and reduces gaps. PNG/download/caption content remains.
+Freeze v4 compatibility with an actual e97f2e76 synthetic archive before editing.
+
+Confirmed Statistics defect: checking after an image-only ROI was committed only
+called _resume_statistics, which did nothing unless already waiting. Save faithfully
+serialized the old unavailable analysis. Single/two-image regression reproduced
+**2 failed, 6 deselected in 10.52s** before code changes. This was product behavior,
+not an unsupported test branch. Earlier tests checked before recording and missed it.
+
+Attach ready native Statistics to the selected resident ROI using its existing ID,
+notes, crops and source-generation bindings. Require current-presented exact ROI,
+source-key order and channel; ReviewDocument validation still enforces native
+interpretations/fingerprints. Wait via existing analysis_settled when pending,
+cancel on selection/source/ROI reset. A check during crop capture is applied after
+that same item commits. No extra ROI, recrop, new numeric calculation or path lookup.
+Unchecked retains historical evidence and only opts out of new attachment/capture;
+tooltip now says so explicitly. Save remains blocked while requested stats wait.
+
+
+Follow-up changed files: core/review_workflow.py (atomic same-item evidence update),
+ui/review_window_integration.py (late/during-capture opt-in and pending cancellation),
+ui/review_panel.py (scope tooltip); io/memo_archive.py and memo_html_presentation.py
+(compact v5 plus frozen v4 compatibility); applicable workflow/archive/report tests,
+v4 frozen fixture, narrow durable contract edits and compact screenshot guide.
+
+Observed intermediate expanded selection: **81 passed44.58s**; after pending-token
+and cancellation coverage, **83 passed48.30s**. Additional atomic invalid/foreign
+context test: `pytest -q --tb=short tests/unit/test_w09b_review_workflow.py`,
+**5 passed0.59s** (overlaps four prior cases; do not sum these selections).
+The canonical final XML/log are temp/memo-tight-final.xml and memo-tight-final.log.
+Final rerun includes evidence availability-marker consistency and the added atomic
+failure case: **84 passed in 47.98s** (observed in the saved final log).
+
+Actual Chrome compact v5: no per-crop metadata badges, two ROI-header badge groups,
+four loaded PNGs and two Stat tables; default document/viewport both1674px.
+960px screenshot captured; viewport reset and own localhost server stopped.
+No new file-context/CSV-click/print/other-browser/full-suite claim. Old ZIP v4
+fixture was produced by unmodified e97f2e76, not synthesized by compact renderer.
+
+Independent reviewer confirmed the late-toggle defect during investigation, but
+its final new-code review attempt failed due to its usage limit. Previous e97f2e76
+PASS does not approve these follow-up edits. Deliver to the same Draft PR; final
+independent review and owner UI acceptance remain pending, no merge.
+
+### Owner-requested local acceptance (2026-11-17)
+
+The owner requested actual app checks, full local pytest, independent review and
+a commit. The following supersedes the pending follow-up evidence above, while
+preserving the earlier observations. No push or merge is requested.
+
+Manual app check used production MainWindow composition with isolated INI settings
+and two synthetic 800x480 PNGs. An ignored launcher prepared one image-only ROI
+(100,100,320,180); the agent then clicked Statistics in the live app after capture,
+edited its note and used the native Save dialog. The UI reached Saved. Reloading
+that saved map confirmed one Finding, two crops, captured Statistics and the exact
+note. The generated folder contains one src/statistics CSV and one HTML table.
+Source1 R Mean is122.09333333333333 (live UI122.093), with57600 samples.
+
+Actual Chrome inspection of this app-generated report over synthetic-only loopback
+HTTP confirmed two loaded320x180 PNGs, one ROI badge group, zero crop badge groups
+and43 table rows (header plus42 saved measurements). Document width1674px fits the
+1689px viewport. The server was stopped and the synthetic app closed afterward.
+Direct file-context clipboard, CSV-link download, other browsers and print remain
+outside this check. A sandboxed filename-paste attempt produced no text; the actual
+save used the default suggested name and a real Return key instead.
+
+Observed checks before the immutable source commit:
+
+- `python -m pytest -q --tb=short tests/ui/test_memo_roi_workflow.py tests/unit/test_memo_archive.py tests/unit/test_memo_report.py tests/unit/test_memo_folder.py tests/unit/test_w09b_review_workflow.py`: **73 passed in26.65s**.
+- Independent read-only reviewer: no actionable source defect; archive/report/workflow unit selection **41 passed in3.98s**. Final acceptance evidence reconciliation was requested before readiness.
+- `python -m ruff check src tests`: exit0; changed-Python `ruff format --check`: **9 files already formatted**.
+- `python -m mypy src`: **Success: no issues found in135 source files**; `python -m pip check`: **No broken requirements found**.
+- `python scripts/check_docs.py`: **Documentation contract passed**; `python -m mkdocs build --strict`: built in1.36s; `git diff --check`: exit0.
+- Initial `python -m pytest -q --junitxml=temp/memo-owner-full-20261117.xml`: **25 failed,1975 passed,1 warning in546.74s**, normal GC, CPython3.10.11 x64. Log: temp/memo-owner-full-20261117.log. Failures:13 dirty-production-input Sandbox guards,2 Git-history checks whose sandbox temp paths exceed Git's path handling,9 native clipboard checks,1 RAW gray/Bayer/gray compact-height assertion.
+- Fresh Win32-only native probe outside the app sandbox confirms an unlocked session(flags1), non-AppContainer medium integrity and successful clipboard opening. The sandbox probe also opens the clipboard at the later probe time; this does not prove clipboard access during the earlier failed tests.
+- Unsandboxed short-path focused control (`pytest -q --tb=short tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_gray_bayer_gray_restores_compact_height tests/ui/test_clipboard_support.py tests/integration/test_ui_screenshot_git_history.py --basetemp=temp/memo-owner-native-probe --junitxml=temp/memo-owner-native-probe.xml`): **1 failed,4 passed in6.01s**. RAW height remains1011vs899; its production/test files are unchanged by this follow-up. The log also prints Windows exception0x8001010d in the Qt wait; it is retained, not suppressed.
+
+Because Sandbox tests intentionally reject modified production inputs relative to
+HEAD, the reviewed source/test/doc slice is committed before the final full rerun.
+The rerun uses the ordinary Windows environment with a short repository-local
+basetemp. Do not describe the initial run or focused controls as a clean full PASS.
+Commit attribution uses the configured owner identity plus
+`Co-authored-by: ChatGPT <noreply@openai.com>`; unrelated untracked work is excluded.

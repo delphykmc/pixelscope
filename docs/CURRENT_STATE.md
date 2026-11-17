@@ -828,3 +828,8 @@ per-crop PNG download and explicit memo copy. Saved Statistics now appear in a
 readable table alongside CSV. Historical v3/v2/legacy ZIP readers remain guarded.
 See [execution evidence](exec-plans/active/memo-html-readability.md). Owner UI
 acceptance and merge remain pending.
+
+PR241 owner follow-up (unmerged): compact crop presentation removes repeated
+coordinates/card borders; late Statistics opt-in now targets the selected existing
+ROI. Before-fix one/two-image tests reproduced the omission; exact behavior and
+validation remain in the Memo HTML execution record.

@@ -198,6 +198,8 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
         if tag == "a" and attrs.get("aria-label", "").startswith("Download ROI")
     ]
     assert downloads == images and len(images) == len(archive.crops)
+    assert markup.count("width <strong>") == len(archive.review.findings)
+    assert markup.count("height <strong>") == len(archive.review.findings)
     assert sum(tag == "button" and "data-copy-note" in attrs for tag, attrs in parsed.tags) == sum(
         bool(f.note) for f in archive.review.findings
     )

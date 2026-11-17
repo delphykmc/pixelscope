@@ -55,3 +55,15 @@ PNG·브라우저 JPG는 이미지 품질 알고리즘 수용 증거가 아니�
 확인했다. PNG 다운로드 파일 SHA-256은 저장 crop과 일치했다. 런타임 clipboard
 readText는 빈 값이어서 복사 판정에는 실제 붙여넣기를 사용했다.
 직접 파일 열기, CSV 버튼 클릭, 인쇄/PDF 및 모든 브라우저는 미검증이다.
+
+## 중복 좌표 제거와 Stat 체크 시점 수정
+
+1. x/y/width/height는 ROI 상단에 한 번만 표시한다.
+2. crop별 카드 테두리·배경·중복 배지를 없애고 여백을 줄였다.
+3. ROI가 이미 추가된 뒤 Stat을 체크해도 같은 ROI에 통계가 붙는다.
+   캡처 도중 체크, 분석 대기 후 완료도 검증한다. 메모·crop은 유지한다.
+
+![공통 ROI 정보만 남긴 간결한 crop 배치](compact.jpg)
+
+[좁은 화면](compact-narrow.jpg). 화면은 합성 fixture이며, 실제 앱 저장 경로의
+Stat 포함은 별도 Qt workflow 회귀에서 파일 재열기·CSV·HTML 표까지 검증한다.

@@ -1279,3 +1279,10 @@ only executable report script is a constant SHA-256 CSP-pinned, explicit-click
 copy helper; user text is never interpolated into JavaScript. Crop downloads
 resolve to the same stored bytes as displayed images after folder publication.
 Statistics tables escape the existing CSV output without recalculating values.
+
+Late Memo Statistics inclusion validates resident source ID/generation and exact
+ROI/source order/channel before copying the current-presented token snapshot.
+ReviewLibrary.attach_analysis replaces only evidence on the same immutable Finding;
+ReviewDocument retains interpretation/fingerprint validation. Pending attachment
+uses analysis_settled and canonical cancellation, with no new timer or worker.
+V5 compact presentation retains exact v4 ZIP validation via compact=False.

@@ -436,3 +436,73 @@ def test_memo_fit_keeps_sync_scale_in_unequal_focus_tiles(qtbot, tmp_path, windo
     assert max(scales) > min(scales) * 1.1
     assert not multi.sync_enabled and not multi._syncing_range
     w.close()
+
+
+@pytest.mark.parametrize("count", [1, 2])
+@pytest.mark.parametrize("timing", ["after", "during", "pending"])
+def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
+    qtbot, monkeypatch, tmp_path, windows, count, timing
+):
+    paths = []
+    for i in range(count):
+        path = tmp_path / f"late-stat-{i}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 40 + i, np.uint8))
+        paths.append(path)
+    w, memo = windows()
+    w.open_image_paths(paths)
+    if count > 1:
+        w.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(w.current_comparison_documents()) == count
+        and all(d.loading_state == "ready" for d in w.current_comparison_documents()),
+        timeout=10000,
+    )
+    assert w._shared_roi_changed(RoiBounds(3, 4, 16, 12))
+    if timing == "during":
+        assert memo._capture_worker is not None
+        memo.panel.include_statistics.setChecked(True)
+    qtbot.waitUntil(
+        lambda: len(memo.library.document.findings) == 1 and memo._capture_worker is None,
+        timeout=15000,
+    )
+    first = memo.library.document.findings[0]
+    frozen = dict(memo._crops)
+    if timing != "during":
+        assert not any(c.status == "captured" for c in first.analysis)
+    memo.panel.note_edit.setPlainText("Keep my note")
+    if timing == "pending":
+        panel = w.comparison_analysis_panel
+        qtbot.waitUntil(
+            lambda: panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=10000,
+        )
+        with monkeypatch.context() as patch:
+            patch.setattr(type(panel), "get_presented_analysis_token", lambda _self: None)
+            memo.panel.include_statistics.setChecked(True)
+            assert memo._pending_statistics
+            assert not any(c.status == "captured" for c in memo.library.get(first.id).analysis)
+            memo.panel.include_statistics.setChecked(False)
+            assert not memo._pending_statistics and memo._statistics_target_id is None
+            assert memo.panel.note_edit.isEnabled()
+            memo.panel.include_statistics.setChecked(True)
+            assert memo._pending_statistics
+        panel.analysis_settled.emit()
+    else:
+        memo.panel.include_statistics.setChecked(True)
+    qtbot.waitUntil(
+        lambda: any(c.status == "captured" for c in memo.library.get(first.id).analysis),
+        timeout=3000,
+    )
+    assert len(memo.library.document.findings) == 1
+    assert memo.library.get(first.id).note == "Keep my note" and memo._crops == frozen
+    target = tmp_path / "saved" / "saved.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_kw: (str(target), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    loaded, _ = load_memo_archive(target)
+    assert loaded.review.findings[0].analysis[0].status == "captured"
+    assert loaded.review.findings[0].availability == "available"
+    assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 1
+    assert "<table>" in (target.parent / "index.html").read_text(encoding="utf-8")
+    w.close()

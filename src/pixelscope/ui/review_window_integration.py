@@ -21,7 +21,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from pixelscope.core.review_analysis import capture_presented_analysis
 from pixelscope.core.review_record import (
+    ReviewAnalysisCaptureV1,
     ReviewDifferenceIntentV1,
     ReviewValidationError,
 )
@@ -138,6 +140,7 @@ class NamedReviewCoordinator:
         self._io_snapshot: MemoArchive | None = None
         self._closed = False
         self._pending_statistics = False
+        self._statistics_target_id: str | None = None
         self._pending_roi = False
         self._restoring_memo = False
         self._source_context = (
@@ -181,7 +184,7 @@ class NamedReviewCoordinator:
         window.memo_roi_cancelled.connect(self._roi_cancelled)
         window.memo_sources_changed.connect(self._sources_changed)
         window.comparison_analysis_panel.analysis_settled.connect(self._resume_statistics)
-        self.panel.include_statistics.toggled.connect(self._resume_statistics)  # type: ignore[attr-defined]
+        self.panel.include_statistics.toggled.connect(self._statistics_toggled)  # type: ignore[attr-defined]
         self._update_recording_availability()
         # Memo is an optional View dock, not a second workspace layout mode.
 
@@ -367,6 +370,7 @@ class NamedReviewCoordinator:
             QMessageBox.warning(self.panel, "Memo", message)
 
     def cancel_capture(self) -> None:
+        self._statistics_target_id = None
         self._pending_statistics = False
         self._capture_epoch += 1
         if self._capture_cancel is not None:
@@ -390,7 +394,84 @@ class NamedReviewCoordinator:
 
     def _resume_statistics(self, *_event: object) -> None:
         if self._pending_statistics and not self._closed and self._io_worker is None:
-            self.add()
+            if self._statistics_target_id is not None:
+                self._attach_selected_statistics()
+            else:
+                self.add()
+
+    @Slot(bool)
+    def _statistics_toggled(self, checked: bool) -> None:
+        if self._closed or self._io_worker is not None:
+            return
+        if self._pending_statistics and self._statistics_target_id is None:
+            self._resume_statistics()
+            return
+        if not checked:
+            if self._statistics_target_id is not None:
+                self.cancel_capture()
+            return
+        if self._capture_worker is None and self.panel.selected_finding_id is not None:
+            self._statistics_target_id = self.panel.selected_finding_id
+            self._attach_selected_statistics()
+
+    def _attach_selected_statistics(self) -> None:
+        """Copy only current, matching resident evidence into the selected ROI."""
+        target = self._statistics_target_id
+        if target is None or target != self.panel.selected_finding_id:
+            return
+        finding = self.library.get(target)
+        window = self.window
+        page = tuple(window.current_comparison_documents())
+        bindings = tuple(self._overlay_bindings.get(key) for key in finding.source_keys)
+        roi = window._shared_roi
+        if (
+            roi is None
+            or finding.roi_ref != (roi.x, roi.y, roi.width, roi.height)
+            or len(page) != len(bindings)
+            or any(
+                binding != (doc.document_id, doc.generation)
+                for doc, binding in zip(page, bindings, strict=True)
+            )
+        ):
+            self.cancel_capture()
+            self.panel.set_status(
+                "Select this memo's original images and ROI to include Statistics"
+            )
+            return
+        panel = window.comparison_analysis_panel
+        token = panel.get_current_analysis_token()
+        if token is None:
+            self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
+            return
+        if (
+            token.feature != "statistics"
+            or token.roi_ref != finding.roi_ref
+            or token.source_keys != finding.source_keys
+            or token.channel != finding.channel
+        ):
+            self.cancel_capture()
+            self._error(
+                "Show matching ROI Statistics for these images before including them", notify=True
+            )
+            return
+        result = capture_presented_analysis(panel, token)
+        if result.snapshot is None:
+            self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
+            return
+        try:
+            capture = ReviewAnalysisCaptureV1.from_snapshot(result.snapshot)
+            self.library.attach_analysis(target, capture)
+        except (ValueError, KeyError) as exc:
+            self.cancel_capture()
+            self._error(f"ROI Statistics cannot be attached: {exc}")
+            return
+        self._statistics_target_id = None
+        self._pending_statistics = False
+        self.panel.title_edit.setEnabled(True)
+        self.panel.note_edit.setEnabled(True)
+        self.panel._document = self.library.document
+        self.authority.review = self.library.document
+        self.panel.set_dirty(self.library.dirty)
 
     @Slot()
     def add(self) -> None:
@@ -535,6 +616,11 @@ class NamedReviewCoordinator:
             self.panel.set_dirty(self.library.dirty)
             self.refresh_overlays()
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
+            if self.panel.include_statistics.isChecked() and not any(
+                c.status == "captured" for c in finding.analysis
+            ):
+                self._statistics_target_id = finding.id
+                self._attach_selected_statistics()
         except (ValueError, KeyError, RuntimeError) as exc:
             self._error(f"Finding commit refused: {exc}")
 
@@ -546,7 +632,7 @@ class NamedReviewCoordinator:
     @Slot(str)
     def _capture_finished(self, task_id: str) -> None:
         if task_id == self._capture_task_id:
-            selected = self.panel.selected_finding_id is not None
+            selected = self.panel.selected_finding_id is not None and not self._pending_statistics
             self.panel.title_edit.setEnabled(selected)
             self.panel.note_edit.setEnabled(selected)
             self._capture_task_id = None

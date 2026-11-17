@@ -35,7 +35,11 @@ continue to work as before.
 
 Single View records the visible original; Multi View records the comparison page.
 An optional **Include current ROI statistics** checkbox captures already-presented
-native ROI Statistics when an entry is added. Pending/stale results are never used.
+native ROI Statistics when an entry is added. You can also check it after selecting
+an existing resident ROI: ready matching Statistics are attached to that same item,
+without changing its note or crop. If analysis is pending, inclusion waits for it;
+stale results are never used. Unchecking cancels pending inclusion and disables it
+for new ROIs, but keeps previously stored Statistics. Save persists the changes.
 For Statistics in Single View, select only that image; use Multi View for a page.
 
 ## One Save Memo command

@@ -1049,3 +1049,9 @@ Generated Memo reports use ROI cards, metadata badges, a local Copy memo action
 and per-crop Download PNG links to the exact stored preview. When saved native ROI
 Statistics are available, an escaped, readable table accompanies the CSV link;
 values are not recomputed. Narrow tables scroll within their own region.
+
+Memo report crop captions do not repeat shared ROI coordinates; those appear only
+in the ROI header. Checking Statistics after an existing resident ROI is selected
+attaches its matching ready native evidence to the same item without recropping.
+Pending inclusion waits for analysis settlement. Unchecking cancels pending
+inclusion and future capture, retaining already stored historical Statistics.

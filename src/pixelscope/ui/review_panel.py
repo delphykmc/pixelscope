@@ -118,7 +118,8 @@ class ReviewPanel(QWidget):
 
         self.include_statistics = QCheckBox("Include current ROI statistics", self)
         self.include_statistics.setToolTip(
-            "Copy already displayed native ROI Statistics into this memo. "
+            "Include ready native Statistics for the selected ROI and new ROIs. "
+            "Existing saved Statistics are kept when unchecked. "
             "No new calculation; unavailable or stale results are never substituted."
         )
         layout.addWidget(self.include_statistics)

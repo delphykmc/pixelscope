@@ -114,6 +114,8 @@ def render_memo_report(
     archive: MemoArchive,
     image_paths: Mapping[tuple[str, str], str],
     statistics_paths: Mapping[str, bytes],
+    *,
+    compact: bool = False,
 ) -> bytes:
     sources = {s.source_key: s for s in archive.review.sources}
     sections = []
@@ -139,7 +141,8 @@ def render_memo_report(
                 '<figure><div class="image-stage">'
                 f'<img src="{_url(relative)}" alt="ROI {ordinal}, image {number}: {basename}"></div>'
                 f'<figcaption class="crop-caption"><p class="source-name">{number:02d} · {basename}{tag_html}</p>'
-                f'<div class="badges">{badges}</div><div class="crop-footer"><span class="file-type">PNG · 8-bit preview</span>'
+                + ("" if compact else f'<div class="badges">{badges}</div>')
+                + '<div class="crop-footer"><span class="file-type">PNG · 8-bit preview</span>'
                 f'<a class="button" href="{_url(relative)}" download="{html.escape(PurePosixPath(relative).name, quote=True)}" '
                 f'aria-label="Download ROI {ordinal} image {number} PNG">Download PNG</a></div></figcaption></figure>'
             )
@@ -169,12 +172,15 @@ def render_memo_report(
         "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
         f"script-src 'sha256-{script_hash}'; base-uri 'none'; form-action 'none'"
     )
+    style = _STYLE
+    if compact:
+        style += "figure{border:0;border-radius:0;background:transparent}.image-stage{padding:0;min-height:0;background:transparent}.crop-caption{padding:8px 0 0}.source-name{margin:0;font-size:12px}.crop-footer{margin-top:5px}.crop-grid{gap:14px}.content{padding:18px 22px}.memo{margin-bottom:16px}.roi-header{padding:18px 22px}.roi-card{margin:16px 0}"
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<meta name="pixelscope-report-version" content="4">'
+        f'<meta name="pixelscope-report-version" content="{5 if compact else 4}">'
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(policy, quote=True)}">'
-        f'<title>PixelScope Memo</title><style>{_STYLE}</style></head><body><main>'
+        f'<title>PixelScope Memo</title><style>{style}</style></head><body><main>'
         '<header class="masthead"><div><div class="brand">PixelScope</div><h1>ROI inspection notes</h1>'
         '<p class="subtle">Saved 8-bit ROI previews and comparison notes</p></div><div class="summary">'
         f'<span class="pill"><strong>{len(archive.review.findings)}</strong> ROIs</span>'

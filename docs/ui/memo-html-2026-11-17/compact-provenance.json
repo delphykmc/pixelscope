@@ -1,0 +1,10 @@
+{
+  "base_sha": "e97f2e7687b808b4ed9f359ddd9e77c487b810ab",
+  "synthetic": true,
+  "renderer_sha256": "0c007ba5ec6808d8ca4cec99d4f50be85a7ce0e17204d3f07c91db3bc11c9dd5",
+  "browser": "Chrome localhost-only synthetic fixture",
+  "artifacts": {
+    "compact.jpg": "29935715c947a87cd017c7800925c35017c1b9c43e1afa1491b39650b053d1ee",
+    "compact-narrow.jpg": "b650a54794e980585c190aca466fa1c246ff7188b93304203803f0da845568da"
+  }
+}

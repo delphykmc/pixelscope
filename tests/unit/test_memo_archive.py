@@ -56,24 +56,32 @@ def _sources(tmp_path):
     )
 
 
-@pytest.mark.parametrize("version", ["legacy", "v2", "v3"])
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3", "v4"])
 def test_load_frozen_pre_readability_archive(version):
     path = (
         Path(__file__).resolve().parents[1]
         / "fixtures"
-        / ("memo_html_dc0dfa35" if version == "v3" else "memo_html_e6e2265a")
+        / (
+            {"v3": "memo_html_dc0dfa35", "v4": "memo_html_e97f2e76"}.get(
+                version, "memo_html_e6e2265a"
+            )
+        )
         / f"{version}.pxmemo"
     )
     archive, _ = load_memo_archive(path)
     assert len(archive.review.findings) == 3 and len(archive.crops) == 6
 
 
-@pytest.mark.parametrize("version", ["legacy", "v2", "v3"])
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3", "v4"])
 def test_frozen_archive_report_tampering_still_rejected(version, tmp_path):
     path = (
         Path(__file__).resolve().parents[1]
         / "fixtures"
-        / ("memo_html_dc0dfa35" if version == "v3" else "memo_html_e6e2265a")
+        / (
+            {"v3": "memo_html_dc0dfa35", "v4": "memo_html_e97f2e76"}.get(
+                version, "memo_html_e6e2265a"
+            )
+        )
         / f"{version}.pxmemo"
     )
     target = tmp_path / "tampered.pxmemo"

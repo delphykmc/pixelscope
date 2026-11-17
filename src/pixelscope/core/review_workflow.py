@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from pixelscope.core.review_record import (
+    ReviewAnalysisCaptureV1,
     ReviewDocumentV1,
     ReviewFindingV1,
     ReviewSourceV1,
@@ -101,6 +102,22 @@ class ReviewLibrary:
         # Replace metadata only; existing immutable evidence is never rebuilt.
         findings = tuple(
             replace(f, title=title, note=note, tags=tags) if f.id == finding_id else f
+            for f in self.document.findings
+        )
+        self._replace(replace(self.document, findings=findings))
+
+    def attach_analysis(self, finding_id: str, capture: ReviewAnalysisCaptureV1) -> None:
+        """Attach validated evidence without changing identity, crops or metadata."""
+        if not any(f.id == finding_id for f in self.document.findings):
+            raise KeyError(finding_id)
+        findings = tuple(
+            replace(
+                f,
+                analysis=(capture,),
+                availability="available" if capture.status == "captured" else "unavailable",
+            )
+            if f.id == finding_id
+            else f
             for f in self.document.findings
         )
         self._replace(replace(self.document, findings=findings))
