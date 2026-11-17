@@ -560,7 +560,7 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
     assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 2
     html = (target.parent / "index.html").read_text(encoding="utf-8")
     assert html.count('<table class="stat-table">') == 2
-    assert html.count('aria-label="Download ROI ') >= 2
+    assert html.count('href="src/statistics/') == 2
     assert "RGB mean comparison" not in html
     w.close()
 
@@ -638,7 +638,9 @@ def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
         "getSaveFileName",
         lambda *_a, **_k: pytest.fail("Save dialog must not open for Histogram-only data"),
     )
-    memo.save_dialog()
+    with monkeypatch.context() as patch:
+        patch.setattr(type(panel), "get_presented_analysis_token", lambda _self: None)
+        memo.save_dialog()
     assert "Statistics missing for ROI 1" in memo.panel.last_status
     assert memo._io_worker is None and not destination.exists()
 
