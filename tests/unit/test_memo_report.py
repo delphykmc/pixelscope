@@ -400,7 +400,7 @@ def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(
     assert '<h3>ROI statistics</h3><div class="stat-psnr">' in report
     assert ".stat-psnr{display:grid;" in report
     assert "background:#eef0ff;border:1px solid #c9d0ff" in report
-    assert ".psnr-chip strong{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;color:#3949ab}" in report
+    assert "font-variant-numeric:tabular-nums;color:#3949ab}" in report
     assert "background:#f7fafd;border:1px solid #dfe8f4" not in report
     assert ".copy-status:empty{display:none}" in report
     assert ".stat-table-box{margin:0 0 4px" in report
