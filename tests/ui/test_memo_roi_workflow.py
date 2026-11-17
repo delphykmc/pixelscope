@@ -506,3 +506,49 @@ def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
     assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 1
     assert "<table>" in (target.parent / "index.html").read_text(encoding="utf-8")
     w.close()
+
+
+def test_late_statistics_option_includes_all_previously_recorded_rois(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    paths = []
+    for i in range(2):
+        path = tmp_path / f"bulk-native-{i}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 45 + i, np.uint8))
+        paths.append(path)
+    w, memo = windows()
+    memo.show()
+    w.open_files(paths)
+    qtbot.waitUntil(
+        lambda: len(w.current_comparison_documents()) == 2
+        and all(d.loading_state == "ready" for d in w.current_comparison_documents()),
+        timeout=10000,
+    )
+    panel = w.comparison_analysis_panel
+    for index, roi in enumerate((RoiBounds(3, 4, 16, 12), RoiBounds(25, 20, 18, 14)), 1):
+        assert w._shared_roi_changed(roi)
+        qtbot.waitUntil(
+            lambda: len(memo.library.document.findings) == index
+            and memo._capture_worker is None
+            and panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=15000,
+        )
+        memo._remember_ready_statistics()
+    assert len(memo.library.document.findings) == 2
+    assert all(not any(c.status == "captured" for c in f.analysis)
+               for f in memo.library.document.findings)
+    memo.panel.include_statistics.setChecked(True)
+    assert all(any(c.status == "captured" for c in f.analysis)
+               for f in memo.library.document.findings)
+    target = tmp_path / "bulk-saved" / "bulk-saved.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kwargs: (str(target), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    saved, _ = load_memo_archive(target)
+    assert len(saved.review.findings) == 2
+    assert all(f.analysis[0].status == "captured" for f in saved.review.findings)
+    assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 2
+    html = (target.parent / "index.html").read_text(encoding="utf-8")
+    assert html.count("RGB mean comparison") == 2
+    w.close()

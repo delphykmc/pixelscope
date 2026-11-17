@@ -115,3 +115,19 @@ The footer contains only Open Memo and Save Memo, without routine status text or
 report links. The header Saved/Unsaved marker remains. Write/open failures use a
 warning dialog. Revisited ROIs reuse the existing native Statistics/Histogram cache;
 changed source generations, interpretation or bin settings use their normal keys.
+
+
+When **Include current ROI statistics** is checked, Memo attempts to attach ready,
+matching native Statistics for **every** recorded ROI, including ROIs measured before
+the checkbox was enabled. This uses only previously presented evidence for the exact
+ROI, source IDs and loaded generations; it does not silently recalculate missing
+measurements. If evidence is missing, select the affected ROI(s) to let native
+Statistics settle. Save is blocked while the checkbox is enabled and any recorded
+ROI lacks captured Statistics. Uncheck it to save images/notes without requiring
+complete Statistics; already attached evidence remains in the Memo.
+
+HTML report version 6 displays each crop in a separate card with accessible icon
+actions. Per-ROI native CSVs remain complete; the report pivots Min, Max, Mean, Std,
+P1, P50 and P99 into per-image RGB rows, with display-only RGB Mean deltas relative
+to image 01 when native formats and definition match. Historical v4/v5 report
+validation uses frozen templates.
