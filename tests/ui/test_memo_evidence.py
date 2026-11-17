@@ -104,6 +104,20 @@ def test_multi_roi_crops_statistics_save_offline_reopen_and_report(
     assert target.is_file() and not memo.library.dirty, memo.panel.last_status
     archive, _ = load_memo_archive(target)
     assert dict(archive.crops) == frozen
+    assert memo.panel.open_html_button.isEnabled()
+    report = target.parent / "index.html"
+    saved_report = report.read_bytes()
+    reopened = []
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            QDesktopServices, "openUrl", lambda url: reopened.append(url.toLocalFile()) or True
+        )
+        memo.edit(first.id, "Edited note", "Unsaved edit not yet exported", ())
+        assert memo.library.dirty
+        memo.panel.open_html_button.click()
+    assert reopened == [str(report)]
+    assert memo.library.dirty  # Reopening never commits the unsaved edit.
+    assert report.read_bytes() == saved_report
     window.close()
 
     for path in paths:
