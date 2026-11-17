@@ -375,5 +375,14 @@ def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(
     assert 'href="statistics/' in report
     assert "8-bit Preview PSNR" in report and "48.1308 dB" in report
     assert report.index("8-bit Preview PSNR") < report.index('<table class="stat-table">')
-    assert "Native Statistics" in report
+    assert "Native Statistics" not in report
+    assert "8-bit Preview PSNR" in report
+    assert 'aria-label="Image 01 vs 02' in report
+    assert 'class="stat-psnr-note"' in report
+    assert "Stored 8-bit crop · pixel-aligned · peak 255" in report
+    assert "Image 01 reference · not native RAW PSNR" in report
+    assert ">01 vs 02 ·" not in report
+    assert "colored arrows show numerical increase" not in report
+    assert "Values rounded for display only." not in report
+    assert "native-v1</p>" not in report
     assert csv.endswith(b"native-v1\n")  # Original evidence is not reformatted.

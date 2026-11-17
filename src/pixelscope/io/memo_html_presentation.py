@@ -96,14 +96,14 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .icon-button:disabled{opacity:.5;cursor:default}
 .icon-button svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon-button[data-state="copied"]{background:#e6f4ec;color:#26764a}
-.stat-caption{font-size:12px;color:#657891;margin:6px 0 12px}
-.stat-psnr{margin:12px 0 16px;background:#f7fafd;border:1px solid #dfe8f4;border-radius:10px;padding:13px 15px}
-.stat-psnr-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:9px;font-size:13px;font-weight:700;color:#334b6c}
-.stat-psnr-head small{font-size:11px;font-weight:450;color:#64748b}
-.stat-psnr-list{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
-.psnr-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid #d3dfef;background:white;border-radius:8px;padding:7px 10px;font-size:12px;max-width:100%}
-.psnr-chip strong{font-size:14px;font-variant-numeric:tabular-nums}
+.stat-psnr{margin:10px 0 12px;background:#f7fafd;border:1px solid #dfe8f4;border-radius:10px;padding:11px 13px}
+.stat-psnr-head{font-size:13px;font-weight:700;color:#334b6c}
+.stat-psnr-list{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.psnr-chip{display:inline-flex;justify-content:center;align-items:center;border:1px solid #d3dfef;background:white;border-radius:7px;padding:6px 10px;min-width:105px}
+.psnr-chip strong{font-size:15px;font-variant-numeric:tabular-nums}
 .psnr-na{color:#8994a4}
+.stat-psnr-note{font-size:11px;line-height:1.45;color:#64748b;text-align:left}
+.stat-psnr-note span{display:block}
 .stat-table-box{margin:12px 0 5px;overflow-x:auto;border:1px solid #dce6f2;border-radius:10px}
 .stat-table{width:100%;min-width:840px;border-collapse:collapse;table-layout:auto;font-size:12px}
 .stat-table th,.stat-table td{padding:9px 10px;vertical-align:middle;border-bottom:1px solid #e4ebf3}
@@ -239,30 +239,7 @@ def _statistics_table(data: bytes) -> str:
             cells.append("</tr>")
             body.extend(cells)
 
-    metadata = []
-    for ordinal, name in identities:
-        source_record = next(
-            (r for metrics in sources[ordinal, name].values() for r in metrics.values()),
-            {},
-        )
-        bits = source_record.get("Effective bits") or ""
-        description = " · ".join(
-            part
-            for part in (
-                f"{ordinal}: {name}",
-                source_record.get("Domain") or "",
-                source_record.get("Native dtype") or "",
-                f"{bits} bits" if bits else "",
-                source_record.get("Definition") or "",
-            )
-            if part
-        )
-        metadata.append(html.escape(description))
     return (
-        '<p class="stat-caption">Native Statistics · image 01 reference · '
-        'colored arrows show numerical increase/decrease, not better/worse. '
-        'Values rounded for display only.</p>'
-        f'<p class="stat-caption">{" &nbsp; | &nbsp; ".join(metadata)}</p>'
         '<div class="stat-table-box" role="region" aria-label="Saved ROI native statistics" tabindex="0">'
         '<table class="stat-table"><thead><tr>'
         f'<th scope="col">Channel</th><th scope="col">Image</th>{heads}'
@@ -298,17 +275,19 @@ def _preview_psnr(
             rendered = f"{value:.4f} dB"
             klass = ""
         label = html.escape(source_labels.get(key, str(index)))
+        comparison = f"Image 01 vs {index:02d} · {label}"
         chips.append(
-            f'<span class="psnr-chip"><span>01 vs {index:02d} · {label}</span>'
-            f'<strong class="{klass}">{rendered}</strong></span>'
+            f'<span class="psnr-chip" title="{comparison}" '
+            f'aria-label="{comparison}: {rendered}">'
+            f'<strong class="{klass}" aria-hidden="true">{rendered}</strong></span>'
         )
     return (
-        '<div class="stat-psnr"><div class="stat-psnr-head">'
-        '8-bit Preview PSNR <small>Pixel-aligned crop · peak 255 · dB</small></div>'
+        '<div class="stat-psnr"><div class="stat-psnr-head">8-bit Preview PSNR</div>'
         f'<div class="stat-psnr-list">{"".join(chips)}</div>'
-        '<p class="stat-caption">Computed from the saved 8-bit preview PNG pixels '
-        '(RGB channels jointly, grayscale when applicable). No registration or '
-        'native RAW bit-depth measurement; N/A means incompatible or missing preview.</p></div>'
+        '<div class="stat-psnr-note">'
+        '<span>Stored 8-bit crop · pixel-aligned · peak 255</span>'
+        '<span>Image 01 reference · not native RAW PSNR</span>'
+        '</div></div>'
     )
 
 

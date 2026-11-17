@@ -147,3 +147,10 @@ previews display N/A. This preview-domain measurement is not native RAW PSNR,
 not geometrically registered, and does not imply perceptual quality ordering.
 The original crops are not changed; no new evidence is written to the CSV.
 Prior v6 ZIP HTML is still validated by a frozen byte-identical renderer.
+
+V7 presentation refinement: ROI PSNR badges show **the dB value only**;
+source-pair identity stays in each badge's accessible name and hover title.
+The two brief PSNR caveat lines are aligned beneath the values. Redundant
+introductory native Statistics labels and per-source metadata paragraphs between
+PSNR and the unified table are omitted; original CSV remains the complete
+typed, unrounded evidence.
