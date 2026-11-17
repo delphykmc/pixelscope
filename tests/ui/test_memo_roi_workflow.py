@@ -531,7 +531,7 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
     for index, roi in enumerate((RoiBounds(3, 4, 16, 12), RoiBounds(25, 20, 18, 14)), 1):
         assert w._shared_roi_changed(roi)
         qtbot.waitUntil(
-            lambda: len(memo.library.document.findings) == index
+            lambda expected=index: len(memo.library.document.findings) == expected
             and memo._capture_worker is None
             and panel.get_current_analysis_token() is not None
             and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),

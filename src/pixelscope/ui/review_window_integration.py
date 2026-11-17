@@ -501,10 +501,13 @@ class NamedReviewCoordinator:
             self._resume_statistics()
             return
         target = self.panel.selected_finding_id
-        if self._capture_worker is None and target is not None:
-            if not any(c.status == "captured" for c in self.library.get(target).analysis):
-                self._statistics_target_id = target
-                self._attach_selected_statistics()
+        if (
+            self._capture_worker is None
+            and target is not None
+            and not any(c.status == "captured" for c in self.library.get(target).analysis)
+        ):
+            self._statistics_target_id = target
+            self._attach_selected_statistics()
         complete = sum(
             any(c.status == "captured" for c in finding.analysis)
             for finding in self.library.document.findings

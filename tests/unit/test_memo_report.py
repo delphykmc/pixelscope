@@ -225,10 +225,10 @@ def test_statistics_table_preserves_saved_values_and_escapes_text():
 
 
 def test_statistics_pivots_seven_metrics_and_compares_rgb_means():
-    from pixelscope.io.memo_html_presentation import _statistics_table
-
     import csv
     import io
+
+    from pixelscope.io.memo_html_presentation import _statistics_table
 
     output = io.StringIO(newline="")
     writer = csv.writer(output)
@@ -253,7 +253,8 @@ def test_rgb_difference_refuses_cross_bitdepth_native_comparison():
     from pixelscope.io.memo_html_presentation import _statistics_table
 
     data = (
-        b"Source,Image,Channel,Metric,Value,State,Samples,Domain,Native dtype,Effective bits,Definition\n"
+        b"Source,Image,Channel,Metric,Value,State,Samples,Domain,"
+        b"Native dtype,Effective bits,Definition\n"
         b"1,first,R,Mean,127,finite,16,native,uint8,8,native-v1\n"
         b"2,second,R,Mean,512,finite,16,native,uint16,10,native-v1\n"
     )
