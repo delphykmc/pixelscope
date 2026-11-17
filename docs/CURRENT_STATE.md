@@ -833,3 +833,10 @@ PR241 owner follow-up (unmerged): compact crop presentation removes repeated
 coordinates/card borders; late Statistics opt-in now targets the selected existing
 ROI. Before-fix one/two-image tests reproduced the omission; exact behavior and
 validation remain in the Memo HTML execution record.
+
+Owner-requested verification at source57863aba: actual app late-toggle/Save and
+Chrome report checks confirmed shared coordinates plus saved Statistics/CSV.
+Native normal-GC full pytest: **1999 passed,1 failed,1 warning in647.31s**; the sole
+RAW compact-height failure also reproduces unchanged on pre-Memo e6e2265a.
+This is not a clean full-suite PASS. See the same execution record for baseline,
+independent review, command details and remaining owner acceptance. No merge.

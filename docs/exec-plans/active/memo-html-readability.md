@@ -215,8 +215,51 @@ Observed checks before the immutable source commit:
 - Unsandboxed short-path focused control (`pytest -q --tb=short tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_gray_bayer_gray_restores_compact_height tests/ui/test_clipboard_support.py tests/integration/test_ui_screenshot_git_history.py --basetemp=temp/memo-owner-native-probe --junitxml=temp/memo-owner-native-probe.xml`): **1 failed,4 passed in6.01s**. RAW height remains1011vs899; its production/test files are unchanged by this follow-up. The log also prints Windows exception0x8001010d in the Qt wait; it is retained, not suppressed.
 
 Because Sandbox tests intentionally reject modified production inputs relative to
-HEAD, the reviewed source/test/doc slice is committed before the final full rerun.
-The rerun uses the ordinary Windows environment with a short repository-local
-basetemp. Do not describe the initial run or focused controls as a clean full PASS.
+HEAD, the reviewed source/test/doc slice was committed as57863aba before the final
+full rerun. An initial native attempt used a repository-local basetemp; that was an
+agent validation-path mistake because Sandbox output must be outside the repository.
+It was interrupted and its log retained as temp/memo-owner-full-native-20261117.log.
+The corrected rerun uses the ordinary Windows environment and default external
+temporary directory. Do not describe the initial run or focused controls as a clean full PASS.
 Commit attribution uses the configured owner identity plus
 `Co-authored-by: ChatGPT <noreply@openai.com>`; unrelated untracked work is excluded.
+
+After the source commit, the unchanged Sandbox integration module with default
+temporary-directory selection passed **15 tests in12.11s** outside the app sandbox.
+The exact RAW compact-height node also ran against a git-archive extraction of
+pre-Memo main e6e2265a: **1 failed in1.36s**, the same1011vs899 assertion and native
+0x8001010d diagnostic. Baseline pyproject inserts its own src; the reviewer verified
+baseline/current RAW source and test hashes match. This establishes a pre-existing
+standalone failure, not its root cause. Its assertions/timeouts remain unchanged.
+Final whole-repository native command at source57863aba:
+`.venv/Scripts/python.exe -m pytest -q --junitxml=temp/memo-owner-full-final-20261117.xml`
+(ordinary Windows, default external temp, normal automatic GC, no deselection):
+**1 failed,1999 passed,1 warning in647.31s**, exit1. The sole failure is
+`tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_gray_bayer_gray_restores_compact_height`.
+The final full-process assertion reports1078vs955. The focused current-source and
+pre-Memo e6e2265a controls both report1011vs899: the same node/assertion fails in
+both sources, while the full-process widget dimensions differ. These observations
+separate the pre-existing failure from Memo without claiming its root cause.
+All Memo, Sandbox, Git-history and clipboard nodes passed in this final run.
+The intentional ZIP-tamper duplicate-name warning and native0x8001010d diagnostic
+remain in temp/memo-owner-full-final-20261117.log; neither was suppressed.
+This is not a clean full-suite PASS or comprehensive native-lifecycle acceptance.
+RAW compact-height root-cause/fix is deferred to its own scope; owner Memo UI
+acceptance remains pending. No push, PR comment, merge or packaging was performed.
+
+Final independent read-only verdict: **PASS for the bounded Memo change** at
+source57863aba plus this documentation closeout. The reviewer inspected the saved
+manual artifacts, final XML/log, frozen compatibility/provenance, cancellation and
+document scope, and verified the1078vs955 full-process dimensions separately from
+the1011vs899 focused controls. No actionable Memo finding remains. The review does
+not waive the unresolved RAW assertion or native0x8001010d diagnostic.
+Final documentation contract and whitespace checks passed; strict MkDocs built in
+1.33s. Only these evidence documents follow the tested source commit.
+
+Committed follow-up file inventory (20 files):
+
+- Source: `src/pixelscope/core/review_workflow.py`, `src/pixelscope/io/memo_archive.py`, `src/pixelscope/io/memo_html_presentation.py`, `src/pixelscope/ui/review_panel.py`, `src/pixelscope/ui/review_window_integration.py`.
+- Tests: `tests/ui/test_memo_roi_workflow.py`, `tests/unit/test_memo_archive.py`, `tests/unit/test_memo_report.py`, `tests/unit/test_w09b_review_workflow.py`.
+- Frozen fixture: `tests/fixtures/memo_html_e97f2e76/provenance.json`, `tests/fixtures/memo_html_e97f2e76/v4.pxmemo`.
+- Documents: `docs/ARCHITECTURE.md`, `docs/CURRENT_STATE.md`, `docs/PRODUCT_SPEC.md`, `docs/exec-plans/active/memo-html-readability.md`, `docs/ui/memo-html-2026-11-17/README.md`, `docs/user-guide/workflows/review-findings.md`.
+- Browser evidence: `docs/ui/memo-html-2026-11-17/compact.jpg`, `docs/ui/memo-html-2026-11-17/compact-narrow.jpg`, `docs/ui/memo-html-2026-11-17/compact-provenance.json`.
