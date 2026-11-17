@@ -191,12 +191,16 @@ def _statistics_table(data: bytes) -> str:
     finite_deltas = [abs(value) for value in deltas.values() if value is not None]
     scale = max(finite_deltas, default=0.0)
 
-    overview = ['<div class="stat-overview"><h4>RGB mean comparison</h4>',
-                '<p class="stat-caption">Native mean and Δ vs image 01. Bars show relative differences within this ROI, not an absolute quality score. Incompatible native formats are not compared.</p>',
-                '<div class="stat-compare-head"><span>Image</span><span class="channel-r">R</span><span class="channel-g">G</span><span class="channel-b">B</span></div>']
+    overview = [
+        '<div class="stat-overview"><h4>RGB mean comparison</h4>',
+        '<p class="stat-caption">Native mean and Δ vs image 01. Bars show relative differences within this ROI, not an absolute quality score. Incompatible native formats are not compared.</p>',
+        '<div class="stat-compare-head"><span>Image</span><span class="channel-r">R</span><span class="channel-g">G</span><span class="channel-b">B</span></div>',
+    ]
     for identity in identities:
         ordinal, name = identity
-        cells = [f'<div class="stat-compare-line"><div class="stat-image-label">{html.escape(ordinal)} · {html.escape(name)}</div>']
+        cells = [
+            f'<div class="stat-compare-line"><div class="stat-image-label">{html.escape(ordinal)} · {html.escape(name)}</div>'
+        ]
         for channel in _RGB:
             record = sources[identity].get(channel, {}).get("Mean")
             delta = deltas[identity, channel]
@@ -229,15 +233,21 @@ def _statistics_table(data: bytes) -> str:
             (record for metrics in channel_rows.values() for record in metrics.values()), {}
         )
         meta = " · ".join(
-            value for value in (
+            value
+            for value in (
                 source_record.get("Domain", ""),
                 source_record.get("Native dtype", ""),
-                f'{source_record["Effective bits"]} bits' if source_record.get("Effective bits") else "",
+                f'{source_record["Effective bits"]} bits'
+                if source_record.get("Effective bits")
+                else "",
                 source_record.get("Definition", ""),
-            ) if value
+            )
+            if value
         )
         body_rows = []
-        for channel in sorted(channel_rows, key=lambda value: (_RGB.index(value) if value in _RGB else 3, value)):
+        for channel in sorted(
+            channel_rows, key=lambda value: (_RGB.index(value) if value in _RGB else 3, value)
+        ):
             metrics = channel_rows[channel]
             highlight = f' class="channel-{channel.lower()}"' if channel in _RGB else ""
             cells = []
@@ -245,7 +255,11 @@ def _statistics_table(data: bytes) -> str:
                 record = metrics.get(metric, {})
                 value = html.escape(record.get("Value") or "—")
                 state = record.get("State", "")
-                label = f' title="{html.escape(state, quote=True)}"' if state and state != "finite" else ""
+                label = (
+                    f' title="{html.escape(state, quote=True)}"'
+                    if state and state != "finite"
+                    else ""
+                )
                 cells.append(f'<td class="numeric"{label}>{value}</td>')
             body_rows.append(
                 f'<tr><th scope="row"{highlight}>{html.escape(channel)}</th>{"".join(cells)}</tr>'

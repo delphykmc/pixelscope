@@ -540,11 +540,13 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
         panel.analysis_settled.emit()  # production owner signal retains immutable evidence
     assert len(memo.library.document.findings) == 2
     assert len(memo._statistics_evidence) == 2
-    assert all(not any(c.status == "captured" for c in f.analysis)
-               for f in memo.library.document.findings)
+    assert all(
+        not any(c.status == "captured" for c in f.analysis) for f in memo.library.document.findings
+    )
     memo.panel.include_statistics.setChecked(True)
-    assert all(any(c.status == "captured" for c in f.analysis)
-               for f in memo.library.document.findings)
+    assert all(
+        any(c.status == "captured" for c in f.analysis) for f in memo.library.document.findings
+    )
     target = tmp_path / "bulk-saved" / "bulk-saved.pxmemo"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kwargs: (str(target), ""))
     memo.save_dialog()

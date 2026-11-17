@@ -232,14 +232,40 @@ def test_statistics_pivots_seven_metrics_and_compares_rgb_means():
 
     output = io.StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(("Source", "Image", "Channel", "Metric", "Value", "State", "Samples",
-                     "Domain", "Native dtype", "Effective bits", "Definition"))
+    writer.writerow(
+        (
+            "Source",
+            "Image",
+            "Channel",
+            "Metric",
+            "Value",
+            "State",
+            "Samples",
+            "Domain",
+            "Native dtype",
+            "Effective bits",
+            "Definition",
+        )
+    )
     values = {"R": (10, 12), "G": (20, 19), "B": (30, 30)}
     for source in (1, 2):
         for channel, pair in values.items():
             for metric in ("Min", "Max", "Mean", "Std", "P1", "P50", "P99"):
-                writer.writerow((source, f"image{source}.raw", channel, metric,
-                                 pair[source - 1], "finite", 40, "native", "uint8", 8, "native-v1"))
+                writer.writerow(
+                    (
+                        source,
+                        f"image{source}.raw",
+                        channel,
+                        metric,
+                        pair[source - 1],
+                        "finite",
+                        40,
+                        "native",
+                        "uint8",
+                        8,
+                        "native-v1",
+                    )
+                )
     table = _statistics_table(output.getvalue().encode())
     assert table.count('<th scope="col">Mean</th>') == 2
     assert table.count('<th scope="col">P99</th>') == 2

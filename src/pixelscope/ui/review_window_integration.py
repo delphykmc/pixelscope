@@ -416,8 +416,7 @@ class NamedReviewCoordinator:
         page = tuple(window.current_comparison_documents())
         if (
             window._channel_split_active
-            or tuple((doc.document_id, doc.generation) for doc in page)
-            != token.source_documents
+            or tuple((doc.document_id, doc.generation) for doc in page) != token.source_documents
             or tuple(panel.source_key_for_document(doc.document_id) for doc in page)
             != token.source_keys
         ):
@@ -444,10 +443,7 @@ class NamedReviewCoordinator:
             if any(item.status == "captured" for item in finding.analysis):
                 continue
             bindings = tuple(self._overlay_bindings.get(key) for key in finding.source_keys)
-            if (
-                finding.roi_ref is None
-                or any(binding is None for binding in bindings)
-            ):
+            if finding.roi_ref is None or any(binding is None for binding in bindings):
                 continue
             # The key combines ROI, durable source keys and exact loaded generations.
             verified_bindings = tuple(binding for binding in bindings if binding is not None)
@@ -945,7 +941,8 @@ class NamedReviewCoordinator:
             self._remember_ready_statistics()
             self._backfill_roi_statistics()
             missing = [
-                i for i, finding in enumerate(self.library.document.findings, 1)
+                i
+                for i, finding in enumerate(self.library.document.findings, 1)
                 if not any(c.status == "captured" for c in finding.analysis)
             ]
             if missing:
