@@ -353,3 +353,21 @@ def test_pre_v7_zip_with_v6_html_remains_trusted_without_rewriting(tmp_path, mon
     assert loaded.review == archive.review
     assert dict(loaded.crops) == dict(archive.crops)
     assert path.read_bytes() == original
+
+
+def test_pre_v8_zip_with_v7_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v7-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v7_memo_html)
+        save_memo_archive(path, archive)
+    original = path.read_bytes()
+    with zipfile.ZipFile(path) as bundled:
+        assert b'pixelscope-report-version" content="7"' in bundled.read("index.html")
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == original

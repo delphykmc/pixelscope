@@ -192,14 +192,29 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
     assert all(not key.startswith("on") for _, attrs in parsed.tags for key in attrs)
     assert all("src" not in attrs for tag, attrs in parsed.tags if tag == "script")
     images = [attrs["src"] for tag, attrs in parsed.tags if tag == "img"]
-    downloads = [
-        attrs["href"]
+    crop_links = [
+        attrs
         for tag, attrs in parsed.tags
-        if tag == "a" and attrs.get("aria-label", "").startswith("Download ROI")
+        if tag == "a" and attrs.get("aria-label", "").startswith("Open ROI")
     ]
-    assert downloads == images and len(images) == len(archive.crops)
+    assert [attrs["href"] for attrs in crop_links] == images
+    assert len(images) == len(archive.crops)
+    assert all(
+        attrs.get("target") == "_blank"
+        and attrs.get("rel") == "noopener noreferrer"
+        and "download" not in attrs
+        for attrs in crop_links
+    )
+    crop_browser = [
+        attrs for tag, attrs in parsed.tags
+        if tag == "a" and attrs.get("class") == "icon-button source-folder-link"
+    ]
+    assert len(crop_browser) == 1
+    assert crop_browser[0]["href"] == "images/"
+    assert crop_browser[0]["target"] == "_blank"
+    assert crop_browser[0]["rel"] == "noopener noreferrer"
     assert markup.count('class="crop-card"') == len(archive.crops)
-    assert 'name="pixelscope-report-version" content="7"' in markup
+    assert 'name="pixelscope-report-version" content="8"' in markup
     assert '<svg viewBox="0 0 24 24" aria-hidden="true">' in markup
     assert markup.count("width <strong>") == len(archive.review.findings)
     assert markup.count("height <strong>") == len(archive.review.findings)
@@ -384,6 +399,8 @@ def test_generated_report_has_one_channel_table_csv_icon_right_and_preview_psnr(
     assert 'class="stat-head"' in report
     assert '<h3>ROI statistics</h3><div class="stat-psnr">' in report
     assert ".stat-psnr{display:grid;" in report
+    assert "background:#eef0ff;border:1px solid #c9d0ff" in report
+    assert ".psnr-chip strong{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;color:#3949ab}" in report
     assert "background:#f7fafd;border:1px solid #dfe8f4" not in report
     assert ".copy-status:empty{display:none}" in report
     assert ".stat-table-box{margin:0 0 4px" in report

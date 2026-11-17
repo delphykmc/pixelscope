@@ -101,8 +101,8 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-psnr{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;row-gap:3px;align-items:center;justify-items:end;min-width:0}
 .stat-psnr-head{grid-column:1;grid-row:1;font-size:11px;font-weight:700;white-space:nowrap;color:#536b8d}
 .stat-psnr-list{grid-column:2;grid-row:1;display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;min-width:0}
-.psnr-chip{display:inline-flex;justify-content:center;align-items:center;min-width:84px;padding:3px 8px;background:#f5f8fc;border:1px solid #d7e2f0;border-radius:6px;line-height:1.35}
-.psnr-chip strong{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;color:#294873}
+.psnr-chip{display:inline-flex;justify-content:center;align-items:center;min-width:84px;padding:3px 8px;background:#eef0ff;border:1px solid #c9d0ff;border-radius:6px;line-height:1.35}
+.psnr-chip strong{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;color:#3949ab}
 .psnr-chip strong.psnr-na{color:#8994a4}
 .stat-psnr-note{grid-column:1/-1;grid-row:2;font-size:10px;line-height:1.3;color:#8391a4;text-align:right}
 .stat-psnr-note span{display:block}
@@ -125,13 +125,16 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-up{color:#cb4f57}.stat-down{color:#2d79b3}.stat-flat{color:#79889e}.stat-na{color:#9aa6b6}
 .stat-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:7px}
 @media(max-width:640px){.stat-table th,.stat-table td{padding:7px 7px}}
-@media print{.stat-psnr,.stat-table-box{break-inside:avoid}.stat-table{min-width:0}.stat-table th,.stat-table td{padding:4px}.stat-footer{display:none}}
+.summary{align-items:center}
+.source-folder-link{width:30px;height:30px;background:#eef3ff;border-color:#c3d4f5}
+@media print{.stat-psnr,.stat-table-box{break-inside:avoid}.stat-table{min-width:0}.stat-table th,.stat-table td{padding:4px}.stat-footer,.source-folder-link{display:none}}
 
 
 """
 
 
 _DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/></svg>'
+_FOLDER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z"/><path d="M3 10h18"/></svg>'
 _COPY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>'
 _CSV_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v6h5M9 13h7M9 16h7"/></svg>'
 
@@ -327,8 +330,9 @@ def render_memo_report(
                 f'<figcaption class="crop-caption"><p class="source-name">{number:02d} · {basename}{tag_html}</p>'
                 + ("" if compact else f'<div class="badges">{badges}</div>')
                 + '<div class="crop-footer"><span class="file-type">PNG · 8-bit preview</span>'
-                f'<a class="icon-button" href="{_url(relative)}" download="{html.escape(PurePosixPath(relative).name, quote=True)}" '
-                f'aria-label="Download ROI {ordinal} image {number} PNG" title="Download PNG">{_DOWNLOAD_ICON}</a></div></figcaption></figure>'
+                f'<a class="icon-button" href="{_url(relative)}" target="_blank" rel="noopener noreferrer" '
+                f'aria-label="Open ROI {ordinal} image {number} PNG in a new tab" '
+                f'title="Open PNG in new tab (save from browser)">{_DOWNLOAD_ICON}</a></div></figcaption></figure>'
             )
         csv = f"statistics/{finding.id}.csv"
         table = _statistics_table(statistics_paths[csv]) if csv in statistics_paths else ""
@@ -363,6 +367,17 @@ def render_memo_report(
             f'{copy}</div><p class="note">{html.escape(finding.note)}</p><div class="copy-status" role="status" aria-live="polite"></div></div>'
             f'<div class="crop-grid">{"".join(cards) or "<p>No stored crop (legacy memo).</p>"}</div>{statistics}</div></section>'
         )
+    crop_folder_link = ""
+    if image_paths:
+        # Both ZIP reports and published folders use one relative crop root.
+        # The folder publisher rewrites href="images/" to href="src/crops/".
+        crop_root = f"{PurePosixPath(next(iter(image_paths.values()))).parts[0]}/"
+        crop_folder_link = (
+            f'<a class="icon-button source-folder-link" href="{_url(crop_root)}" '
+            'target="_blank" rel="noopener noreferrer" '
+            'aria-label="Browse saved crop PNG folder in a new tab" '
+            f'title="Browse saved crop PNGs">{_FOLDER_ICON}</a>'
+        )
     script_hash = base64.b64encode(hashlib.sha256(_COPY_SCRIPT.encode()).digest()).decode("ascii")
     policy = (
         "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
@@ -380,13 +395,13 @@ def render_memo_report(
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<meta name="pixelscope-report-version" content="{7 if compact else 4}">'
+        f'<meta name="pixelscope-report-version" content="{8 if compact else 4}">'
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(policy, quote=True)}">'
         f'<title>PixelScope Memo</title><style>{style}</style></head><body><main>'
         '<header class="masthead"><div><div class="brand">PixelScope</div><h1>ROI inspection notes</h1>'
         '<p class="subtle">Saved 8-bit ROI previews and comparison notes</p></div><div class="summary">'
         f'<span class="pill"><strong>{len(archive.review.findings)}</strong> ROIs</span>'
-        f'<span class="pill"><strong>{len(sources)}</strong> images</span></div></header>'
+        f'<span class="pill"><strong>{len(sources)}</strong> images</span>{crop_folder_link}</div></header>'
         f'<nav class="roi-index" aria-label="ROI index">{"".join(index)}</nav>{"".join(sections)}'
         '<footer class="footer">PixelScope · ROI inspection notebook</footer></main>'
         f'<script>{_COPY_SCRIPT}</script></body></html>'
