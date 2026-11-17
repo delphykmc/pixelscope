@@ -110,7 +110,7 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-track::after{content:"";position:absolute;left:50%;height:100%;width:1px;background:#8596ad}
 .stat-track .bar{position:absolute;height:100%;border-radius:3px}
 .stat-r .bar{background:#db5c63}.stat-g .bar{background:#3b9b70}.stat-b .bar{background:#4b7ed7}
-.stat-source-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px;margin:14px 0}
+.stat-source-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,570px),1fr));gap:12px;margin:14px 0}
 .stat-source-card{min-width:0;border:1px solid #dfe8f3;border-radius:9px;overflow:hidden;background:white}
 .stat-source-head{font-size:13px;font-weight:700;background:#f4f7fb;border-bottom:1px solid #e4eaf2;margin:0;padding:10px 12px}
 .stat-source-meta{font-size:11px;font-weight:400;color:#64748b;display:block;margin-top:2px}
@@ -233,7 +233,7 @@ def _statistics_table(data: bytes) -> str:
                 source_record.get("Domain", ""),
                 source_record.get("Native dtype", ""),
                 f'{source_record["Effective bits"]} bits' if source_record.get("Effective bits") else "",
-                f'{source_record["Samples"]} samples' if source_record.get("Samples") else "",
+                source_record.get("Definition", ""),
             ) if value
         )
         body_rows = []
