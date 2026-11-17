@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import Qt, QUrl, Slot
 from PySide6.QtGui import QAction, QDesktopServices
@@ -75,7 +75,7 @@ def _has_roi_statistics(finding: ReviewFindingV1) -> bool:
     for captured in finding.analysis:
         if captured.status != "captured" or captured.context_json is None:
             continue
-        context = parse_analysis_context(captured.context_json)
+        context = cast(dict[str, Any], parse_analysis_context(captured.context_json))
         if (
             context["feature"] == "statistics"
             and context["roi_ref"] == list(finding.roi_ref)

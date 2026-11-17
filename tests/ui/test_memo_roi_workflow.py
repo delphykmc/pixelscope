@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -561,4 +562,97 @@ def test_late_statistics_option_includes_all_previously_recorded_rois(
     assert html.count('<table class="stat-table">') == 2
     assert html.count('aria-label="Download ROI ') >= 2
     assert "RGB mean comparison" not in html
+    w.close()
+
+
+
+def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    """A valid captured Histogram is not native Statistics, even if status=captured."""
+    from pixelscope.core.review_analysis import AnalysisSeriesV1, capture_presented_analysis
+    from pixelscope.core.review_record import ReviewAnalysisCaptureV1
+    from pixelscope.ui.review_window_integration import _has_roi_statistics
+
+    path = tmp_path / "histogram-only.png"
+    assert cv2.imwrite(str(path), np.full((72, 96, 3), 40, np.uint8))
+    w, memo = windows()
+    w.open_image_paths([path])
+    qtbot.waitUntil(
+        lambda: w.viewer.document is not None and w.viewer.document.loading_state == "ready",
+        timeout=10000,
+    )
+    assert w._shared_roi_changed(RoiBounds(3, 4, 16, 12))
+    qtbot.waitUntil(
+        lambda: len(memo.library.document.findings) == 1 and memo._capture_worker is None,
+        timeout=15000,
+    )
+    panel = w.comparison_analysis_panel
+    qtbot.waitUntil(
+        lambda: panel.get_current_analysis_token() is not None
+        and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+        timeout=15000,
+    )
+    token = panel.get_current_analysis_token()
+    assert token is not None and token.feature == "statistics"
+    result = capture_presented_analysis(panel, token)
+    assert result.snapshot is not None
+    snapshot = result.snapshot
+    native = ReviewAnalysisCaptureV1.from_snapshot(snapshot)
+    series = AnalysisSeriesV1(
+        source_key=snapshot.sources[0].source_key,
+        channel="R",
+        kind="histogram",
+        coordinates=(0.0, 1.0),
+        values=(1,),
+        value_states=("finite",),
+        sample_count=1,
+        definition_revision="native-bin-counts-v1",
+    )
+    histogram = ReviewAnalysisCaptureV1.from_snapshot(
+        replace(
+            snapshot,
+            token=replace(snapshot.token, feature="histogram"),
+            measurements=(),
+            series=(series,),
+        )
+    )
+    finding = memo.library.document.findings[0]
+    assert not _has_roi_statistics(replace(finding, analysis=(histogram,)))
+    assert _has_roi_statistics(replace(finding, analysis=(native,)))
+    memo.library.attach_analysis(finding.id, histogram)
+    assert memo.library.get(finding.id).analysis[0].status == "captured"
+
+    # Reproduce previously saved Histogram evidence with Include Stats checked.
+    # Suppress the checkbox event so this test isolates the authoritative
+    # save gate, rather than auto-backfilling a newly ready live Statistics ROI.
+    previous = memo.panel.include_statistics.blockSignals(True)
+    try:
+        memo.panel.include_statistics.setChecked(True)
+    finally:
+        memo.panel.include_statistics.blockSignals(previous)
+    memo._statistics_evidence.clear()
+    destination = tmp_path / "must-not-save" / "notes.pxmemo"
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda *_a, **_k: pytest.fail("Save dialog must not open for Histogram-only data"),
+    )
+    memo.save_dialog()
+    assert "Statistics missing for ROI 1" in memo.panel.last_status
+    assert memo._io_worker is None and not destination.exists()
+
+    # A correctly captured native Statistics token qualifies the same ROI.
+    memo.library.attach_analysis(finding.id, native)
+    assert _has_roi_statistics(memo.library.get(finding.id))
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), "")
+    )
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    assert (destination.parent / "src/statistics").is_dir()
+    assert len(list((destination.parent / "src/statistics").glob("*.csv"))) == 1
+    assert '<table class="stat-table">' in (
+        destination.parent / "index.html"
+    ).read_text(encoding="utf-8")
     w.close()
