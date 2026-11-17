@@ -182,6 +182,10 @@ def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, r
     qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
     assert m.panel.header.text() == "● Saved"
     assert not load_memo_archive(target)[0].review.findings
+    assert m.panel.open_html_button.isEnabled()
+    (report_folder / "index.html").unlink()
+    m.show()  # Recheck on dock exposure after external report removal.
+    assert not m.panel.open_html_button.isEnabled()
     w.close()
 
 
