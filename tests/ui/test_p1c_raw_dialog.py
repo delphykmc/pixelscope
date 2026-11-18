@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QSizePolicy
 
 from pixelscope.io.raw_profile import RawProfile
@@ -247,6 +247,53 @@ def test_raw_dialog_small_screen_keeps_footer_visible_and_respects_manual_size(q
     manual = dialog.size()
     dialog.layout_kind.setCurrentText("BAYER")
     qtbot.waitUntil(lambda: dialog.black_level_stack.currentWidget().isVisible())
+    assert dialog.size() == manual
+
+
+def test_raw_dialog_reconciles_native_first_show_clamp_without_losing_manual_size(
+    qtbot: object,
+) -> None:
+    """First-show OS clamping must not be classified as a user resize."""
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.isVisible()
+        and dialog.height() == dialog.sizeHint().height()
+        and not dialog._initial_native_fit_pending,
+        timeout=3000,
+    )
+
+    # Reproduce the auto-fit bookkeeping mismatch measured when a native
+    # title bar/window manager clamps the originally requested height.
+    dialog._last_auto_fit_size = QSize(dialog.width(), dialog.height() + 60)
+    dialog._settle_initial_native_fit()
+    assert dialog._last_auto_fit_size == dialog.size()
+    assert dialog.height() == dialog.sizeHint().height()
+
+    gray_height = dialog.height()
+    gray_stack_height = dialog.black_level_stack.height()
+    dialog.layout_kind.setCurrentText("BAYER")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.height() == dialog.sizeHint().height()
+        and dialog.black_level_stack.height() > gray_stack_height,
+        timeout=3000,
+    )
+    dialog.layout_kind.setCurrentText("GRAY")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.height() == dialog.sizeHint().height()
+        and dialog.black_level_stack.height() == gray_stack_height,
+        timeout=3000,
+    )
+    assert dialog.height() == gray_height
+
+    dialog.resize(dialog.width() + 20, 320)
+    manual = dialog.size()
+    dialog.layout_kind.setCurrentText("BAYER")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.black_level_stack.currentWidget().isVisible(),
+        timeout=3000,
+    )
     assert dialog.size() == manual
 
 

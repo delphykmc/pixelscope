@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -96,6 +97,7 @@ class RawOpenDialog(QDialog):
         self.setWindowTitle("RAW profile")
         self.setSizeGripEnabled(True)
         self._last_auto_fit_size: QSize | None = None
+        self._initial_native_fit_pending = True
         self._profile_name = "unpacked_raw"
         self._source_path: Path | None = None
         self._actual_file_size: int | None = None
@@ -446,6 +448,26 @@ class RawOpenDialog(QDialog):
             + 2 * self.style().pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth),
         )
         return max(self.minimumHeight(), self.screen().availableGeometry().height() - frame)
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self._initial_native_fit_pending:
+            self._initial_native_fit_pending = False
+            # Native decorations / window-manager clamping take effect only
+            # once the top-level widget is shown. Reconcile the pre-show
+            # auto-fit authority on the first event-loop turn afterwards.
+            QTimer.singleShot(0, self._settle_initial_native_fit)
+
+    def _settle_initial_native_fit(self) -> None:
+        if not self.isVisible() or self._last_auto_fit_size is None:
+            return
+        # A size imposed by the window manager during the first show is not a
+        # manual resize. Rebase once on the actual client geometry, then apply
+        # the screen-bounded content fit using measured native decorations.
+        # Subsequent user-initiated resizes remain protected by the guard in
+        # _resize_dialog_to_content().
+        self._last_auto_fit_size = self.size()
+        self._resize_dialog_to_content()
 
     @staticmethod
     def _spin(minimum: int, maximum: int, value: int) -> QSpinBox:
