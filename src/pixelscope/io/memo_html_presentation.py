@@ -379,7 +379,9 @@ def render_memo_report(
         )
     # ZIP reports refer to the images folder. The published folder rewrites
     # this one exact attribute to src/, exposing both crops/ and statistics/.
-    asset_root = f"{PurePosixPath(next(iter(image_paths.values()))).parts[0]}/" if image_paths else "images/"
+    asset_root = (
+        f"{PurePosixPath(next(iter(image_paths.values()))).parts[0]}/" if image_paths else "images/"
+    )
     source_folder_action = (
         f'<button type="button" class="icon-button source-folder-link" '
         f'data-open-report-asset="{_url(asset_root)}" '
