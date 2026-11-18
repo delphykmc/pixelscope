@@ -164,9 +164,7 @@ def test_session_supersedes_scheduled_registration_chunk(qtbot, tmp_path):
         registration.enqueue((folder,))
         qtbot.waitUntil(
             lambda: (
-                invoked
-                and registration.is_idle
-                and set(window.documents) == {seed.document_id}
+                invoked and registration.is_idle and set(window.documents) == {seed.document_id}
             ),
             timeout=6000,
         )
