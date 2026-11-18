@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QSizePolicy
 
 from pixelscope.io.raw_profile import RawProfile
@@ -250,6 +250,32 @@ def test_raw_dialog_small_screen_keeps_footer_visible_and_respects_manual_size(q
     assert dialog.size() == manual
 
 
+def test_raw_dialog_immediate_manual_resize_survives_pending_layout_refit(qtbot: object) -> None:
+    """A caller can resize immediately after show, before queued Qt layout work."""
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.show()
+    dialog.resize(dialog.width() + 20, 320)
+    manual = dialog.size()
+    gray_stack_height = dialog.black_level_stack.height()
+
+    # Trigger a new content fit while the initialization's zero-delay
+    # layout callbacks may still be queued. Do not rebase manual-size authority.
+    dialog.layout_kind.setCurrentText("BAYER")
+    event_turns: list[bool] = []
+    QTimer.singleShot(0, lambda: event_turns.append(True))
+    qtbot.waitUntil(lambda: bool(event_turns), timeout=1000)  # type: ignore[attr-defined]
+    assert dialog.black_level_stack.height() > gray_stack_height
+    assert dialog.size() == manual
+
+    dialog.layout_kind.setCurrentText("GRAY")
+    event_turns.clear()
+    QTimer.singleShot(0, lambda: event_turns.append(True))
+    qtbot.waitUntil(lambda: bool(event_turns), timeout=1000)  # type: ignore[attr-defined]
+    assert dialog.black_level_stack.height() == gray_stack_height
+    assert dialog.size() == manual
+
+
 def test_raw_dialog_gray_bayer_gray_restores_compact_height(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
@@ -275,12 +301,14 @@ def test_raw_dialog_gray_bayer_gray_restores_compact_height(qtbot: object) -> No
 
     dialog.layout_kind.setCurrentText("GRAY")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dialog.height() == dialog.sizeHint().height()
+        # The prior condition could return before the queued GUI refit:
+        # both current height and stale sizeHint still equaled BAYER height.
+        lambda: dialog.height() == gray_dialog_height
         and dialog.black_level_stack.height() == gray_stack_height,
         timeout=1000,
     )
     assert dialog.black_level_stack.height() == gray_stack_height
-    assert dialog.height() == gray_dialog_height
+    assert dialog.sizeHint().height() == gray_dialog_height
 
 
 def test_raw_dialog_uses_fixed_edges_with_an_adaptive_middle_gap(

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -339,6 +340,10 @@ class RawOpenDialog(QDialog):
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
+        # QScrollArea caches its child size hint. A constrained layout
+        # propagates BOTH expansion and contraction after GRAY/BAYER changes
+        # instead of retaining the larger BAYER minimum/size hint.
+        body_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
         body_layout.setContentsMargins(10, 10, 10, 8)
         body_layout.setSpacing(8)
         body_layout.addWidget(data_layout_group)
@@ -840,6 +845,18 @@ class RawOpenDialog(QDialog):
             return
         body = self.body_scroll.widget()
         if body is not None:
+            # The previous page may have left cached height hints in the
+            # scroll area's inner layout. Recompute bottom-up before asking
+            # the dialog for its new compact size.
+            signal_levels_group = self.black_level_stack.parentWidget()
+            signal_levels_layout = (
+                signal_levels_group.layout() if signal_levels_group is not None else None
+            )
+            if signal_levels_layout is not None:
+                signal_levels_layout.invalidate()
+            body_layout = body.layout()
+            if body_layout is not None:
+                body_layout.invalidate()
             body.adjustSize()
             body.updateGeometry()
         self.body_scroll.updateGeometry()
