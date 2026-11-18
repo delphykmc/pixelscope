@@ -155,7 +155,9 @@ def test_session_supersedes_scheduled_registration_chunk(qtbot, tmp_path):
     def after_chunk(phase, completed, total):
         if phase == "registering" and completed == 1 and total == 8 and not invoked:
             invoked.append(True)
-            QTimer.singleShot(0, lambda: window.recent_entries_controller._session_prepared(prepared))
+            QTimer.singleShot(
+                0, lambda: window.recent_entries_controller._session_prepared(prepared)
+            )
 
     registration.progress_changed.connect(after_chunk)
     try:
