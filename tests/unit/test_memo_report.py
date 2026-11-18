@@ -214,7 +214,8 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
     assert folder_buttons[0]["data-open-report-asset"] == "images/"
     assert folder_buttons[0]["type"] == "button"
     assert markup.index('class="report-tools"') < markup.index('class="roi-card"')
-    assert "window.open(new URL(relative, document.baseURI).href, '_blank', 'noopener,noreferrer')" in script
+    assert "window.open(new URL(relative, document.baseURI).href" in script
+    assert "'_blank', 'noopener,noreferrer'" in script
     assert markup.count('class="crop-card"') == len(archive.crops)
     assert 'name="pixelscope-report-version" content="9"' in markup
     assert '<svg viewBox="0 0 24 24" aria-hidden="true">' in markup

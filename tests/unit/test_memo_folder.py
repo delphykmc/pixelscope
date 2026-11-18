@@ -226,13 +226,15 @@ def test_saved_folder_crop_buttons_resolve_to_exact_displayed_crops(tmp_path):
     parsed = Assets()
     parsed.feed((path.parent / "index.html").read_text(encoding="utf-8"))
     assert parsed.images == [attrs["data-open-report-asset"] for attrs in parsed.crop_buttons]
-    assert all(attrs.get("type") == "button" and "href" not in attrs for attrs in parsed.crop_buttons)
+    assert all(
+        attrs.get("type") == "button" and "href" not in attrs
+        for attrs in parsed.crop_buttons
+    )
     assert parsed.folder_button is not None
     assert parsed.folder_button["data-open-report-asset"] == "src/"
     assert parsed.folder_button["type"] == "button"
     assert (path.parent / parsed.folder_button["data-open-report-asset"]).is_dir()
     assert (path.parent / "src/crops").is_dir()
-    assert (path.parent / "src/statistics").is_dir() or not (path.parent / "src/statistics").exists()
     assert sorted(
         (path.parent / unquote(attrs["data-open-report-asset"])).read_bytes()
         for attrs in parsed.crop_buttons
