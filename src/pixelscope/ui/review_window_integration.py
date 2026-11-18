@@ -843,6 +843,10 @@ class NamedReviewCoordinator:
         else:
             window.multi_compare_view.fit_roi(bounds)
         window.comparison_analysis_panel.flush_pending_analysis()
+        # Cache hits are already presented and do not emit analysis_settled.
+        # Capture them here so revisiting an evicted Memo ROI can satisfy Save.
+        self._remember_ready_statistics()
+        self._backfill_roi_statistics()
 
     @Slot(str)
     def select_finding(self, finding_id: str) -> None:

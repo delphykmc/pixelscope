@@ -131,8 +131,8 @@ Memo has no crop preview or coordinate summary. A genuine write lock or denied
 write permission can still prevent saving; close the application holding the file
 or check permissions, then retry.
 
-The footer contains only Open Memo and Save Memo, without routine status text or
-report links. The header Saved/Unsaved marker remains. Write/open failures use a
+The footer contains Open Memo, Save Memo and the Open saved HTML icon, without
+routine status text. The header Saved/Unsaved marker remains. Write/open failures use a
 warning dialog. Revisited ROIs reuse the existing native Statistics/Histogram cache;
 changed source generations, interpretation or bin settings use their normal keys.
 

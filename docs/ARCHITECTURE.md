@@ -1301,3 +1301,22 @@ native Statistics; MSE is pooled across three channels or grayscale and
 noncomparable/absent previews are explicitly N/A. Both zip and folder report
 paths use this presentation, while historical v4/v5/v6 ZIPs remain verifiable
 against frozen templates.
+
+Current Memo HTML v10 retains frozen v5-v9 renderers in addition to the earlier
+exact ZIP validation alternatives. A constant CSP-hash-pinned asset click handler
+opens only escaped report-relative assets in a new tab; non-navigating buttons
+preserve the report even if popup creation is blocked. Folder publication rewrites
+the stored asset root to src/ and crop references to src/crops/.
+
+The coordinator keeps at most128 ready native ROI Statistics captures keyed by
+ROI, durable source order and loaded source ID/generation. Immutable Finding
+validation still guards attachment; source-context reset clears the cache. Checked
+Save requires feature=statistics and matching ROI/channel/source measurements for
+all records, so another captured feature cannot satisfy the Statistics contract.
+The footer report action opens existing non-symlink folder-mode index.html without
+mutating notes or regenerating output; availability refreshes on Save/Open/reset
+and dock display/click. It does not authorize historical metrics as live analysis.
+Memo ROI navigation also remembers and backfills matching ready evidence after
+canonical flush_pending_analysis: native cache hits do not emit analysis_settled.
+This allows revisiting records whose bounded Memo evidence entry was evicted,
+without new computation, source/cache mutation or a second completion producer.

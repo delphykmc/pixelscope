@@ -263,3 +263,75 @@ Committed follow-up file inventory (20 files):
 - Frozen fixture: `tests/fixtures/memo_html_e97f2e76/provenance.json`, `tests/fixtures/memo_html_e97f2e76/v4.pxmemo`.
 - Documents: `docs/ARCHITECTURE.md`, `docs/CURRENT_STATE.md`, `docs/PRODUCT_SPEC.md`, `docs/exec-plans/active/memo-html-readability.md`, `docs/ui/memo-html-2026-11-17/README.md`, `docs/user-guide/workflows/review-findings.md`.
 - Browser evidence: `docs/ui/memo-html-2026-11-17/compact.jpg`, `docs/ui/memo-html-2026-11-17/compact-narrow.jpg`, `docs/ui/memo-html-2026-11-17/compact-provenance.json`.
+
+## Latest owner acceptance and merge gate — 2026-11-18
+
+Owner reports the later session's behavior checked and requests local pytest, a PR
+comment and merge only if there are no issues. This supersedes earlier dated
+no-merge instructions, but does not waive test failures. The fetched PR241 source
+was7dbc72f26a8fdad0741f3062fe2f2c06e9e7a15c, HTMLv10. CI's three workflows completed
+successfully; scope-skipped Windows pytest is not local native acceptance.
+
+Changes since cd8211b3 include the channel-grouped seven-metric native table with
+compatible signed deltas/four-decimal HTML display, separately labeled stored
+8-bit Preview PSNR, per-crop framing/icon actions, all-ROI native-Statistics
+backfill with strict feature/context validation and complete-evidence Save gate,
+saved-HTML reopening, non-navigating new-tab PNG buttons and src/ folder navigation
+before the ROI jump links. V5-v9 renderers are frozen for exact legacy ZIP checks.
+Owner acceptance is owner-reported; this turn adds no new agent browser claim.
+
+Independent review found a real cached-ROI revisit gap. Native Analysis cache hits
+render synchronously and do not emit analysis_settled. After eviction from Memo's
+128-entry derived evidence cache, visiting an older ready ROI therefore did not
+attach its Statistics, despite the Save gate instructing the user to revisit it.
+The three-ROI regression models derived-cache eviction while retaining native
+cache objects and exact loaded source generations. It failed at the ROI2 evidence
+assertion: **1 failed in4.33s**. An initial reopen hypothesis was withdrawn because
+normal Open changed source generations and correctly invalidated native caches;
+those fixture-assumption failures are not evidence of a reopen product defect.
+
+The correction calls the existing remembering/backfill checks after canonical ROI
+navigation flush. It changes no producer signal, worker, numeric calculation,
+cache ownership or bound. The regression checks no new completion signal, exact
+native-cache object identities, notes/crops, saved typed evidence and three CSVs:
+**1 passed in4.41s**. XML/logs: temp/pr241-cached-revisit-{red,green}-20261118.*.
+The initial whole-suite run at7dbc72f2 was interrupted before production edits
+because this regression required a correction; its partial log is retained at
+temp/pr241-merge-full-20261118.log and is not a completed validation result.
+
+Current product/architecture documents are narrowly reconciled to v10. The User
+Guide's obsolete footer-only-Open/Save sentence is corrected to include the HTML
+icon. Historical dated validation/compatibility records remain intact. Full tests
+will run against the immutable correction commit, with normal automatic GC and
+ordinary Windows/default temporary directories; results follow when observed.
+
+Pre-commit observed focused command:
+`.venv/Scripts/python.exe -m pytest -q --tb=short tests/unit/test_memo_report.py tests/unit/test_memo_archive.py tests/unit/test_memo_folder.py tests/ui/test_memo_evidence.py tests/ui/test_memo_roi_workflow.py --junitxml=temp/pr241-merge-focused-20261118.xml`:
+**85 passed in40.11s**. Independent source re-review closes the cached-navigation
+finding; pure archive/report/folder review run **66 passed in15.57s** on7dbc72f2.
+Git-tracked Python Ruff/format checked417 files; changed Python rechecked after
+regression formatting. Mypy:141 source files, pip check clean, docs contract and
+diff checks pass. Strict MkDocs before the narrow doc reconciliation built in1.53s.
+Native0x8001010d diagnostics in the focused log remain visible, not suppressed.
+
+Issue triage snapshot (2026-11-18; read-only issue review, no automatic closures):
+
+- #242: highest-priority new standalone startup defect, stale/disconnected UNC MRU
+  paths can block first paint; owner clearing history restores startup. Lexical
+  no-I/O MRU load and bounded off-thread explicit Open are the requested next slice.
+- #236 and #81: recurring native/RAW investigation and long-term lifecycle ledger.
+  Earlier clipboard unlocked controls passed, but RAW compact-height and the COM
+  diagnostic must not be erased by a later focused PASS.
+- #240: Memo issue follows PR241's actual merge outcome. #230 remains the broader
+  screenshot-led UI umbrella with physical DPI/multimonitor and remaining matrix
+  decisions. #231/#233/#235 implementations are already merged via #232/#234/#238,
+  while their issues remain open: distinguish issue housekeeping from new coding.
+- #189 retains measured performance candidates only when noticeable real network
+  slowness is reproduced; #190's diagnostic PR191 was archived unmerged. Do not
+  restart its experiments or optimize without the documented trigger.
+- #138: Reference icon/representative synthetic UX quality remains separate from
+  Core and Enterprise, requiring its own source-versus-package evidence.
+- #156/#145/#168/#175: downstream handoff/security intake, immutable tag/manifest,
+  PRIVATE reader/writer roundtrip and Full conversion/package acceptance remain
+  downstream gates. Their latest comments supersede older body checkpoints; none
+  authorizes importing Enterprise work into PUBLIC main or packaging in this task.

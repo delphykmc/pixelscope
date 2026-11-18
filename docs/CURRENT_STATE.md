@@ -840,3 +840,15 @@ Native normal-GC full pytest: **1999 passed,1 failed,1 warning in647.31s**; the 
 RAW compact-height failure also reproduces unchanged on pre-Memo e6e2265a.
 This is not a clean full-suite PASS. See the same execution record for baseline,
 independent review, command details and remaining owner acceptance. No merge.
+
+### 2026-11-18 Memo v10 owner acceptance and current gate
+
+Owner checked the later PR241 behavior and authorizes merge only after validation
+finds no issue. Latest fetched source7dbc72f2 includes unified Statistics/preview
+PSNR, strict all-ROI evidence, saved-HTML reopening and stable new-tab assets.
+Independent re-review found cached ROI revisits did not reattach Memo evidence
+after bounded-cache eviction. The narrow navigation-flush correction has a failing
+before/passing-after regression; **85 focused tests passed in40.11s**. Native full
+validation of the immutable correction is pending. Prior RAW/COM evidence remains
+unwaived; no merge or clean whole-repository PASS is claimed at this checkpoint.
+See [the current execution record](exec-plans/active/memo-html-readability.md).
