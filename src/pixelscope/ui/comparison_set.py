@@ -15,6 +15,7 @@ from pixelscope.core.comparison_set import (
     SessionDifference,
     SessionSource,
 )
+from pixelscope.core.recent_entries import normalize_recent_path
 from pixelscope.io.comparison_set_repository import (
     ComparisonSetRepository,
     SessionInputProfile,
@@ -71,7 +72,7 @@ class SessionController:
         if self._recent_entry_callback is None:
             return
         try:
-            self._recent_entry_callback(path.resolve(strict=False))
+            self._recent_entry_callback(normalize_recent_path(path))
         except Exception:  # noqa: BLE001 - optional observer cannot break Session workflows
             LOGGER.warning("Unable to update Recent Session history", exc_info=True)
 

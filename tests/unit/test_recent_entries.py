@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,7 +9,84 @@ from PySide6.QtCore import QSettings
 
 from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
-from pixelscope.core.recent_entries import RecentEntryKind, merge_recent_paths
+from pixelscope.core.recent_entries import (
+    RecentEntry,
+    RecentEntryKind,
+    merge_recent_paths,
+    normalize_recent_path,
+    recent_path_identity,
+)
+
+
+def test_history_load_merge_record_remove_and_legacy_do_not_probe_paths(tmp_path, monkeypatch):
+    storage = _Storage()
+    first = tmp_path / "offline" / "first.png"
+    alias = tmp_path / "offline" / "unused" / ".." / "first.png"
+    second = tmp_path / "offline" / "second.png"
+    storage.values["recent/images"] = json.dumps([str(first), str(alias), str(second)])
+    storage.values["recent/folders"] = [str(first.parent)]
+    storage.values["recent/comparison_sets"] = [str(tmp_path / "offline.pixelscope")]
+    before = dict(storage.values)
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("Recent history must not access the filesystem")
+
+    with monkeypatch.context() as patch:
+        for method in ("resolve", "stat", "exists", "is_file", "is_dir"):
+            patch.setattr(Path, method, forbidden)
+        repository = RecentEntriesRepository(storage)
+        assert repository.load(RecentEntryKind.IMAGE) == (first, second)
+        assert repository.load(RecentEntryKind.FOLDER) == (first.parent,)
+        assert repository.load(RecentEntryKind.SESSION) == (tmp_path / "offline.pixelscope",)
+        assert storage.values == before and storage.sync_count == 0
+        assert RecentEntry(RecentEntryKind.IMAGE, alias).path == first
+        repository.stage(RecentEntryKind.IMAGE, [alias])
+        assert repository.load(RecentEntryKind.IMAGE) == (first, second)
+        repository.record(RecentEntryKind.IMAGE, [second])
+        assert repository.load(RecentEntryKind.IMAGE) == (second, first)
+        repository.remove(RecentEntryKind.IMAGE, alias)
+        assert repository.load(RecentEntryKind.IMAGE) == (second,)
+        repository.stage_canonical(RecentEntryKind.FOLDER, [tmp_path / "canonical"])
+
+
+def test_history_alias_is_distinct_from_worker_canonical_target(tmp_path):
+    alias = tmp_path / "alias.png"
+    canonical = tmp_path / "target.png"
+    with patch.object(Path, "resolve", return_value=canonical) as resolve:
+        repository = RecentEntriesRepository(_Storage())
+        repository.stage(RecentEntryKind.IMAGE, [alias])
+        repository.stage_canonical(RecentEntryKind.IMAGE, [canonical])
+        assert repository.load(RecentEntryKind.IMAGE) == (canonical, alias)
+        resolve.assert_not_called()
+
+
+def test_recent_path_normalization_is_lexical_for_unc_drive_and_relative_paths(monkeypatch):
+    samples = (
+        (
+            (r"\\offline.invalid\share\folder\..\frame.png", r"\\offline.invalid\share\frame.png"),
+            (r"Z:\offline\folder\..\frame.png", r"Z:\offline\frame.png"),
+        )
+        if os.name == "nt"
+        else (
+            ("//offline.invalid/share/folder/../frame.png", "//offline.invalid/share/frame.png"),
+            ("/offline/folder/../frame.png", "/offline/frame.png"),
+        )
+    )
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("Path resolution is not lexical")
+
+    with monkeypatch.context() as patch:
+        for method in ("resolve", "stat", "exists", "is_file", "is_dir"):
+            patch.setattr(Path, method, forbidden)
+        for supplied, expected in samples:
+            assert normalize_recent_path(supplied) == Path(expected)
+            assert recent_path_identity(supplied) == os.path.normcase(str(Path(expected)))
+        assert normalize_recent_path("relative/../frame.png") == Path.cwd() / "frame.png"
+        if os.name == "nt":
+            assert recent_path_identity(r"Z:\Offline\FRAME.PNG") == recent_path_identity(
+                r"z:\offline\frame.png"
+            )
 
 
 class _Storage:

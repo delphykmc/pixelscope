@@ -374,3 +374,26 @@ Independent evidence re-review verified XML2013 tests with one failure and zero
 errors/skips, the1078vs955 assertion and unchanged RAW diff. It retains the bounded
 source PASS and merge-gate HOLD. PR update/comment is explicitly ChatGPT-assisted; no issue is
 automatically closed, no merge or packaging command is run.
+
+### Owner-approved closeout after UNC startup merge — 2026-11-18
+
+Owner accepted retaining the reproduced baseline RAW height failure as separate
+work, then explicitly requested settling PR #241 before continuing #242. This
+supersedes the historical HOLD above; it does not turn that full run into PASS.
+Merged main `f72d1b74` (#243, passive Recent startup correction) is integrated
+without source conflicts. Memo source/tests remain the reviewed `897221d5`
+implementation; incoming Recent source/tests retain #243's reviewed content.
+The current Memo/Recent/Session integration selection and final CI results are
+recorded below when observed. No RAW repair, dependency or packaging work is added.
+Next implementation priority is #242 asynchronous explicit-open/dialog paths;
+the existing RAW compact-height assertion remains separately deferred under #236.
+
+Combined normal-GC ordinary Windows command:
+`python -m pytest -q --tb=short tests/unit/test_memo_report.py tests/unit/test_memo_archive.py tests/unit/test_memo_folder.py tests/ui/test_memo_evidence.py tests/ui/test_memo_roi_workflow.py tests/unit/test_recent_entries.py tests/ui/test_recent_startup.py tests/ui/test_p4c_recent_entries.py tests/ui/test_p4c_recent_entries_integration.py tests/ui/test_open_images_registration.py tests/ui/test_p4c_session_restore.py tests/ui/test_p4c_session_restore_overlay.py tests/ui/test_p4c_session_pr33_integration.py tests/ui/test_wp_c2_yuv_session.py tests/ui/test_p4b_comparison_set.py --junitxml=temp/pr241-with243-integration.xml`
+returned **174 passed in 94.96s**, exit 0. Native `0x8001010d` diagnostic retained
+in the matching `.log`; no suppressed failure. Tracked Python Ruff lint/format
+passed (**418 files**), mypy passed (**141 source files**), docs contract and
+base-to-head diff checks passed. Strict MkDocs built in **1.22s**. No additional
+full-suite run is claimed: both exact-source earlier full records and the owner's
+RAW exception remain authoritative. No source conflict or manual resolution was
+required, and cumulative durable-doc changes remain additive.
