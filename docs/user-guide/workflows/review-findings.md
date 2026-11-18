@@ -35,7 +35,11 @@ continue to work as before.
 
 Single View records the visible original; Multi View records the comparison page.
 An optional **Include current ROI statistics** checkbox captures already-presented
-native ROI Statistics when an entry is added. Pending/stale results are never used.
+native ROI Statistics when an entry is added. You can also check it after selecting
+an existing resident ROI: ready matching Statistics are attached to that same item,
+without changing its note or crop. If analysis is pending, inclusion waits for it;
+stale results are never used. Unchecking cancels pending inclusion and disables it
+for new ROIs, but keeps previously stored Statistics. Save persists the changes.
 For Statistics in Single View, select only that image; use Multi View for a page.
 
 ## One Save Memo command
@@ -55,9 +59,27 @@ Memo_scene_date/
     statistics/           optional native CSVs
 ```
 
-Successful Save opens `index.html` automatically in the default browser. Open
-the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder together;
-moving only the map loses its referenced evidence. No extraction is needed.
+Successful Save opens `index.html` automatically in the default browser. The
+Memo footer also provides an **Open saved HTML** icon. It is enabled only for a
+loaded or successfully saved folder-style Memo with an existing `index.html`;
+it reopens the last saved report without saving pending note edits. Newly
+created/unsaved Memo sessions and legacy ZIP/.pxreview files have no standalone
+HTML icon action.
+
+Directly below the report title, the folder icon appears **before the ROI jump
+buttons on the same wrapping row**. It opens the saved report's **`src/` assets
+directory** in a new browser tab. The directory contains stored `crops/` and
+optional native `statistics/`, not full original input source files.
+Each crop's icon is a dedicated button: it explicitly opens its exact PNG in a
+new tab rather than navigating the current report, even when a browser prevents
+opening the extra tab. Use the browser's Save image as command if needed.
+Browser local `file://` navigation and directory-listing presentation vary;
+if the new tab is blocked, enable pop-ups for the local report or browse
+`src/` beside `index.html` directly.
+
+Open the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder
+together; moving only the map loses its referenced evidence. No extraction is
+needed.
 
 PNG files contain only captured ROI pixels without text or margins. Source basename
 and ROI x/y/width/height appear in HTML and metadata. New saves use only src/crops. Saving consumes the recorded evidence; it does not recrop current
@@ -98,7 +120,9 @@ recording for future ROI gestures, without capturing ROIs drawn while it was hid
 verify and reopen its original images; this direction is Memo-to-viewer only.
 If originals are missing, changed or need unavailable RAW/YUV input settings, the
 note remains readable; no image fallback is shown in Memo. Crops remain available
-in the HTML report. Memo has no file browser or Locate button.
+in the HTML report. Memo has no file browser or Locate button. The saved-preview
+PSNR chips have a subtle violet tint for visibility; their colors indicate no
+quality direction and never change the underlying 8-bit PSNR calculation.
 To supply native input settings, open originals normally through File, then open
 the Memo. Legacy `.pxreview` notes remain readable but have no stored historical
 crop; migration never invents old pixels.
@@ -107,7 +131,61 @@ Memo has no crop preview or coordinate summary. A genuine write lock or denied
 write permission can still prevent saving; close the application holding the file
 or check permissions, then retry.
 
-The footer contains only Open Memo and Save Memo, without routine status text or
-report links. The header Saved/Unsaved marker remains. Write/open failures use a
+The footer contains Open Memo, Save Memo and the Open saved HTML icon, without
+routine status text. The header Saved/Unsaved marker remains. Write/open failures use a
 warning dialog. Revisited ROIs reuse the existing native Statistics/Histogram cache;
 changed source generations, interpretation or bin settings use their normal keys.
+
+
+When **Include current ROI statistics** is checked, Memo attempts to attach ready,
+matching native Statistics for **every** recorded ROI, including ROIs measured before
+the checkbox was enabled. This uses only previously presented evidence for the exact
+ROI, source IDs and loaded generations; it does not silently recalculate missing
+measurements. If evidence is missing, select the affected ROI(s) to let native
+Statistics settle. Save is blocked while the checkbox is enabled and any recorded
+ROI lacks captured Statistics. Uncheck it to save images/notes without requiring
+complete Statistics; already attached evidence remains in the Memo.
+
+HTML report version 7 displays each crop in a separate card with accessible icon
+actions. Per-ROI native CSVs remain complete; the report pivots Min, Max, Mean, Std,
+P1, P50 and P99 into per-image RGB rows, with display-only RGB Mean deltas relative
+to image 01 when native formats and definition match. Historical v4/v5 report
+validation uses frozen templates.
+
+HTML v7 uses a single channel-grouped native Statistics table. The first image is
+the baseline; subsequent image rows show colored up/down Δ for **all** seven
+measures when native dtype/domain/effective-bit/definition are compatible. Color
+indicates direction, not quality. Display numbers are rounded to at most four
+decimals; saved CSV precision remains unchanged. The CSV action is an icon
+aligned to the bottom-right of the ROI Statistics section.
+
+When at least two stored crops exist, the report also shows **8-bit preview PSNR**
+for image 01 against each subsequent image, computed directly from the saved,
+pixel-aligned 8-bit PNG values (peak = 255, pooling RGB channels). Identical
+previews display infinite PSNR. Different sizes/channel layouts or missing
+previews display N/A. This preview-domain measurement is not native RAW PSNR,
+not geometrically registered, and does not imply perceptual quality ordering.
+The original crops are not changed; no new evidence is written to the CSV.
+Prior v6 ZIP HTML is still validated by a frozen byte-identical renderer.
+
+V7 presentation refinement: ROI PSNR badges show **the dB value only**;
+source-pair identity stays in each badge's accessible name and hover title.
+The two brief PSNR caveat lines are aligned beneath the values. Redundant
+introductory native Statistics labels and per-source metadata paragraphs between
+PSNR and the unified table are omitted; original CSV remains the complete
+typed, unrounded evidence.
+
+Compact layout review: the 8-bit PSNR numbers remain unchanged, but their
+standalone bordered panel is replaced by a small right-aligned summary in the
+same row as the ROI Statistics heading. Two short provenance lines remain under
+the dB values; on narrow screens the summary stacks and left-aligns. Repeated
+ROI spacing, memo empty-status gaps and table row padding are tightened without
+altering crop pixels, source labels or numerical evidence.
+
+Review P1 follow-up: a generic captured Histogram/Line/Difference context does
+**not** satisfy the Include Statistics requirement. Only valid ROI-native
+Statistics for the exact source keys, channel and ROI with source measurements
+qualify at initial capture, late backfill and save. The exported CSV retains
+the native dtype/definition metadata even though the deliberately compact HTML
+table omits them. HTML layout tests assert the V7 table semantics rather than
+legacy literal table tags or deleted overview prose.

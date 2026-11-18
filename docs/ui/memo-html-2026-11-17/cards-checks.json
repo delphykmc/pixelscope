@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "sources": 2,
+      "document": 1674,
+      "downloadsMatch": true,
+      "images": 4,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 1674
+    },
+    {
+      "sources": 4,
+      "document": 1674,
+      "downloadsMatch": true,
+      "images": 8,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 1674
+    },
+    {
+      "sources": 6,
+      "document": 1674,
+      "downloadsMatch": true,
+      "images": 12,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 1674
+    },
+    {
+      "sources": 2,
+      "document": 945,
+      "images": 4,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 945
+    },
+    {
+      "sources": 4,
+      "document": 945,
+      "images": 8,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 945
+    },
+    {
+      "sources": 6,
+      "document": 945,
+      "images": 12,
+      "loaded": true,
+      "tables": 2,
+      "viewport": 945
+    }
+  ],
+  "copyVerifiedByActualPaste": true,
+  "downloadSha256": "2d431c8f6d97fcd4a591cc53b359dc4e84ee7458293ebcf776b581d88bc207fe",
+  "note": "First 6-source sample observed images still loading; subsequent default-viewport DOM check confirmed all 12 loaded."
+}

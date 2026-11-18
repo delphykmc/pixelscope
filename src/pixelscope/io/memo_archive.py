@@ -182,7 +182,7 @@ def statistics_csvs(review: ReviewDocumentV1) -> dict[str, bytes]:
 
 
 def _legacy_memo_html(archive: MemoArchive) -> bytes:
-    """Static report saved inside the same notebook; no separate export choice."""
+    """Frozen legacy HTML required for exact historical ZIP validation."""
     labels = {s.source_key: s.display_tag or s.locator.basename for s in archive.review.sources}
     csvs = statistics_csvs(archive.review)
     rows = []
@@ -219,10 +219,10 @@ def _legacy_memo_html(archive: MemoArchive) -> bytes:
     ).encode("utf-8")
 
 
-def memo_html(
+def _v2_memo_html(
     archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
 ) -> bytes:
-    """Version-two presentation with a filename and explicit crop coordinates."""
+    """Frozen version two with filename and explicit crop coordinates."""
     sources = {source.source_key: source for source in archive.review.sources}
     report = _legacy_memo_html(archive).decode("utf-8")
     report = report.replace(
@@ -254,6 +254,119 @@ def memo_html(
             )
             report = report.replace(old, replacement, 1)
     return report.encode("utf-8")
+
+
+def _v3_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Readable version three; historical trusted renderers remain frozen."""
+    report = _v2_memo_html(archive, image_paths=image_paths).decode("utf-8")
+    report = report.replace(
+        'name="pixelscope-report-version" content="2"',
+        'name="pixelscope-report-version" content="3"',
+        1,
+    )
+    report = report.replace(
+        "margin:2rem auto;padding:1rem}", "margin:2rem auto;padding:1rem;overflow-wrap:anywhere}", 1
+    )
+    report = report.replace("vertical-align:top}", "vertical-align:top;max-width:100%}", 1)
+    return report.encode("utf-8")
+
+
+def _v4_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    from pixelscope.io.memo_html_presentation_v5 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review))
+
+
+def _v5_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Exact pre-V6 trusted renderer (including its CSP hash)."""
+    from pixelscope.io.memo_html_presentation_v5 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
+def _v6_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Frozen V6 renderer for byte-exact historical ZIP verification."""
+    from pixelscope.io.memo_html_presentation_v6 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
+def _v7_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Frozen V7 renderer for byte-exact historical ZIP verification."""
+    from pixelscope.io.memo_html_presentation_v7 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
+def _v8_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Frozen V8 renderer for byte-exact historical ZIP verification."""
+    from pixelscope.io.memo_html_presentation_v8 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
+def _v9_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Frozen V9 renderer for byte-exact historical ZIP verification."""
+    from pixelscope.io.memo_html_presentation_v9 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
+def memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    from pixelscope.io.memo_html_presentation import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
 
 
 def _payloads(archive: MemoArchive) -> dict[str, bytes]:
@@ -441,6 +554,17 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         raise ReviewValidationError("Memo ZIP missing required evidence")
     if "index.html" in names:
         with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
-            if z.read("index.html") not in (memo_html(archive), _legacy_memo_html(archive)):
+            if z.read("index.html") not in (
+                memo_html(archive),
+                _v9_memo_html(archive),
+                _v8_memo_html(archive),
+                _v7_memo_html(archive),
+                _v6_memo_html(archive),
+                _v5_memo_html(archive),
+                _v4_memo_html(archive),
+                _v3_memo_html(archive),
+                _v2_memo_html(archive),
+                _legacy_memo_html(archive),
+            ):
                 raise ReviewValidationError("Memo report differs from recorded ROI evidence")
     return archive, revision

@@ -1266,3 +1266,57 @@ It uses the existing range/geometry lifecycle, ignores plot auto-bounds, and nev
 changes ROI or numerical requests. Its stable range callback is disconnected on
 graphics disposal. Candidate fallback is lazy and bounded by visible viewport
 space; no new QObject helper graph, timer or cache authority is installed.
+
+Memo HTML version-three styling derives from frozen v2/legacy renderers. Historical
+ZIP validation accepts only exact known renderings; presentation changes must not
+retroactively change those trusted templates. Frozen baseline archives and a
+report-tampering test with recomputed manifest digest guard this boundary. Folder
+map/schema, preview pixel data and Statistics CSV generation remain unchanged.
+
+Memo HTML v4 presentation is isolated in io/memo_html_presentation.py. Frozen
+v3/v2/legacy renderers remain exact historical ZIP-validation alternatives. The
+only executable report script is a constant SHA-256 CSP-pinned, explicit-click
+copy helper; user text is never interpolated into JavaScript. Crop downloads
+resolve to the same stored bytes as displayed images after folder publication.
+Statistics tables escape the existing CSV output without recalculating values.
+
+Late Memo Statistics inclusion validates resident source ID/generation and exact
+ROI/source order/channel before copying the current-presented token snapshot.
+ReviewLibrary.attach_analysis replaces only evidence on the same immutable Finding;
+ReviewDocument retains interpretation/fingerprint validation. Pending attachment
+uses analysis_settled and canonical cancellation, with no new timer or worker.
+V5 compact presentation retains exact v4 ZIP validation via compact=False.
+
+Memo HTML v7 freezes the complete v6 renderer for exact prior ZIP validation.
+The HTML report now renders a single source-by-channel native Statistics table,
+with per-metric signed direction/delta relative to the first image; this is
+presentation-only and never changes the evidence CSV's precision or native
+sample definitions. Display precision is bounded to four decimal places.
+CSV downloads share the accessible icon affordance and align to the Statistics
+section's bottom-right. A separate Qt-free `io/memo_preview_metrics.py`
+computes bounded, read-only PSNR of the **recorded 8-bit preview PNG samples**
+(peak 255, identical shape/channel layout required) during offline report
+generation. It does not read originals, register images or modify numerical
+native Statistics; MSE is pooled across three channels or grayscale and
+noncomparable/absent previews are explicitly N/A. Both zip and folder report
+paths use this presentation, while historical v4/v5/v6 ZIPs remain verifiable
+against frozen templates.
+
+Current Memo HTML v10 retains frozen v5-v9 renderers in addition to the earlier
+exact ZIP validation alternatives. A constant CSP-hash-pinned asset click handler
+opens only escaped report-relative assets in a new tab; non-navigating buttons
+preserve the report even if popup creation is blocked. Folder publication rewrites
+the stored asset root to src/ and crop references to src/crops/.
+
+The coordinator keeps at most128 ready native ROI Statistics captures keyed by
+ROI, durable source order and loaded source ID/generation. Immutable Finding
+validation still guards attachment; source-context reset clears the cache. Checked
+Save requires feature=statistics and matching ROI/channel/source measurements for
+all records, so another captured feature cannot satisfy the Statistics contract.
+The footer report action opens existing non-symlink folder-mode index.html without
+mutating notes or regenerating output; availability refreshes on Save/Open/reset
+and dock display/click. It does not authorize historical metrics as live analysis.
+Memo ROI navigation also remembers and backfills matching ready evidence after
+canonical flush_pending_analysis: native cache hits do not emit analysis_settled.
+This allows revisiting records whose bounded Memo evidence entry was evicted,
+without new computation, source/cache mutation or a second completion producer.

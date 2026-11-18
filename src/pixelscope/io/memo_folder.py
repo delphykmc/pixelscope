@@ -232,8 +232,12 @@ def save_folder_memo(
         if (stage / "statistics").exists():
             (stage / "statistics").rename(src / "statistics")
         html = (stage / "index.html").read_text(encoding="utf-8")
-        html = html.replace('src="images/', 'src="src/crops/').replace(
-            'href="statistics/', 'href="src/statistics/'
+        html = (
+            html.replace('data-open-report-asset="images/"', 'data-open-report-asset="src/"')
+            .replace('data-open-report-asset="images/', 'data-open-report-asset="src/crops/')
+            .replace('src="images/', 'src="src/crops/')
+            .replace('href="images/', 'href="src/crops/')
+            .replace('href="statistics/', 'href="src/statistics/')
         )
         (stage / "index.html").write_text(html, encoding="utf-8")
         rows = []

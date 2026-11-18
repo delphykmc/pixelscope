@@ -1,0 +1,41 @@
+{
+  "source_sha": "562244935fe859e23d7f6dcb3a8887940867be20",
+  "method": "Actual Chrome via Browser Use; production-generated synthetic HTTP reports; no file-URL acceptance",
+  "default": [
+    {
+      "sources": 2,
+      "csvCount": 2,
+      "documentWidth": 1674,
+      "imageCount": 4,
+      "loaded": 4,
+      "overflow": false,
+      "version": "3",
+      "viewport": 1689
+    },
+    {
+      "sources": 4,
+      "csvCount": 2,
+      "documentWidth": 1674,
+      "imageCount": 8,
+      "loaded": 8,
+      "overflow": false,
+      "version": "3",
+      "viewport": 1689
+    },
+    {
+      "sources": 6,
+      "csvCount": 2,
+      "documentWidth": 1674,
+      "imageCount": 12,
+      "loaded": 12,
+      "overflow": false,
+      "version": "3",
+      "viewport": 1689
+    }
+  ],
+  "narrow": {
+    "documentWidth": 945,
+    "overflow": false,
+    "viewport": 960
+  }
+}

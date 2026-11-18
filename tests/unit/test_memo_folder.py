@@ -199,3 +199,42 @@ def test_cleanup_failure_keeps_committed_revision_and_allows_retry(tmp_path, mon
     assert not retry.cleanup_warning
     assert load_memo_archive(path)[1] == retry.revision
     assert cleanup is module._remove_staging
+
+
+def test_saved_folder_crop_buttons_resolve_to_exact_displayed_crops(tmp_path):
+    from html.parser import HTMLParser
+    from urllib.parse import unquote
+
+    class Assets(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.images = []
+            self.crop_buttons = []
+            self.folder_button = None
+
+        def handle_starttag(self, tag, attributes):
+            attrs = dict(attributes)
+            if tag == "img":
+                self.images.append(attrs["src"])
+            if tag == "button" and attrs.get("aria-label", "").startswith("Open ROI"):
+                self.crop_buttons.append(attrs)
+            if tag == "button" and attrs.get("class") == "icon-button source-folder-link":
+                self.folder_button = attrs
+
+    path, archive = notebook_setup(tmp_path)
+    module.save_folder_memo(path, archive, None)
+    parsed = Assets()
+    parsed.feed((path.parent / "index.html").read_text(encoding="utf-8"))
+    assert parsed.images == [attrs["data-open-report-asset"] for attrs in parsed.crop_buttons]
+    assert all(
+        attrs.get("type") == "button" and "href" not in attrs for attrs in parsed.crop_buttons
+    )
+    assert parsed.folder_button is not None
+    assert parsed.folder_button["data-open-report-asset"] == "src/"
+    assert parsed.folder_button["type"] == "button"
+    assert (path.parent / parsed.folder_button["data-open-report-asset"]).is_dir()
+    assert (path.parent / "src/crops").is_dir()
+    assert sorted(
+        (path.parent / unquote(attrs["data-open-report-asset"])).read_bytes()
+        for attrs in parsed.crop_buttons
+    ) == sorted(archive.crops.values())

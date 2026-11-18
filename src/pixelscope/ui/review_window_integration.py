@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import Qt, QUrl, Slot
 from PySide6.QtGui import QAction, QDesktopServices
@@ -21,8 +21,11 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from pixelscope.core.review_analysis import capture_presented_analysis, parse_analysis_context
 from pixelscope.core.review_record import (
+    ReviewAnalysisCaptureV1,
     ReviewDifferenceIntentV1,
+    ReviewFindingV1,
     ReviewValidationError,
 )
 from pixelscope.core.review_workflow import ReviewLibrary
@@ -58,6 +61,30 @@ from pixelscope.ui.review_restore_controller import (
 from pixelscope.ui.toolbar_icons import toolbar_icon
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+def _has_roi_statistics(finding: ReviewFindingV1) -> bool:
+    """A captured feature is not necessarily Statistics (Histogram/Line/etc).
+
+    Require native ROI Statistics for this finding's exact channel and source
+    order, with measurements for all sources. Used consistently at staging,
+    late attachment/backfill and the Save gate.
+    """
+    if finding.roi_ref is None:
+        return False
+    for captured in finding.analysis:
+        if captured.status != "captured" or captured.context_json is None:
+            continue
+        context = cast(dict[str, Any], parse_analysis_context(captured.context_json))
+        if (
+            context["feature"] == "statistics"
+            and context["roi_ref"] == list(finding.roi_ref)
+            and context["channel"] == finding.channel
+            and tuple(item["source_key"] for item in context["sources"]) == finding.source_keys
+            and {row["source_key"] for row in context["measurements"]} == set(finding.source_keys)
+        ):
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -138,6 +165,13 @@ class NamedReviewCoordinator:
         self._io_snapshot: MemoArchive | None = None
         self._closed = False
         self._pending_statistics = False
+        self._statistics_target_id: str | None = None
+        # Ready, source/generation-scoped native evidence, including analysis that
+        # settles before the crop attestation worker commits a new Memo ROI.
+        self._statistics_evidence: dict[
+            tuple[tuple[int, int, int, int], tuple[str, ...], tuple[tuple[str, int], ...]],
+            ReviewAnalysisCaptureV1,
+        ] = {}
         self._pending_roi = False
         self._restoring_memo = False
         self._source_context = (
@@ -171,6 +205,7 @@ class NamedReviewCoordinator:
         self.panel.delete_requested.connect(self.delete_many)
         self.panel.open_requested.connect(self.open_dialog)
         self.panel.save_requested.connect(self.save_dialog)
+        self.panel.open_html_requested.connect(self.open_saved_html)
         self.panel.finding_changed.connect(self.select_finding)
         self.restore.verification_completed.connect(self._verified)
         self.restore.verification_failed.connect(self._verification_failed)
@@ -181,7 +216,7 @@ class NamedReviewCoordinator:
         window.memo_roi_cancelled.connect(self._roi_cancelled)
         window.memo_sources_changed.connect(self._sources_changed)
         window.comparison_analysis_panel.analysis_settled.connect(self._resume_statistics)
-        self.panel.include_statistics.toggled.connect(self._resume_statistics)  # type: ignore[attr-defined]
+        self.panel.include_statistics.toggled.connect(self._statistics_toggled)  # type: ignore[attr-defined]
         self._update_recording_availability()
         # Memo is an optional View dock, not a second workspace layout mode.
 
@@ -223,9 +258,11 @@ class NamedReviewCoordinator:
         self.authority.review = self.library.document
         self._crops.clear()
         self._overlay_bindings.clear()
+        self._statistics_evidence.clear()
         self.panel.set_document(self.library.document)
         self._clear_editor()
         self.panel.set_dirty(False)
+        self._refresh_html_report_link()
         self.panel.set_status("Images changed — a new ROI memo list")
         self.refresh_overlays()
 
@@ -329,6 +366,7 @@ class NamedReviewCoordinator:
         """Expose the notes dock without silently changing the workspace layout."""
         if self._closed:
             return
+        self._refresh_html_report_link()
         self.dock.show()
         self.dock.raise_()
         self._update_recording_availability()
@@ -367,6 +405,7 @@ class NamedReviewCoordinator:
             QMessageBox.warning(self.panel, "Memo", message)
 
     def cancel_capture(self) -> None:
+        self._statistics_target_id = None
         self._pending_statistics = False
         self._capture_epoch += 1
         if self._capture_cancel is not None:
@@ -388,9 +427,180 @@ class NamedReviewCoordinator:
         self.panel.note_edit.setEnabled(False)
         self.panel.set_status(message)
 
+    def _remember_ready_statistics(self) -> None:
+        """Retain only presented native evidence, never synthesize/recompute it."""
+        if self._closed or self._io_worker is not None:
+            return
+        window = self.window
+        panel = window.comparison_analysis_panel
+        token = panel.get_current_analysis_token()
+        if (
+            token is None
+            or token.feature != "statistics"
+            or token.roi_ref is None
+            or token != panel.get_presented_analysis_token()
+        ):
+            return
+        page = tuple(window.current_comparison_documents())
+        if (
+            window._channel_split_active
+            or tuple((doc.document_id, doc.generation) for doc in page) != token.source_documents
+            or tuple(panel.source_key_for_document(doc.document_id) for doc in page)
+            != token.source_keys
+        ):
+            return
+        result = capture_presented_analysis(panel, token)
+        if result.snapshot is None:
+            return
+        try:
+            capture = ReviewAnalysisCaptureV1.from_snapshot(result.snapshot)
+        except ValueError:
+            return
+        identity = (token.roi_ref, token.source_keys, token.source_documents)
+        self._statistics_evidence[identity] = capture
+        # Bounded presentation-only cache; never grows with viewer pan/zoom history.
+        while len(self._statistics_evidence) > 128:
+            self._statistics_evidence.pop(next(iter(self._statistics_evidence)))
+
+    def _backfill_roi_statistics(self) -> None:
+        """Attach all proven resident ROI evidence, not only the currently selected ROI."""
+        if self._closed or not self.panel.include_statistics.isChecked():
+            return
+        changed = False
+        for finding in tuple(self.library.document.findings):
+            if _has_roi_statistics(finding):
+                continue
+            bindings = tuple(self._overlay_bindings.get(key) for key in finding.source_keys)
+            if finding.roi_ref is None or any(binding is None for binding in bindings):
+                continue
+            # The key combines ROI, durable source keys and exact loaded generations.
+            verified_bindings = tuple(binding for binding in bindings if binding is not None)
+            identity = (finding.roi_ref, finding.source_keys, verified_bindings)
+            capture = self._statistics_evidence.get(identity)
+            if capture is None:
+                continue
+            try:
+                self.library.attach_analysis(finding.id, capture)
+            except (ValueError, KeyError):
+                # A foreign or superseded snapshot is never silently installed.
+                continue
+            changed = True
+        if changed:
+            self.panel._document = self.library.document
+            self.authority.review = self.library.document
+            self.panel.set_dirty(self.library.dirty)
+            self.refresh_overlays()
+
     def _resume_statistics(self, *_event: object) -> None:
-        if self._pending_statistics and not self._closed and self._io_worker is None:
-            self.add()
+        if self._closed or self._io_worker is not None:
+            return
+        self._remember_ready_statistics()
+        self._backfill_roi_statistics()
+        if self._pending_statistics:
+            if self._statistics_target_id is not None:
+                if _has_roi_statistics(self.library.get(self._statistics_target_id)):
+                    self._statistics_target_id = None
+                    self._pending_statistics = False
+                    self.panel.title_edit.setEnabled(True)
+                    self.panel.note_edit.setEnabled(True)
+                else:
+                    self._attach_selected_statistics()
+            elif self.panel.include_statistics.isChecked():
+                self.add()
+
+    @Slot(bool)
+    def _statistics_toggled(self, checked: bool) -> None:
+        if self._closed or self._io_worker is not None:
+            return
+        if not checked:
+            if self._pending_statistics or self._statistics_target_id is not None:
+                self.cancel_capture()
+            return
+        self._remember_ready_statistics()
+        self._backfill_roi_statistics()
+        if self._pending_statistics and self._statistics_target_id is None:
+            self._resume_statistics()
+            return
+        target = self.panel.selected_finding_id
+        if (
+            self._capture_worker is None
+            and target is not None
+            and not _has_roi_statistics(self.library.get(target))
+        ):
+            self._statistics_target_id = target
+            self._attach_selected_statistics()
+        complete = sum(_has_roi_statistics(finding) for finding in self.library.document.findings)
+        total = len(self.library.document.findings)
+        if total and complete < total and not self._pending_statistics:
+            self.panel.set_status(
+                f"Statistics ready for {complete}/{total} ROIs. Visit each missing ROI "
+                "to capture native statistics before saving."
+            )
+
+    def _attach_selected_statistics(self) -> None:
+        """Copy only current, matching resident evidence into the selected ROI."""
+        target = self._statistics_target_id
+        if target is None or target != self.panel.selected_finding_id:
+            return
+        finding = self.library.get(target)
+        window = self.window
+        page = tuple(window.current_comparison_documents())
+        bindings = tuple(self._overlay_bindings.get(key) for key in finding.source_keys)
+        roi = window._shared_roi
+        if (
+            roi is None
+            or finding.roi_ref != (roi.x, roi.y, roi.width, roi.height)
+            or len(page) != len(bindings)
+            or any(
+                binding != (doc.document_id, doc.generation)
+                for doc, binding in zip(page, bindings, strict=True)
+            )
+        ):
+            self.cancel_capture()
+            self.panel.set_status(
+                "Select this memo's original images and ROI to include Statistics"
+            )
+            return
+        panel = window.comparison_analysis_panel
+        token = panel.get_current_analysis_token()
+        if token is None:
+            self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
+            return
+        if (
+            token.feature != "statistics"
+            or token.roi_ref != finding.roi_ref
+            or token.source_keys != finding.source_keys
+            or token.channel != finding.channel
+        ):
+            self.cancel_capture()
+            self._error(
+                "Show matching ROI Statistics for these images before including them", notify=True
+            )
+            return
+        result = capture_presented_analysis(panel, token)
+        if result.snapshot is None:
+            self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
+            return
+        try:
+            capture = ReviewAnalysisCaptureV1.from_snapshot(result.snapshot)
+            if not _has_roi_statistics(
+                replace(finding, analysis=(capture,), availability="available")
+            ):
+                raise ReviewValidationError("Presented capture is not native ROI Statistics")
+            self.library.attach_analysis(target, capture)
+        except (ValueError, KeyError) as exc:
+            self.cancel_capture()
+            self._error(f"ROI Statistics cannot be attached: {exc}")
+            return
+        self._statistics_target_id = None
+        self._pending_statistics = False
+        self.panel.title_edit.setEnabled(True)
+        self.panel.note_edit.setEnabled(True)
+        self._remember_ready_statistics()
+        self._backfill_roi_statistics()
+        self.panel._document = self.library.document
+        self.authority.review = self.library.document
+        self.panel.set_dirty(self.library.dirty)
 
     @Slot()
     def add(self) -> None:
@@ -423,6 +633,14 @@ class NamedReviewCoordinator:
                     )
                     return
             panel = window.comparison_analysis_panel
+            if self.panel.include_statistics.isChecked():
+                current_token = panel.get_current_analysis_token()
+                if current_token is not None and current_token.feature != "statistics":
+                    self._error(
+                        "Show native ROI Statistics before including them in this Memo",
+                        notify=True,
+                    )
+                    return
             keys = {d.document_id: panel.source_key_for_document(d.document_id) for d in page}
             panel.bind_review_source_keys(keys)
             primary = page[0] if single else window._primary_document_for_page(list(page))
@@ -468,9 +686,7 @@ class NamedReviewCoordinator:
                 persist_local_paths=True,
                 single_viewer=(window.viewer if single else None),
             )
-            if self.panel.include_statistics.isChecked() and not any(
-                capture.status == "captured" for capture in stage.finding.analysis
-            ):
+            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(stage.finding):
                 self._wait_for_statistics("Waiting for ROI Statistics… uncheck to keep images only")
                 return
             fence = capture_gui_fence(window, stage)
@@ -518,9 +734,7 @@ class NamedReviewCoordinator:
                 raise ReviewValidationError("source generation changed during capture")
             if {key for key, _ in value.crops} != set(value.finding.source_keys):
                 raise ReviewValidationError("Ready image previews are required for every ROI crop")
-            if any(c.status == "captured" for c in stage.finding.analysis) and not any(
-                c.status == "captured" for c in value.finding.analysis
-            ):
+            if _has_roi_statistics(stage.finding) and not _has_roi_statistics(value.finding):
                 raise ReviewValidationError("ROI Statistics changed; retry after Statistics settle")
             title, note, _tags = self.panel.metadata()
             finding = replace(value.finding, title=title or value.finding.title, note=note)
@@ -532,9 +746,14 @@ class NamedReviewCoordinator:
             self._crops.update({(value.finding.id, key): data for key, data in value.crops})
             self._skip_next_selection_restore = True
             self.panel.set_document(self.library.document, selected_id=value.finding.id)
+            self._remember_ready_statistics()
+            self._backfill_roi_statistics()
             self.panel.set_dirty(self.library.dirty)
             self.refresh_overlays()
             self.panel.set_status("Memo added. Select it later to revisit this ROI.")
+            if self.panel.include_statistics.isChecked() and not _has_roi_statistics(finding):
+                self._statistics_target_id = finding.id
+                self._attach_selected_statistics()
         except (ValueError, KeyError, RuntimeError) as exc:
             self._error(f"Finding commit refused: {exc}")
 
@@ -546,7 +765,7 @@ class NamedReviewCoordinator:
     @Slot(str)
     def _capture_finished(self, task_id: str) -> None:
         if task_id == self._capture_task_id:
-            selected = self.panel.selected_finding_id is not None
+            selected = self.panel.selected_finding_id is not None and not self._pending_statistics
             self.panel.title_edit.setEnabled(selected)
             self.panel.note_edit.setEnabled(selected)
             self._capture_task_id = None
@@ -599,6 +818,8 @@ class NamedReviewCoordinator:
             self._crops = {
                 key: data for key, data in self._crops.items() if key[0] not in finding_ids
             }
+            if not self.library.document.findings:
+                self._statistics_evidence.clear()
             self.window.clear_roi()
             self._clear_editor()
             remaining = self.library.document.findings
@@ -622,6 +843,10 @@ class NamedReviewCoordinator:
         else:
             window.multi_compare_view.fit_roi(bounds)
         window.comparison_analysis_panel.flush_pending_analysis()
+        # Cache hits are already presented and do not emit analysis_settled.
+        # Capture them here so revisiting an evicted Memo ROI can satisfy Save.
+        self._remember_ready_statistics()
+        self._backfill_roi_statistics()
 
     @Slot(str)
     def select_finding(self, finding_id: str) -> None:
@@ -719,6 +944,28 @@ class NamedReviewCoordinator:
             self._restoring_memo = False
             self.panel.set_status(f"Memo cannot be reopened: {exc}")
 
+    def _saved_html_report(self) -> Path | None:
+        """Only a published folder-mode Memo has an independently openable HTML."""
+        path = self.library.path
+        if not self._folder_mode or path is None or path.suffix.lower() != ".pxmemo":
+            return None
+        report = path.parent / "index.html"
+        return report if report.is_file() and not report.is_symlink() else None
+
+    def _refresh_html_report_link(self) -> None:
+        self.panel.set_html_report_available(self._saved_html_report() is not None)
+
+    @Slot()
+    def open_saved_html(self) -> None:
+        """Open the existing report without saving or regenerating it."""
+        report = self._saved_html_report()
+        self._refresh_html_report_link()
+        if report is None:
+            self._error("No saved HTML report is available for this Memo", notify=True)
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(report))):
+            self._error("Saved HTML report could not be opened", notify=True)
+
     def open_dialog(self) -> None:
         if self._io_worker is not None:
             self._error("Wait for the current Memo file operation", notify=True)
@@ -744,6 +991,24 @@ class NamedReviewCoordinator:
         ):
             self._error("Wait for the current Memo operation before saving", notify=True)
             return
+        if self.panel.include_statistics.isChecked():
+            self._remember_ready_statistics()
+            self._backfill_roi_statistics()
+            missing = [
+                i
+                for i, finding in enumerate(self.library.document.findings, 1)
+                if not _has_roi_statistics(finding)
+            ]
+            if missing:
+                labels = ", ".join(str(i) for i in missing[:8])
+                suffix = "…" if len(missing) > 8 else ""
+                self._error(
+                    f"Statistics missing for ROI {labels}{suffix}. "
+                    "Select each ROI and allow native Statistics to settle, "
+                    "or uncheck Include Statistics to save without requiring all ROIs.",
+                    notify=True,
+                )
+                return
         path = self.library.path
         if path is None or path.suffix.lower() != ".pxmemo":
             filename, _ = QFileDialog.getSaveFileName(
@@ -823,6 +1088,7 @@ class NamedReviewCoordinator:
             self.library.dirty = False
             self._crops = dict(archive.crops)
             self._overlay_bindings.clear()
+            self._statistics_evidence.clear()
             self.refresh_overlays()
             self.authority.review = archive.review
             self._approved.clear()
@@ -842,6 +1108,7 @@ class NamedReviewCoordinator:
             if result.cleanup_warning:
                 self._error(f"Saved {path.name}. {result.cleanup_warning}", notify=True)
         self.panel.set_dirty(self.library.dirty, saved=self.library.path is not None)
+        self._refresh_html_report_link()
 
     @Slot(str, object, int, object)
     def _io_failed(self, task_id: str, _doc: object, _epoch: int, error: object) -> None:

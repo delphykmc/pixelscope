@@ -214,3 +214,20 @@ def test_preflight_offline_finding_requires_all_sources_verified(tmp_path):
                 sources[1].source_key: changed,
             },
         )
+
+
+def test_attach_analysis_rejects_foreign_evidence_atomically(tmp_path):
+    from test_review_analysis_bundle import _snapshot
+
+    library = ReviewLibrary()
+    sources = _sources(tmp_path)
+    finding = library.add(_finding(sources, (0, 0, 2, 2)), sources)
+    library.dirty = False
+    before = library.document
+    foreign = ReviewAnalysisCaptureV1.from_snapshot(_snapshot((0, 0, 2, 2)))
+    with pytest.raises(ReviewValidationError, match="analysis source outside"):
+        library.attach_analysis(finding.id, foreign)
+    assert library.document is before and not library.dirty
+    with pytest.raises(KeyError):
+        library.attach_analysis(str(uuid4()), foreign)
+    assert library.document is before and not library.dirty

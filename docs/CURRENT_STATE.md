@@ -2,6 +2,11 @@
 
 ### 2026-11-18 disconnected UNC Recent startup correction
 
+PR #243 merged as `f72d1b74` after independent source review and final CI success,
+with owner-approved separate disposition of the existing RAW height failure.
+Owner next prioritizes Memo PR #241 closeout, then #242 explicit-open/dialog-path
+work, before the separate RAW follow-up. Historical HOLD records remain preserved.
+
 Issue #242's startup slice replaces filesystem resolution with lexical Recent-path
 normalization and removes Session history callback re-resolution. Stored missing
 paths remain listed; source discovery still owns canonical identity. See the
@@ -820,3 +825,48 @@ classifying this recurrence as lock-dependent native execution behavior, without
 a clipboard product-code fix. Historical failures remain recorded; this focused
 PASS does not replace the repository-wide validation record. See the
 [audit](exec-plans/active/native-ui-failure-audit.md) for context and limits.
+
+### 2026-11-17 Memo HTML readability candidate
+
+After PR239 merge e6e2265a, actual Chrome review reproduced long report text
+overflow (1689px viewport/4760px document). A bounded HTML style change wraps text
+and constrains figure width without changing crops, CSV/map data or Save workflow.
+Browser2/4/6-source fixtures and960px width are recorded in the
+[HTML readability plan](exec-plans/active/memo-html-readability.md). This candidate
+is separate from merged work and remains subject to UI review; file-URL automation
+was policy-blocked, so browser evidence uses permitted synthetic-only loopbackHTTP.
+
+### Memo HTML cards candidate — PR #241 (2026-11-17, unmerged)
+
+Owner feedback extends the report with prominent ROI cards, metadata badges,
+per-crop PNG download and explicit memo copy. Saved Statistics now appear in a
+readable table alongside CSV. Historical v3/v2/legacy ZIP readers remain guarded.
+See [execution evidence](exec-plans/active/memo-html-readability.md). Owner UI
+acceptance and merge remain pending.
+
+PR241 owner follow-up (unmerged): compact crop presentation removes repeated
+coordinates/card borders; late Statistics opt-in now targets the selected existing
+ROI. Before-fix one/two-image tests reproduced the omission; exact behavior and
+validation remain in the Memo HTML execution record.
+
+Owner-requested verification at source57863aba: actual app late-toggle/Save and
+Chrome report checks confirmed shared coordinates plus saved Statistics/CSV.
+Native normal-GC full pytest: **1999 passed,1 failed,1 warning in647.31s**; the sole
+RAW compact-height failure also reproduces unchanged on pre-Memo e6e2265a.
+This is not a clean full-suite PASS. See the same execution record for baseline,
+independent review, command details and remaining owner acceptance. No merge.
+
+### 2026-11-18 Memo v10 owner acceptance and current gate
+
+Owner checked the later PR241 behavior and authorizes merge only after validation
+finds no issue. Latest fetched source7dbc72f2 includes unified Statistics/preview
+PSNR, strict all-ROI evidence, saved-HTML reopening and stable new-tab assets.
+Independent re-review found cached ROI revisits did not reattach Memo evidence
+after bounded-cache eviction. The narrow navigation-flush correction has a failing
+before/passing-after regression; **85 focused tests passed in40.11s**. Source897221d5
+normal-GC Windows full pytest: **2012 passed,1 failed,1 warning in634.31s**. The sole
+failure remains RAW compact-height1078vs955, with RAW source/tests unchanged since
+pre-Memo e6e2265a. Independent source review and three CI workflows pass, but the
+owner's no-issue merge condition is unmet. PR241 remains Draft/unmerged; the native
+0x8001010d diagnostic is retained and no clean whole-repository PASS is claimed.
+See [the current execution record](exec-plans/active/memo-html-readability.md).

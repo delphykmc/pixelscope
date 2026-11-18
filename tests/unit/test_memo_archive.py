@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
+from pathlib import Path
 from uuid import uuid4
 
 import cv2
@@ -53,6 +54,50 @@ def _sources(tmp_path):
         )
         for n in range(2)
     )
+
+
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3", "v4"])
+def test_load_frozen_pre_readability_archive(version):
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / (
+            {"v3": "memo_html_dc0dfa35", "v4": "memo_html_e97f2e76"}.get(
+                version, "memo_html_e6e2265a"
+            )
+        )
+        / f"{version}.pxmemo"
+    )
+    archive, _ = load_memo_archive(path)
+    assert len(archive.review.findings) == 3 and len(archive.crops) == 6
+
+
+@pytest.mark.parametrize("version", ["legacy", "v2", "v3", "v4"])
+def test_frozen_archive_report_tampering_still_rejected(version, tmp_path):
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / (
+            {"v3": "memo_html_dc0dfa35", "v4": "memo_html_e97f2e76"}.get(
+                version, "memo_html_e6e2265a"
+            )
+        )
+        / f"{version}.pxmemo"
+    )
+    target = tmp_path / "tampered.pxmemo"
+    with zipfile.ZipFile(path) as old:
+        entries = {name: old.read(name) for name in old.namelist()}
+    entries["index.html"] += b"<!-- changed report -->"
+    manifest = json.loads(entries["manifest.json"])
+    for asset in manifest["assets"]:
+        if asset["path"] == "index.html":
+            asset["sha256"] = hashlib.sha256(entries["index.html"]).hexdigest()
+    entries["manifest.json"] = json.dumps(manifest).encode("utf-8")
+    with zipfile.ZipFile(target, "w") as new:
+        for name, data in entries.items():
+            new.writestr(name, data)
+    with pytest.raises(ReviewValidationError, match="Memo report differs"):
+        load_memo_archive(target)
 
 
 def _finding(sources, roi, title):
@@ -128,7 +173,7 @@ def test_multi_roi_archive_survives_missing_originals_and_exports_safe_html(tmp_
     with zipfile.ZipFile(path) as saved:
         markup = saved.read("index.html").decode("utf-8")
         pngs = [name for name in saved.namelist() if name.endswith(".png")]
-    assert "&lt;script&gt;" in markup and "<script>" not in markup
+    assert "&lt;script&gt;" in markup and "<script>alert(1)</script>" not in markup
     assert str(tmp_path) not in markup
     assert len(pngs) == 6
     for finding in findings:
@@ -276,3 +321,89 @@ def test_old_html_report_still_loads_after_caption_upgrade(tmp_path, monkeypatch
         save_memo_archive(target, archive)
     loaded, _ = load_memo_archive(target)
     assert loaded.review == archive.review
+
+
+def test_loads_pre_v6_trusted_v5_report_without_rewriting_it(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v5-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v5_memo_html)
+        save_memo_archive(path, archive)
+    saved = path.read_bytes()
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == saved
+
+
+def test_pre_v7_zip_with_v6_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v6-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v6_memo_html)
+        save_memo_archive(path, archive)
+    original = path.read_bytes()
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == original
+
+
+def test_pre_v8_zip_with_v7_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v7-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v7_memo_html)
+        save_memo_archive(path, archive)
+    original = path.read_bytes()
+    with zipfile.ZipFile(path) as bundled:
+        assert b'pixelscope-report-version" content="7"' in bundled.read("index.html")
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == original
+
+
+def test_pre_v9_zip_with_v8_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v8-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v8_memo_html)
+        save_memo_archive(path, archive)
+    original = path.read_bytes()
+    with zipfile.ZipFile(path) as bundled:
+        assert b'pixelscope-report-version" content="8"' in bundled.read("index.html")
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == original
+
+
+def test_pre_v10_zip_with_v9_html_remains_trusted_without_rewriting(tmp_path, monkeypatch):
+    from pixelscope.io import memo_archive as module
+
+    library, _, _, crops = _notebook(tmp_path)
+    archive = MemoArchive(library.document, crops)
+    path = tmp_path / "v9-original.pxmemo"
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "memo_html", module._v9_memo_html)
+        save_memo_archive(path, archive)
+    original = path.read_bytes()
+    with zipfile.ZipFile(path) as bundled:
+        assert b'pixelscope-report-version" content="9"' in bundled.read("index.html")
+    loaded, _ = load_memo_archive(path)
+    assert loaded.review == archive.review
+    assert dict(loaded.crops) == dict(archive.crops)
+    assert path.read_bytes() == original

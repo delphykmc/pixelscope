@@ -19,6 +19,7 @@ _ICON_KINDS = {
     "difference",
     "plots",
     "memo",
+    "report",
     "dock",
     "export",
     "pin",
@@ -147,6 +148,23 @@ def _draw_icon(kind: str, color_name: str, *, filled: bool = False) -> QPixmap:
         painter.drawRoundedRect(QRectF(3.0, 2.0, 10.0, 12.0), 1.0, 1.0)
         for y in (5.0, 8.0, 11.0):
             painter.drawLine(QPointF(5.5, y), QPointF(10.5, y))
+    elif kind == "report":
+        painter.drawPolyline(
+            QPolygonF(
+                (
+                    QPointF(3.0, 2.0),
+                    QPointF(9.5, 2.0),
+                    QPointF(13.0, 5.5),
+                    QPointF(13.0, 14.0),
+                    QPointF(3.0, 14.0),
+                    QPointF(3.0, 2.0),
+                )
+            )
+        )
+        painter.drawLine(QPointF(9.5, 2.0), QPointF(9.5, 5.5))
+        painter.drawLine(QPointF(9.5, 5.5), QPointF(13.0, 5.5))
+        painter.drawLine(QPointF(5.0, 9.0), QPointF(7.0, 11.0))
+        painter.drawLine(QPointF(7.0, 11.0), QPointF(9.0, 9.0))
     elif kind == "dock":
         painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
         painter.drawLine(QPointF(2.0, 10.0), QPointF(14.0, 10.0))

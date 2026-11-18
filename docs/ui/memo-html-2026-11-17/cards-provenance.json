@@ -1,0 +1,12 @@
+{
+  "base_sha": "dc0dfa35a5e0408b8bf95c9e0e4a92c1ad8cdc26",
+  "renderer_sha256": "9d4836bd897476f4a88ce05d5b7afe09b26cdb626c013c56bece5d8cb6265359",
+  "synthetic": true,
+  "browser": "Chrome loopback HTTP",
+  "artifacts": {
+    "cards.jpg": "d9a7d08e5517ee58ff48c28b99497f6cb7e7519250fa42d79c92342f9dfe7232",
+    "cards-stat-full.jpg": "71bc1652ca0c3bed13072fee9320dd151e931d3fc77181e0ea8d90ab5ca7e03e",
+    "cards-narrow.jpg": "daac656727d14b88aa23459333a7b03f5d6dfaa0caa64ad2fa53cd5eca7a7a83",
+    "cards-checks.json": "c7514f37a6f7712f99ccab0767048fb3ca491946c140496a2d68ea5412f06396"
+  }
+}

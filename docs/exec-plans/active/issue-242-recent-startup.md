@@ -2,6 +2,11 @@
 
 Status: Startup source review passed; merge held on existing RAW validation failure
 
+Latest disposition (2026-11-18): owner explicitly accepted the existing RAW
+baseline failure as separate follow-up. PR #243 merged as `f72d1b74`; the HOLD
+records below are historical. Owner then prioritized PR #241 closeout before
+the remaining #242 Folder/Session/dialog-directory work. RAW remains separate.
+
 Owner: ChatGPT-assisted
 
 Branch: codex/fix-recent-startup-20261118 (from main e6e2265a)

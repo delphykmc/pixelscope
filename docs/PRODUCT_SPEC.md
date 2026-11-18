@@ -1029,6 +1029,10 @@ Labels for offscreen ROI rectangles hide and reappear with the rectangle. Dense
 placement uses a fixed work budget to keep pan/zoom responsive, preferring the
 best tested position if the budget is exhausted.
 
+Generated Memo HTML wraps long titles, note tokens and filenames within the report
+width. Stored text and note line breaks remain intact; figures constrain preview
+display width without changing saved crop PNGs or metadata/CSV assets.
+
 ### Native UI sizing and retained physical view
 
 RAW profile auto sizing reserves native window chrome within the available screen
@@ -1040,3 +1044,24 @@ When a synchronized comparison changes tile geometry while preserving its view,
 retain the pre-layout physical zoom and reference center. Reinterpreting the old
 range using new viewport dimensions must not change that scale. Saved-range
 restoration and unsynchronized viewer navigation retain their existing contracts.
+
+Generated Memo reports use ROI cards, metadata badges and a local Copy memo action.
+Crop icon buttons open the exact stored preview in a new tab without navigating
+the report; browser popup policy may prevent the extra tab. A folder button before
+the ROI jump links opens the saved assets directory (`src/` in folder reports).
+When saved native ROI Statistics are available, an escaped channel-grouped table
+shows the seven saved metrics and compatible signed deltas relative to image 01.
+HTML numbers use at most four decimals; the downloadable CSV retains full evidence.
+Narrow tables scroll within their own region. Separately labeled 8-bit Preview
+PSNR compares stored, pixel-aligned crops with peak255; it is not native RAW PSNR.
+
+Memo report crop captions do not repeat shared ROI coordinates; those appear only
+in the ROI header. Checking Statistics after an existing resident ROI is selected
+attaches matching ready native evidence to all eligible recorded ROIs without
+recropping. A bounded, generation-matched evidence cache supports earlier ROIs;
+missing evidence requires revisiting that ROI. Pending inclusion waits for analysis
+settlement, and checked Save requires native Statistics for every recorded ROI.
+Histogram evidence cannot satisfy this requirement. Unchecking cancels pending
+inclusion and future capture, retaining already stored historical Statistics.
+The Memo footer can reopen the last saved folder-mode HTML without saving current
+edits. Its report icon is disabled before Save/Open or when the HTML is unavailable.
