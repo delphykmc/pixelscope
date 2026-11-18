@@ -23,6 +23,7 @@ from pixelscope.io.path_discovery import (
     natural_sort_key,
     recent_path_state,
 )
+from pixelscope.ui.dialog_preparation import prepared_dialog
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
@@ -58,12 +59,38 @@ class _RegistrationRequest:
     direct_completion: OwnerCallback | None = None
     replace_selection: bool = False
     recent_image: bool = False
+    recent_folder: bool = False
 
 
 @dataclass(frozen=True)
 class _UnavailableRecentImage:
     path: Path
     state: str
+    kind: RecentEntryKind = RecentEntryKind.IMAGE
+
+
+def _discover_paths(
+    discovery: DiscoveryFunction,
+    paths: Sequence[Path],
+    files_only: bool,
+    recent_image: bool,
+    recent_folder: bool,
+) -> RegistrationDiscovery | _UnavailableRecentImage:
+    if recent_image or recent_folder:
+        cancellation_checkpoint()
+        state = recent_path_state(paths[0], is_folder=recent_folder)
+        cancellation_checkpoint()
+        if state in ("missing", "wrong_type"):
+            kind = RecentEntryKind.FOLDER if recent_folder else RecentEntryKind.IMAGE
+            return _UnavailableRecentImage(paths[0], state, kind)
+    if files_only:
+        files = []
+        for path in paths:
+            cancellation_checkpoint()
+            if path.is_file():
+                files.append(path)
+        paths = files
+    return discovery(paths, checkpoint=cancellation_checkpoint)
 
 
 class RegistrationController(QObject):
@@ -202,6 +229,7 @@ class RegistrationController(QObject):
             self.window.document_list.paths_dropped.disconnect()
         self.window.document_list.paths_dropped.connect(self.handle_dropped_paths)
 
+    @prepared_dialog()
     def open_folders(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self.window,
@@ -228,11 +256,15 @@ class RegistrationController(QObject):
         direct_completion: DirectRegistrationCompletion | None = None,
         replace_selection: bool = False,
         recent_image: bool = False,
+        recent_folder: bool = False,
     ) -> None:
         """Queue one logical input request without performing filesystem work on the GUI thread."""
 
         if self._closing:
             return
+        preparation = getattr(self.window, "path_preparation_controller", None)
+        if preparation is not None:
+            preparation.cancel()
         if replace_selection and direct_completion is not None:
             raise ValueError("replacement input cannot also have a drop completion")
         normalized = tuple(Path(path) for path in paths)
@@ -240,13 +272,17 @@ class RegistrationController(QObject):
             return
         if recent_image and (not replace_selection or len(normalized) != 1):
             raise ValueError("Recent image validation requires one replacement path")
+        if recent_folder and (replace_selection or recent_image or len(normalized) != 1):
+            raise ValueError("Recent folder validation requires one registration-only path")
         completion_hook = (
             OwnerCallback(direct_completion) if direct_completion is not None else None
         )
         if len(normalized) == 1:
             load_latency_trace.begin("explicit_path_enqueued")
         self._queue.append(
-            _RegistrationRequest(normalized, completion_hook, replace_selection, recent_image)
+            _RegistrationRequest(
+                normalized, completion_hook, replace_selection, recent_image, recent_folder
+            )
         )
         self._start_next_request()
 
@@ -344,10 +380,12 @@ class RegistrationController(QObject):
         self._direct_paths.clear()
         self._set_progress("scanning", 0, None)
         worker = TaskWorker(
-            self._discover,
+            _discover_paths,
+            self._discovery_function,
             paths,
             request.replace_selection,
             request.recent_image,
+            request.recent_folder,
             generation=generation,
         )
         self._worker = worker
@@ -357,24 +395,6 @@ class RegistrationController(QObject):
         worker.signals.cancelled.connect(self._discovery_cancelled)
         worker.signals.finished.connect(self._discovery_finished)
         self._pool.start(worker)
-
-    def _discover(
-        self, paths: Sequence[Path], files_only: bool = False, recent_image: bool = False
-    ) -> RegistrationDiscovery | _UnavailableRecentImage:
-        if recent_image:
-            cancellation_checkpoint()
-            state = recent_path_state(paths[0])
-            cancellation_checkpoint()
-            if state in ("missing", "wrong_type"):
-                return _UnavailableRecentImage(paths[0], state)
-        if files_only:
-            files = []
-            for path in paths:
-                cancellation_checkpoint()
-                if path.is_file():
-                    files.append(path)
-            paths = files
-        return self._discovery_function(paths, checkpoint=cancellation_checkpoint)
 
     def _current_discovery_signal(self, task_id: str, generation: int) -> bool:
         return (
@@ -401,9 +421,9 @@ class RegistrationController(QObject):
             try:
                 if recent is not None:
                     if result.state == "missing":
-                        recent._handle_missing_entry(RecentEntryKind.IMAGE, result.path)
+                        recent._handle_missing_entry(result.kind, result.path)
                     else:
-                        recent._show_wrong_type(RecentEntryKind.IMAGE, result.path)
+                        recent._show_wrong_type(result.kind, result.path)
             finally:
                 if self._current_discovery_signal(task_id, generation):
                     self._clear_active_state()
@@ -506,9 +526,16 @@ class RegistrationController(QObject):
             return
         QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
 
-    def _register_record(self, record: RegistrationInput) -> None:
+    def register_prepared_input(self, record: RegistrationInput) -> str | None:
+        """Commit worker-provided canonical metadata on the GUI thread.
+
+        Session preflight uses this without changing the discovery queue or its
+        selection authority. The temporary record is always cleared deterministically.
+        """
+        if self._closing:
+            return None
+        previous_record = self._current_record
         self._current_record = record
-        record_trace = load_latency_trace.PhaseTimer("register.record")
         if (
             record.canonical_folder_path is not None
             and record.canonical_folder_key is not None
@@ -529,7 +556,12 @@ class RegistrationController(QObject):
                     resolve_raw_profile=record.resolve_raw_profile,
                 )
         finally:
-            self._current_record = None
+            self._current_record = previous_record
+        return cast(str | None, document_id)
+
+    def _register_record(self, record: RegistrationInput) -> None:
+        record_trace = load_latency_trace.PhaseTimer("register.record")
+        document_id = self.register_prepared_input(record)
         record_trace.checkpoint("register_input_and_tree_mutation")
         if document_id is None:
             return

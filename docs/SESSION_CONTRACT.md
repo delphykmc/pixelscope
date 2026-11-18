@@ -334,7 +334,23 @@ worker so a slow network `stat` does not block command dispatch. Missing/wrong-k
 feedback remains on the GUI thread and cannot mutate Selected or register a
 directory as images. Cancellation/close revokes late feedback; a pending network
 system call still has to return before the owned pool can physically drain.
-Recent Folder and Session workflows retain their existing synchronous behavior.
+Recent Folders use that same bounded registration queue with a folder-kind preflight.
+Recent Sessions and the production Open Session dialog read/validate the artifact and
+prepare canonical source identities on a separate single-worker preparation pool.
+GUI restore consumes those identities without resolving the source paths again;
+programmatic `open_from_path` retains its established synchronous contract. Missing,
+wrong-kind and invalid-artifact feedback stays on the GUI thread. Preparation can be
+cancelled through **Cancel path check**; a superseding preparation retains only the
+latest pending request. Open Images/Folder dispatch also revokes pending Session
+authority. Cancellation or close rejects late results, and close keeps the window
+alive until the owned pool physically drains without blocking the event loop.
+
+Configured and last-used file-dialog directories are validated during explicit
+command preparation off-thread. Missing/inaccessible configured paths fall back to
+the last usable location, then the home directory. The chooser opens only after
+preparation; cancellation prevents it opening. Passive startup does not preflight
+these paths. Native chooser interaction after opening and later OS network calls
+are not made interruptible by this preparation step.
 
 Recent owns no source, selection, curation, residency, preload, Difference, analysis,
 or Current Comparison Page authority. Absolute paths may disclose local filesystem

@@ -1,0 +1,83 @@
+# Execution plan: responsive Recent Open and dialog directory preparation
+
+Status: Active
+
+Owner: ChatGPT-assisted
+
+Branch: codex/fix-recent-open-20261118, from main 41ef9ff0
+
+## Goal and scope
+
+Recent Folder and Session commands must return control to the event loop before
+network path checks, discovery or Session parsing. Configured/last-used dialog
+directory validation must also run off the GUI thread. Preserve Missing Remove/Keep,
+wrong-kind protection, folder-only selection, transactional Session restore, saved
+RAW/YUV profiles and configured-directory fallback. Keep #242 open until validation.
+Memo #241 merged first at 41ef9ff0; #240 is closed. RAW height repair (#236), packaging,
+new settings, retries, and physical SMB qualification are outside this change.
+
+## Design and invariants
+
+- Recent Folder reuses the existing serialized registration pool and canonical
+  metadata; add a typed folder check before discovery rather than stat on the GUI.
+- Session preflight reads/validates the artifact and prepares source identities on
+  one bounded, window-owned preparation pool. GUI commit consumes prepared records
+  without re-resolving paths; synchronous open_from_path remains available for
+  established programmatic callers. No worker callable retains a UI owner.
+- The same bounded preparation owner validates dialog-directory candidates before
+  native choosers are shown. Explicit continuations keep GUI work on the GUI thread.
+- Cancellation/supersession immediately revoke result authority. At most one worker
+  and one pending request are retained. Close defers final destruction until the
+  owned pool drains, without blocking the GUI or interrupting an OS network call.
+- No numerical, Session-schema, source dtype/stride, decoding, or dependency change.
+
+## Slices and verification
+
+1. Guard Recent Folder/Session filesystem calls by thread, hold workers with events,
+   verify heartbeat, no workspace mutation on cancel/close and missing/wrong kind.
+2. Add standalone Session preparation, a bounded owner, canonical registration
+   consumption and typed Recent Folder dispatch.
+3. Move configured/last-used dialog-directory checks to preparation with fallback,
+   preserve export snapshots and reject stale continuations after close.
+4. Run relevant Recent/Session/registration/settings/export/native lifecycle tests,
+   tracked Ruff/format, mypy, docs/strict MkDocs, diff checks, and owner-local full
+   validation for the changed worker lifetime. Preserve the accepted existing RAW
+   failure separately; no clean full-suite claim unless actually observed.
+5. Update durable contracts, record exact output and publish a separate PR. No
+   automatic merge of this new implementation is assumed from #241/#243 approvals.
+
+## Progress
+
+- 2026-11-18: read production composition, registration and Session restore paths,
+  source identity/cancellation contracts and associated tests before edits.
+
+## Completion evidence
+
+- Initial regression selection before edits: **3 failed in 9.04s**, showing GUI-thread
+  Recent network stat and close unable to yield. Guarded delayed/cancel/close selection
+  after correction: **3 passed in 3.68s**. Expanded bounded supersession and dialog
+  cancel/fallback selection: **6 passed in 5.82s**. Later successful Session commit
+  guard plus export selection: **23 passed in 14.57s**.
+- One initial related run was interrupted because old synchronous Session mocks could
+  leave a modal error during the new async path. Updated tests use prepared Session
+  commit and await actual completion; assertions and timeouts are retained. Recheck
+  Recent selection: **23 passed in 18.05s**.
+- Broader workflow run: **87 passed, 1 failed in 43.54s**. The histogram export loop
+  read the second output before asynchronous directory preparation completed. It now
+  waits for the output file and retains numerical/selection assertions.
+- Final focused command (ordinary Windows, normal GC):
+  `python -m pytest -q --tb=short tests/unit/test_session_preparation.py tests/unit/test_recent_entries.py tests/unit/test_registration_discovery.py tests/unit/test_comparison_set.py tests/unit/test_architecture_boundaries.py tests/ui/test_recent_open_preparation.py tests/ui/test_recent_startup.py tests/ui/test_p4c_recent_entries.py tests/ui/test_p4c_recent_entries_integration.py tests/ui/test_open_images_registration.py tests/ui/test_settings_dialog.py tests/ui/test_p4b_comparison_set.py tests/ui/test_p4c_session_restore.py tests/ui/test_p4c_session_restore_overlay.py tests/ui/test_p4c_session_pr33_integration.py tests/ui/test_wp_c2_yuv_session.py tests/ui/test_p4e_analysis_export.py tests/ui/test_p4e_analysis_export_review_regressions.py tests/ui/test_p4e_analysis_productivity.py tests/ui/test_large_folder_registration.py tests/ui/test_large_folder_registration_composition.py tests/ui/test_large_folder_registration_lifecycle_review.py --junitxml=temp/issue242-focused-final.xml`
+  returned **179 passed in 90.21s**, exit 0. Log uses matching `.log` basename and
+  retains the nonterminating native `0x8001010d` diagnostic. Small late source changes
+  reject submit after window close and remove the unused old synchronous Recent
+  Session method; immutable-head full validation follows.
+- Source/worker design: no extra Folder pool; a standalone registration-discovery
+  callable replaces the prior bound method. Session/dialog pool is capped at one
+  running task and one latest pending request; worker callables carry no UI owners.
+  Definition-time chooser continuations keep original GUI/export work on GUI thread.
+  No permanent compatibility shim, packaging or dependency changes.
+- Full validation, final static/docs checks and PR publication are pending. Real
+  disconnected SMB, packaged execution and physical first-paint timing are unverified.
+  Existing RAW height failure is separately deferred with owner approval; #242 stays
+  open until review/closeout. Commits use configured owner identity plus ChatGPT
+  co-author; GitHub activity is marked ChatGPT-assisted. Owner artifacts are untouched.

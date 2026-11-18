@@ -10,14 +10,17 @@ from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QMessageBox
 
+from pixelscope.app.path_preparation import path_preparation
 from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, recent_path_state
+from pixelscope.io.session_preparation import PreparedSession, prepare_recent_session
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
+from pixelscope.workers.task_worker import TaskError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -211,6 +214,13 @@ class RecentEntriesController:
         if kind is RecentEntryKind.IMAGE and callable(getattr(registration, "enqueue", None)):
             self.window.open_image_paths([path], recent_image=True)
             return
+        if kind is RecentEntryKind.FOLDER and callable(getattr(registration, "enqueue", None)):
+            self._remember_directory(path)
+            registration.enqueue([path], recent_folder=True)  # type: ignore[union-attr]
+            return
+        if kind is RecentEntryKind.SESSION:
+            self._prepare_recent_session(path)
+            return
         path_state = self._recent_path_state(kind, path)
         if path_state == "missing":
             self._handle_missing_entry(kind, path)
@@ -235,22 +245,37 @@ class RecentEntriesController:
                     4000,
                 )
             return
-        self._open_recent_session(path)
 
     def _open_image_paths(self, paths: list[Path]) -> None:
         self.window.open_image_paths(paths)
 
-    def _open_recent_session(self, path: Path) -> None:
+    def _prepare_recent_session(self, path: Path) -> None:
+        path_preparation(self.window).submit(
+            prepare_recent_session,
+            (path, self.session_controller.repository),
+            self._session_prepared,
+            self._session_preparation_failed,
+        )
+
+    def _session_preparation_failed(self, error: TaskError) -> None:
+        QMessageBox.warning(self.window, "Cannot open Session", error.message)
+
+    def _session_prepared(self, prepared: PreparedSession) -> None:
+        if prepared.state == "missing":
+            self._handle_missing_entry(RecentEntryKind.SESSION, prepared.path)
+            return
+        if prepared.state == "wrong_type":
+            self._show_wrong_type(RecentEntryKind.SESSION, prepared.path)
+            return
         try:
-            loaded, missing = self.session_controller.open_from_path(path)
+            loaded, missing = self.session_controller.open_prepared(prepared)
         except (OSError, ComparisonSetError) as exc:
             QMessageBox.warning(self.window, "Cannot open Session", str(exc))
             return
-        if loaded == 0:
-            return
-        self._remember_directory(path.parent)
-        self._observe_history(RecentEntryKind.SESSION, [path])
-        self.session_controller.show_open_feedback(path, loaded, missing)
+        if loaded:
+            self._remember_directory(prepared.path.parent)
+            self._observe_history(RecentEntryKind.SESSION, [prepared.path])
+            self.session_controller.show_open_feedback(prepared.path, loaded, missing)
 
     @staticmethod
     def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:

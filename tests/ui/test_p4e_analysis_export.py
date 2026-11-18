@@ -190,6 +190,7 @@ def test_histogram_export_is_deterministic_for_gray_rgb_bayer_full_and_roi(
         )
         before = _workspace_state(window)
         controller.export_histogram_csv()
+        qtbot.waitUntil(target.is_file)  # type: ignore[attr-defined]
         assert _workspace_state(window) == before
         rows = _csv_rows(target)
         assert rows[0][0:5] == ["scope", "roi_x", "roi_y", "roi_width", "roi_height"]

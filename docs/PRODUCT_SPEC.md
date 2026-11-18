@@ -331,6 +331,12 @@ to Recent Folders only when registration finds at least one supported image; a
 zero-image Open Folder operation leaves folder history unchanged. Recent history was
 introduced outside Settings schema v5 and owns no source/runtime state.
 
+Production Recent Folder/Session checks and Session artifact/source preparation run
+in bounded background work before GUI commit. Configured/last-used dialog locations
+are also validated off-thread before opening the chooser. **Cancel path check**
+cancels pending Session/dialog preparation; supersession and close revoke late
+results. A blocked OS call may still need to finish before final window teardown.
+
 ### RAW input resolution
 
 Ordinary PNG/BMP/JPEG inputs register without RAW profile UI. Direct RAW file

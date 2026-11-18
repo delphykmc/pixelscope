@@ -8,6 +8,11 @@ Core General settings include startup/viewer restoration, default workspace mode
 
 ## Files & Recent
 
+Configured file locations are checked in the background when you open a file
+chooser. If a configured location is unavailable, PixelScope uses the last usable
+location, then your home directory. **Cancel path check** stops the pending command
+before the chooser opens; it does not remove your saved location settings.
+
 Controls the Recent-entry limit and related file-history behavior. Recent entries are convenience pointers to user resources, not copies of source images.
 
 ## Performance
