@@ -191,6 +191,7 @@ class MainWindow(QMainWindow):
         self._normal_load_stale_drop_count = 0
         self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
+        self._close_confirmed = False
         self._review_terminal_notifying = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
@@ -4271,11 +4272,25 @@ class MainWindow(QMainWindow):
         self.set_layout_mode("Auto")
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def _confirm_close_request(self) -> bool:
+        """Accept a close before either close filter revokes workers.
+
+        A rejected review prompt must leave both worker controllers usable.
+        Accepted confirmation is cached across deferred worker-drain closes.
+        """
+        if self._close_confirmed:
+            return True
         named_review = self.__dict__.get("named_review_coordinator")
         if named_review is not None and not named_review.confirm_close():
+            return False
+        self._close_confirmed = True
+        return True
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._confirm_close_request():
             event.ignore()
             return
+        named_review = self.__dict__.get("named_review_coordinator")
         self._closing = True
         if named_review is not None:
             # Stop Review epochs/workers before disposing source viewports.

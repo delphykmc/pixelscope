@@ -39,6 +39,12 @@ class RecentEntriesController:
         if not isinstance(session, SessionControllerBase):
             raise RuntimeError("Recent Entries requires the Session controller")
         self._session_controller_ref = weakref.ref(session)
+        self._pending_session_restore: tuple[int, PreparedSession] | None = None
+        self._session_restore_timer = QTimer(window)
+        self._session_restore_timer.setSingleShot(True)
+        self._session_restore_timer.timeout.connect(  # type: ignore[attr-defined]
+            WeakOwnerHook(self, lambda owner: owner._continue_session_restore())
+        )
         self.session_controller.set_recent_entry_callback(
             WeakOwnerHook(self, lambda current, path: current._record_session(path))
         )
@@ -215,7 +221,6 @@ class RecentEntriesController:
             self.window.open_image_paths([path], recent_image=True)
             return
         if kind is RecentEntryKind.FOLDER and callable(getattr(registration, "enqueue", None)):
-            self._remember_directory(path)
             registration.enqueue([path], recent_folder=True)  # type: ignore[union-attr]
             return
         if kind is RecentEntryKind.SESSION:
@@ -250,6 +255,8 @@ class RecentEntriesController:
         self.window.open_image_paths(paths)
 
     def _prepare_recent_session(self, path: Path) -> None:
+        self._session_restore_timer.stop()
+        self._pending_session_restore = None
         path_preparation(self.window).submit(
             prepare_recent_session,
             (path, self.session_controller.repository),
@@ -267,6 +274,40 @@ class RecentEntriesController:
         if prepared.state == "wrong_type":
             self._show_wrong_type(RecentEntryKind.SESSION, prepared.path)
             return
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if prepared.sources and registration is not None:
+            epoch = registration.revoke_for_session_restore()
+            if not registration.can_commit_prepared_session(epoch):
+                self._pending_session_restore = (epoch, prepared)
+                path_preparation(self.window).cancel_button.show()
+                self._session_restore_timer.start(100)
+                return
+        self._commit_prepared_session(prepared)
+
+    def _continue_session_restore(self) -> None:
+        pending = self._pending_session_restore
+        if pending is None:
+            return
+        epoch, prepared = pending
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if (
+            getattr(self.window, "_closing", False)
+            or registration is None
+            or not registration.is_current_session_restore(epoch)
+        ):
+            self._pending_session_restore = None
+            path_preparation(self.window).cancel_button.hide()
+            return
+        if not registration.can_commit_prepared_session(epoch):
+            # An uninterruptible SMB OS call may delay restore indefinitely.
+            # Use a bounded wait interval; never spin or block the GUI thread.
+            self._session_restore_timer.start(100)
+            return
+        self._pending_session_restore = None
+        path_preparation(self.window).cancel_button.hide()
+        self._commit_prepared_session(prepared)
+
+    def _commit_prepared_session(self, prepared: PreparedSession) -> None:
         try:
             loaded, missing = self.session_controller.open_prepared(prepared)
         except (OSError, ComparisonSetError) as exc:

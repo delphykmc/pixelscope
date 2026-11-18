@@ -129,6 +129,8 @@ class RegistrationController(QObject):
         self._generation = 0
         self._active_generation: int | None = None
         self._active_discovery: RegistrationDiscovery | None = None
+        self._session_restore_epoch = 0
+        self._recent_folder_path: Path | None = None
         self._registration_index = 0
         self._folder_registered_ids: set[str] = set()
         self._direct_document_ids: list[str] = []
@@ -262,6 +264,7 @@ class RegistrationController(QObject):
 
         if self._closing:
             return
+        self.invalidate_pending_session_restore()
         preparation = getattr(self.window, "path_preparation_controller", None)
         if preparation is not None:
             preparation.cancel()
@@ -286,6 +289,40 @@ class RegistrationController(QObject):
         )
         self._start_next_request()
 
+    def invalidate_pending_session_restore(self) -> None:
+        """Invalidate a prepared Session awaiting registration-pool drainage."""
+        self._session_restore_epoch += 1
+
+    def revoke_for_session_restore(self) -> int:
+        """Revoke active/queued registration before granting Session authority.
+
+        OS calls cannot be forcibly interrupted; the caller must await physical
+        pool drainage before committing the prepared Session to the GUI.
+        """
+        self.invalidate_pending_session_restore()
+        self._queue.clear()
+        if self._active_generation is not None:
+            self._generation += 1
+            if self._worker is not None:
+                self._worker.cancel()
+            self._clear_active_state()
+            self._set_progress("idle", 0, None)
+        return self._session_restore_epoch
+
+    def can_commit_prepared_session(self, epoch: int) -> bool:
+        """Check both logical authority and physical worker completion."""
+        return (
+            not self._closing
+            and epoch == self._session_restore_epoch
+            and self._active_generation is None
+            and self._worker is None
+            and not self._queue
+            and self._pool.activeThreadCount() == 0
+        )
+
+    def is_current_session_restore(self, epoch: int) -> bool:
+        return not self._closing and epoch == self._session_restore_epoch
+
     def cancel_active(self) -> None:
         """Cancel current discovery/chunk ownership and reject any later stale callbacks."""
 
@@ -309,6 +346,7 @@ class RegistrationController(QObject):
 
         if not self._closing:
             self._closing = True
+            self.invalidate_pending_session_restore()
             self._recent_flush_timer.stop()
             self._recent_fallback_timer.stop()
             # Queue staged history in QSettings without blocking the close
@@ -367,6 +405,7 @@ class RegistrationController(QObject):
             return
         request = self._queue.popleft()
         paths = request.paths
+        self._recent_folder_path = paths[0] if request.recent_folder else None
         self._active_direct_completion = request.direct_completion
         self._active_replace_selection = request.replace_selection
         self._generation += 1
@@ -516,6 +555,9 @@ class RegistrationController(QObject):
             self.window._update_empty_workspace_state()
         self._set_progress("registering", completed, total)
         register_trace.checkpoint("empty_workspace_and_progress")
+        # A GUI signal observer may revoke this generation during this callback.
+        if self._closing or generation != self._active_generation:
+            return
         if completed < total:
             QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
             return
@@ -673,6 +715,9 @@ class RegistrationController(QObject):
         if messages:
             self.window.statusBar().showMessage(" · ".join(messages), 5000)
 
+        if self._recent_folder_path is not None and summary.folder_count:
+            # Keep the previous chooser location on canceled/missing scans.
+            self.window._remember_directory(self._recent_folder_path)
         self._clear_active_state()
         self._set_progress("idle", 0, None)
         self._start_next_request()
@@ -746,6 +791,7 @@ class RegistrationController(QObject):
         self._active_generation = None
         self._active_discovery = None
         self._discovery_task_id = None
+        self._recent_folder_path = None
         self._registration_index = 0
         self._folder_registered_ids.clear()
         self._direct_document_ids.clear()
@@ -875,6 +921,11 @@ class _RegistrationCloseFilter(QObject):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() is not QEvent.Type.Close:
             return super().eventFilter(watched, event)
+        window = self.parent()
+        confirm = getattr(window, "_confirm_close_request", None)
+        if callable(confirm) and not confirm():
+            event.ignore()
+            return True
 
         if self._close_state == "safe":
             self._close_state = "closed"

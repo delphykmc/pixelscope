@@ -81,3 +81,25 @@ new settings, retries, and physical SMB qualification are outside this change.
   Existing RAW height failure is separately deferred with owner approval; #242 stays
   open until review/closeout. Commits use configured owner identity plus ChatGPT
   co-author; GitHub activity is marked ChatGPT-assisted. Owner artifacts are untouched.
+
+## Review follow-up — 2026-11-18
+
+Independent exact-head review of `81eeb122` found two P1 issues: an ignored close
+confirmation could poison both worker owners, and prepared Session commit could
+race active/queued registration. Remediation checks and caches a *positive* close
+confirmation before either close filter revokes authority; a rejected prompt leaves
+both worker owners usable. Accepted close awaits physical drainage of both pools.
+Prepared Session revokes the active registration generation and queued requests,
+then waits for the running discovery worker to finish before GUI mutation. Later
+Image/Folder/Session operations invalidate the deferred restore's epoch. Recent
+Folder remembers its last-used path only after successful discovery completion.
+The Session wait timer uses a 100 ms interval only while a physically running
+registration worker remains. A disconnected SMB kernel call cannot be safely killed;
+window close stays pending until it returns (potentially indefinitely). No arbitrary
+worker deletion or synchronous GUI wait is permitted. Physical disconnected-SMB,
+packaged, and real-screen tests still require owner acceptance. No clean full-suite
+PASS is claimed; the owner observed one RAW compact-height failure (tracked #236).
+
+New close-veto, queued-registration, chunk interleaving, supersession, and MRU
+regressions were added for Windows validation. This is an implementation update,
+not an independent approval; PR #244 remains Draft until tested/reviewed.

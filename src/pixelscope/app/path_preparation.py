@@ -69,6 +69,13 @@ class PathPreparationController(QObject):
         self._advance()
 
     def cancel(self) -> None:
+        # A prepared Session can be waiting for a previous registration worker
+        # even after this preparation task has completed.
+        window = self._window_ref()
+        registration = getattr(window, "large_folder_registration_controller", None)
+        invalidate = getattr(registration, "invalidate_pending_session_restore", None)
+        if callable(invalidate):
+            invalidate()
         self._authority = None
         self._pending = None
         self._request = None
@@ -77,10 +84,23 @@ class PathPreparationController(QObject):
         self.cancel_button.hide()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() is not QEvent.Type.Close or self._close_safe:
+        if event.type() is not QEvent.Type.Close:
+            return super().eventFilter(watched, event)
+        window = self._window_ref()
+        confirm = getattr(window, "_confirm_close_request", None)
+        if callable(confirm) and not confirm():
+            event.ignore()
+            return True
+        if self._close_safe:
             return super().eventFilter(watched, event)
         self._closing = True
         self.cancel()
+        # Once accepted, revoke the registration owner too; its close filter
+        # will await its own physical pool drain before final destruction.
+        registration = getattr(window, "large_folder_registration_controller", None)
+        shutdown = getattr(registration, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
         if self.is_idle:
             self._close_safe = True
             return super().eventFilter(watched, event)
@@ -104,7 +124,10 @@ class PathPreparationController(QObject):
             return
         request = self._pending
         if request is None:
-            self.cancel_button.hide()
+            window = self._window_ref()
+            recent = getattr(window, "recent_entries_controller", None)
+            if getattr(recent, "_pending_session_restore", None) is None:
+                self.cancel_button.hide()
             return
         self._pending = None
         self._request = request
