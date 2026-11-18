@@ -281,11 +281,13 @@ def test_raw_dialog_reconciles_native_first_show_clamp_without_losing_manual_siz
     )
     dialog.layout_kind.setCurrentText("GRAY")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dialog.height() == dialog.sizeHint().height()
+        # A pre-refit BAYER height can equal a cached sizeHint; wait for the
+        # original compact height, not a tautological current sizeHint match.
+        lambda: dialog.height() == gray_height
         and dialog.black_level_stack.height() == gray_stack_height,
         timeout=3000,
     )
-    assert dialog.height() == gray_height
+    assert dialog.sizeHint().height() == gray_height
 
     dialog.resize(dialog.width() + 20, 320)
     manual = dialog.size()
@@ -322,12 +324,14 @@ def test_raw_dialog_gray_bayer_gray_restores_compact_height(qtbot: object) -> No
 
     dialog.layout_kind.setCurrentText("GRAY")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dialog.height() == dialog.sizeHint().height()
+        # The prior condition could return before the queued GUI refit:
+        # both current height and stale sizeHint still equaled BAYER height.
+        lambda: dialog.height() == gray_dialog_height
         and dialog.black_level_stack.height() == gray_stack_height,
-        timeout=1000,
+        timeout=3000,
     )
     assert dialog.black_level_stack.height() == gray_stack_height
-    assert dialog.height() == gray_dialog_height
+    assert dialog.sizeHint().height() == gray_dialog_height
 
 
 def test_raw_dialog_uses_fixed_edges_with_an_adaptive_middle_gap(
