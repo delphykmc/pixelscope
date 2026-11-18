@@ -1,7 +1,11 @@
 # RAW dialog GRAY/BAYER layout sizing — PR #245 (2026-11-19)
 
-Status: Draft, awaiting owner Windows retest and final exact-head review.
-ChatGPT-assisted. Related issue #236. Based on main merge `431f6d6c` (#244).
+Status: **MERGED** — PR #245 integrated into `main` as
+`0097a0c3d08fa16855f98669517321f1ff0030eb` (final PR head
+`d7634172fdd97c060abaab2049ddfcec4c714504`). Owner-directed acceptance
+after focused Windows PASS and GitHub CI 3/3 success; no final-head Full Suite
+or native-COM-clean claim. ChatGPT-assisted. Related issues #236 and #246.
+Original implementation base: `431f6d6c` (#244).
 
 ## Scope and evidence
 
@@ -47,10 +51,37 @@ case. No new lifecycle callback or state remains.
   profile decoding/layout tests remain present; no skips, xfails or extra
   tolerances were introduced.
 
-## Validation gates
+## Final disposition and remaining evidence boundaries
 
-Owner Windows: rerun the two selected geometry tests, then all
-`tests/ui/test_p1c_raw_dialog.py` and RAW/YUV integration selection.
-Review exact revised HEAD, and keep #246 native COM investigations separate.
-Do not assert new Full Suite or physical Windows native acceptance without
-evidence. Do not merge a Draft PR until the accepted gates are recorded.
+- First Windows selection at earlier PR head: **17 PASS / 2 FAIL**; both
+  failing GRAY/BAYER compact-height tests demonstrated the stale-size condition.
+- Intermediate PR head `59782363`: owner reported the two originally failing
+  geometry tests **2 passed in 0.97s**; the same run also printed Windows
+  `0x8001010D`, even though pytest continued. This remains historical evidence.
+- Final head `d7634172`: owner explicitly reported the two requested focused
+  tests **PASS**, including immediate manual-resize preservation. No exact
+  console summary from that final run was retained in this execution record.
+- GitHub actions at final head: change-scoped, User Guide and pinned Windows
+  screenshot comparison all **SUCCESS (3/3)**. These do not substitute for a
+  Windows Full Suite.
+- Independent source review at earlier head `59782363` identified the
+  queued first-show rebase and 1000→3000 ms regression timeout as P2 issues.
+  Both changes were corrected at final head and independently inspected during
+  merge; **no separate final-head reviewer approval was recorded**.
+- Owner explicitly instructed PR #245 merge with the remaining native
+  diagnostic independent; merge commit `0097a0c3`. No Full Suite PASS, no
+  final native-clean claim, no COM suppression or test skipping.
+
+## Separate native diagnostic (#246)
+
+[Issue #246](https://github.com/delphykmc/pixelscope/issues/246)
+records historical Windows `0x8001010D` reports. The subsequent
+[independent review](https://github.com/delphykmc/pixelscope/issues/246#issuecomment-6991365696)
+recommends proportional monitoring: **no reported native recurrence on the
+final #245 commit, but no verified comprehensive native-clean log either**.
+The native COM caller is unknown. The event is not proven a product crash and
+does not retroactively invalidate the confirmed RAW compact-height fix.
+Preserve SHA/command/pytest result/process exit code on a new occurrence;
+escalate native diagnosis if an event recurs on current code or is associated
+with an abnormal exit, user-visible malfunction, hang or relevant failing test.
+No blind re-runs or compulsory debugger capture for unrelated merges.
