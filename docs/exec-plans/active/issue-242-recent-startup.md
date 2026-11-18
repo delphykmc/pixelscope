@@ -1,6 +1,6 @@
 # Execution plan: filesystem-free Recent startup
 
-Status: Startup slice implemented; merge validation in progress; explicit-open follow-up remains
+Status: Startup source review passed; merge held on existing RAW validation failure
 
 Owner: ChatGPT-assisted
 
@@ -108,4 +108,52 @@ merely by startup. Relative public-API paths become absolute lexically.
   in 3.69s**, exit 0, with the same nonterminating `0x8001010d` diagnostic. It briefly
   overlapped the parent's full-suite process; no further concurrent UI runs requested.
 - Source/test content remains identical to `8682aa7e`; only this evidence document
-  changes. Full-suite and final CI disposition pending.
+  changes. Independent correction review confirmed `git diff e6e2265a 555d4c1b
+  --check` exit 0 and no remaining actionable source finding.
+
+### Final validation and disposition
+
+- `.venv/Scripts/python.exe -m pytest -q
+  --junitxml=temp/pr243-full-20261118.xml` (normal GC, default sandbox execution,
+  default external TEMP): **1974 passed, 12 failed, 1 warning in 678.08s**, exit 1.
+  Full log: `temp/pr243-full-20261118.log`. Two failures are screenshot Git history,
+  nine are clipboard operations (`OleSetClipboard E_ACCESSDENIED`), and one is
+  `test_raw_dialog_gray_bayer_gray_restores_compact_height` (**1078 != 955**).
+  The warning is the intentional duplicate ZIP-entry tamper fixture. The continuing
+  Windows `0x8001010d` diagnostic remains recorded, not suppressed.
+- Independent Git failure diagnosis: default external TEMP makes Git `show` report
+  **Filename too long**. Same tests pass **2/2 in 6.14s** with
+  `--basetemp=temp/review243-history`; default TEMP with process-only
+  `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=core.longpaths`,
+  `GIT_CONFIG_VALUE_0=true` passes **2/2 in 5.89s**. Exact baseline audit-module
+  control and unchanged baseline test bytes reproduce **2 failed in 3.70s**.
+  No global Git setting was changed.
+- Extracted all 12 failed node IDs from the full XML (no deselection or assertion
+  edits), then ran `.venv/Scripts/python.exe -m pytest -q --tb=short
+  --junitxml=temp/pr243-failed-native-recheck-20261118.xml <12 exact nodes>` using
+  ordinary Windows execution outside the app sandbox and process-only Git longpaths:
+  **11 passed, 1 failed in 11.02s**, exit 1. Clipboard's nine failures did not recur;
+  this is an execution-mode control, not a new session-lock diagnosis. RAW still
+  fails with **1011 != 899**. Recheck log uses the matching XML basename with `.log`.
+- Extracted baseline `e6e2265a` source, RAW test, UI conftest and pytest config with
+  `git archive` into `temp/pr243-baseline-source`. Under the same ordinary Windows
+  mode, `python -m pytest -q --tb=short
+  tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_gray_bayer_gray_restores_compact_height
+  --junitxml=baseline-raw.xml` reproduces **1 failed in 0.90s**, **1011 != 899**.
+  RAW source/test and clipboard helper have no base-to-head changes. The baseline
+  source snapshot is temporary validation evidence, not permanent architecture.
+- Final source gates repeated: tracked-file Ruff lint/format **411 files formatted**,
+  mypy **134 source files, no issues**, pip check **No broken requirements found**,
+  docs contract PASS, base-to-head diff check PASS. No broad durable-doc deletions.
+- CI at `555d4c1baf19e1da635c9246965a38acb0b282a6`: **Change-scoped validation,
+  User Guide validation, and WP-Help-E4 pinned Windows screenshot comparison all
+  completed SUCCESS**. A skipped scoped Windows test job is not a pytest PASS.
+- **Disposition: keep PR #243 Draft/unmerged.** Independent source review found no
+  remaining source defect, but the owner's conditional no-problem merge instruction
+  does not explicitly waive the reproduced RAW failure. QUALITY says focused CI
+  cannot override a known full-validation failure. Do not claim full-suite PASS.
+  Resolve the RAW gate separately or obtain an explicitly applicable owner
+  disposition before merge. No new real-SMB, packaged or physical-screen manual
+  acceptance was performed. #242 remains open; after the startup fix merges, its
+  next slice is bounded asynchronous Folder/Session preparation and dialog-directory
+  handling, with cancellation/close/late-result tests and existing workflow semantics.
