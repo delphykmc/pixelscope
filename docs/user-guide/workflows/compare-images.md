@@ -14,9 +14,24 @@ This workflow covers ordinary visual comparison of two to six sources on the cur
 
 Set a source as **Primary** when you need a stable reference role. **Active** follows the source currently in focus. Difference uses these roles but ordinary visual comparison does not require a Difference calculation.
 
+## Native layouts and Difference
+
+Use the existing Single View and Multi View controls for source comparison. The
+current comparison page contains at most six sources and is the sole analysis
+working set. Use the Files workspace to choose sources and **Primary** for the
+source reference; **Active** is the currently focused source.
+
+Use the existing Difference panel's Reference/Target selectors and an explicit
+**Calculate** request for new differences. Cached results remain generation
+and channel bound. There is no additional Original 2/4, A/B/Diff, or Diff Focus
+preset state or hidden toolbar selector. Physical zoom, Sync and reference ROI
+retain their existing viewer/analysis ownership.
+
 ## Quick Compare
 
-PixelScope also provides a temporary reference/sample Quick Compare workflow for fast A/B inspection. It does not rewrite the durable Registered, Selected, Comparison Page, Active, or Primary model. Use it as a preview convenience rather than as a replacement for the main selection workflow.
+Press **T** for persistent source-only comparison: the last source on the Current Comparison Page becomes Primary, and the others shift one position. Repeat T to cycle through the sources in Single or Multi View. Difference is never included; choose its Primary control explicitly if desired. The former hold-B Blink presentation is removed.
+
+Drop A and then B, or drop exactly two images into Files or Image View, to prepare a compatible Difference in the background while the sources remain visible. Difference starts hidden. When **Diff** becomes available, select it to show the cached result. Selecting sources in Files alone does not start this background calculation; dropping three or more files does not choose an arbitrary new pair.
 
 ## More than six images
 

@@ -13,6 +13,7 @@ from typing import Any, cast
 from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import QFileDialog, QHeaderView, QProgressBar
 
+from pixelscope.core import load_latency_trace
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import (
@@ -20,7 +21,9 @@ from pixelscope.io.path_discovery import (
     RegistrationInput,
     discover_registration_inputs,
     natural_sort_key,
+    recent_path_state,
 )
+from pixelscope.ui.dialog_preparation import prepared_dialog
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
@@ -54,6 +57,40 @@ DirectRegistrationCompletion = Callable[[list[str]], None]
 class _RegistrationRequest:
     paths: tuple[Path, ...]
     direct_completion: OwnerCallback | None = None
+    replace_selection: bool = False
+    recent_image: bool = False
+    recent_folder: bool = False
+
+
+@dataclass(frozen=True)
+class _UnavailableRecentImage:
+    path: Path
+    state: str
+    kind: RecentEntryKind = RecentEntryKind.IMAGE
+
+
+def _discover_paths(
+    discovery: DiscoveryFunction,
+    paths: Sequence[Path],
+    files_only: bool,
+    recent_image: bool,
+    recent_folder: bool,
+) -> RegistrationDiscovery | _UnavailableRecentImage:
+    if recent_image or recent_folder:
+        cancellation_checkpoint()
+        state = recent_path_state(paths[0], is_folder=recent_folder)
+        cancellation_checkpoint()
+        if state in ("missing", "wrong_type"):
+            kind = RecentEntryKind.FOLDER if recent_folder else RecentEntryKind.IMAGE
+            return _UnavailableRecentImage(paths[0], state, kind)
+    if files_only:
+        files = []
+        for path in paths:
+            cancellation_checkpoint()
+            if path.is_file():
+                files.append(path)
+        paths = files
+    return discovery(paths, checkpoint=cancellation_checkpoint)
 
 
 class RegistrationController(QObject):
@@ -92,17 +129,29 @@ class RegistrationController(QObject):
         self._generation = 0
         self._active_generation: int | None = None
         self._active_discovery: RegistrationDiscovery | None = None
+        self._session_restore_epoch = 0
+        self._recent_folder_path: Path | None = None
         self._registration_index = 0
         self._folder_registered_ids: set[str] = set()
         self._direct_document_ids: list[str] = []
         self._direct_document_id_set: set[str] = set()
         self._direct_paths: list[Path] = []
+        self._deferred_recent: deque[tuple[tuple[Path, ...], tuple[Path, ...]]] = deque()
+        self._deferred_recent_targets: set[str] = set()
+        self._recent_flush_timer = QTimer(self)
+        self._recent_flush_timer.setSingleShot(True)
+        self._recent_flush_timer.timeout.connect(self._flush_deferred_recent)  # type: ignore[attr-defined]
+        self._recent_fallback_timer = QTimer(self)
+        self._recent_fallback_timer.setSingleShot(True)
+        self._recent_fallback_timer.setInterval(10000)
+        self._recent_fallback_timer.timeout.connect(self._flush_deferred_recent)  # type: ignore[attr-defined]
         self._closing = False
         self._stale_result_count = 0
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
         self._folder_document_ids: dict[str, set[str]] = {}
         self._current_record: RegistrationInput | None = None
         self._active_direct_completion: OwnerCallback | None = None
+        self._active_replace_selection = False
         self._type_column_resize_mode: QHeaderView.ResizeMode | None = None
         self._original_path_key = OwnerCallback(window._path_key)
         self._original_add_document_to_folder = OwnerCallback(window._add_document_to_folder)
@@ -110,6 +159,8 @@ class RegistrationController(QObject):
             window._remove_document_from_folder
         )
         self._initialize_folder_caches()
+        for viewer in (window.viewer, *window.multi_compare_view.viewers):
+            viewer.first_frame_painted.connect(self._on_first_frame_painted)
 
         progress_parent = window.document_list.parentWidget() or window
         self._progress = QProgressBar(progress_parent)
@@ -180,6 +231,7 @@ class RegistrationController(QObject):
             self.window.document_list.paths_dropped.disconnect()
         self.window.document_list.paths_dropped.connect(self.handle_dropped_paths)
 
+    @prepared_dialog()
     def open_folders(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self.window,
@@ -204,19 +256,72 @@ class RegistrationController(QObject):
         paths: Sequence[Path],
         *,
         direct_completion: DirectRegistrationCompletion | None = None,
+        replace_selection: bool = False,
+        recent_image: bool = False,
+        recent_folder: bool = False,
     ) -> None:
         """Queue one logical input request without performing filesystem work on the GUI thread."""
 
         if self._closing:
             return
+        self.invalidate_pending_session_restore()
+        preparation = getattr(self.window, "path_preparation_controller", None)
+        if preparation is not None:
+            preparation.cancel()
+        if replace_selection and direct_completion is not None:
+            raise ValueError("replacement input cannot also have a drop completion")
         normalized = tuple(Path(path) for path in paths)
         if not normalized:
             return
+        if recent_image and (not replace_selection or len(normalized) != 1):
+            raise ValueError("Recent image validation requires one replacement path")
+        if recent_folder and (replace_selection or recent_image or len(normalized) != 1):
+            raise ValueError("Recent folder validation requires one registration-only path")
         completion_hook = (
             OwnerCallback(direct_completion) if direct_completion is not None else None
         )
-        self._queue.append(_RegistrationRequest(normalized, completion_hook))
+        if len(normalized) == 1:
+            load_latency_trace.begin("explicit_path_enqueued")
+        self._queue.append(
+            _RegistrationRequest(
+                normalized, completion_hook, replace_selection, recent_image, recent_folder
+            )
+        )
         self._start_next_request()
+
+    def invalidate_pending_session_restore(self) -> None:
+        """Invalidate a prepared Session awaiting registration-pool drainage."""
+        self._session_restore_epoch += 1
+
+    def revoke_for_session_restore(self) -> int:
+        """Revoke active/queued registration before granting Session authority.
+
+        OS calls cannot be forcibly interrupted; the caller must await physical
+        pool drainage before committing the prepared Session to the GUI.
+        """
+        self.invalidate_pending_session_restore()
+        self._queue.clear()
+        if self._active_generation is not None:
+            self._generation += 1
+            if self._worker is not None:
+                self._worker.cancel()
+            self._clear_active_state()
+            self._set_progress("idle", 0, None)
+        return self._session_restore_epoch
+
+    def can_commit_prepared_session(self, epoch: int) -> bool:
+        """Check both logical authority and physical worker completion."""
+        return (
+            not self._closing
+            and epoch == self._session_restore_epoch
+            and self._active_generation is None
+            and self._worker is None
+            and not self._queue
+            and self._pool.activeThreadCount() == 0
+        )
+
+    def is_current_session_restore(self, epoch: int) -> bool:
+        return not self._closing and epoch == self._session_restore_epoch
 
     def cancel_active(self) -> None:
         """Cancel current discovery/chunk ownership and reject any later stale callbacks."""
@@ -241,6 +346,15 @@ class RegistrationController(QObject):
 
         if not self._closing:
             self._closing = True
+            self.invalidate_pending_session_restore()
+            self._recent_flush_timer.stop()
+            self._recent_fallback_timer.stop()
+            # Queue staged history in QSettings without blocking the close
+            # path on a synchronous disk/registry flush.
+            if self._deferred_recent:
+                self._flush_recent_to_settings()
+            self._deferred_recent.clear()
+            self._deferred_recent_targets.clear()
             self._queue.clear()
             self._generation += 1
             if self._worker is not None:
@@ -291,7 +405,9 @@ class RegistrationController(QObject):
             return
         request = self._queue.popleft()
         paths = request.paths
+        self._recent_folder_path = paths[0] if request.recent_folder else None
         self._active_direct_completion = request.direct_completion
+        self._active_replace_selection = request.replace_selection
         self._generation += 1
         generation = self._generation
         self._active_generation = generation
@@ -302,7 +418,20 @@ class RegistrationController(QObject):
         self._direct_document_id_set.clear()
         self._direct_paths.clear()
         self._set_progress("scanning", 0, None)
-        worker = TaskWorker(self._discover, paths, generation=generation)
+        # progress_changed is a synchronous Qt signal. Its observers can close
+        # the window, cancel registration, or commit a prepared Session before
+        # a worker exists. Never start a worker for that revoked generation.
+        if self._closing or self._active_generation != generation:
+            return
+        worker = TaskWorker(
+            _discover_paths,
+            self._discovery_function,
+            paths,
+            request.replace_selection,
+            request.recent_image,
+            request.recent_folder,
+            generation=generation,
+        )
         self._worker = worker
         self._discovery_task_id = worker.task_id
         worker.signals.succeeded.connect(self._discovery_succeeded)
@@ -310,9 +439,6 @@ class RegistrationController(QObject):
         worker.signals.cancelled.connect(self._discovery_cancelled)
         worker.signals.finished.connect(self._discovery_finished)
         self._pool.start(worker)
-
-    def _discover(self, paths: Sequence[Path]) -> RegistrationDiscovery:
-        return self._discovery_function(paths, checkpoint=cancellation_checkpoint)
 
     def _current_discovery_signal(self, task_id: str, generation: int) -> bool:
         return (
@@ -332,16 +458,40 @@ class RegistrationController(QObject):
         if not self._current_discovery_signal(task_id, generation):
             self._stale_result_count += 1
             return
+        if isinstance(result, _UnavailableRecentImage):
+            # Keep modal feedback on the GUI thread and retain active ownership
+            # while it is open, so reentrant requests stay ordered behind it.
+            recent = getattr(self.window, "recent_entries_controller", None)
+            try:
+                if recent is not None:
+                    if result.state == "missing":
+                        recent._handle_missing_entry(result.kind, result.path)
+                    else:
+                        recent._show_wrong_type(result.kind, result.path)
+            finally:
+                if self._current_discovery_signal(task_id, generation):
+                    self._clear_active_state()
+                    self._set_progress("idle", 0, None)
+                    self._start_next_request()
+            return
         if not isinstance(result, RegistrationDiscovery):
             self._finish_with_error("Registration discovery returned an invalid result")
             return
         self._discovery_task_id = None
         self._active_discovery = result
         total = len(result.items)
+        if total == 1 and not result.items[0].from_folder:
+            load_latency_trace.mark("discovery_worker_completed")
         self._suspend_type_column_auto_resize()
         self._set_progress("registering", 0, total)
         if total == 0:
             QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
+            return
+        if total == 1 and not result.items[0].from_folder:
+            # Files row/catalog mutation is lightweight and belongs on the GUI
+            # thread. Avoid an extra event-loop turn for one explicit image;
+            # its actual decode remains delegated to ImageLoadWorker.
+            self._register_chunk(generation)
             return
         QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
 
@@ -384,6 +534,7 @@ class RegistrationController(QObject):
         discovery = self._active_discovery
         if self._closing or generation != self._active_generation or discovery is None:
             return
+        register_trace = load_latency_trace.PhaseTimer("register")
         total = len(discovery.items)
         start = self._registration_index
         hard_stop = min(start + self.chunk_size, total)
@@ -404,15 +555,33 @@ class RegistrationController(QObject):
                     break
 
         self._registration_index = completed
+        register_trace.checkpoint("document_record_and_tree_row")
         if start == 0 or completed == total:
             self.window._update_empty_workspace_state()
         self._set_progress("registering", completed, total)
+        register_trace.checkpoint("empty_workspace_and_progress")
+        # A GUI signal observer may revoke this generation during this callback.
+        if self._closing or generation != self._active_generation:
+            return
         if completed < total:
             QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
             return
+        if total == 1 and not discovery.items[0].from_folder:
+            # Start foreground selection/loading in the same GUI turn as row
+            # registration; folder and multi-file batches stay sliced.
+            self._finish_registration(generation)
+            return
         QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
 
-    def _register_record(self, record: RegistrationInput) -> None:
+    def register_prepared_input(self, record: RegistrationInput) -> str | None:
+        """Commit worker-provided canonical metadata on the GUI thread.
+
+        Session preflight uses this without changing the discovery queue or its
+        selection authority. The temporary record is always cleared deterministically.
+        """
+        if self._closing:
+            return None
+        previous_record = self._current_record
         self._current_record = record
         if (
             record.canonical_folder_path is not None
@@ -434,17 +603,26 @@ class RegistrationController(QObject):
                     resolve_raw_profile=record.resolve_raw_profile,
                 )
         finally:
-            self._current_record = None
+            self._current_record = previous_record
+        return cast(str | None, document_id)
+
+    def _register_record(self, record: RegistrationInput) -> None:
+        record_trace = load_latency_trace.PhaseTimer("register.record")
+        document_id = self.register_prepared_input(record)
+        record_trace.checkpoint("register_input_and_tree_mutation")
         if document_id is None:
             return
         if record.from_folder:
             self._folder_registered_ids.add(document_id)
+        elif self._active_discovery is not None and len(self._active_discovery.items) == 1:
+            load_latency_trace.target(document_id)
         if record.select_on_complete and document_id not in self._direct_document_id_set:
             self._direct_document_id_set.add(document_id)
             self._direct_document_ids.append(document_id)
             document = self.window.documents.get(document_id)
             if document is not None and document.source_path is not None:
                 self._direct_paths.append(document.source_path)
+        record_trace.checkpoint("record_identity_and_selection_metadata")
 
     def _finish_registration(self, generation: int) -> None:
         discovery = self._active_discovery
@@ -459,13 +637,22 @@ class RegistrationController(QObject):
             empty_folder_count=discovery.empty_folder_count,
             registered_folders=discovery.registered_folders,
         )
-        self._record_recent_entries(summary.registered_folders, direct_paths)
         current_ids = [document.document_id for document in self.window.selected_documents]
         current_set = set(current_ids)
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
-        completion = self._active_direct_completion
+        # Image-surface callers enqueue before filesystem classification. Mixed
+        # folder/file drops keep the ordinary registration selection contract.
+        completion = self._active_direct_completion if not discovery.folder_count else None
+        replace_selection = self._active_replace_selection
         reloads: list[str] = []
-        if completion is not None and direct_ids:
+        if direct_ids:
+            load_latency_trace.mark("selection_start", document_id=direct_ids[0])
+        if replace_selection:
+            if direct_ids:
+                self.window._select_document_ids(direct_ids)
+            else:
+                self.window._update_empty_workspace_state()
+        elif completion is not None and direct_ids:
             # Registration may outlive the presentation owner during teardown.
             # The request retains only a weak owner edge and a vanished owner
             # simply makes the presentation continuation stale.
@@ -487,8 +674,38 @@ class RegistrationController(QObject):
         else:
             self.window._update_empty_workspace_state()
 
+        if direct_ids:
+            load_latency_trace.mark("selection_returned", document_id=direct_ids[0])
+        if not replace_selection and completion is None and direct_ids and not summary.folder_count:
+            # Image-surface drops use their own completion callback. Files-only
+            # drops use the same passive pairing logic without double scheduling.
+            quick_compare = getattr(self.window, "quick_compare_controller", None)
+            consider_drop = getattr(quick_compare, "consider_registered_files_drop", None)
+            if callable(consider_drop):
+                consider_drop(current_ids, direct_ids)
+
+        # QSettings.sync() can block the GUI even if decoding is running on a
+        # worker. Only direct-file registration defers Recent history until the
+        # image viewport has painted; folder-only registration keeps its
+        # established synchronous persistence semantics.
+        if direct_ids:
+            load_latency_trace.mark("recent_entries_stage_begin", document_id=direct_ids[0])
+            self._stage_recent_entries(summary.registered_folders, direct_paths)
+            load_latency_trace.mark("recent_entries_stage_returned", document_id=direct_ids[0])
+            self._deferred_recent.append((summary.registered_folders, direct_paths))
+            self._deferred_recent_targets.update(direct_ids)
+            if not self._recent_fallback_timer.isActive():
+                self._recent_fallback_timer.start()
+            load_latency_trace.mark("recent_entries_staged", document_id=direct_ids[0])
+        else:
+            self._record_recent_entries(summary.registered_folders, direct_paths)
+
         messages: list[str] = []
-        if completion is None and direct_ids:
+        if replace_selection:
+            messages.append(
+                f"Opened {len(direct_ids)} image(s)" if direct_ids else "No supported images opened"
+            )
+        elif completion is None and direct_ids:
             if current_ids:
                 if additions:
                     messages.append(f"Added {len(additions)} image(s)")
@@ -503,9 +720,54 @@ class RegistrationController(QObject):
         if messages:
             self.window.statusBar().showMessage(" · ".join(messages), 5000)
 
+        if self._recent_folder_path is not None and summary.folder_count:
+            # Keep the previous chooser location on canceled/missing scans.
+            self.window._remember_directory(self._recent_folder_path)
         self._clear_active_state()
         self._set_progress("idle", 0, None)
         self._start_next_request()
+
+    def _on_first_frame_painted(self, document_id: str) -> None:
+        if self._closing or document_id not in self._deferred_recent_targets:
+            return
+        # Give Qt a paint/event-loop turn before expensive history I/O.
+        # A pending one-shot timer also coalesces rapid sequential drops.
+        if not self._recent_flush_timer.isActive():
+            self._recent_flush_timer.start(100)
+
+    def _flush_deferred_recent(self) -> None:
+        if self._closing or not self._deferred_recent:
+            return
+        self._recent_flush_timer.stop()
+        self._recent_fallback_timer.stop()
+        self._deferred_recent.clear()
+        self._deferred_recent_targets.clear()
+        self._flush_recent_to_settings()
+        load_latency_trace.mark("recent_entries_submitted_to_qsettings_after_paint")
+
+    def _flush_recent_to_settings(self) -> None:
+        controller = getattr(self.window, "recent_entries_controller", None)
+        repository = getattr(controller, "repository", None)
+        flush = getattr(repository, "flush_staged", None)
+        if callable(flush):
+            try:
+                flush(sync=False)
+            except Exception:  # noqa: BLE001 - optional history must not break runtime
+                LOGGER.warning("Unable to queue staged Recent history", exc_info=True)
+
+    def _stage_recent_entries(
+        self,
+        folders: Sequence[Path],
+        direct_paths: Sequence[Path],
+    ) -> None:
+        controller = getattr(self.window, "recent_entries_controller", None)
+        observe = getattr(controller, "_observe_history", None)
+        if not callable(observe):
+            return
+        if folders:
+            observe(RecentEntryKind.FOLDER, folders, canonical=True)
+        if direct_paths:
+            observe(RecentEntryKind.IMAGE, direct_paths, canonical=True)
 
     def _record_recent_entries(
         self,
@@ -534,6 +796,7 @@ class RegistrationController(QObject):
         self._active_generation = None
         self._active_discovery = None
         self._discovery_task_id = None
+        self._recent_folder_path = None
         self._registration_index = 0
         self._folder_registered_ids.clear()
         self._direct_document_ids.clear()
@@ -541,6 +804,7 @@ class RegistrationController(QObject):
         self._direct_paths.clear()
         self._current_record = None
         self._active_direct_completion = None
+        self._active_replace_selection = False
 
     def _set_progress(self, phase: str, completed: int, total: int | None) -> None:
         self._progress_state = RegistrationProgress(phase, completed, total)
@@ -609,6 +873,7 @@ class RegistrationController(QObject):
             folder_documents.insert(inserted_at, document_id)
             folder_ids.add(document_id)
         self.window._folder_paths[folder_key] = folder_path
+        self.window._document_folder_keys[document_id] = folder_key
         if current_index is None:
             self.window._folder_indices.setdefault(folder_key, 0)
         elif inserted_at is not None and inserted_at <= current_index:
@@ -617,7 +882,9 @@ class RegistrationController(QObject):
     def _remove_document_from_folder(self, document_id: str, path: Path) -> None:
         """Keep binary-insertion caches consistent with canonical removal semantics."""
 
-        folder_key = self.window._folder_key(path)
+        folder_key = self.window._document_folder_keys.pop(document_id, None)
+        if folder_key is None:
+            folder_key = self.window._folder_key(path)
         folder_documents = self.window._folder_documents.get(folder_key)
         if folder_documents is None:
             return
@@ -654,11 +921,18 @@ class _RegistrationCloseFilter(QObject):
         self._close_state = "open"
         self._drain_timer = QTimer(self)
         self._drain_timer.setSingleShot(True)
+        # An uninterruptible SMB OS call must not generate a zero-delay hot loop.
+        self._drain_timer.setInterval(100)
         self._drain_timer.timeout.connect(self._continue_close)  # type: ignore[attr-defined]
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() is not QEvent.Type.Close:
             return super().eventFilter(watched, event)
+        window = self.parent()
+        confirm = getattr(window, "_confirm_close_request", None)
+        if callable(confirm) and not confirm():
+            event.ignore()
+            return True
 
         if self._close_state == "safe":
             self._close_state = "closed"
@@ -676,7 +950,7 @@ class _RegistrationCloseFilter(QObject):
         self._close_state = "draining"
         event.ignore()
         if not self._drain_timer.isActive():
-            self._drain_timer.start(0)
+            self._drain_timer.start()
         return True
 
     def _continue_close(self) -> None:
@@ -686,7 +960,7 @@ class _RegistrationCloseFilter(QObject):
         if controller is None:
             return
         if not controller.is_shutdown_drained:
-            self._drain_timer.start(0)
+            self._drain_timer.start()
             return
         window = self.parent()
         if window is None:

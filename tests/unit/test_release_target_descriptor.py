@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +16,7 @@ from scripts import build_third_party_notices as notices
 from scripts.build_installer_release import installer_command
 from scripts.build_release import pyinstaller_command
 from scripts.distribution_contract import (
+    DistributionValidationError,
     build_payload_manifest,
     installer_path,
     manifest_path,
@@ -21,9 +24,14 @@ from scripts.distribution_contract import (
     portable_zip_path,
     release_stem,
     validate_payload_manifest,
+    write_payload_manifest,
 )
 from scripts.package_target_descriptor import load_target_descriptor
-from scripts.release_contract import render_windows_version_info
+from scripts.release_contract import (
+    release_version,
+    render_windows_version_info,
+    windows_version_tuple,
+)
 from scripts.validate_release_bundle import validate_release_bundle
 
 
@@ -101,6 +109,264 @@ def test_descriptor_rejects_invalid_or_unsafe_values(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         load_target_descriptor(_descriptor_file(tmp_path, **overrides))
+
+
+def test_issue176_opt_ins_are_absent_by_default_and_validated(tmp_path: Path) -> None:
+    ordinary = load_target_descriptor(_descriptor_file(tmp_path))
+    assert ordinary.supersedes_installer_app_ids == ()
+    assert ordinary.release_revision is None
+
+    selected = load_target_descriptor(
+        _descriptor_file(
+            tmp_path,
+            supersedes_installer_app_ids=["{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"],
+            release_revision=65535,
+        )
+    )
+    assert selected.supersedes_installer_app_ids == ("{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",)
+    assert selected.release_revision == 65535
+    assert (
+        load_target_descriptor(_descriptor_file(tmp_path, release_revision=0)).release_revision == 0
+    )
+
+
+@pytest.mark.parametrize(
+    ("fields", "error"),
+    [
+        ({"supersedes_installer_app_ids": []}, "nonempty list"),
+        ({"supersedes_installer_app_ids": "not-a-list"}, "nonempty list"),
+        ({"supersedes_installer_app_ids": [1]}, "GUID"),
+        ({"supersedes_installer_app_ids": ["6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C"]}, "GUID"),
+        (
+            {"supersedes_installer_app_ids": ["{A33A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "self-supersession",
+        ),
+        (
+            {"supersedes_installer_app_ids": ["{AA3A81AB-5B0B-4249-8314-ABACBDF45990}"]},
+            "allowlisted",
+        ),
+        (
+            {
+                "supersedes_installer_app_ids": [
+                    "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}",
+                    "{6fa0ab08-ab41-4f77-93e8-16ce6ff53e5c}",
+                ]
+            },
+            "duplicate",
+        ),
+        ({"release_revision": -1}, "release_revision"),
+        ({"release_revision": 65536}, "release_revision"),
+        ({"release_revision": True}, "release_revision"),
+        ({"release_revision": None}, "release_revision"),
+        ({"release_revision": "1"}, "release_revision"),
+        ({"release_revision": 1.0}, "release_revision"),
+    ],
+)
+def test_issue176_invalid_descriptor_opt_ins(
+    tmp_path: Path, fields: dict[str, object], error: str
+) -> None:
+    with pytest.raises(ValueError, match=error):
+        load_target_descriptor(_descriptor_file(tmp_path, **fields))
+
+
+def test_issue176_four_part_revision_is_scoped_to_downstream(tmp_path: Path) -> None:
+    ordinary = load_target_descriptor(_descriptor_file(tmp_path))
+    revised = load_target_descriptor(_descriptor_file(tmp_path, release_revision=2))
+    current = release_version()
+    assert ordinary.effective_version == current
+    assert revised.effective_version == f"{current}.2"
+    assert release_stem(descriptor=ordinary).endswith(f"{current}-windows-x64")
+    assert release_stem(descriptor=revised).endswith(f"{current}.2-windows-x64")
+    assert release_stem().startswith(f"PixelScope-{current}-")
+    assert manifest_path(descriptor=revised).name.startswith(f"PixelScopeSynthetic-{current}.2-")
+    assert portable_zip_path(descriptor=revised).name.startswith(
+        f"PixelScopeSynthetic-{current}.2-"
+    )
+    assert installer_path(descriptor=revised).name.startswith(f"PixelScopeSynthetic-{current}.2-")
+    command = installer_command(Path("C:/ISCC.exe"), descriptor=revised)
+    assert f"-dAppVersion={current}.2" in command
+    assert f"-dAppFileVersion={current}.2" in command
+    assert "-dAppVersionBuild=2" in command
+    assert f"-dTargetReleaseStem={release_stem(descriptor=revised)}" in command
+    assert 'StringStruct("FileVersion", "' + current + '.2")' in (
+        render_windows_version_info(
+            revised.effective_version,
+            identity=(revised.app_dir, revised.executable, revised.display_name),
+        )
+    )
+    v1 = windows_version_tuple(f"{current}.1")
+    v2 = windows_version_tuple(f"{current}.2")
+    assert v2 > v1
+    assert windows_version_tuple(current)[3] == 0
+
+
+def test_issue176_revision_manifest_records_provenance_and_refuses_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    revised = load_target_descriptor(_descriptor_file(tmp_path, release_revision=7))
+    root = tmp_path / "payload"
+    root.mkdir()
+    exe = root / revised.executable
+    exe.write_bytes(b"payload-v1")
+    output = tmp_path / "release.manifest.json"
+    monkeypatch.setenv("PIXELSCOPE_PUBLIC_MAIN_SHA", "a" * 40)
+    monkeypatch.setenv("PIXELSCOPE_DOWNSTREAM_SHA", "b" * 40)
+    manifest = build_payload_manifest(root, descriptor=revised)
+    assert manifest["version"] == revised.effective_version
+    assert manifest["build_provenance"] == {
+        "main_sha": "a" * 40,
+        "downstream_sha": "b" * 40,
+    }
+    validate_payload_manifest(root, manifest, descriptor=revised)
+    assert write_payload_manifest(root, destination=output, descriptor=revised) == output
+    write_payload_manifest(root, destination=output, descriptor=revised)
+
+    exe.write_bytes(b"payload-v2")
+    with pytest.raises(DistributionValidationError, match="same downstream release identity"):
+        write_payload_manifest(root, destination=output, descriptor=revised)
+    assert json.loads(output.read_text()) == manifest
+    monkeypatch.delenv("PIXELSCOPE_DOWNSTREAM_SHA")
+    with pytest.raises(DistributionValidationError, match="PIXELSCOPE_DOWNSTREAM_SHA"):
+        build_payload_manifest(root, descriptor=revised)
+
+
+def test_issue176_inno_conversion_is_only_activated_by_non_smoke_downstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = load_target_descriptor(
+        _descriptor_file(
+            tmp_path,
+            release_revision=4,
+            supersedes_installer_app_ids=["{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"],
+        )
+    )
+    monkeypatch.setattr("scripts.build_installer_release.sha256_file", lambda _path: "c" * 64)
+    command = installer_command(Path("C:/ISCC.exe"), descriptor=target)
+    assert "-dTargetCorePredecessor={6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in command
+    assert "-dTargetManifestSha256=" + "c" * 64 in command
+    assert "-dTargetExeSha256=" + "c" * 64 in command
+    with pytest.raises(ValueError, match="non-smoke downstream AppId"):
+        installer_command(Path("C:/ISCC.exe"), descriptor=target, app_id="unsafe-override")
+
+    smoke_command = installer_command(
+        Path("C:/ISCC.exe"),
+        descriptor=target,
+        smoke_build=True,
+        app_id="PixelScope.P7B.Smoke",
+    )
+    assert "-dSmokeBuild=1" in smoke_command
+    assert not any("-dTargetCorePredecessor=" in flag for flag in smoke_command)
+    assert not any("-dTargetManifestSha256=" in flag for flag in smoke_command)
+    assert not any("-dTargetExeSha256=" in flag for flag in smoke_command)
+    assert not any(
+        "-dTargetCorePredecessor=" in flag for flag in installer_command(Path("C:/ISCC.exe"))
+    )
+
+
+def test_issue176_shared_inno_has_fail_closed_conversion_lifecycle() -> None:
+    inno = (
+        Path(__file__).resolve().parents[2] / "packaging" / "installer" / "pixelscope.iss"
+    ).read_text(encoding="utf-8")
+    assert "#if defined(TargetCorePredecessor) && !defined(SmokeBuild)" in inno
+    assert "function PrepareCoreConversion: Boolean;" in inno
+    assert "WizardSilent then" in inno
+    assert "ConversionSwitchPresent" in inno
+    assert "MB_YESNO or MB_DEFBUTTON2, IDNO" in inno
+    assert "function PrepareToInstall(var NeedsRestart: Boolean): String;" in inno
+    assert "procedure CurStepChanged(CurStep: TSetupStep);" in inno
+    assert "CurStep <> ssDone" in inno
+    assert "VerifyDownstreamReadiness" in inno
+    assert "GetSHA256OfFile" in inno
+    assert "UninstallVerifiedCore" in inno
+    assert "function GetCustomSetupExitCode: Integer;" in inno
+    assert "PartialConversionExitCode = 77" in inno
+    # Inno ISPP treats a line-start Pascal #13/#10 literal as a directive.
+    assert not any(line.lstrip().startswith(("#13", "#10")) for line in inno.splitlines())
+    # Inno 6/7 Unicode PascalScript requires AnsiString as LoadStringFromFile output.
+    assert "CoreManifest: AnsiString;" in inno
+    assert "String(CoreManifest)" in inno
+    # The Inno default uninstall DisplayName is AppVerName, not bare AppName.
+    assert "'DisplayVersion', RegisteredVersion" in inno
+    assert "'PixelScope ' + RegisteredVersion" in inno
+    assert "Core uninstall DisplayName does not match PUBLIC Core identity." in inno
+    # PascalScript OR binds more tightly than <>; keep the hash/version clauses boolean.
+    assert "(CompareText(GetSHA256OfFile(ManifestFile), ExpectedManifestSha256) <> 0) or" in inno
+    assert "(CompareText(GetSHA256OfFile(ExecutableFile), ExpectedExeSha256) <> 0) then" in inno
+    assert "(ComparePackedVersion(InstalledVersion, ExpectedVersion) <> 0) then" in inno
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell integrity smoke")
+def test_issue176_installed_payload_verifier_checks_all_manifest_members(
+    tmp_path: Path,
+) -> None:
+    target = load_target_descriptor(_descriptor_file(tmp_path))
+    root = tmp_path / target.app_dir
+    root.mkdir()
+    (root / target.executable).write_bytes(b"fake-exe")
+    dll = root / "library.dll"
+    dll.write_bytes(b"original-runtime")
+    manifest = build_payload_manifest(root, descriptor=target)
+    assert len(manifest["files"]) == 2
+    manifest_file = root / "release-manifest.json"
+    script = (
+        Path(__file__).resolve().parents[2]
+        / "packaging"
+        / "installer"
+        / "verify_downstream_payload.ps1"
+    )
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-InstallRoot",
+        str(root),
+        "-ExpectedProduct",
+        target.display_name,
+        "-ExpectedVersion",
+        target.effective_version,
+        "-ExpectedExeName",
+        target.executable,
+    ]
+
+    def check() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(command, capture_output=True, text=True, check=False)
+
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    healthy = check()
+    assert healthy.returncode == 0, f"{healthy.stdout}\n{healthy.stderr}"
+    dll.write_bytes(b"tampered-runtime")
+    assert check().returncode != 0
+    dll.unlink()
+    assert check().returncode != 0
+    dll.write_bytes(b"original-runtime")
+    manifest["files"][0]["path"] = "../escape.dll"
+    manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+    assert check().returncode != 0
+
+
+def test_issue176_m3_conversion_never_trusts_manifest_hash_only() -> None:
+    root = Path(__file__).resolve().parents[2]
+    inno = (root / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
+    assert "function VerifyInstalledPayload: Boolean;" in inno
+    assert "Result := VerifyInstalledPayload" in inno
+    assert "GetSHA256OfFile" in inno
+    assert "ConversionFailed := True" in inno
+    assert "function GetCustomSetupExitCode: Integer;" in inno
+    assert "UnsafeReparsePath(ChangeFileExt(ExpectedUninstaller, '.dat'))" in inno
+    preflight = inno.split("function PrepareCoreConversion: Boolean;", 1)[1].split(
+        "function PrepareToInstall", 1
+    )[0]
+    assert "RegKeyExists(HKLM32, CoreUninstallKey)" in preflight
+    assert "RegKeyExists(HKCU32, CoreUninstallKey)" not in preflight
+    script = (root / "packaging" / "installer" / "verify_downstream_payload.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "SHA256" in script and "ComputeHash" in script and "ConvertFrom-Json" in script
+    assert "ReparsePoint" in script
 
 
 @pytest.mark.parametrize("produces_expected_target", [False, True])

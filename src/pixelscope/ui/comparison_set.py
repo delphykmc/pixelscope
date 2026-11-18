@@ -15,6 +15,7 @@ from pixelscope.core.comparison_set import (
     SessionDifference,
     SessionSource,
 )
+from pixelscope.core.recent_entries import normalize_recent_path
 from pixelscope.io.comparison_set_repository import (
     ComparisonSetRepository,
     SessionInputProfile,
@@ -22,8 +23,10 @@ from pixelscope.io.comparison_set_repository import (
 )
 from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.session_preparation import PreparedSession
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.design_tokens import menu_style
+from pixelscope.ui.dialog_preparation import prepared_dialog
 from pixelscope.ui.display_gain import display_gain_state
 
 LOGGER = logging.getLogger(__name__)
@@ -71,7 +74,7 @@ class SessionController:
         if self._recent_entry_callback is None:
             return
         try:
-            self._recent_entry_callback(path.resolve(strict=False))
+            self._recent_entry_callback(normalize_recent_path(path))
         except Exception:  # noqa: BLE001 - optional observer cannot break Session workflows
             LOGGER.warning("Unable to update Recent Session history", exc_info=True)
 
@@ -142,6 +145,7 @@ class SessionController:
         getter = getattr(self.window, "_open_dialog_directory", None)
         return str(getter()) if callable(getter) else ""
 
+    @prepared_dialog()
     def save_dialog(self) -> None:
         if not self._persistent_registered_documents():
             self.window.statusBar().showMessage("No Registered images to save", 3000)
@@ -260,6 +264,7 @@ class SessionController:
             else None
         )
 
+    @prepared_dialog()
     def open_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self.window,
@@ -268,6 +273,10 @@ class SessionController:
             SESSION_FILTER,
         )
         if not path:
+            return
+        recent = getattr(self.window, "recent_entries_controller", None)
+        if recent is not None:
+            recent._prepare_recent_session(Path(path))
             return
         try:
             loaded, missing = self.open_from_path(path)
@@ -303,6 +312,10 @@ class SessionController:
             f"Opened Session · {target.name} · {loaded} Registered source(s)",
             4000,
         )
+
+    def open_prepared(self, prepared: PreparedSession) -> tuple[int, tuple[Path, ...]]:
+        """Production transactional controller supplies the prepared commit path."""
+        raise RuntimeError("Prepared Session restore requires the production controller")
 
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
         session = self.repository.load(path)

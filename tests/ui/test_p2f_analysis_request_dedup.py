@@ -64,7 +64,8 @@ def test_repeated_identical_statistics_request_does_not_restart_completed_analys
         timeout=3000,
     )
     completed_results = panel.last_results
-    assert panel.activity.isHidden()
+    assert not panel.activity.isHidden()
+    assert panel.busy.isHidden()
     assert not panel._refresh_timer.isActive()
 
     panel.set_documents(documents, None, "Full image")
@@ -72,7 +73,8 @@ def test_repeated_identical_statistics_request_does_not_restart_completed_analys
     assert panel.last_results is completed_results
     assert panel._worker is None
     assert not panel._refresh_timer.isActive()
-    assert panel.activity.isHidden()
+    assert not panel.activity.isHidden()
+    assert panel.busy.isHidden()
 
 
 def test_repeated_identical_statistics_request_keeps_running_worker(qtbot: object) -> None:
@@ -128,11 +130,14 @@ def test_changed_request_and_error_do_not_describe_stale_histogram(qtbot: object
     assert not panel.histogram_context.isHidden()
     assert any(not plot.isHidden() for plot in panel.plots)
 
+    previous_curves = tuple(panel.plots[0].listDataItems())
     panel.set_documents(documents, RoiBounds(1, 1, 5, 4), "Active ROI")
 
     assert panel.last_results == ()
-    assert panel.histogram_context.isHidden()
-    assert all(plot.isHidden() for plot in panel.plots)
+    assert panel.histogram_context.text().startswith("Previous result · ")
+    assert tuple(panel.plots[0].listDataItems()) == previous_curves
+    assert any(not plot.isHidden() for plot in panel.plots)
+    assert panel._histogram_series[0] == []
 
     panel._refresh_timer.stop()
     panel._on_error(
@@ -150,8 +155,8 @@ def test_changed_request_and_error_do_not_describe_stale_histogram(qtbot: object
     )
 
     assert panel.status.text() == "Error: analysis failed"
-    assert panel.histogram_context.isHidden()
-    assert all(plot.isHidden() for plot in panel.plots)
+    assert panel.histogram_context.text().startswith("Previous result · ")
+    assert tuple(panel.plots[0].listDataItems()) == previous_curves
     panel.shutdown()
 
 
@@ -205,8 +210,8 @@ def test_histogram_bin_change_rejects_held_old_worker_result(qtbot: object) -> N
     assert panel._completed_signature == ()
     panel._on_result(old_signature, [], old_specs, old_result)
     assert panel.last_results == ()
-    assert panel.histogram_context.isHidden()
-    assert all(plot.isHidden() for plot in panel.plots)
+    assert panel.histogram_context.text().startswith("Previous result · ")
+    assert any(not plot.isHidden() for plot in panel.plots)
     panel.shutdown()
 
 

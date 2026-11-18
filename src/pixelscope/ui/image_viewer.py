@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from math import ceil, cos, floor, radians, sin
-from typing import Any
+from itertools import chain
+from math import ceil, cos, floor, isfinite, radians, sin
+from typing import Any, cast
 
 import numpy as np
 import pyqtgraph as pg
@@ -23,6 +24,7 @@ from PySide6.QtGui import (
     QKeyEvent,
     QKeySequence,
     QPainter,
+    QPaintEvent,
     QPen,
     QShortcut,
     QShowEvent,
@@ -36,6 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core import load_latency_trace
 from pixelscope.core.display_transform import render_ordinary_display_preview
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
@@ -44,10 +47,12 @@ from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import tile_style
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
+from pixelscope.ui.physical_zoom import PhysicalZoomMeasurement, ZoomApplyResult, measure_basis
 from pixelscope.ui.tile_header import TileHeader
 from pixelscope.workers.task_worker import TaskWorker
 
 _DISPLAY_PREVIEW_MAX_THREADS = 2
+_MEMO_LABEL_INTERSECTION_BUDGET = 8192
 _DISPLAY_PREVIEW_POOL_ATTRIBUTE = "_pixelscope_display_preview_thread_pool"
 
 
@@ -106,6 +111,14 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
     roi_dragged = Signal(object, bool)
     line_dragged = Signal(object, bool)
     roi_reset_requested = Signal()
+    wheel_zoom_started = Signal()
+    # Explicit gesture boundary for cancelling an in-flight W04 restore.
+    user_navigation_started = Signal()
+
+    def wheelEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        self.user_navigation_started.emit()
+        self.wheel_zoom_started.emit()
+        super().wheelEvent(event, axis)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -156,6 +169,8 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
         return None
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:  # noqa: N802
+        if event.isStart():
+            self.user_navigation_started.emit()
         gesture = self.gesture_for_modifiers(event.modifiers())
         if event.button() == Qt.MouseButton.LeftButton and gesture == "roi":
             start = self.mapSceneToView(event.buttonDownScenePos())
@@ -173,10 +188,34 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
 
     def mouseClickEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton and event.double():
+            self.user_navigation_started.emit()
             self.roi_reset_requested.emit()
             event.accept()
             return
         super().mouseClickEvent(event)
+
+
+class TracedGraphicsLayoutWidget(pg.GraphicsLayoutWidget):  # type: ignore[misc]
+    """Time the actual QGraphicsView paint, not the next Qt timer callback."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.trace_document_id: str | None = None
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
+        document_id = self.trace_document_id
+        if document_id is None or not load_latency_trace.tracks(document_id):
+            super().paintEvent(event)
+            return
+        trace = load_latency_trace.PhaseTimer("viewport.graphics_paint", document_id=document_id)
+        load_latency_trace.mark("viewport_graphics_paint_begin", document_id=document_id, once=True)
+        try:
+            super().paintEvent(event)
+        finally:
+            trace.checkpoint("graphics_view_paint_returned")
+            load_latency_trace.mark(
+                "viewport_graphics_paint_returned", document_id=document_id, once=True
+            )
 
 
 class ImageViewer(QWidget):
@@ -192,6 +231,9 @@ class ImageViewer(QWidget):
     navigation_requested = Signal(str)
     zoom_changed = Signal(float)
     document_changed = Signal(object)
+    first_frame_painted = Signal(str)
+    geometry_settled = Signal()
+    display_preview_settled = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -204,6 +246,8 @@ class ImageViewer(QWidget):
         self._display_preview_request_serial = 0
         self._display_preview_request_identity: tuple[int, int, int, int, float] | None = None
         self._graphics_resources_disposed = False
+        self._paint_notified_identity: tuple[str, int, int] | None = None
+        self._paint_pending_identity: tuple[str, int, int] | None = None
         self._display_gain_state = display_gain_state()
         self._display_gain_state.gain_changed.connect(self._display_gain_changed)
         self._slot = 1
@@ -213,7 +257,15 @@ class ImageViewer(QWidget):
         self.header = TileHeader()
         self.header.focus_requested.connect(lambda: self.focus_requested.emit(self))
         self.header.navigation_requested.connect(self.navigation_requested)
-        self._graphics = pg.GraphicsLayoutWidget()
+        self._graphics = TracedGraphicsLayoutWidget()
+        self._physical_zoom_target: float | None = None
+        self._last_valid_physical_zoom: float | None = None
+        self._screen_recalibration_target: float | None = None
+        self._fit_mode = False
+        self._watched_window: Any = None
+        self._geometry_timer = QTimer(self)
+        self._geometry_timer.setSingleShot(True)
+        self._geometry_timer.timeout.connect(self._settle_physical_zoom)  # type: ignore[attr-defined]
         self._graphics.viewport().installEventFilter(self)
         self.view_box = RoiViewBox(lockAspect=True, enableMenu=False)
         self._graphics.addItem(self.view_box)
@@ -243,6 +295,8 @@ class ImageViewer(QWidget):
         self._roi.hide()
         self._roi_enabled = False
         self.view_box.addItem(self._roi)
+        self._memo_regions: tuple[tuple[str, RoiBounds, bool], ...] = ()
+        self._memo_items: list[tuple[QGraphicsRectItem, pg.TextItem]] = []
         self._line_selection: LineSelection | None = None
         self._line_item = pg.PlotCurveItem(
             pen=pg.mkPen("#00e5ff", width=2),
@@ -277,6 +331,8 @@ class ImageViewer(QWidget):
         self.view_box.roi_reset_requested.connect(self._reset_overlays)
         self.view_box.sigRangeChanged.connect(self._update_zoom)
         self.view_box.sigRangeChanged.connect(self._position_loading_item)
+        self.view_box.sigRangeChanged.connect(self._position_memo_labels)
+        self.view_box.wheel_zoom_started.connect(self._clear_physical_target)
         self.set_active(False)
 
     @property
@@ -306,8 +362,11 @@ class ImageViewer(QWidget):
         )
 
     def set_active(self, active: bool) -> None:
+        style = tile_style(active)
+        if self._active == active and self.styleSheet() == style:
+            return
         self._active = active
-        self.setStyleSheet(tile_style(active))
+        self.setStyleSheet(style)
         cursor_color = QColor("#f7d154")
         cursor_color.setAlpha(150 if active else 55)
         pen = pg.mkPen(cursor_color, width=1)
@@ -327,17 +386,201 @@ class ImageViewer(QWidget):
     ) -> None:
         self.header.set_navigation_items(items, current_key)
 
+    def _device_pixel_ratio(self) -> float:
+        return float(self._graphics.viewport().devicePixelRatioF())
+
+    def _reference_to_viewport(self, x: float, y: float) -> QPointF | None:
+        """Map canonical reference geometry through the displayed ImageItem.
+
+        The prescribed presentation rectangle supplies reference→item-local
+        sampling. ImageItem.mapToScene and QGraphicsView.viewportTransform then
+        incorporate *actual* item/view transforms (including non-unit scaling).
+        """
+        document = self._document
+        if document is None or document.preview is None:
+            return None
+        reference_rect = self._presentation_rect(document)
+        item_rect = self.image_item.boundingRect()
+        if (
+            reference_rect.width() <= 0
+            or reference_rect.height() <= 0
+            or item_rect.width() <= 0
+            or item_rect.height() <= 0
+        ):
+            return None
+        local = QPointF(
+            item_rect.left()
+            + (x - reference_rect.left()) * item_rect.width() / reference_rect.width(),
+            item_rect.top()
+            + (y - reference_rect.top()) * item_rect.height() / reference_rect.height(),
+        )
+        return cast(
+            QPointF,
+            self._graphics.viewportTransform().map(self.image_item.mapToScene(local)),
+        )
+
+    def measure_physical_zoom(self) -> PhysicalZoomMeasurement:
+        """Actual screen physical-pixel scale of one reference-space pixel."""
+        dpr = self._device_pixel_ratio()
+        if (
+            self._graphics_resources_disposed
+            or self._document is None
+            or self._document.preview is None
+            or self.view_box.width() <= 0
+            or self.view_box.height() <= 0
+        ):
+            return PhysicalZoomMeasurement(dpr=dpr)
+        # ViewBox defers its child transform until paint or a mapping helper.
+        # Direct ImageItem.mapToScene() must see the current range even inside
+        # sigRangeChanged and between synchronous zoom correction passes.
+        self.view_box.updateMatrix()
+        rows, columns = self._reference_shape(self._document)
+        center_x, center_y = columns / 2.0, rows / 2.0
+        p = self._reference_to_viewport(center_x, center_y)
+        px = self._reference_to_viewport(center_x + 1.0, center_y)
+        py = self._reference_to_viewport(center_x, center_y + 1.0)
+        if p is None or px is None or py is None:
+            return PhysicalZoomMeasurement(dpr=dpr)
+        return measure_basis(
+            (p.x(), p.y()),
+            (px.x(), px.y()),
+            (py.x(), py.y()),
+            dpr,
+        )
+
     @property
     def zoom_percent(self) -> float | None:
+        return self.measure_physical_zoom().percent
+
+    def set_physical_zoom(
+        self,
+        percent: float,
+        center_ref: tuple[float, float] | None = None,
+        *,
+        track_target: bool = True,
+    ) -> ZoomApplyResult:
+        """Set exact physical zoom by correcting the measured displayed mapping.
+
+        Two bounded synchronous correction passes use the *effective* ViewBox
+        ranges, rather than the outer graphics viewport or the image bounds.
+        A later viewport/layout event re-applies an explicitly requested target.
+        """
+        if not isfinite(percent) or percent <= 0:
+            raise ValueError("physical zoom must be a positive finite percentage")
+        self._fit_mode = False
+        if track_target:
+            self._physical_zoom_target = percent
+        elif (
+            self._physical_zoom_target is not None
+            and abs(self._physical_zoom_target - percent) > 1e-6
+        ):
+            self._physical_zoom_target = None
+        self._screen_recalibration_target = None
+        measurement = self.measure_physical_zoom()
+        target = percent / 100.0
+        if not measurement.valid:
+            self._update_zoom()
+            return ZoomApplyResult(percent, measurement, False, 0)
+        x_range, y_range = self.view_box.viewRange()
+        center_x, center_y = (
+            ((x_range[0] + x_range[1]) / 2, (y_range[0] + y_range[1]) / 2)
+            if center_ref is None
+            else center_ref
+        )
+        if not all(isfinite(value) for value in (center_x, center_y)):
+            raise ValueError("physical zoom center must be finite")
+        passes = 0
+        for _ in range(2):
+            ranges = self.view_box.viewRange()
+            actual_center = (
+                (ranges[0][0] + ranges[0][1]) / 2.0,
+                (ranges[1][0] + ranges[1][1]) / 2.0,
+            )
+            scale_ok = (
+                measurement.valid
+                and abs(measurement.scale_x - target) <= target * 0.005
+                and abs(measurement.scale_y - target) <= target * 0.005
+            )
+            # Sync must update the center even if the other tile already has
+            # the requested scale (e.g. an ordinary pan at exact 100%).
+            center_ok = (
+                abs(actual_center[0] - center_x) <= 1e-6
+                and abs(actual_center[1] - center_y) <= 1e-6
+            )
+            if scale_ok and center_ok:
+                break
+            width = (ranges[0][1] - ranges[0][0]) * measurement.scale_x / target
+            height = (ranges[1][1] - ranges[1][0]) * measurement.scale_y / target
+            if not all(isfinite(v) and v > 0 for v in (width, height)):
+                break
+            self.view_box.setRange(
+                xRange=(center_x - width / 2.0, center_x + width / 2.0),
+                yRange=(center_y - height / 2.0, center_y + height / 2.0),
+                padding=0,
+            )
+            passes += 1
+            measurement = self.measure_physical_zoom()
+            if not measurement.valid:
+                break
+        final_ranges = self.view_box.viewRange()
+        center_error_x = abs((final_ranges[0][0] + final_ranges[0][1]) / 2.0 - center_x)
+        center_error_y = abs((final_ranges[1][0] + final_ranges[1][1]) / 2.0 - center_y)
+        achieved = (
+            measurement.valid
+            and abs(measurement.scale_x - target) <= target * 0.005
+            and abs(measurement.scale_y - target) <= target * 0.005
+            and center_error_x * target <= 0.5
+            and center_error_y * target <= 0.5
+        )
+        self._update_zoom()
+        return ZoomApplyResult(percent, measurement, achieved, passes)
+
+    def _clear_physical_target(self) -> None:
+        self._physical_zoom_target = None
+        self._fit_mode = False
+
+    def _watch_screen_signal(self) -> None:
+        window = self.window().windowHandle()
+        if window is self._watched_window:
+            return
+        if self._watched_window is not None:
+            with suppress(RuntimeError, TypeError):
+                self._watched_window.screenChanged.disconnect(self._on_screen_changed)
+        self._watched_window = window
+        if window is not None:
+            window.screenChanged.connect(self._on_screen_changed)  # type: ignore[attr-defined]
+
+    def _on_screen_changed(self, _screen: object) -> None:
+        if not self._fit_mode and self._physical_zoom_target is None:
+            self._screen_recalibration_target = self._last_valid_physical_zoom
+        self._geometry_timer.start(0)
+
+    def _settle_physical_zoom(self) -> None:
+        if self._graphics_resources_disposed:
+            return
         if self._document is None or self._document.preview is None:
-            return None
-        pixel_size = self.view_box.viewPixelSize()
-        if not pixel_size or pixel_size[0] <= 0:
-            return None
-        return 100.0 / float(pixel_size[0])
+            return
+        target = self._physical_zoom_target
+        explicit_target = target is not None
+        if target is None:
+            target = self._screen_recalibration_target
+        if target is not None and self.view_box.width() > 0 and self.view_box.height() > 0:
+            self.set_physical_zoom(target, track_target=explicit_target)
+        else:
+            self._update_zoom()
+        self.geometry_settled.emit()
+        self._position_memo_labels()
 
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
+        self._graphics.trace_document_id = (
+            document.document_id if document is not None and document.preview is not None else None
+        )
+        view_trace = load_latency_trace.PhaseTimer(
+            "viewer.set_document", document_id=document.document_id if document else None
+        )
         previous = self._document
+        if document is not previous:
+            self.set_memo_regions(())
         if document is None:
             self._cancel_display_preview()
             self._document = None
@@ -346,6 +589,8 @@ class ImageViewer(QWidget):
             self._displayed_gain = None
             self.image_item.clear()
             self.image_item.setRect()
+            self._physical_zoom_target = None
+            self._last_valid_physical_zoom = None
             self._loading_item.hide()
             self._loading_timer.stop()
             self.header.clear()
@@ -373,6 +618,7 @@ class ImageViewer(QWidget):
                 self._loading_timer.stop()
             self.header.set_document(document, self._slot, self._role, self.header.text())
             self.document_changed.emit(document)
+            view_trace.checkpoint("loading_placeholder_and_header")
             return
 
         gain_capable = is_display_gain_capable(document)
@@ -400,6 +646,7 @@ class ImageViewer(QWidget):
             # Geometry is semantic metadata, so refresh it even without an
             # ndarray upload.
             self.image_item.setRect(self._presentation_rect(document))
+        view_trace.checkpoint("image_item_bind_or_geometry")
         self.header.set_document(
             document,
             self._slot,
@@ -408,8 +655,11 @@ class ImageViewer(QWidget):
         )
         if preview_changed and (fit or previous is None or previous.preview is None):
             self.fit_image()
+        view_trace.checkpoint("fit_and_header")
         self.document_changed.emit(document)
+        self._update_zoom()
         self._ensure_display_preview()
+        view_trace.checkpoint("document_signals_and_gain")
 
     def _display_gain_changed(self, _gain: float) -> None:
         self._ensure_display_preview()
@@ -448,8 +698,16 @@ class ImageViewer(QWidget):
     def _upload_preview(self, preview: Any, document: ImageDocument) -> None:
         """Upload a native preview and bind its display geometry atomically."""
 
-        self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
+        upload_trace = load_latency_trace.PhaseTimer(
+            "viewer.upload", document_id=document.document_id
+        )
+        # Previews already contain final display codes. Explicit identity levels
+        # make pyqtgraph rescale every RGB pixel again during GUI-thread paint.
+        self.image_item.setImage(preview, autoLevels=False, levels=None)
+        upload_trace.checkpoint("pyqtgraph_setImage_returned")
         self.image_item.setRect(self._presentation_rect(document))
+        upload_trace.checkpoint("setRect_returned")
+        load_latency_trace.mark("image_item_upload_returned", document_id=document.document_id)
 
     def _ensure_display_preview(self) -> None:
         document = self._document
@@ -569,6 +827,8 @@ class ImageViewer(QWidget):
         if worker is not None and worker.task_id == task_id:
             self._display_preview_worker = None
             self._display_preview_request_identity = None
+            if not self._graphics_resources_disposed:
+                self.display_preview_settled.emit()
 
     def _cancel_display_preview(self) -> None:
         self._display_preview_request_serial += 1
@@ -593,6 +853,8 @@ class ImageViewer(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
+        self._watch_screen_signal()
+        self._geometry_timer.start(0)
         self._ensure_display_preview()
 
     def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
@@ -605,8 +867,14 @@ class ImageViewer(QWidget):
 
         self._cancel_display_preview()
         self._loading_timer.stop()
+        self._geometry_timer.stop()
+        if self._watched_window is not None:
+            with suppress(RuntimeError, TypeError):
+                self._watched_window.screenChanged.disconnect(self._on_screen_changed)
+            self._watched_window = None
         if self._graphics_resources_disposed:
             return
+        self.set_memo_regions(())
         self._graphics_resources_disposed = True
 
         with suppress(RuntimeError, TypeError):
@@ -621,6 +889,9 @@ class ImageViewer(QWidget):
             (self.view_box.roi_reset_requested, self._reset_overlays),
             (self.view_box.sigRangeChanged, self._update_zoom),
             (self.view_box.sigRangeChanged, self._position_loading_item),
+            (self.view_box.sigRangeChanged, self._position_memo_labels),
+            (self.view_box.wheel_zoom_started, self._clear_physical_target),
+            (self._geometry_timer.timeout, self._settle_physical_zoom),  # type: ignore[attr-defined]
         )
         for signal, callback in signal_callbacks:
             with suppress(RuntimeError, TypeError):
@@ -648,6 +919,8 @@ class ImageViewer(QWidget):
     def fit_image(self) -> None:
         if self._document is None or self._document.preview is None:
             return
+        self._physical_zoom_target = None
+        self._fit_mode = True
         height, width = self._reference_shape(self._document)
         self.view_box.setRange(QRectF(0, 0, width, height), padding=0.02)
 
@@ -655,18 +928,33 @@ class ImageViewer(QWidget):
         if self._document is None or self._document.preview is None:
             return
         height, width = self._reference_shape(self._document)
-        viewport = self._graphics.viewport().size()
-        visible_width = min(float(width), float(max(viewport.width(), 1)))
-        visible_height = min(float(height), float(max(viewport.height(), 1)))
-        center_x, center_y = width / 2.0, height / 2.0
-        self.view_box.setRange(
-            xRange=(center_x - visible_width / 2, center_x + visible_width / 2),
-            yRange=(center_y - visible_height / 2, center_y + visible_height / 2),
-            padding=0,
-        )
+        self.set_physical_zoom(100.0, (width / 2.0, height / 2.0))
+
+    def fit_roi(self, bounds: RoiBounds) -> None:
+        """Frame a reference-space ROI with context via canonical physical zoom."""
+        if self._document is None or self._document.preview is None:
+            return
+        percent = self.measure_physical_zoom().percent
+        if percent is None:
+            return
+        ranges = self.view_box.viewRange()
+        range_width = ranges[0][1] - ranges[0][0]
+        range_height = ranges[1][1] - ranges[1][0]
+        factor = min(range_width / (bounds.width * 1.4), range_height / (bounds.height * 1.4))
+        height, width = self._reference_shape(self._document)
+        half_width, half_height = range_width / factor / 2, range_height / factor / 2
+        # Near image edges shift the context instead of centering on black space.
+        center_x = min(max(bounds.x + bounds.width / 2, half_width), width - half_width)
+        center_y = min(max(bounds.y + bounds.height / 2, half_height), height - half_height)
+        if half_width * 2 >= width:
+            center_x = width / 2
+        if half_height * 2 >= height:
+            center_y = height / 2
+        self.set_physical_zoom(percent * factor, (center_x, center_y))
 
     def zoom_by(self, factor: float) -> None:
         if self._document is not None and factor > 0:
+            self._clear_physical_target()
             self.view_box.scaleBy((factor, factor))
 
     def show_cursor(self, x: int, y: int) -> None:
@@ -692,6 +980,96 @@ class ImageViewer(QWidget):
     @property
     def roi_enabled(self) -> bool:
         return self._roi_enabled
+
+    def set_memo_regions(self, regions: tuple[tuple[str, RoiBounds, bool], ...]) -> None:
+        """Passive reference-space bookmarks; never change the analysis ROI/range."""
+        if regions == self._memo_regions:
+            return
+        for rectangle, label in self._memo_items:
+            self.view_box.removeItem(rectangle)
+            self.view_box.removeItem(label)
+            label.deleteLater()
+        self._memo_items.clear()
+        self._memo_regions = regions
+        for text, bounds, selected in regions:
+            rectangle = QGraphicsRectItem(QRectF(bounds.x, bounds.y, bounds.width, bounds.height))
+            color = "#ffe08a" if selected else "#86c9d7"
+            pen = QPen(QColor(color))
+            pen.setCosmetic(True)
+            pen.setWidthF(2.0 if selected else 1.0)
+            rectangle.setPen(pen)
+            rectangle.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            rectangle.setZValue(18)
+            label = pg.TextItem(
+                text=text, color=color, anchor=(0, 0), fill=pg.mkBrush(21, 27, 34, 225)
+            )
+            label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            font = self.font()
+            font.setPointSizeF(8)
+            font.setBold(False)
+            label.setFont(font)
+            label.textItem.document().setDocumentMargin(1)
+            label.setZValue(22)
+            label.setPos(bounds.x, bounds.y)
+            self.view_box.addItem(rectangle, ignoreBounds=True)
+            self.view_box.addItem(label, ignoreBounds=True)
+            self._memo_items.append((rectangle, label))
+        self._position_memo_labels()
+
+    def _position_memo_labels(self, *_args: object) -> None:
+        """Place passive labels in scene pixels; never move analysis geometry."""
+        if self._graphics_resources_disposed or not self._memo_items:
+            return
+        viewport = self.view_box.sceneBoundingRect().adjusted(2, 2, -2, -2)
+        occupied: list[QRectF] = []
+        remaining_checks = _MEMO_LABEL_INTERSECTION_BUDGET
+        for rectangle, label in self._memo_items:
+            roi = rectangle.sceneBoundingRect()
+            label.setVisible(roi.intersects(viewport))
+            if not label.isVisible():
+                continue
+            size = label.sceneBoundingRect().size()
+            width, height = size.width(), size.height()
+            if width <= 0 or height <= 0:
+                continue
+            candidates = [
+                (roi.left(), roi.top()),
+                (roi.left(), roi.bottom() + 2),
+                (roi.right() + 2, roi.top()),
+                (roi.left() - width - 2, roi.top()),
+                (roi.left(), roi.top() - height - 2),
+            ]
+            # Dense nearby ROIs may exhaust their own sides. Search visible
+            # space as a bounded fallback, retaining every label when it fits.
+            fallback = (
+                (viewport.left() + x, viewport.top() + y)
+                for y in range(0, max(1, int(viewport.height())), max(1, ceil(height + 2)))
+                for x in range(0, max(1, int(viewport.width())), max(1, ceil(width + 2)))
+            )
+            best: QRectF | None = None
+            best_overlap = float("inf")
+            for x, y in chain(candidates, fallback):
+                x = max(viewport.left(), min(x, viewport.right() - width))
+                y = max(viewport.top(), min(y, viewport.bottom() - height))
+                candidate = QRectF(x, y, width, height)
+                if best is None:
+                    best = candidate
+                # Bound work across the entire relayout, including dense
+                # notebooks that cannot fit. Never stall pan/zoom to pack labels.
+                if len(occupied) > remaining_checks:
+                    break
+                remaining_checks -= len(occupied)
+                overlap = 0.0
+                for other in occupied:
+                    intersection = candidate.intersected(other)
+                    overlap += intersection.width() * intersection.height()
+                if overlap < best_overlap:
+                    best, best_overlap = candidate, overlap
+                if overlap == 0:
+                    break
+            if best is not None:
+                label.setPos(self.view_box.mapSceneToView(best.topLeft()))
+                occupied.append(best.adjusted(-1, -1, 1, 1))
 
     def enable_roi(self, enabled: bool = True) -> None:
         self._roi_enabled = enabled
@@ -873,13 +1251,79 @@ class ImageViewer(QWidget):
                 return
         super().keyPressEvent(event)
 
+    def _notify_first_frame_painted(self) -> None:
+        """Run after viewport paint returns, never during the paint event."""
+
+        identity = self._paint_pending_identity
+        self._paint_pending_identity = None
+        document = self._document
+        if (
+            identity is None
+            or self._graphics_resources_disposed
+            or document is None
+            or document.preview is None
+            or self._pending_document is not None
+            or not self.isVisible()
+            or identity != (document.document_id, document.generation, id(document.preview))
+        ):
+            return
+        if self._paint_notified_identity == identity:
+            return
+        self._paint_notified_identity = identity
+        load_latency_trace.mark(
+            "first_viewport_paint_event_processed",
+            document_id=document.document_id,
+            once=True,
+        )
+        self.first_frame_painted.emit(document.document_id)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:
-            self.activated.emit(self)
+        if watched is self._graphics.viewport():
+            geometry_events = {QEvent.Type.Resize, QEvent.Type.Show}
+            for name in ("DevicePixelRatioChange", "DpiChange", "ScreenChangeInternal"):
+                event_kind = getattr(QEvent.Type, name, None)
+                if event_kind is not None:
+                    geometry_events.add(event_kind)
+            if event.type() in geometry_events and not self._graphics_resources_disposed:
+                if (
+                    event.type() not in (QEvent.Type.Resize, QEvent.Type.Show)
+                    and not self._fit_mode
+                    and self._physical_zoom_target is None
+                ):
+                    self._screen_recalibration_target = self._last_valid_physical_zoom
+                self._geometry_timer.start(0)
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self.activated.emit(self)
+            elif event.type() == QEvent.Type.Paint:
+                document = self._document
+                if (
+                    document is not None
+                    and document.preview is not None
+                    and self._pending_document is None
+                    and self.isVisible()
+                    and not self._graphics_resources_disposed
+                ):
+                    identity = (
+                        document.document_id,
+                        document.generation,
+                        id(document.preview),
+                    )
+                    if (
+                        identity != self._paint_notified_identity
+                        and identity != self._paint_pending_identity
+                    ):
+                        self._paint_pending_identity = identity
+                        load_latency_trace.mark(
+                            "viewport_paint_event_entered",
+                            document_id=document.document_id,
+                            once=True,
+                        )
+                        QTimer.singleShot(0, self._notify_first_frame_painted)
         return super().eventFilter(watched, event)
 
     def _update_zoom(self, *_args: object) -> None:
         percent = self.zoom_percent
         self.header.set_zoom(percent)
         if percent is not None:
+            self._last_valid_physical_zoom = percent
             self.zoom_changed.emit(percent)

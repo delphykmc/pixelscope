@@ -16,6 +16,18 @@ Use Files to select a comparison set, set a current-page source as **Primary**, 
 
 Removing an entry from Files removes it from PixelScope's current registration state; it does not delete the source file from disk.
 
+## Arrange the workspace
+
+Resize the Files, Statistics and Image panes directly with their splitters.
+Plots can be docked, hidden or floated using the native View/Plots controls.
+There are no Compare/Analyze/Review layout presets: those duplicated existing
+dock and splitter operations. PixelScope remembers the existing application
+layout without maintaining multiple preset-specific versions.
+
+Use **View > Reset Workspace Layout** to restore the default arrangement.
+Resetting layout never changes Registered/Selected/Current Page, Primary,
+Active, ROI, zoom or native Difference calculations.
+
 ## Related topics
 
 See [Core concepts](../getting-started/concepts.md), [Open folders](../workflows/open-folders.md), and [Compare folder positions](../workflows/compare-folder-positions.md).

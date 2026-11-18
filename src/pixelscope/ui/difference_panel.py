@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isinf
+from hashlib import sha256
+from math import isinf, isnan
+from uuid import uuid4
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,6 +14,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -42,7 +45,15 @@ from pixelscope.core.display_transform import (
     render_threshold_mask,
 )
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.metric_presentation import metric_definition
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
+from pixelscope.core.review_analysis import (
+    AnalysisMeasurementV1,
+    AnalysisSourceV1,
+    PresentedAnalysisTokenV1,
+    measurement,
+)
+from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.core.roi import RoiBounds
 from pixelscope.core.spatial_sampling import SpatialSampling
 from pixelscope.core.yuv_difference import (
@@ -141,6 +152,7 @@ class DifferencePanel(QWidget):
 
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
+    map_cached = Signal(object)
     presentation_settled = Signal(object)
 
     def __init__(
@@ -148,6 +160,7 @@ class DifferencePanel(QWidget):
         difference_cache_budget_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES,
     ) -> None:
         super().__init__()
+        self._closing = False
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self._documents: list[ImageDocument] = []
         self._active_roi: RoiBounds | None = None
@@ -168,6 +181,17 @@ class DifferencePanel(QWidget):
         self._normalized_threshold_percent = 1.0
         self._threshold_domain: DifferenceDomain = "native"
         self.last_result: DifferenceMetrics | None = None
+        self._analysis_source_keys: dict[str, str] = {}
+        self._analysis_request_epoch = 0
+        # A cached-map display can render before any metrics request exists.
+        # Empty provenance is never authority to capture an analysis result.
+        self._difference_request_id = ""
+        self._presented_difference_token: PresentedAnalysisTokenV1 | None = None
+        # A result_ready event for this exact metric scope/request authorizes
+        # capture. Cached maps and background ROI metrics cannot reuse it.
+        self._explicit_display_key: tuple[object, ...] | None = None
+        self._presented_metric_key: tuple[object, ...] | None = None
+        self._presented_metric_result: DifferenceMetrics | None = None
 
         self.a_selector = QComboBox()
         self.b_selector = QComboBox()
@@ -240,12 +264,16 @@ class DifferencePanel(QWidget):
             "Max difference",
             "Non-zero ratio",
         )
-        self.metrics = QTableWidget(len(metric_names), 2)
-        self.metrics.setHorizontalHeaderLabels(("Metric", "Value"))
+        self.metrics = QTableWidget(len(metric_names), 3)
+        self.metrics.setHorizontalHeaderLabels(("Metric", "Value", "Unit"))
         self.metrics.verticalHeader().hide()
-        self.metrics.horizontalHeader().setStretchLastSection(True)
+        metric_header = self.metrics.horizontalHeader()
+        metric_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        metric_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        metric_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         for row, name in enumerate(metric_names):
             self.metrics.setItem(row, 0, QTableWidgetItem(name))
+            self.metrics.setItem(row, 2, QTableWidgetItem(metric_definition(name).unit))
 
         action_row = QHBoxLayout()
         action_row.addWidget(self.calculate)
@@ -285,6 +313,153 @@ class DifferencePanel(QWidget):
         """Expose read-only cache diagnostics and explicit cache operations."""
 
         return self._map_cache
+
+    def set_analysis_source_keys(self, shared: dict[str, str]) -> None:
+        """Use the canonical Review UUID mapping shared by core analysis panels."""
+        self._analysis_source_keys = shared
+        self._presented_difference_token = None
+
+    def _difference_source_key(self, document_id: str) -> str:
+        return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
+
+    def _difference_live_token(
+        self, *, during_render: bool = False
+    ) -> PresentedAnalysisTokenV1 | None:
+        if (
+            self._closing
+            or not self._difference_request_id
+            or self.last_result is None
+            or self._presented_metric_result is not self.last_result
+            or (self._worker is not None and not during_render)
+            or self._preview_worker is not None
+            or self._display_timer.isActive()
+            or self._preview_value is None
+        ):
+            return None
+        pair = self.selected_documents()
+        compatibility = self._compatibility()
+        key = self._cache_key()
+        metric_key = self._metric_key()
+        if (
+            pair is None
+            or compatibility is None
+            or not compatibility.compatible
+            or compatibility.domain is None
+            or key is None
+            or metric_key is None
+            or metric_key != self._presented_metric_key
+            or self.cached_result_for_current() is None
+            or self._explicit_display_key
+            != (key, metric_key, self.channel.currentText(), self._difference_request_id)
+        ):
+            return None
+        expected_preview = (
+            key,
+            compatibility.domain,
+            self.channel.currentText(),
+            self.mode.currentText(),
+            self.gain.value(),
+            self._threshold_value(compatibility.domain),
+        )
+        if self._preview_key != expected_preview:
+            return None
+        roi = self._active_roi if self.region.currentText() == "Active ROI" else None
+        if self.region.currentText() == "Active ROI" and roi is None:
+            return None
+        raw_key = repr((metric_key, tuple(d.document_id for d in pair))).encode("utf-8")
+        return PresentedAnalysisTokenV1(
+            feature="difference",
+            request_id=self._difference_request_id,
+            request_epoch=self._analysis_request_epoch,
+            source_documents=tuple((d.document_id, d.generation) for d in pair),
+            source_keys=tuple(self._difference_source_key(d.document_id) for d in pair),
+            roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+            channel=self.channel.currentText(),
+            domain=compatibility.domain,
+            profile_signatures=tuple(native_profile_signature(d) for d in pair),
+            difference_cache_key=sha256(raw_key).hexdigest(),
+        )
+
+    def get_presented_difference_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._presented_difference_token
+
+    def get_current_difference_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._difference_live_token()
+
+    # W00 M1 generic producer protocol.
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_presented_difference_token()
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self.get_current_difference_token()
+
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        return self.read_presented_difference()
+
+    def read_presented_difference(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        token = self.get_presented_difference_token()
+        if token is None or self.get_current_difference_token() != token:
+            raise ValueError("difference result is stale or unpresented")
+        pair = self.selected_documents()
+        cached = self.cached_result_for_current()
+        assert pair is not None and cached is not None and self.last_result is not None
+        selected = self._selected_absolute(cached, self.channel.currentText())
+        bounds = self._metric_bounds(
+            pair[0], self._active_roi if token.roi_ref is not None else None
+        )
+        if bounds is None:
+            sample_count = int(selected.size)
+        else:
+            sample_count = bounds[2] * bounds[3] * (selected.shape[2] if selected.ndim == 3 else 1)
+        metrics = self.last_result
+        fields = (
+            ("MAE", metrics.mae),
+            ("MSE", metrics.mse),
+            ("RMSE", metrics.rmse),
+            ("PSNR", metrics.psnr),
+            ("P95", metrics.p95),
+            ("P99", metrics.p99),
+            ("Max difference", metrics.maximum_absolute),
+            ("Non-zero ratio", metrics.nonzero_ratio),
+        )
+        values = tuple(
+            measurement(
+                token.source_keys[0],
+                token.channel,
+                name,
+                value,
+                sample_count,
+                "difference-metrics-v1",
+            )
+            for name, value in fields
+        )
+        presentation = (
+            ("mode", self.mode.currentText()),
+            ("gain", str(self.gain.value())),
+            ("threshold", f"{self.threshold.value():g}"),
+            ("pair_a", token.source_keys[0]),
+            ("pair_b", token.source_keys[1]),
+        )
+        return (
+            tuple(
+                snapshot_source(doc, source_key)
+                for doc, source_key in zip(pair, token.source_keys, strict=True)
+            ),
+            values,
+            presentation,
+        )
 
     @staticmethod
     def _integer_control(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -401,6 +576,7 @@ class DifferencePanel(QWidget):
         self._cancel_worker()
         self._cancel_preview_worker()
         self.last_result = None
+        self._presented_difference_token = None
         self._clear_metrics()
         self._update_channels()
         self._validate()
@@ -445,10 +621,37 @@ class DifferencePanel(QWidget):
         self._request_preview_render(difference_map, selected, publish_result=False)
 
     def _clear_metrics(self) -> None:
+        self._presented_difference_token = None
+        self._presented_metric_key = None
+        self._presented_metric_result = None
+        # A pending/invalid ROI does not change a compatible pair's numeric
+        # domain. Never label a normalized comparison as native just because
+        # its value is currently unavailable.
+        compatibility = self._compatibility()
+        domain = (
+            compatibility.domain
+            if compatibility is not None
+            and compatibility.compatible
+            and compatibility.domain in ("native", "normalized")
+            else None
+        )
         for row in range(self.metrics.rowCount()):
             item = QTableWidgetItem("—")
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.metrics.setItem(row, 1, item)
+            name_item = self.metrics.item(row, 0)
+            definition = (
+                metric_definition(name_item.text(), domain=domain)
+                if name_item is not None and domain is not None
+                else None
+            )
+            unit_item = QTableWidgetItem(definition.unit if definition is not None else "—")
+            unit_item.setToolTip(
+                f"Pending/unavailable measurement · {domain} domain"
+                if domain is not None
+                else "Unit unavailable: incompatible or missing pair/domain"
+            )
+            self.metrics.setItem(row, 2, unit_item)
 
     def _update_channels(self) -> None:
         compatibility = self._compatibility()
@@ -769,14 +972,26 @@ class DifferencePanel(QWidget):
         presentation_pair: tuple[str, str] | None = None,
     ) -> None:
         key = self._preview_cache_key(difference_map)
+        # A late preview must not use the *new* ROI's metric request to
+        # authorize an older explicit Calculate. Display keys exclude ROI.
+        metric_key_at_request = self._metric_key()
+        metric_request_id = self._difference_request_id
         snapshot = self._build_sampling_snapshot(selected)
         if key == self._preview_key and self._preview_value is not None:
             self.status.setText("Ready")
             self._publish_sampling_snapshot(key, selected, self._preview_value, snapshot)
             signal = self.result_ready if publish_result else self.preview_updated
+            if publish_result:
+                self._explicit_display_key = (
+                    self._cache_key(),
+                    self._metric_key(),
+                    self.channel.currentText(),
+                    self._difference_request_id,
+                )
             signal.emit(self._title(), selected, self._preview_value)
             if presentation_pair is not None:
                 self.presentation_settled.emit(presentation_pair)
+            self._publish_difference_token()
             return
 
         mode = self.mode.currentText()
@@ -799,6 +1014,8 @@ class DifferencePanel(QWidget):
                 request_serial=request_serial,
                 expected_key=key,
                 expected_map=difference_map,
+                expected_metric_key=metric_key_at_request,
+                expected_metric_request_id=metric_request_id,
                 title=title,
                 selected=selected,
                 snapshot=snapshot,
@@ -821,6 +1038,8 @@ class DifferencePanel(QWidget):
         request_serial: int,
         expected_key: tuple[object, ...],
         expected_map: CachedDifferenceMap,
+        expected_metric_key: tuple[object, ...] | None,
+        expected_metric_request_id: str,
         title: str,
         selected: NDArray[np.generic],
         snapshot: DifferenceSamplingSnapshot,
@@ -832,6 +1051,14 @@ class DifferencePanel(QWidget):
             or worker.task_id != task_id
             or request_serial != self._preview_request_serial
             or expected_key != self._preview_cache_key(expected_map)
+            or (
+                publish_result
+                and (
+                    expected_metric_key != self._metric_key()
+                    or expected_metric_key != self._presented_metric_key
+                    or expected_metric_request_id != self._difference_request_id
+                )
+            )
         ):
             return
         if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
@@ -841,6 +1068,13 @@ class DifferencePanel(QWidget):
         self._publish_sampling_snapshot(expected_key, selected, result, snapshot)
         self.status.setText("Ready")
         signal = self.result_ready if publish_result else self.preview_updated
+        if publish_result:
+            self._explicit_display_key = (
+                self._cache_key(),
+                self._metric_key(),
+                self.channel.currentText(),
+                self._difference_request_id,
+            )
         signal.emit(title, selected, result)
 
     def _preview_failed(
@@ -860,6 +1094,7 @@ class DifferencePanel(QWidget):
         worker = self._preview_worker
         if worker is not None and worker.task_id == task_id:
             self._preview_worker = None
+            self._publish_difference_token()
         pair = self._presentation_preview_pairs.pop(task_id, None)
         if pair is not None:
             self.presentation_settled.emit(pair)
@@ -959,6 +1194,8 @@ class DifferencePanel(QWidget):
         return (plane_x, plane_y, selected.shape[1], selected.shape[0])
 
     def calculate_difference(self, _checked: bool = False, *, publish_result: bool = True) -> None:
+        if self._closing:
+            return
         if self._validate() is not None:
             return
         pair = self.selected_documents()
@@ -966,7 +1203,34 @@ class DifferencePanel(QWidget):
         metric_key = self._metric_key()
         assert pair is not None and key is not None and metric_key is not None
         request_key = (key, metric_key)
+        cached_map = self._map_cache.get(key)
+        cached_metrics = self._metric_cache.get(metric_key)
+        if cached_map is not None and cached_metrics is not None:
+            # Both results already exist: no map or metrics TaskWorker needed.
+            if self._worker is not None:
+                self._cancel_worker()
+            self._configure_threshold_for_cached_map(cached_map)
+            if self.last_result is not cached_metrics:
+                self.last_result = cached_metrics
+                self._render_metrics(cached_metrics)
+            self.status.setText("Cached map and metrics reused")
+            if publish_result:
+                selected = self._selected_absolute(cached_map, self.channel.currentText())
+                self._request_preview_render(
+                    cached_map,
+                    selected,
+                    publish_result=True,
+                    presentation_pair=(pair[0].document_id, pair[1].document_id),
+                )
+            return
         if self._worker is not None and self._worker_key == request_key:
+            # If background analysis has not produced its cached metrics yet,
+            # reuse the same worker and publish its eventual result on request.
+            if publish_result:
+                self._presentation_map_pairs[self._worker.task_id] = (
+                    pair[0].document_id,
+                    pair[1].document_id,
+                )
             return
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
         compatibility = difference_compatibility(a, b)
@@ -1047,6 +1311,13 @@ class DifferencePanel(QWidget):
         publish_result: bool,
     ) -> None:
         if (
+            self._closing
+            or self._worker is None
+            or self._worker.task_id != task_id
+            or self._worker.is_cancelled
+        ):
+            return
+        if (
             not isinstance(payload, tuple)
             or len(payload) != 3
             or not isinstance(payload[0], CachedDifferenceMap)
@@ -1063,13 +1334,17 @@ class DifferencePanel(QWidget):
         self._configure_threshold_for_cached_map(difference_map)
         self.last_result = metrics
         self._render_metrics(metrics)
+        if not publish_result and put_result.stored:
+            pair = self.selected_documents()
+            if pair is not None:
+                self.map_cached.emit((pair[0].document_id, pair[1].document_id))
         if reused:
             self.status.setText("Cached map reused")
         elif put_result.stored:
             self.status.setText("Ready")
         else:
             self.status.setText("Ready; map exceeds cache budget")
-        if publish_result:
+        if publish_result or task_id in self._presentation_map_pairs:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
             presentation_pair = self._presentation_map_pairs.get(task_id)
             self._request_preview_render(
@@ -1097,7 +1372,19 @@ class DifferencePanel(QWidget):
             self._preview_key = None
             self._preview_value = None
 
+    def _publish_difference_token(self) -> None:
+        token = self._difference_live_token()
+        if token is not None:
+            self._presented_difference_token = token
+
     def _render_metrics(self, metrics: DifferenceMetrics) -> None:
+        self._analysis_request_epoch += 1
+        self._difference_request_id = str(uuid4())
+        self._presented_metric_key = self._metric_key()
+        self._presented_metric_result = metrics
+        self._presented_difference_token = None
+        # Numerical values are published now; a frozen snapshot is only
+        # capturable after the matching Difference preview has settled.
         values = (
             metrics.mae,
             metrics.mse,
@@ -1108,11 +1395,46 @@ class DifferencePanel(QWidget):
             metrics.maximum_absolute,
             metrics.nonzero_ratio,
         )
+        compatibility = self._compatibility()
+        domain = (
+            compatibility.domain
+            if compatibility is not None and compatibility.domain in ("native", "normalized")
+            else "native"
+        )
         for row, value in enumerate(values):
-            text = "∞" if isinf(value) else f"{value:.8g}"
+            name_item = self.metrics.item(row, 0)
+            name = name_item.text() if name_item is not None else ""
+            definition = metric_definition(name, domain=domain)
+            text = (
+                "+∞"
+                if isinf(value) and value > 0
+                else "-∞"
+                if isinf(value)
+                else "NaN"
+                if isnan(value)
+                else f"{value:.8g}"
+            )
             item = QTableWidgetItem(text)
             item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            state = (
+                "NaN"
+                if isnan(value)
+                else "+Inf"
+                if value == float("inf")
+                else "-Inf"
+                if value == -float("inf")
+                else "finite"
+            )
+            item.setToolTip(
+                f"{name}: {value:.17g} {definition.unit}\n"
+                f"Numeric domain: {domain}\n"
+                f"State: {state}\n"
+                "Displayed precision: 8 significant digits; W02 capture retains original value"
+            )
             self.metrics.setItem(row, 1, item)
+            unit_item = QTableWidgetItem(definition.unit)
+            unit_item.setToolTip(f"Typed metric unit · {definition.semantic}")
+            self.metrics.setItem(row, 2, unit_item)
 
     def _title(self) -> str:
         pair = self.selected_documents()
@@ -1141,6 +1463,8 @@ class DifferencePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._closing:
+            return
         self.status.setText("Calculation failed")
         self.status.setToolTip(error.message)
         self.calculate.setToolTip(error.message)
@@ -1149,11 +1473,17 @@ class DifferencePanel(QWidget):
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
             self._worker_key = None
+            self._publish_difference_token()
         pair = self._presentation_map_pairs.pop(task_id, None)
         if pair is not None:
             self.presentation_settled.emit(pair)
 
     def shutdown(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self._presentation_map_pairs.clear()
+        self._presentation_preview_pairs.clear()
         self._display_timer.stop()
         self._cancel_preview_worker()
         self._cancel_worker()

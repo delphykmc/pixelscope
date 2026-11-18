@@ -25,3 +25,17 @@ def test_document_rgb_value_and_cache_invalidation() -> None:
     document.replace_source(np.ones_like(source))
     assert document.generation == 1
     assert document.histogram_cache == {}
+
+
+def test_uint8_identity_preview_is_independent_and_pixel_exact() -> None:
+    source = np.arange(3 * 4 * 3, dtype=np.uint8).reshape(3, 4, 3)
+    document = ImageDocument.from_array(source, "rgb8")
+    assert document.source is source
+    assert document.preview is not None
+    assert document.preview.dtype == np.uint8
+    assert document.preview.flags.c_contiguous
+    assert np.array_equal(document.preview, source)
+    assert not np.shares_memory(document.preview, source)
+
+    document.preview[0, 0, 0] = 255
+    assert source[0, 0, 0] == 0

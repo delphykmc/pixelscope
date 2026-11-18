@@ -82,13 +82,16 @@ def windows_version_tuple(version: str | None = None) -> tuple[int, int, int, in
     """Convert the leading X.Y.Z release version into Windows file-version fields."""
 
     value = version or release_version()
-    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", value)
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?", value)
     if match is None:
         raise ValueError(f"Release version must begin with X.Y.Z: {value!r}")
-    parts = tuple(int(part) for part in match.groups())
-    if any(part > 65535 for part in parts):
+    if match.group(4) is not None and match.end() != len(value):
+        raise ValueError(f"Four-component Windows version must be exact X.Y.Z.N: {value!r}")
+    parts = tuple(int(part) for part in match.groups()[:3])
+    build = int(match.group(4)) if match.group(4) is not None else 0
+    if any(part > 65535 for part in (*parts, build)):
         raise ValueError(f"Windows version components must be <= 65535: {value!r}")
-    return parts[0], parts[1], parts[2], 0
+    return parts[0], parts[1], parts[2], build
 
 
 def _windows_version_identity(target: str) -> tuple[Path, str, str, str]:

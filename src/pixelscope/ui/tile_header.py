@@ -22,6 +22,7 @@ class TileHeader(QWidget):
     focus_requested = Signal()
     navigation_requested = Signal(str)
     pick_requested = Signal(bool)
+    edit_tag_requested = Signal(object)
     COMPACT_WIDTH = 480
     COMPACT_EXIT_WIDTH = COMPACT_WIDTH + 32
     REVIEW_ROLE_WIDTH = 60
@@ -35,6 +36,7 @@ class TileHeader(QWidget):
         self._compat_text = ""
         self._full_name = ""
         self._display_name = ""
+        self._tag_folder: Path | None = None
         self._navigation_count = 0
         self._compact = False
 
@@ -113,6 +115,16 @@ class TileHeader(QWidget):
             "border-radius: 2px; background: transparent; }"
         )
         self.derived.hide()
+        self.edit_tag = QToolButton()
+        self.edit_tag.setObjectName("tileEditDisplayTag")
+        self.edit_tag.setAccessibleName("Edit source folder display tag")
+        self.edit_tag.setText("Tag")
+        self.edit_tag.setToolTip("Set or clear this source folder's display tag")
+        self.edit_tag.setAutoRaise(True)
+        self.edit_tag.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.edit_tag.setFixedHeight(TOKENS.control_height)
+        self.edit_tag.hide()
+        self.edit_tag.clicked.connect(self._request_tag_edit)  # type: ignore[attr-defined]
         self.focus = QToolButton()
         self.focus.setObjectName("primaryFlag")
         self.focus.setAccessibleName("Primary image")
@@ -140,6 +152,7 @@ class TileHeader(QWidget):
         layout.addWidget(self.difference_reference, 1)
         layout.addWidget(self.meta)
         layout.addWidget(self.zoom)
+        layout.addWidget(self.edit_tag)
         layout.addWidget(self.pick)
         layout.addWidget(self.derived)
         layout.addWidget(self.focus)
@@ -169,6 +182,8 @@ class TileHeader(QWidget):
         if document is None:
             self._full_name = ""
             self._display_name = ""
+            self._tag_folder = None
+            self.edit_tag.hide()
             self.name.clear()
             self.name.setToolTip("")
             self.set_difference_reference(visible=False)
@@ -176,12 +191,20 @@ class TileHeader(QWidget):
             self.zoom.setText("—")
             return
         self._display_name = document.display_name
-        self._full_name = (
-            f"{document.source_path.parent.name} / {document.display_name}"
-            if document.source_path is not None
-            else document.display_name
+        # display_name is already resolved globally; prepending the immediate
+        # parent would obscure the shortest unique suffix (and duplicate it).
+        self._full_name = document.display_name
+        self._tag_folder = document.source_path.parent if document.source_path is not None else None
+        self.edit_tag.setVisible(self._tag_folder is not None)
+        source_description = str(document.source_path or document.display_name)
+        self.name.setToolTip(
+            f"{document.display_name}\n{source_description}"
+            if (
+                document.source_path is not None
+                and document.display_name != document.source_path.name
+            )
+            else source_description
         )
-        self.name.setToolTip(str(document.source_path or document.display_name))
         shape = document.shape
         resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
         file_format = (document.source_path or Path(document.display_name)).suffix.upper().lstrip(
@@ -310,6 +333,10 @@ class TileHeader(QWidget):
         size = getattr(event, "size", None)
         event_width = size().width() if callable(size) else self.width()
         self._update_responsive_mode(event_width)
+
+    def _request_tag_edit(self, _checked: bool = False) -> None:
+        if self._tag_folder is not None:
+            self.edit_tag_requested.emit(self._tag_folder)
 
     def _review_pick_toggled(self, checked: bool) -> None:
         self._update_review_pick_state(checked)

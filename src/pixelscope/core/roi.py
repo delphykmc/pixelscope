@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.statistics import (
     HistogramResult,
     ImageStatistics,
@@ -105,8 +106,10 @@ def analyze_roi(
 ) -> RoiAnalysisResult:
     """Calculate whole-ROI and per-channel statistics plus a histogram."""
 
+    cancellation_checkpoint()
     region = extract_roi(image, bounds)
     result_histogram = histogram(region, bins, histogram_range)
+    cancellation_checkpoint()
     channels = (region,) if region.ndim == 2 else tuple(np.moveaxis(region, -1, 0))
     exact_integer_histogram = (
         np.issubdtype(region.dtype, np.integer)
@@ -123,6 +126,7 @@ def analyze_roi(
     else:
         channel_statistics = tuple(image_statistics(channel) for channel in channels)
         overall = image_statistics(region)
+    cancellation_checkpoint()
     return RoiAnalysisResult(
         bounds=bounds,
         pixel_count=bounds.width * bounds.height,

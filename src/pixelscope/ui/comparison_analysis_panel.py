@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 from contextlib import suppress
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 import numpy as np
 import pyqtgraph as pg
@@ -27,8 +29,10 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
@@ -36,6 +40,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QStackedWidget,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -45,9 +50,27 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core.analysis_latency_trace import PhaseTimer as AnalysisPhaseTimer
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.metric_presentation import (
+    FOCUSED_METRICS,
+    PERCENTILE_METRICS,
+    STATISTICS_METRICS,
+    StatisticsPivot,
+    build_statistics_pivot,
+)
+from pixelscope.core.review_analysis import (
+    AnalysisMeasurementV1,
+    AnalysisSeriesV1,
+    AnalysisSourceV1,
+    PresentedAnalysisTokenV1,
+    freeze_series_values,
+    measurement,
+)
+from pixelscope.core.review_analysis_sources import native_profile_signature, snapshot_source
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
+from pixelscope.core.source_presentation import contextual_display_label
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
@@ -99,12 +122,10 @@ class ImageGroupSeparatorDelegate(QStyledItemDelegate):
 
 
 def comparison_labels(documents: list[ImageDocument]) -> list[str]:
-    """Return folder-qualified labels so duplicate basenames remain distinct."""
+    """Reuse resolved source aliases, with legacy context for bare basenames."""
 
     return [
-        f"{document.source_path.parent.name} / {document.display_name}"
-        if document.source_path is not None
-        else document.display_name
+        contextual_display_label(document.display_name, document.source_path)
         for document in documents
     ]
 
@@ -164,6 +185,7 @@ class ComparisonAnalysisPanel(QWidget):
         "P99",
     )
     scope_changed = Signal()
+    analysis_settled = Signal()
     roi_apply_requested = Signal(object)
     roi_clear_requested = Signal()
 
@@ -175,8 +197,19 @@ class ComparisonAnalysisPanel(QWidget):
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
         self._completed_signature: tuple[object, ...] = ()
+        self._analysis_request_id = str(uuid4())
+        self._analysis_request_epoch = 0
+        self._presented_analysis_token: PresentedAnalysisTokenV1 | None = None
+        self._presented_histogram_token: PresentedAnalysisTokenV1 | None = None
+        self._histogram_presentation_epoch = 0
+        self._histogram_presentation_signature: tuple[object, ...] = ()
+        self._token_request_signature: tuple[object, ...] = ()
+        # W09 may inject durable Review keys. Until then these are provisional
+        # Review-local UUIDs, never runtime document IDs or display aliases.
+        self._analysis_source_keys: dict[str, str] = {}
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
+        self._pivot: StatisticsPivot | None = None
         self._pool = analysis_thread_pool()
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -193,8 +226,13 @@ class ComparisonAnalysisPanel(QWidget):
         activity_layout = QVBoxLayout(self.activity)
         activity_layout.setContentsMargins(0, 0, 0, 0)
         activity_layout.setSpacing(1)
+        # Reserve the status/progress rail permanently. QProgressBar may be
+        # hidden when idle, but must never resize the statistics table above.
+        self.status.setFixedHeight(self.status.sizeHint().height())
+        self.activity.setFixedHeight(self.status.height() + self.busy.height() + 1)
         activity_layout.addWidget(self.status)
         activity_layout.addWidget(self.busy)
+        activity_layout.addStretch(1)
 
         self.roi_label = ElidingContextLabel("")
         self.roi_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -332,8 +370,89 @@ class ComparisonAnalysisPanel(QWidget):
 
         self.statistics_group = QGroupBox("3. Channel statistics")
         statistics_layout = QVBoxLayout(self.statistics_group)
-        statistics_layout.setContentsMargins(6, 6, 6, 6)
-        statistics_layout.addWidget(self.table)
+        # Keep the baseline compact Analyze minimum: three complete native
+        # rows, even after a header View switch is installed (W06).
+        statistics_layout.setContentsMargins(6, 2, 6, 2)
+        statistics_layout.setSpacing(2)
+        self.statistics_view = QComboBox()
+        self.statistics_view.addItems(("Raw", "Pivot"))
+        self.pivot_channel = QComboBox()
+        self.pivot_channel.addItem("All")
+        self.pivot_metrics = QComboBox()
+        self.pivot_metrics.addItems(("Mean / Std / P99", "All metrics", "Percentiles"))
+        self.pivot_reference = QComboBox()
+        self.pivot_reference.addItem("No reference", None)
+        self.pivot_reference.setToolTip(
+            "Statistics-only Reference. Independent of W05 Primary and Difference A/B roles."
+        )
+        self.pivot_delta = QComboBox()
+        self.pivot_delta.addItems(("Values", "Absolute Δ", "Relative Δ (%)"))
+        self.pivot_delta.setToolTip("Delta = Target - Reference; relative = Δ / |Reference| × 100")
+        self.pivot_export_button = QPushButton("Export Pivot CSV…")
+        self.pivot_export_button.setToolTip(
+            "High-precision typed Pivot CSV; existing Raw Statistics CSV is unchanged"
+        )
+        self.pivot_table = QTableWidget(0, 0)
+        self.pivot_table.verticalHeader().hide()
+        self.pivot_table.setWordWrap(False)
+        self.pivot_table.setAlternatingRowColors(True)
+        self.pivot_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.pivot_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        self.pivot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.pivot_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.pivot_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.pivot_table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        self.pivot_export_button.setEnabled(False)
+        pivot_copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.pivot_table)
+        pivot_copy_shortcut.activated.connect(self.copy_selection)  # type: ignore[attr-defined]
+
+        # W06 compact Analyze workspace reserves three readable Raw statistics
+        # rows at 1400×880. The W07 Pivot options must not occupy those rows
+        # when the default legacy Raw view is selected.
+        # Standalone panel: keep a local View selector. The composed
+        # MainWindow relocates it into the already-present Statistics header,
+        # avoiding an extra row in the height-constrained W06 Analyze preset.
+        self.statistics_view_row = QWidget()
+        statistics_view_layout = QHBoxLayout(self.statistics_view_row)
+        statistics_view_layout.setContentsMargins(0, 0, 0, 0)
+        statistics_view_layout.setSpacing(TOKENS.spacing_xs)
+        self.statistics_view_label = QLabel("View")
+        statistics_view_layout.addWidget(self.statistics_view_label)
+        self.statistics_view.setMaximumWidth(130)
+        statistics_view_layout.addWidget(self.statistics_view)
+        statistics_view_layout.addStretch(1)
+        statistics_layout.addWidget(self.statistics_view_row)
+
+        self.pivot_controls_widget = QWidget()
+        pivot_controls = ResponsiveControlLayout(
+            self.pivot_controls_widget, spacing=TOKENS.spacing_xs
+        )
+        for row_index, title, combo in (
+            (0, "Channel", self.pivot_channel),
+            (0, "Metrics", self.pivot_metrics),
+            (1, "Pivot reference", self.pivot_reference),
+            (1, "Delta", self.pivot_delta),
+        ):
+            pivot_controls.add_control(QLabel(title), compact_row=row_index)
+            pivot_controls.add_control(combo, compact_row=row_index)
+            combo.setMinimumWidth(0)
+            combo.setMaximumWidth(170)
+        pivot_controls.add_control(self.pivot_export_button, compact_row=1)
+        statistics_layout.addWidget(self.pivot_controls_widget)
+        self.pivot_controls_widget.hide()
+        self.statistics_stack = QStackedWidget()
+        self.statistics_stack.addWidget(self.table)
+        self.statistics_stack.addWidget(self.pivot_table)
+        statistics_layout.addWidget(self.statistics_stack, 1)
+        self.statistics_view.currentIndexChanged.connect(self._statistics_view_changed)  # type: ignore[attr-defined]
+        for combo in (
+            self.pivot_channel,
+            self.pivot_metrics,
+            self.pivot_reference,
+            self.pivot_delta,
+        ):
+            combo.currentIndexChanged.connect(self._refresh_pivot)  # type: ignore[attr-defined]
+        self.pivot_export_button.clicked.connect(self._prompt_pivot_export)  # type: ignore[attr-defined]
 
         self.histogram_grid = QWidget()
         self.histogram_layout = QGridLayout(self.histogram_grid)
@@ -348,6 +467,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
         self._histogram_mouse_callbacks: list[Any] = []
         self._histogram_resources_disposed = False
+        self._arranged_histogram_count = 0
         self._semantics_delegate: Any | None = None
         self.workflow_histogram_hint_controller: Any | None = None
         for plot_index in range(6):
@@ -359,6 +479,10 @@ class ComparisonAnalysisPanel(QWidget):
             plot.setLabel("bottom", "Pixel value")
             plot.showGrid(x=True, y=True, alpha=0.25)
             plot.getViewBox().setDefaultPadding(0.08)
+            # Auto-sized tick labels can change PlotItem geometry on the next
+            # Paint. Fix axis gutters before any data or tick text arrives.
+            plot.getPlotItem().getAxis("left").setWidth(82)
+            plot.getPlotItem().getAxis("bottom").setHeight(40)
             plot.setMinimumHeight(190)
             legend = plot.addLegend(offset=(-8, 8))
             self.plots.append(plot)
@@ -380,7 +504,9 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
         self.histogram_context = ElidingContextLabel()
-        self.histogram_context.hide()
+        # ResponsiveControlLayout excludes hidden controls from row sizing.
+        # Keep this row and its height reserved before the first result.
+        self.histogram_context.setFixedHeight(self.histogram_context.fontMetrics().height() + 4)
         histogram_controls_widget = QWidget()
         histogram_controls = ResponsiveControlLayout(
             histogram_controls_widget, spacing=TOKENS.spacing_sm
@@ -449,6 +575,227 @@ class ComparisonAnalysisPanel(QWidget):
             bounds,
             tuple(histogram_specs),
         )
+
+    def bind_review_source_keys(self, mapping: dict[str, str]) -> None:
+        """W09 handoff: map runtime IDs to durable keys without changing numerics.
+
+        The owner supplies only verified document_id -> Review UUID mappings.
+        No source registration, alias resolver or new QObject hook is created.
+        """
+        if any(not key or not value for key, value in mapping.items()):
+            raise ValueError("invalid Review source mapping")
+        self._analysis_source_keys.update(mapping)
+        # Explicit rebind affects identity only, not native data or requests.
+        self._presented_analysis_token = self._analysis_render_token()
+        self._presented_histogram_token = self._histogram_live_token()
+        self._refresh_pivot()
+
+    def source_key_for_document(self, document_id: str) -> str:
+        return self._analysis_source_keys.setdefault(document_id, str(uuid4()))
+
+    @staticmethod
+    def _review_profile_signature(document: ImageDocument) -> str:
+        """Use the same path-free interpretation identity in all W02 producers."""
+        return native_profile_signature(document)
+
+    def _analysis_live_token(self) -> PresentedAnalysisTokenV1 | None:
+        if (
+            not self.last_results
+            or self._completed_signature != self._request_signature
+            or self._refresh_timer.isActive()
+            or self._worker is not None
+            or len(self.last_results) != len(self._documents)
+        ):
+            return None
+        if self._request_signature != self._analysis_request_signature(
+            self._documents, self._bounds, self._histogram_specs
+        ):
+            return None
+        roi = self._bounds
+        if (roi is None) != (self.region_scope.currentText() != "Active ROI"):
+            return None
+        if any(
+            r.bounds != (roi or RoiBounds(0, 0, d.reference_shape[1], d.reference_shape[0]))
+            for d, r in zip(self._documents, self.last_results, strict=True)
+        ):
+            return None
+        return PresentedAnalysisTokenV1(
+            feature="statistics",
+            request_id=self._analysis_request_id,
+            request_epoch=self._analysis_request_epoch,
+            source_documents=tuple((d.document_id, d.generation) for d in self._documents),
+            source_keys=tuple(self.source_key_for_document(d.document_id) for d in self._documents),
+            roi_ref=None if roi is None else (roi.x, roi.y, roi.width, roi.height),
+            channel="All",
+            domain="native",
+            profile_signatures=tuple(self._review_profile_signature(d) for d in self._documents),
+            difference_cache_key=None,
+        )
+
+    def _analysis_render_token(self) -> PresentedAnalysisTokenV1 | None:
+        # During the succeeded signal the TaskWorker has not yet emitted
+        # finished; tolerate it ONLY for token publication, never for capture.
+        worker = self._worker
+        self._worker = None
+        try:
+            return self._analysis_live_token()
+        finally:
+            self._worker = worker
+
+    def get_presented_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        """Result token published only by a completed render (W00 M1)."""
+        return self._presented_analysis_token
+
+    def get_current_analysis_token(self) -> PresentedAnalysisTokenV1 | None:
+        """Revalidate live request and producer data against the published token."""
+        return self._analysis_live_token()
+
+    def read_presented_analysis(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        if self.get_current_analysis_token() != self.get_presented_analysis_token():
+            raise ValueError("analysis is no longer current")
+        token = self.get_presented_analysis_token()
+        if token is None:
+            raise ValueError("no presented analysis")
+        sources: list[AnalysisSourceV1] = []
+        values: list[AnalysisMeasurementV1] = []
+        for document, result, key in zip(
+            self._documents, self.last_results, token.source_keys, strict=True
+        ):
+            if document.source is None:
+                raise ValueError("unloaded analysis source")
+            sources.append(snapshot_source(document, key))
+            for index, (channel, stats) in enumerate(
+                zip(result.channel_names, result.channel_statistics, strict=True)
+            ):
+                count = (
+                    result.channel_sample_counts[index]
+                    if result.channel_sample_counts
+                    else result.pixel_count
+                )
+                fields = (
+                    ("Min", stats.minimum),
+                    ("Max", stats.maximum),
+                    ("Mean", stats.mean),
+                    ("Std", stats.standard_deviation),
+                    ("P1", stats.percentiles[1.0]),
+                    ("P50", stats.percentiles[50.0]),
+                    ("P99", stats.percentiles[99.0]),
+                )
+                values.extend(
+                    measurement(key, channel, name, value, count) for name, value in fields
+                )
+        return tuple(sources), tuple(values), (("scope", "roi" if token.roi_ref else "full"),)
+
+    def _histogram_ui_signature(self) -> tuple[object, ...]:
+        return (
+            self.histogram_range.currentText(),
+            self.histogram_units.currentText(),
+            self.region_scope.currentText(),
+            tuple(
+                sorted((name, button.isChecked()) for name, button in self.channel_buttons.items())
+            ),
+        )
+
+    def _histogram_live_token(self) -> PresentedAnalysisTokenV1 | None:
+        stats = self._analysis_live_token()
+        if (
+            stats is None
+            or not any(self._histogram_series)
+            or self._histogram_presentation_signature != self._histogram_ui_signature()
+        ):
+            return None
+        return replace(
+            stats,
+            feature="histogram",
+            request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
+        )
+
+    def get_presented_histogram_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._presented_histogram_token
+
+    def get_current_histogram_token(self) -> PresentedAnalysisTokenV1 | None:
+        return self._histogram_live_token()
+
+    def read_presented_histogram(
+        self,
+    ) -> tuple[
+        tuple[AnalysisSourceV1, ...],
+        tuple[AnalysisMeasurementV1, ...],
+        tuple[tuple[str, str], ...],
+    ]:
+        if (
+            self.get_current_histogram_token() is None
+            or self.get_current_histogram_token() != self.get_presented_histogram_token()
+        ):
+            raise ValueError("histogram presentation is stale")
+        sources = tuple(
+            snapshot_source(document, self.source_key_for_document(document.document_id))
+            for document in self._documents
+        )
+        presentation = (
+            (
+                "histogram_x",
+                "normalized"
+                if self.histogram_range.currentText() == "Normalized 0–1"
+                else "native",
+            ),
+            (
+                "histogram_y",
+                (
+                    "normalized"
+                    if self.histogram_units.currentText() == "Normalized"
+                    else "log-count"
+                    if self.histogram_units.currentText() == "Log count"
+                    else "count"
+                ),
+            ),
+        )
+        return sources, (), presentation
+
+    def read_presented_histogram_series(self) -> tuple[AnalysisSeriesV1, ...]:
+        if self.get_current_histogram_token() != self.get_presented_histogram_token():
+            raise ValueError("histogram request changed")
+        presented: set[tuple[int, str]] = {
+            (image_index, channel)
+            for group in self._histogram_series
+            for image_index, channel, _x, _y in group
+        }
+        series: list[AnalysisSeriesV1] = []
+        for image_index, (document, result) in enumerate(
+            zip(self._documents, self.last_results, strict=True)
+        ):
+            source_key = self.source_key_for_document(document.document_id)
+            for channel_index, channel in enumerate(result.histogram.channel_names):
+                if (image_index, channel) not in presented:
+                    continue
+                counts = result.histogram.counts[channel_index]
+                values, states = freeze_series_values(counts)
+                count = (
+                    result.channel_sample_counts[channel_index]
+                    if result.channel_sample_counts
+                    else result.pixel_count
+                )
+                series.append(
+                    AnalysisSeriesV1(
+                        source_key=source_key,
+                        channel=channel,
+                        kind="histogram",
+                        coordinates=tuple(float(v) for v in result.histogram.edges),
+                        values=values,
+                        value_states=states,
+                        sample_count=count,
+                        definition_revision="native-bin-counts-v1",
+                    )
+                )
+        if not series:
+            raise ValueError("no presented histogram series")
+        return tuple(series)
 
     def set_semantics_delegate(self, delegate: Any | None) -> None:
         """Select an optional analysis strategy without replacing instance methods."""
@@ -519,6 +866,11 @@ class ComparisonAnalysisPanel(QWidget):
         if self._worker is not None:
             self._worker.cancel()
         self._request_signature = signature
+        self._analysis_request_epoch += 1
+        self._analysis_request_id = str(uuid4())
+        self._token_request_signature = signature
+        self._presented_analysis_token = None
+        self._presented_histogram_token = None
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
         self._invalidate_histogram_presentation()
@@ -536,16 +888,20 @@ class ComparisonAnalysisPanel(QWidget):
         self._active_roi_bounds = None
         self._request_signature = ()
         self._completed_signature = ()
+        self._presented_analysis_token = None
+        self._presented_histogram_token = None
+        self._token_request_signature = ()
+        self._analysis_request_epoch += 1
         self._histogram_specs = []
         self.last_results = ()
         self.image_summary.setRowCount(0)
         self.table.setRowCount(0)
+        self._clear_pivot()
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
         self._sync_roi_editor()
         self.histogram_context.clear()
-        self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
         self._sync_empty_hint()
 
@@ -554,6 +910,18 @@ class ComparisonAnalysisPanel(QWidget):
             self._semantics_delegate.refresh_analysis()
             return
         self.refresh_default()
+
+    def flush_pending_analysis(self) -> None:
+        """Explicit navigation reuses the normal cache without a debounce flash.
+
+        Cache keys/results remain owned by the existing native producer, including
+        delegated YUV semantics. No historical Memo statistics are injected.
+        """
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+            if self._worker is not None and self._worker.is_cancelled:
+                self._worker = None
+            self.refresh()
 
     def refresh_default(self) -> None:
         if self._histogram_resources_disposed:
@@ -579,6 +947,11 @@ class ComparisonAnalysisPanel(QWidget):
             if self._worker is not None:
                 self._worker.cancel()
             self._request_signature = signature
+            self._analysis_request_epoch += 1
+            self._analysis_request_id = str(uuid4())
+            self._token_request_signature = signature
+            self._presented_analysis_token = None
+            self._presented_histogram_token = None
             self._completed_signature = ()
             self._invalidate_histogram_presentation()
 
@@ -626,6 +999,7 @@ class ComparisonAnalysisPanel(QWidget):
             return
 
         def calculate() -> tuple[RoiAnalysisResult, ...]:
+            timer = AnalysisPhaseTimer("histogram.worker.compute", documents=len(documents))
             results: list[RoiAnalysisResult] = []
             for document, source, selected_bounds, spec, cached in zip(
                 documents,
@@ -660,13 +1034,14 @@ class ComparisonAnalysisPanel(QWidget):
                                 value_range,
                             )
                         )
+            timer.finish()
             return tuple(results)
 
         self._set_activity("Calculating...", busy=True)
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_result(
-                signature, cache_keys, histogram_specs, result
+            lambda task_id, _document_id, _generation, result: self._on_result(
+                signature, cache_keys, histogram_specs, result, task_id=task_id
             )
         )
         worker.signals.failed.connect(self._on_error)
@@ -680,8 +1055,14 @@ class ComparisonAnalysisPanel(QWidget):
         cache_keys: list[tuple[object, ...]],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
         result: object,
+        *,
+        task_id: str | None = None,
     ) -> None:
         if self._histogram_resources_disposed:
+            return
+        if task_id is not None and (
+            self._worker is None or self._worker.task_id != task_id or self._worker.is_cancelled
+        ):
             return
         if signature != self._request_signature or not isinstance(result, tuple):
             return
@@ -710,6 +1091,8 @@ class ComparisonAnalysisPanel(QWidget):
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
+            self._refresh_pivot()
+            self.analysis_settled.emit()
 
     def _channels_changed(self, _checked: bool) -> None:
         if self.last_results and self._histogram_specs:
@@ -818,7 +1201,6 @@ class ComparisonAnalysisPanel(QWidget):
     def _update_histogram_context(self, results: tuple[RoiAnalysisResult, ...]) -> None:
         if not results:
             self.histogram_context.clear()
-            self.histogram_context.hide()
             return
         bounds = tuple(result.bounds for result in results)
         if all(item == bounds[0] for item in bounds[1:]):
@@ -830,24 +1212,40 @@ class ComparisonAnalysisPanel(QWidget):
             )
             text = f"Per-image bounds · {details}"
         self.histogram_context.setText(text)
-        self.histogram_context.show()
 
     def _invalidate_histogram_presentation(self) -> None:
+        # The previous graph stays visible (with the explicit busy indicator)
+        # until the new analysis has finished. Clearing here causes a blank
+        # frame and a scrollbar/layout jump while the worker is running.
         self.last_results = ()
-        self._clear_histogram_plots()
-        self.histogram_context.clear()
-        self.histogram_context.hide()
+        self._clear_pivot()
+        if self.histogram_context.text() and not self.histogram_context.text().startswith(
+            "Previous result · "
+        ):
+            self.histogram_context.setText(f"Previous result · {self.histogram_context.text()}")
+        # The preserved curves are a previous-result preview, not current
+        # source data. Disable hover readouts until the replacement arrives.
+        self._histogram_series = [[] for _index in range(6)]
+        for line, hint in zip(
+            self._histogram_hover_lines, self._histogram_hover_texts, strict=True
+        ):
+            if line is not None:
+                line.hide()
+            if hint is not None:
+                hint.hide()
 
     def _set_activity(self, text: str, *, busy: bool) -> None:
         self.status.setText(text)
         self.busy.setVisible(busy)
-        self.activity.setVisible(bool(text) or busy)
+        # Keep the reserved rail in the layout when status becomes empty.
+        self.activity.setVisible(True)
 
     def _render(
         self,
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
+        timer = AnalysisPhaseTimer("histogram.gui.render", documents=len(results))
         hint = self.workflow_histogram_hint_controller
         if hint is not None:
             hint.hide()
@@ -939,94 +1337,128 @@ class ComparisonAnalysisPanel(QWidget):
                 item.setToolTip(metadata)
                 self.table.setItem(row, column, item)
 
-        overlay = self.histogram_mode.currentText() == "Overlay"
-        self._arrange_histogram_plots(1 if overlay else len(results))
-        for plot, legend in zip(self.plots, self.legends, strict=True):
-            plot.clear()
-            legend.clear()
-        self._histogram_series = [[] for _index in range(6)]
-        for plot_index in range(min(6, 1 if overlay else len(results))):
-            self._create_histogram_hover(plot_index)
-        plotted_channels: set[str] = set()
-        for image_index, (document, result) in enumerate(
-            zip(self._documents, results, strict=True)
-        ):
-            plot = self.plots[0 if overlay else image_index]
-            edges = result.histogram.edges
-            for counts, channel_name in zip(
-                result.histogram.counts,
-                result.histogram.channel_names,
-                strict=True,
+        # Update charts atomically. The previous plot remains painted until
+        # the new curves, axes and range are ready; Qt schedules one repaint.
+        self.histogram_grid.setUpdatesEnabled(False)
+        try:
+            overlay = self.histogram_mode.currentText() == "Overlay"
+            # Stage histogram widgets hidden while installing curves, labels and
+            # axes. Exposing an empty PlotWidget before axis sizing and auto-range
+            # produces a transient oversized plot on the first Qt paint.
+            visible_plot_count = 1 if overlay else len(results)
+            self._arrange_histogram_plots(visible_plot_count)
+            for plot, legend in zip(self.plots, self.legends, strict=True):
+                plot.clear()
+                legend.clear()
+            self._histogram_series = [[] for _index in range(6)]
+            for plot_index in range(min(6, 1 if overlay else len(results))):
+                self._create_histogram_hover(plot_index)
+            plotted_channels: set[str] = set()
+            for image_index, (document, result) in enumerate(
+                zip(self._documents, results, strict=True)
             ):
-                control_name = self._channel_control_name(channel_name)
-                if (
-                    control_name in self.channel_buttons
-                    and not self.channel_buttons[control_name].isChecked()
+                plot = self.plots[0 if overlay else image_index]
+                edges = result.histogram.edges
+                for counts, channel_name in zip(
+                    result.histogram.counts,
+                    result.histogram.channel_names,
+                    strict=True,
                 ):
-                    continue
-                if channel_name == "A":
-                    continue
-                fill_color = QColor(channel_color(channel_name))
-                fill_color.setAlpha(52 if overlay else 78)
+                    control_name = self._channel_control_name(channel_name)
+                    if (
+                        control_name in self.channel_buttons
+                        and not self.channel_buttons[control_name].isChecked()
+                    ):
+                        continue
+                    if channel_name == "A":
+                        continue
+                    fill_color = QColor(channel_color(channel_name))
+                    fill_color.setAlpha(52 if overlay else 78)
+                    y_mode = self.histogram_units.currentText()
+                    y_values = histogram_display_values(counts, y_mode)
+                    x_values = edges
+                    if self.histogram_range.currentText() == "Normalized 0–1":
+                        span = float(edges[-1] - edges[0])
+                        if span > 0:
+                            x_values = (edges - edges[0]) / span
+                    short_name = document.display_name
+                    if len(short_name) > 24:
+                        short_name = f"{short_name[:11]}…{short_name[-10:]}"
+                    legend_name = (
+                        f"{image_index + 1} · {short_name} · {channel_name}"
+                        if overlay
+                        else channel_name
+                    )
+                    plot.plot(
+                        x_values,
+                        y_values,
+                        stepMode="center",
+                        fillLevel=0.0,
+                        brush=pg.mkBrush(fill_color),
+                        pen=comparison_pen(channel_name, 0, width=0.7),
+                        name=legend_name,
+                        antialias=True,
+                    )
+                    self._histogram_series[0 if overlay else image_index].append(
+                        (image_index, channel_name, x_values, y_values)
+                    )
+                    plotted_channels.add(channel_name)
+                title = labels[image_index]
+                if not overlay:
+                    plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
+                self._set_plot_axes_visible(plot, True)
                 y_mode = self.histogram_units.currentText()
-                y_values = histogram_display_values(counts, y_mode)
-                x_values = edges
-                if self.histogram_range.currentText() == "Normalized 0–1":
-                    span = float(edges[-1] - edges[0])
-                    if span > 0:
-                        x_values = (edges - edges[0]) / span
-                short_name = document.display_name
-                if len(short_name) > 24:
-                    short_name = f"{short_name[:11]}…{short_name[-10:]}"
-                legend_name = (
-                    f"{image_index + 1} · {short_name} · {channel_name}"
-                    if overlay
-                    else channel_name
+                plot.setLabel(
+                    "left",
+                    "Normalized"
+                    if y_mode == "Normalized"
+                    else "Log count"
+                    if y_mode == "Log count"
+                    else "Count",
                 )
-                plot.plot(
-                    x_values,
-                    y_values,
-                    stepMode="center",
-                    fillLevel=0.0,
-                    brush=pg.mkBrush(fill_color),
-                    pen=comparison_pen(channel_name, 0, width=0.7),
-                    name=legend_name,
-                    antialias=True,
+                plot.setLabel(
+                    "bottom",
+                    "Normalized code"
+                    if self.histogram_range.currentText() == "Normalized 0–1"
+                    else "Pixel value",
                 )
-                self._histogram_series[0 if overlay else image_index].append(
-                    (image_index, channel_name, x_values, y_values)
-                )
-                plotted_channels.add(channel_name)
-            title = (
-                f"{document.source_path.parent.name} / {document.display_name}"
-                if document.source_path is not None
-                else document.display_name
-            )
-            if not overlay:
-                plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
-            self._set_plot_axes_visible(plot, True)
-            y_mode = self.histogram_units.currentText()
-            plot.setLabel(
-                "left",
-                "Normalized"
-                if y_mode == "Normalized"
-                else "Log count"
-                if y_mode == "Log count"
-                else "Count",
-            )
-            plot.setLabel(
-                "bottom",
-                "Normalized code"
-                if self.histogram_range.currentText() == "Normalized 0–1"
-                else "Pixel value",
-            )
-            plot.getViewBox().autoRange(padding=0.08)
-        if overlay:
-            self.plots[0].setTitle(f"Overlay · {len(results)} images")
-            self.plots[0].getViewBox().autoRange(padding=0.08)
+                plot.getViewBox().autoRange(padding=0.08)
+            if overlay:
+                self.plots[0].setTitle(f"Overlay · {len(results)} images")
+                self.plots[0].getViewBox().autoRange(padding=0.08)
+            # Reveal only fully configured plots. Axis labels and ticks affect
+            # PlotItem geometry, so they must be in place before the first show.
+            for plot in self.plots[: min(6, visible_plot_count)]:
+                plot.show()
+        finally:
+            self.histogram_grid.setUpdatesEnabled(True)
         self.table.resizeRowsToContents()
         self.table.viewport().update()
         self._set_activity("", busy=False)
+        timer.finish()
+        # Native YUV delegates may set _request_signature directly. Detect that
+        # producer transition here without editing the app-owned YUV adapter.
+        if self._token_request_signature != self._completed_signature:
+            self._analysis_request_epoch += 1
+            self._analysis_request_id = str(uuid4())
+            self._token_request_signature = self._completed_signature
+        # On worker completion this may still see an active worker; publish the
+        # immutable identity from the completed signature, then export capture
+        # checks completion/worker state again before and after extraction.
+        self._presented_analysis_token = self._analysis_render_token()
+        self._histogram_presentation_epoch += 1
+        self._histogram_presentation_signature = self._histogram_ui_signature()
+        stats = self._presented_analysis_token
+        self._presented_histogram_token = (
+            replace(
+                stats,
+                feature="histogram",
+                request_epoch=stats.request_epoch + self._histogram_presentation_epoch,
+            )
+            if stats is not None and any(self._histogram_series)
+            else None
+        )
+        self._refresh_pivot()
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
@@ -1104,19 +1536,22 @@ class ComparisonAnalysisPanel(QWidget):
         return "G" if channel_name in ("Gr", "Gb") else channel_name
 
     def _arrange_histogram_plots(self, count: int) -> None:
+        visible_count = min(6, count)
+        if visible_count == self._arranged_histogram_count:
+            return
         for plot in self.plots:
             self.histogram_layout.removeWidget(plot)
             plot.hide()
-        visible_count = min(6, count)
         for index in range(visible_count):
             plot = self.plots[index]
             self.histogram_layout.addWidget(plot, index, 0)
-            plot.show()
+        self._arranged_histogram_count = visible_count
         for row in range(6):
             self.histogram_layout.setRowStretch(row, 1 if row < visible_count else 0)
         self.histogram_layout.setColumnStretch(0, 1)
 
     def _clear_histogram_plots(self) -> None:
+        self._arranged_histogram_count = 0
         for plot, legend in zip(self.plots, self.legends, strict=True):
             plot.clear()
             legend.clear()
@@ -1125,7 +1560,293 @@ class ComparisonAnalysisPanel(QWidget):
             plot.hide()
         self._histogram_series = [[] for _index in range(6)]
 
+    def _statistics_view_changed(self, index: int) -> None:
+        self.statistics_stack.setCurrentIndex(index)
+        self.pivot_controls_widget.setVisible(index == 1)
+        self._refresh_pivot()
+
+    def _clear_pivot(self) -> None:
+        """Never leave old numbers visible when W02's live token is invalid."""
+        self._pivot = None
+        self.pivot_table.clear()
+        self.pivot_table.setRowCount(0)
+        self.pivot_table.setColumnCount(0)
+        self.pivot_export_button.setEnabled(False)
+
+    def _refresh_pivot(self, _index: int = -1) -> None:
+        """Presentation-only operation: never requests analysis or changes selection."""
+        if self._histogram_resources_disposed:
+            return
+        token = self.get_presented_analysis_token()
+        if token is None or token != self.get_current_analysis_token():
+            self._clear_pivot()
+            return
+        try:
+            if len(self._documents) != len(token.source_documents) or any(
+                document.document_id != document_id or document.generation != generation
+                for document, (document_id, generation) in zip(
+                    self._documents, token.source_documents, strict=True
+                )
+            ):
+                raise ValueError("changed current comparison source")
+            sources, measurements, _presentation = self.read_presented_analysis()
+            if (
+                self.get_presented_analysis_token() != token
+                or self.get_current_analysis_token() != token
+            ):
+                raise ValueError("changed Statistics presentation during read")
+
+            # W03's document.display_name is already the canonical qualified
+            # alias; re-resolving with a separate folder/identity store would
+            # override persistent tag edits.
+            labels = {
+                key: document.display_name
+                for document, key in zip(self._documents, token.source_keys, strict=True)
+            }
+            selected_channel = self.pivot_channel.currentText()
+            channels = list(
+                dict.fromkeys(
+                    item.channel for item in measurements if item.metric in STATISTICS_METRICS
+                )
+            )
+            channel_options = ["All", *channels]
+            if [
+                self.pivot_channel.itemText(i) for i in range(self.pivot_channel.count())
+            ] != channel_options:
+                self.pivot_channel.blockSignals(True)
+                self.pivot_channel.clear()
+                self.pivot_channel.addItems(channel_options)
+                self.pivot_channel.setCurrentText(
+                    selected_channel if selected_channel in channel_options else "All"
+                )
+                self.pivot_channel.blockSignals(False)
+
+            old_ref = self.pivot_reference.currentData()
+            reference_keys = list(token.source_keys)
+            old_keys = [
+                self.pivot_reference.itemData(i) for i in range(1, self.pivot_reference.count())
+            ]
+            old_labels = [
+                self.pivot_reference.itemText(i) for i in range(1, self.pivot_reference.count())
+            ]
+            new_labels = [f"{index} · {labels[key]}" for index, key in enumerate(reference_keys, 1)]
+            if old_keys != reference_keys or old_labels != new_labels:
+                self.pivot_reference.blockSignals(True)
+                self.pivot_reference.clear()
+                self.pivot_reference.addItem("No reference", None)
+                for key, display in zip(reference_keys, new_labels, strict=True):
+                    self.pivot_reference.addItem(display, key)
+                selected = self.pivot_reference.findData(old_ref)
+                self.pivot_reference.setCurrentIndex(max(0, selected))
+                self.pivot_reference.blockSignals(False)
+
+            metric_options = {
+                "Mean / Std / P99": FOCUSED_METRICS,
+                "All metrics": STATISTICS_METRICS,
+                "Percentiles": PERCENTILE_METRICS,
+            }
+            metric_filter = metric_options[self.pivot_metrics.currentText()]
+            pivot = build_statistics_pivot(
+                token,
+                sources,
+                measurements,
+                labels,
+                channel=self.pivot_channel.currentText(),
+                metrics=metric_filter,
+                reference_key=self.pivot_reference.currentData(),
+            )
+        except (ValueError, RuntimeError, TypeError, KeyError, IndexError):
+            self._clear_pivot()
+            return
+
+        self._pivot = pivot
+        self._render_pivot(pivot)
+        self.pivot_export_button.setEnabled(bool(pivot.rows))
+
+    def _render_pivot(self, pivot: StatisticsPivot) -> None:
+        """One row per metric/channel, one source column; horizontal scroll at 6."""
+        table = self.pivot_table
+        table.setUpdatesEnabled(False)
+        try:
+            table.clear()
+            table.setRowCount(len(pivot.rows))
+            table.setColumnCount(len(pivot.columns) + 2)
+            table.setHorizontalHeaderLabels(
+                [
+                    "Metric",
+                    "Unit",
+                    *[
+                        f"{index} · {column.alias}"
+                        + (" [Pivot Ref]" if column.source_key == pivot.reference_key else "")
+                        for index, column in enumerate(pivot.columns, 1)
+                    ],
+                ]
+            )
+            header = table.horizontalHeader()
+            header.resizeSection(0, 125)
+            header.resizeSection(1, 110)
+            for index, column in enumerate(pivot.columns, 2):
+                header.resizeSection(index, 215)
+                header_item = table.horizontalHeaderItem(index)
+                if header_item is not None:
+                    header_item.setToolTip(
+                        f"Alias: {column.alias}\n"
+                        f"Native layout: {column.source.channel_layout}\n"
+                        f"Dtype: {column.source.native_dtype}\n"
+                        f"Effective bits: {column.source.effective_bits}\n"
+                        f"Source generation: {column.source.generation}"
+                    )
+            mode = self.pivot_delta.currentText()
+            for row_index, row in enumerate(pivot.rows):
+                table.setItem(row_index, 0, QTableWidgetItem(f"{row.metric} · {row.channel}"))
+                table.setItem(row_index, 1, QTableWidgetItem(row.definition.unit))
+                for column_index, cell in enumerate(row.cells, 2):
+                    display = cell.formatted_value()
+                    if mode != "Values":
+                        is_relative = mode == "Relative Δ (%)"
+                        delta_text = cell.formatted_delta(relative=is_relative)
+                        delta_unit = "%" if is_relative else row.definition.unit
+                        display = f"{display}  |  Δ {delta_text} {delta_unit}"
+                    item = QTableWidgetItem(display)
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
+                    native_count = (
+                        f"{cell.sample_count:,}" if cell.sample_count is not None else "N/A"
+                    )
+                    full_value = cell.formatted_value(precision=17)
+                    tooltip = (
+                        f"{pivot.columns[column_index - 2].alias}\n"
+                        f"Metric: {row.metric} · {row.channel}\n"
+                        f"Value (17 digits): {full_value} {row.definition.unit}\n"
+                        f"State: {cell.state}\n"
+                        f"Native samples: {native_count}\n"
+                        f"Reference ROI: {pivot.token.roi_ref or 'Full image'}"
+                    )
+                    if pivot.reference_key is not None or mode != "Values":
+                        tooltip += (
+                            f"\nAbsolute Δ: {cell.formatted_delta(precision=17)} "
+                            f"{row.definition.unit}"
+                            f"\nRelative Δ: {cell.formatted_delta(relative=True, precision=17)} %"
+                        )
+                        if cell.delta_reason is not None:
+                            tooltip += f"\nDelta limitation: {cell.delta_reason}"
+                    item.setToolTip(tooltip)
+                    table.setItem(row_index, column_index, item)
+        finally:
+            table.setUpdatesEnabled(True)
+
+    def get_current_statistics_pivot(self) -> StatisticsPivot | None:
+        """W09 read-only interface; None means pending, stale or not presented."""
+        if (
+            self._pivot is None
+            or self.get_presented_analysis_token() != self._pivot.token
+            or self.get_current_analysis_token() != self._pivot.token
+        ):
+            return None
+        return self._pivot
+
+    def _prompt_pivot_export(self) -> None:
+        if self.get_current_statistics_pivot() is None:
+            self._refresh_pivot()
+        if self.get_current_statistics_pivot() is None:
+            return
+        filename, _filter = QFileDialog.getSaveFileName(
+            self, "Export Pivot Statistics", "statistics-pivot.csv", "CSV Files (*.csv)"
+        )
+        if not filename:
+            return
+        try:
+            self.export_pivot_csv(Path(filename))
+        except (OSError, ValueError) as exc:
+            self.status.setText(f"Pivot export unavailable: {exc}")
+
+    def export_pivot_csv(self, path: Path) -> None:
+        """Separate typed, full-precision CSV; legacy export_csv is untouched."""
+        self._refresh_pivot()
+        pivot = self.get_current_statistics_pivot()
+        if pivot is None:
+            raise ValueError("current Statistics pivot is pending or stale")
+        with path.open("w", newline="", encoding="utf-8-sig") as stream:
+            writer = csv.writer(stream)
+            header = ["Metric", "Channel", "Unit"]
+            for column in pivot.columns:
+                prefix = f"{column.alias} [{column.source_key}]"
+                header.extend(
+                    (
+                        f"{prefix} value",
+                        f"{prefix} state",
+                        f"{prefix} samples",
+                        f"{prefix} Delta",
+                        f"{prefix} Delta (%)",
+                        f"{prefix} Delta reason",
+                    )
+                )
+            writer.writerow(header)
+            for row in pivot.rows:
+                values = [row.metric, row.channel, row.definition.unit]
+                for cell in row.cells:
+                    values.extend(
+                        (
+                            cell.formatted_value(precision=17),
+                            cell.state,
+                            str(cell.sample_count) if cell.sample_count is not None else "",
+                            cell.formatted_delta(precision=17),
+                            cell.formatted_delta(relative=True, precision=17),
+                            cell.delta_reason or "",
+                        )
+                    )
+                writer.writerow(values)
+
+    def _copy_pivot_selection(self) -> None:
+        """Copy exactly the selected Pivot cells, without implicit source expansion.
+
+        Preserve multi-range selection using empty TSV fields for unselected
+        intersections. Screen rounding never becomes clipboard precision.
+        """
+        pivot = self.get_current_statistics_pivot()
+        if pivot is None:
+            return
+        coordinates = {
+            (index.row(), index.column())
+            for index in self.pivot_table.selectedIndexes()
+            if 0 <= index.row() < len(pivot.rows) and 0 <= index.column() < len(pivot.columns) + 2
+        }
+        if not coordinates:
+            return
+        rows = sorted({row for row, _column in coordinates})
+        columns = sorted({column for _row, column in coordinates})
+        header = [self.pivot_table.horizontalHeaderItem(column).text() for column in columns]
+        lines = ["\t".join(header)]
+        mode = self.pivot_delta.currentText()
+        for row_index in rows:
+            row = pivot.rows[row_index]
+            fields: list[str] = []
+            for column in columns:
+                if (row_index, column) not in coordinates:
+                    fields.append("")
+                elif column == 0:
+                    fields.append(f"{row.metric} · {row.channel}")
+                elif column == 1:
+                    fields.append(row.definition.unit)
+                else:
+                    cell = row.cells[column - 2]
+                    text = cell.formatted_value(precision=17)
+                    if mode != "Values":
+                        relative = mode == "Relative Δ (%)"
+                        text += (
+                            " | Delta "
+                            + cell.formatted_delta(relative=relative, precision=17)
+                            + (" %" if relative else f" {row.definition.unit}")
+                        )
+                    fields.append(text)
+            lines.append("\t".join(fields))
+        QApplication.clipboard().setText("\n".join(lines))
+
     def copy_selection(self) -> None:
+        if self.statistics_view.currentText() == "Pivot":
+            self._copy_pivot_selection()
+            return
         ranges = self.table.selectedRanges()
         if not ranges:
             return

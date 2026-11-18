@@ -88,7 +88,12 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     histogram_y_positions = [control.geometry().y() for control in histogram_controls]
     assert max(histogram_y_positions) - min(histogram_y_positions) <= 4
     assert analysis.histogram_context.text() == "x=0, y=0, width=8, height=4"
-    assert analysis.histogram_context.geometry().y() == analysis.histogram_mode.geometry().y()
+    # The reserved context label and combo have different fixed heights, but
+    # remain vertically centered on the same wide control row.
+    assert (
+        analysis.histogram_context.geometry().center().y()
+        == analysis.histogram_mode.geometry().center().y()
+    )
     assert analysis.histogram_context.geometry().left() > analysis.histogram_bins.geometry().right()
     histogram_header = analysis.histogram_context.parentWidget()
     assert histogram_header is not None
@@ -124,9 +129,13 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert histogram_changes == []
     assert tabs.minimumSizeHint().width() < histogram_combo_widths
 
+    previous_curves = tuple(analysis.plots[0].listDataItems())
     analysis.set_documents(documents, RoiBounds(1, 1, 3, 2), "Active ROI")
-    assert analysis.histogram_context.isHidden()
-    assert all(plot.isHidden() for plot in analysis.plots)
+    assert not analysis.histogram_context.isHidden()
+    assert analysis.histogram_context.text() == "Previous result · x=0, y=0, width=8, height=4"
+    assert analysis.last_results == ()
+    assert tuple(analysis.plots[0].listDataItems()) == previous_curves
+    assert any(not plot.isHidden() for plot in analysis.plots)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: analysis.histogram_context.text() == "x=1, y=1, width=3, height=2",
         timeout=3000,
@@ -134,7 +143,9 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert analysis.histogram_context.text() == "x=1, y=1, width=3, height=2"
     assert analysis.histogram_context.geometry().y() > analysis.histogram_range.geometry().y()
     analysis.clear()
-    assert analysis.histogram_context.isHidden()
+    assert not analysis.histogram_context.isHidden()
+    assert analysis.histogram_context.text() == ""
+    assert all(plot.isHidden() for plot in analysis.plots)
 
     tabs.setCurrentWidget(line)
     selection = LineSelection(0, 0, 7, 3)
@@ -225,7 +236,9 @@ def test_histogram_context_reports_each_completed_full_image_bound(
     ]
 
     analysis.set_documents(documents, None)
-    assert analysis.histogram_context.isHidden()
+    assert not analysis.histogram_context.isHidden()
+    assert analysis.histogram_context.text() == ""
+    assert all(plot.isHidden() for plot in analysis.plots)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: len(analysis.last_results) == 2,
         timeout=3000,

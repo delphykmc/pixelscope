@@ -311,6 +311,10 @@ def test_failed_native_child_is_capture_failed_not_changed(
 ) -> None:
     from scripts import run_ui_screenshot_diff as runner
 
+    # This synthetic child exercises native-process failure, not the separate
+    # offscreen policy. Do not inherit the outer UI suite's backend selection.
+    monkeypatch.setenv("QT_QPA_PLATFORM", "windows")
+
     monkeypatch.setattr(
         runner,
         "_execute",
@@ -326,6 +330,10 @@ def test_new_real_scene_uses_pinned_manifest_geometry_through_e1_validator(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from scripts import run_ui_screenshot_diff as runner
+
+    # No Qt child is launched; keep the synthetic native contract independent
+    # of an enclosing offscreen pytest session.
+    monkeypatch.setenv("QT_QPA_PLATFORM", "windows")
 
     sha = "f" * 40
     record = {

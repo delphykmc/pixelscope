@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QMessageBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QMessageBox
 
 from pixelscope.app.application import load_startup_settings
 from pixelscope.app.main_window import MainWindow
@@ -386,6 +386,7 @@ def test_settings_raw_preference_is_the_persistent_surface(qtbot: object) -> Non
 def test_configured_file_locations_override_last_used_and_missing_paths_fallback(
     qtbot: object,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     open_directory = tmp_path / "open"
     export_directory = tmp_path / "export"
@@ -404,8 +405,23 @@ def test_configured_file_locations_override_last_used_and_missing_paths_fallback
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window._last_directory = str(last_directory)
 
-    assert window._open_dialog_directory() == str(open_directory)
-    assert window._export_dialog_directory() == str(export_directory)
+    directories = []
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileNames",
+        lambda _w, _t, directory, _f: (directories.append(directory) or ([], "")),
+    )
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda _w, _t, path, _f: (directories.append(str(Path(path).parent)) or ("", "")),
+    )
+    window.comparison_analysis_panel.table.setColumnCount(1)
+    window.open_images()
+    qtbot.waitUntil(lambda: len(directories) == 1)  # type: ignore[attr-defined]
+    window.export_statistics()
+    qtbot.waitUntil(lambda: len(directories) == 2)  # type: ignore[attr-defined]
+    assert directories == [str(open_directory), str(export_directory)]
 
     missing = ApplicationSettings(
         default_open_directory=str(tmp_path / "missing-open"),
@@ -413,8 +429,11 @@ def test_configured_file_locations_override_last_used_and_missing_paths_fallback
     )
     window._application_settings_saved(missing)
 
-    assert window._open_dialog_directory() == str(last_directory)
-    assert window._export_dialog_directory() == str(last_directory)
+    window.open_images()
+    qtbot.waitUntil(lambda: len(directories) == 3)  # type: ignore[attr-defined]
+    window.export_statistics()
+    qtbot.waitUntil(lambda: len(directories) == 4)  # type: ignore[attr-defined]
+    assert directories[2:] == [str(last_directory), str(last_directory)]
 
 
 def test_file_location_keys_are_saved_without_restart_requirement(

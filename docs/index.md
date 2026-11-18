@@ -42,6 +42,9 @@ knowledge belongs in focused documents under `docs/`.
 - `BUILD_AND_RELEASE.md`: concise owner-local Windows Beta build, candidate handoff,
   provider-neutral publication staging, and revalidation runbook; normative rules remain
   in `PACKAGING_CONSTRAINTS.md`.
+- `issue-176-sandbox-runner.md`: isolated Core conversion acceptance harness;
+  `issue-176-sandbox-results.md` and `issue-176-merge-readiness-results.md` retain
+  the initial and follow-up Windows evidence and its scope limits.
 - `USER_GUIDE.md`: stable repository entry point for the end-user guide and its build
   instructions; canonical task/feature/format/reference content lives under
   `user-guide/` and is built by `mkdocs.yml`.

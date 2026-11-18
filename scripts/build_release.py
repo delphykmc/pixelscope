@@ -111,6 +111,7 @@ def build_public_target(
     site = build_user_guide(python=documentation_python())
     if descriptor is not None:
         write_windows_version_info(
+            version=descriptor.effective_version,
             identity=(
                 descriptor.app_dir,
                 descriptor.executable,

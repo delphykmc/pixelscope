@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
+from PySide6.QtCore import QCoreApplication, QEvent
+from shiboken6 import isValid
 
+from pixelscope.core.diff_engine import absolute_difference_metrics
+from pixelscope.core.difference_cache import CachedDifferenceMap
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.ui.difference_panel import DifferencePanel
+from pixelscope.workers.task_worker import TaskError
 
 
 def _documents() -> list[ImageDocument]:
@@ -15,6 +21,46 @@ def _documents() -> list[ImageDocument]:
         )
         for index, value in enumerate((0, 10, 30))
     ]
+
+
+@pytest.mark.parametrize("publish_result", [False, True])
+def test_shutdown_rejects_queued_difference_callbacks_after_child_destruction(
+    qtbot: object, publish_result: bool
+) -> None:
+    panel = DifferencePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    panel.set_documents(_documents()[:2], None)
+    key, metric_key = panel._cache_key(), panel._metric_key()
+    assert key is not None and metric_key is not None
+    absolute = np.full((2, 2, 3), 10, dtype=np.uint8)
+    difference_map = CachedDifferenceMap(
+        absolute=absolute,
+        domain="native",
+        data_range=255.0,
+        channel_layout="RGB",
+        bayer_pattern=None,
+    )
+    metrics = absolute_difference_metrics(absolute, 255.0)
+    settled: list[object] = []
+    panel.presentation_settled.connect(settled.append)
+    panel._presentation_map_pairs["late"] = ("a", "b")
+    panel._presentation_preview_pairs["late-preview"] = ("a", "b")
+    panel.shutdown()
+    panel.shutdown()
+    # Reproduce the observed close ordering: a queued Python callback may
+    # outlive the selector's C++ object even though its panel wrapper exists.
+    panel.a_selector.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(panel.a_selector)
+    panel._on_result("late", key, metric_key, (difference_map, metrics, False), publish_result)
+    panel._on_error("late", None, 0, TaskError("late", None, 0, "late error", "OSError", ""))
+    panel._on_finished("late")
+    panel._preview_finished("late-preview")
+    panel.calculate_difference()
+    assert panel.last_result is None
+    assert panel.difference_cache.entry_count == 0
+    assert panel._metric_cache == {}
+    assert settled == []
 
 
 def test_difference_panel_exposes_injected_cache_diagnostics(qtbot: object) -> None:

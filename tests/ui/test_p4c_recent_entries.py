@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
@@ -25,12 +26,19 @@ def _production_window(qtbot: object) -> MainWindow:
 
 
 def _ready_document(path: Path, value: int = 1) -> ImageDocument:
-    path.write_bytes(b"recent-entry-source")
+    assert cv2.imwrite(str(path), np.full((4, 4), value, dtype=np.uint8))
     return ImageDocument.from_array(
         np.full((4, 4), value, dtype=np.uint8),
         path.name,
         source_path=path,
     )
+
+
+def _wait_recent(qtbot: object, window: MainWindow) -> None:
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
+    preparation = getattr(window, "path_preparation_controller", None)
+    if preparation is not None:
+        qtbot.waitUntil(lambda: preparation.is_idle)  # type: ignore[attr-defined]
 
 
 def _register(window: MainWindow, *documents: ImageDocument) -> None:
@@ -100,21 +108,22 @@ def test_file_open_images_succeeds_when_recent_observer_fails(
     controller = window.recent_entries_controller
     document = _ready_document(tmp_path / "action.png")
     _register(window, document)
-    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [
-        document.document_id
-    ]
     monkeypatch.setattr(
         QFileDialog,
         "getOpenFileNames",
         lambda *args, **kwargs: ([str(document.source_path)], ""),
     )
-    monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
+    monkeypatch.setattr(controller.repository, "stage_canonical", _raise_recent_failure)
 
     window.action_map["Open Images..."].trigger()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.large_folder_registration_controller.is_idle
+    )
 
     assert [item.document_id for item in window.selected_documents] == [document.document_id]
     assert window._active_document_id == document.document_id
     assert window.statusBar().currentMessage() == "Opened 1 image(s)"
+    assert controller.repository.load(RecentEntryKind.IMAGE) == ()
     window.close()
 
 
@@ -205,7 +214,9 @@ def test_folder_history_consumes_canonical_result_without_observer_rediscovery(
     def fail_rediscovery(*_args: object, **_kwargs: object) -> None:
         raise OSError("observer must not rescan a successful registration")
 
-    monkeypatch.setattr("pixelscope.ui.recent_entries.discover_image_inputs", fail_rediscovery)
+    registered = controller._register_folders_original([folder])
+    monkeypatch.setattr(controller, "_register_folders_original", lambda _folders: registered)
+    monkeypatch.setattr(Path, "iterdir", fail_rediscovery)
 
     result = window.register_folders([folder])
 
@@ -224,9 +235,11 @@ def test_recent_image_reuses_direct_open_selection_path(
     recent = _ready_document(tmp_path / "recent.png", 2)
     _register(window, existing, recent)
     window._select_document_ids([existing.document_id])
-    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [recent.document_id]
 
     controller.open_recent(RecentEntryKind.IMAGE, recent.source_path)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.large_folder_registration_controller.is_idle
+    )
 
     assert [item.document_id for item in window.selected_documents] == [recent.document_id]
     assert controller.repository.load(RecentEntryKind.IMAGE)[0] == recent.source_path.resolve()
@@ -241,13 +254,15 @@ def test_recent_session_delegates_to_session_loader_and_promotes_mru(
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
     target = tmp_path / "review.pixelscope"
-    target.write_text("{}", encoding="utf-8")
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window.session_controller.save_to_path(target)
     calls: list[Path] = []
     feedback: list[tuple[Path, int, tuple[Path, ...]]] = []
     monkeypatch.setattr(
         window.session_controller,
-        "open_from_path",
-        lambda path: (calls.append(Path(path)) or (3, ())),
+        "open_prepared",
+        lambda prepared: (calls.append(prepared.path) or (3, ())),
     )
     monkeypatch.setattr(
         window.session_controller,
@@ -256,6 +271,7 @@ def test_recent_session_delegates_to_session_loader_and_promotes_mru(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    _wait_recent(qtbot, window)
 
     assert calls == [target]
     assert feedback == [(target, 3, ())]
@@ -351,12 +367,16 @@ def test_missing_recent_entry_remove_and_keep_preserve_workspace(
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: False)
     controller.open_recent(kind, missing)
+    _wait_recent(qtbot, window)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind)[0] == missing.resolve()
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
     assert set(review.state.picked_ids) == before_pick
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: True)
     controller.open_recent(kind, missing)
+    _wait_recent(qtbot, window)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind) == (other.resolve(),)
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
     assert set(review.state.picked_ids) == before_pick
@@ -381,6 +401,7 @@ def test_existing_invalid_session_stays_in_history_on_open_error(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    _wait_recent(qtbot, window)
 
     assert controller.repository.load(RecentEntryKind.SESSION) == (target.resolve(),)
     assert warnings

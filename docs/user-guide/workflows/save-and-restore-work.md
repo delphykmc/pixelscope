@@ -8,6 +8,17 @@ Choose **File > Save Session...**. PixelScope writes a `.pixelscope` JSON Sessio
 
 A Session does not own decoded arrays, caches, workers, or generated Difference maps.
 
+## Inspection viewport and Review handoff
+
+The existing `.pixelscope` Session v1 workflow is unchanged: it does **not**
+persist a durable per-source physical zoom/center snapshot. The independent
+Review View State adapter introduced for future named findings (W09) records
+verified source keys, reference-space center, measured physical scale, sync,
+layout and per-source geometry. The adapter is not yet a new menu command,
+Review file format or a Session migration. It only restores when the relevant
+sources and final layout have been resolved and validated; it does not invoke
+Difference Calculate implicitly.
+
 ## Open a Session
 
 Choose **File > Open Session...** and select the saved `.pixelscope` file. PixelScope validates and stages restore information before replacing the current workspace. Missing source paths can prevent complete reconstruction because saved work references source files rather than embedding them.
@@ -21,6 +32,14 @@ Legacy `pixelscope-comparison-set` v1 files remain readable through **Open Sessi
 ## Open Recent
 
 The File menu provides typed recent entries for Images, Folders, and Sessions. They are best-effort path history and do not own selection, source residency, Difference, or analysis state.
+
+Unavailable network paths remain listed without being checked during startup or menu
+display. Recent Images and Folders check their locations in the background. Sessions
+are read and their source paths checked in the background before restoring the
+workspace. **Cancel path check** cancels pending Session or file-dialog preparation;
+cancelled results cannot replace your workspace or open a chooser later. A network
+operation already running in Windows may still take time to return, including while
+the application finishes closing.
 
 ## Troubleshooting keywords
 

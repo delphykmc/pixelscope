@@ -530,17 +530,24 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     )
 
     if isinstance(clear_button, QAbstractButton):
+        # P4a keeps these intentionally compact in-row command labels. The
+        # neighboring Picked count, tooltip and accessible description disambiguate
+        # temporary Picks versus persistent Files Selected.
         clear_button.setText("Clear")
         clear_button.setAccessibleName("Clear Selection")
+        clear_button.setAccessibleDescription("Clear temporary Picks; Files Selected is unchanged")
         clear_button.setToolTip(
-            "Clear Selection: clear temporary Picks without changing Files Selected"
+            "Clear Selection: clear temporary Picks; Files Selected is unchanged"
         )
+        clear_button.setStatusTip(clear_button.toolTip())
     if isinstance(keep_button, QAbstractButton):
         keep_button.setText("Keep")
         keep_button.setAccessibleName("Keep Selection")
+        keep_button.setAccessibleDescription("Replace Files Selected with temporary Picks")
         keep_button.setToolTip(
-            "Keep Selection: replace Files Selected with temporary Picks in original order"
+            "Keep Selection: replace Files Selected with temporary Picks in original source order"
         )
+        keep_button.setStatusTip(keep_button.toolTip())
 
     gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     _install_command_row_metric_refresh(

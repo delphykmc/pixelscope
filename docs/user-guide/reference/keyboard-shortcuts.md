@@ -7,10 +7,12 @@ This reference lists shortcuts and interaction keys confirmed by the current app
 | `F1` | Open local User Guide topic for the focused workspace or Settings/RAW/YUV dialog; fall back to guide home when no topic is available |
 | `Ctrl+O` | Open Images |
 | `Ctrl+Shift+O` | Open Folder |
+| `Ctrl+Shift+M` | Show/hide Memo, including from its floating window |
 | `Ctrl+Q` | Exit |
 | `Ctrl+1` | Single View |
 | `Ctrl+2` | Multi View |
 | `1` … `6` | Activate the corresponding visible slot on the Current Comparison Page |
+| `T` | Rotate the last actual source on the Current Comparison Page to Primary; works in Single/Multi View, never selects Difference or split-derived tiles |
 | `Left` / `Right` | Previous / next image in the complete ordered Selected set |
 | `Up` / `Down` | Normal row navigation while the Files tree has keyboard focus |
 | `PageUp` | Previous Folder Position; application-wide folder-position move |

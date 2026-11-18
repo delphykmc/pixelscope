@@ -134,10 +134,10 @@ def to_display_uint8(
 ) -> NDArray[np.uint8]:
     """Return a C-contiguous uint8 preview without modifying *source*.
 
-    Source values are promoted once to float32. Anchor-based gain and display
-    normalization are fused into one scale/offset affine, avoiding serial
-    full-frame subtract/multiply/add/normalize temporaries. Clipping is deferred
-    until final display conversion.
+    A canonical uint8 identity transform only needs an independent C-contiguous
+    preview copy. Keeping the preview separate from source prevents downstream
+    UI writes from silently changing source pixels. Non-identity conversions
+    continue through the existing float32 affine/gamma path.
     """
 
     if source.size == 0:
@@ -145,7 +145,24 @@ def to_display_uint8(
     parameters = transform or DisplayTransform()
     low, high = resolve_display_range(source, parameters)
 
-    working = source.astype(np.float32, copy=True)
+    # The default 8-bit display mapping is numerically the identity.
+    # A separate preview buffer preserves the existing source/preview ownership
+    # contract while eliminating the 4x float32 working allocation.
+    if (
+        source.dtype == np.uint8
+        and low == 0.0
+        and high == 255.0
+        and parameters.gain == 1.0
+        and parameters.gamma == 1.0
+    ):
+        return np.array(source, dtype=np.uint8, copy=True, order="C")
+
+    # uint8 has only 256 possible input codes. Evaluate the exact same float32
+    # mapping once per code instead of allocating a full-frame float32 buffer.
+    byte_lookup = source.dtype == np.uint8
+    working = (
+        np.arange(256, dtype=np.float32) if byte_lookup else source.astype(np.float32, copy=True)
+    )
     scale, offset = display_normalization_affine(
         low,
         high,
@@ -158,7 +175,8 @@ def to_display_uint8(
         np.power(working, np.float32(1.0 / parameters.gamma), out=working)
     np.multiply(working, np.float32(255.0), out=working)
     np.rint(working, out=working)
-    return np.ascontiguousarray(working.astype(np.uint8))
+    mapped = working.astype(np.uint8)
+    return np.ascontiguousarray(mapped[source] if byte_lookup else mapped)
 
 
 def render_ordinary_display_preview(
@@ -245,6 +263,22 @@ def render_absolute_difference(diff: NDArray[Any], gain: float = 1.0) -> NDArray
     if gain <= 0:
         raise ValueError("display gain must be greater than zero")
     maximum = max(float(np.max(diff)), 1.0)
+    # Evaluate identical float32 rounding once per byte. Restrict scalar magnitude
+    # so unused LUT codes cannot introduce floating-point exceptions; unusual
+    # gains, array subclasses and non-image shapes retain the original arithmetic.
+    if (
+        type(diff) is np.ndarray
+        and diff.dtype == np.uint8
+        and (diff.ndim == 2 or (diff.ndim == 3 and diff.shape[2] in (1, 3, 4)))
+        and isinstance(gain, int | float | np.integer | np.floating)
+        and 1e-30 <= gain <= 1e30
+    ):
+        import cv2
+
+        codes = np.arange(256, dtype=np.float32)
+        scaled = np.clip(codes * gain / maximum, 0.0, 1.0)
+        lookup = np.rint(scaled * 255.0).astype(np.uint8)
+        return np.ascontiguousarray(cv2.LUT(diff, lookup).reshape(diff.shape))
     scaled = np.clip(diff.astype(np.float32) * gain / maximum, 0.0, 1.0)
     return np.ascontiguousarray(np.rint(scaled * 255.0).astype(np.uint8))
 

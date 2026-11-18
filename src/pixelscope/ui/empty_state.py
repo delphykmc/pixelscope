@@ -21,9 +21,15 @@ class EmptyWorkspace(QWidget):
 
         self.open_images_button = QPushButton("Open Images...")
         self.open_folders_button = QPushButton("Open Folder...")
+        self.open_recent_button = QPushButton("Open Recent...")
+        self.open_recent_button.setObjectName("emptyOpenRecent")
+        self.open_recent_button.setAccessibleName("Open Recent images, folders or sessions")
+        # Optional recent menu is attached by the existing Recent Entries owner.
+        self.open_recent_button.hide()
         for button in (
             self.open_images_button,
             self.open_folders_button,
+            self.open_recent_button,
         ):
             button.setMinimumHeight(TOKENS.control_height)
 
@@ -38,6 +44,7 @@ class EmptyWorkspace(QWidget):
         buttons.setSpacing(TOKENS.spacing_sm)
         buttons.addWidget(self.open_images_button)
         buttons.addWidget(self.open_folders_button)
+        buttons.addWidget(self.open_recent_button)
 
         self.formats_hint = QLabel("PNG · JPEG · BMP · RAW")
         self.shortcuts_hint = QLabel("Ctrl+O images · Ctrl+Shift+O folder")
@@ -67,7 +74,9 @@ class EmptyWorkspace(QWidget):
         self.title.setText(
             "Select an image from Files to view" if registered else "Drop images or folders here"
         )
-        show_open_controls = not registered
+        # Preserve the P1c contract: a populated Files list asks for selection,
+        # rather than showing the initial Open Images/Open Folder call to action.
+        # W06 keeps Open in the existing toolbar and Recent in its own menu.
         for widget in (
             self.open_images_button,
             self.open_folders_button,
@@ -75,4 +84,4 @@ class EmptyWorkspace(QWidget):
             self.shortcuts_hint,
             self.gestures_hint,
         ):
-            widget.setVisible(show_open_controls)
+            widget.setVisible(not registered)

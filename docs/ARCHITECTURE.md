@@ -2,6 +2,16 @@
 
 ## Current boundaries and data flow
 
+Explicit Session and file-dialog path preparation uses a window-owned
+`PathPreparationController`: one physically running worker, at most one latest
+pending request, weak GUI continuations and deterministic close deferral. Worker
+functions in `io/session_preparation.py` and `io/dialog_directory.py` receive only
+plain data/repository objects. A definition-time `prepared_dialog` command decorator
+reuses this owner without runtime instance-method replacement. Session GUI commit
+uses registration's `register_prepared_input` metadata context; registration discovery
+itself also receives a standalone callable instead of a bound controller method.
+No filesystem canonicalization is repeated during prepared Session registration.
+
 `io` discovers and decodes files into source arrays. `core.ImageDocument` owns
 native source arrays, metadata, canonical preview data, generation state, and
 source-local caches. `core` performs Bayer handling, display conversion,
@@ -78,6 +88,32 @@ bounded comparison working set. The following consume the same page:
 
 Feature-owned explicit Difference pair/reference authority remains separate.
 
+W05 comparison-plan overlays, their ephemeral view-state owner and W06 workspace
+preset owners are retired. Canonical `_render_selection`, source selection/page,
+the existing Difference panel and Single/Multi View remain presentation authorities.
+Native dock/splitter persistence and reset remain; obsolete per-preset settings are
+removed without altering the native layout cache. W04 durable viewport restoration
+continues to serve Memo, without a second comparison planner or workspace mode.
+
+Memo reuses the W09a `ReviewDocumentV1` and existing source verification/restore
+pipeline. `io/memo_archive.py` wraps that record in a bounded `.pxmemo` ZIP with
+immutable per-finding/source PNGs and optional native ROI Statistics CSVs. Legacy
+`.pxreview` imports remain metadata-only until the user creates new inspection
+points; old images are never retrospectively fabricated. The current ROI-list interaction contract is in
+[the simplification plan](exec-plans/active/memo-roi-simplification.md). Stable
+MainWindow manual-ROI and source-publication signals drive ROI creation/context
+reset; no file discovery or reverse note matching is installed. Save embeds static
+HTML alongside PNG/CSV evidence; the coordinator has no separate Export flow.
+Crop encoding, archive
+validation, thumbnails and HTML export run in bounded workers. Only small thumbnail
+PNGs reach the GUI. The capture fence rejects source/ROI/view revisions; W02 result
+revisions matter only when Statistics were explicitly requested. Text edits preserve
+pixels, and source absence never removes historical crops or notes. Save/export
+consume frozen evidence rather than current viewer pixels. Source verification
+still gates live restoration; historical CSVs never publish current analysis.
+Memo close waits for file operations; unwritten notes are temporary and do not
+request a separate discard confirmation. No Base import or forced layout of IQA contributions is introduced.
+
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always `1..6` within the Current Comparison Page. A global Selected
 ordinal is never used as a viewer slot.
@@ -132,6 +168,25 @@ replace current Selected with the ordered direct-file set
 derive Current Comparison Page from image 1
 ```
 
+Production Open Images and Recent Images share `MainWindow.open_image_paths` and
+the existing serialized `RegistrationController` queue. Their requests explicitly
+replace Selected after discovery/registration, preserve existing natural order and
+deduplication, and never trigger the Drop-specific passive Difference scheduler.
+Only explicit file inputs are accepted; filesystem filtering/discovery runs on the
+registration worker, while RAW/YUV profile confirmation remains GUI-affine. Recent
+history uses the same staged, post-first-paint persistence as direct Drop.
+Recent Images also performs its typed `stat` preflight on that worker, before
+discovery. Missing/wrong-kind results return to the GUI for Remove/Keep or warning
+without changing the workspace; the same generation/cancellation/shutdown guards
+reject late feedback. Modal feedback retains queue ownership until it returns.
+This does not make Recent Folder registration or Session restore asynchronous,
+and cancellation cannot interrupt an operating-system network filesystem call.
+Window close also clears the Quick Compare passive Difference retry timer.
+DifferencePanel shutdown revokes late map/error publication before child widgets
+are destroyed; queued results cannot populate caches or read deleted controls.
+Standalone MainWindow's synchronous registration API remains available to its
+minimal composition; production input does not introduce a second pool or owner.
+
 Direct image-file D&D is context-sensitive without creating another selection
 authority. When Selected is empty, the dropped batch establishes the initial
 Selected set and starts on its first Comparison Page. When Selected already contains
@@ -141,10 +196,20 @@ Selected is not duplicated or reordered; it is treated as an explicit source ref
 and advances that document's generation.
 
 Image View Quick Compare follows the same registration and same-path refresh contract
-through `RegistrationController` while retaining its separate explicit two-source
-Difference presentation intent. A first batch starts on Page 1; later additive
+through `RegistrationController`. Eligible explicit two-source drops in Files or
+Image View schedule passive Difference map/metric caching after yielding to Qt;
+sources remain visible and Difference display stays off until requested. Ordinary
+Files selection does not schedule Difference. A first batch starts on Page 1; later additive
 batches reveal their final newly added source. Quick Compare may choose presentation
 after registration completes, but it does not own filesystem registration.
+
+Primary reordering retains source-to-viewer association. ImageViewer skips native
+Active styling/cursor updates when both its state and stylesheet already match;
+ReviewSelectionController reapplies tile styles only when Active styling or the
+dynamic `reviewPicked` property changes. Actual Pick transitions still force Qt
+repolishing even when the stylesheet text is unchanged. Initialization and real
+Active transitions preserve cursor opacity and borders. These checks retain the
+existing Qt ownership graph and introduce no runtime method replacement.
 
 More than six supplied images remain registered and Selected. Initial population
 starts with images 1–6; later additive D&D may move the Current Comparison Page
@@ -553,6 +618,10 @@ display = anchor + gain * (source - anchor)
 `RawProfile`, Bayer patterns, or UI state. Gain/range mapping is fused in float32
 where possible, avoids serial full-frame temporaries and float64 promotion, works
 on channel views, clips only at final display conversion, and never mutates source.
+For uint8 inputs, non-identity conversion evaluates the same float32 mapping on
+256 codes and indexes that table rather than allocating a full-frame float32
+working image. Final uint8 previews bind to pyqtgraph with no levels mapping;
+the GUI paint path consumes those already-converted display codes directly.
 
 `core.raw_display` selects RAW effective-full-scale and Black-derived anchors.
 `core.bayer` applies per-CFA anchor/range operations on parity-plane views instead
@@ -627,6 +696,14 @@ Statistics/Histogram request identity includes generation and operation paramete
 so rebinding an unchanged request does not restart work. Line Profile caches by
 generation and line coordinates. Pick/Unpick/Clear Selection do not rebind those
 numerical requests.
+
+Pending Histogram requests retain the last painted graph with a `Previous result`
+context label, but clear `last_results` and hover series so it cannot be consumed
+as current analysis or exported as a current Histogram. A genuine clear removes
+the graph. Plot layout is retained while pane count is unchanged; synchronous
+replacement prepares curves, axes and range before first show. Fixed axis gutters,
+the reserved Histogram context row and the Analysis activity rail avoid result-time
+geometry shifts. Numerical/cache/request/lifecycle ownership remains unchanged.
 
 ## Source residency boundary
 
@@ -1096,3 +1173,160 @@ identity is established before QApplication creation. PyInstaller executable ico
 binding, shortcuts, installer identity, signing, updater, and final distribution
 remain P7. Remote REST/client boundaries remain independent of widgets. All APIs
 target CPython 3.10.
+
+## Named Review production ownership
+
+Memo list decorations are owned by each ImageViewer, excluded from auto-range and
+mouse interaction, cleared on source replacement and disposed during explicit
+viewer teardown. The coordinator publishes only its attested capture bindings or
+the restore authority's explicitly verified runtime ID/generation bindings.
+Canonical render completion republishes decorations across Single/Multi View;
+there is no filename matching, additional ROI authority or numerical request.
+
+Save now stages one folder generation: metadata-only `.pxmemo`, root HTML and
+relative `src/` assets. `io.memo_folder` validates bounds, paths, reparse points,
+file/directory inventories and hashes, syncs staged files and compares revisions
+before publication. Failed installation restores the old folder; failed rollback
+retains its recovery copy. `io.memo_report` is a staging helper, not a separately
+committed product output. Crop PNGs retain exact recorded bytes with no text/margins.
+Repeat saves retain the root directory, back up validated files, skip unchanged
+assets and commit metadata last. Derived HTML supports in-place writes under
+Windows write-sharing/non-delete-sharing handles. Genuine write locks still fail
+with rollback. Concurrent readers may reject intermediate inventories; this is
+not a crash-atomic whole-folder transaction. ZIP loading retains its
+strict old/current renderer validation, while new maps validate asset digests.
+Post-publication cleanup failures return the committed revision and a cleanup
+warning rather than overriding success; only pre-publication failures keep the
+old revision. Staging names are isolated from user folder names.
+
+The coordinator may apply a live Memo ROI through the canonical shared-ROI owner
+only when its explicit source ID/generation bindings match the resident ready
+comparison page. The restore controller records this owner-applied selection after
+revoking old callbacks; no source registration, viewport/layout reconstruction or
+native verification is started. ImageViewer.fit_roi uses canonical physical zoom
+to fit ROI context, shifting near image edges. MultiCompareView owns one fitting
+transaction with range-sync forwarding suppressed and restores its prior flag.
+Sync On uses the minimum fitting physical scale across tiles and a common center
+inside all ROI-visible intervals before canonical range propagation; Sync Off fits
+independently. Unequal focus layouts preserve the Sync scale/center contract.
+Other cases retain the verified restore path. Memo has no crop
+preview or coordinate summary, and missing originals provide no fallback image.
+Memo's owned common dock title is quiesced before shutdown. The panel paints its
+background, and its application-scoped QAction shortcut is associated with both
+the main window and the floating dock.
+
+Memo's explicit recording toggle gates user-ROI capture independently of note
+navigation/editing. Hiding/off cancels capture epochs and pending statistics/ROI
+retries; reopening/on never replays a previously drawn ROI. A QListWidget-owned
+WidgetShortcut QAction handles batch Delete without intercepting text-editor Delete.
+ExtendedSelection provides Ctrl+A; deletion clears analysis ROI and selects one next
+remaining record. Hidden docks clear analysis ROI/passive boxes but retain notes.
+MainWindow's user Esc/analysis Clear intent emits memo_roi_cancelled before its
+existing clear_roi path; coordinator cancels capture/restore and deselects the note.
+Internal restore clear_roi does not emit that user-intent signal, avoiding recursive
+self-cancellation. Clearing the analysis ROI may still schedule normal analysis.
+
+Bootstrap installs the window-owned Named Review coordinator after W05/W06.
+`MainWindowReviewRestoreAuthority` reuses canonical registration, generation,
+selection/page, profile, ROI/Line and physical-view owners; it does not create a
+parallel Session manager. Source attestation and verification run in bounded
+workers. Historical DTOs contain no QWidget, live source array or worker ownership.
+
+MainWindow forwards foreground success/error and viewer first-paint, physical
+geometry and display-preview completion only to the current pending restore epoch,
+with reentrancy/close guards. Navigation revokes that epoch. Coordinator shutdown
+precedes viewer disposal. W04 applies settled physical view intent; only after
+Applied does the adapter mirror Sync into the QAction with signals blocked and
+refresh action states, avoiding a second range mutation. Source/recipe restoration
+does not authorize Difference Calculate or live historical metrics. See the
+[W09b integration acceptance](exec-plans/active/issue-210-w09b-owner-acceptance.md)
+for concrete native Windows evidence and remaining independent-review limits.
+
+Memo list navigation calls flush_pending_analysis after canonical ROI application.
+The existing producer/delegate owns native Statistics+Histogram cache keys/results;
+no Memo cache or historical numeric injection is introduced. Canceled stale workers
+are detached before replay; normal task/signature fences reject late callbacks.
+The accessible QCheckBox pill switch is disabled without ready selected sources.
+Routine footer status is diagnostic only; IO failure warnings remain visible.
+Successful save dispatches the root HTML via QDesktopServices after publication.
+
+The owned Issue77UiDesignFollowup controller handles Region resize/show/font events
+with an idempotent ROI-summary reflow. Width need is derived from font metrics,
+existing label/Edit sizes and layout margins; no new minimum sidebar width or
+runtime method replacement is added. Reflow retains the same widgets and only
+moves grid items, with no ROI application, source registration or numerical request.
+
+The Qt-free source_presentation.contextual_display_label formats analysis context.
+It retains resolved/custom display_name and adds legacy parent context only when
+that name equals the path basename. It does not parse tags, rerun alias resolution
+or establish source identity. Statistics, Histogram titles and Line Profile share
+this adapter instead of each prepending source_path.parent.name.
+
+MultiCompareView.set_documents snapshots measured physical zoom and reference
+center before synchronized preserve-view relayout. It reapplies them with the
+canonical ImageViewer.set_physical_zoom under its range-sync guard after target
+document ID/generation/source versions are checked. It does not remeasure an old
+range in a new viewport to determine preserved scale. Saved-range restore keeps
+its separate existing semantics. RAW auto-fit caps its client height using the
+available screen and native chrome; its body remains scrollable and user resizing
+remains authoritative. Neither change adds QObject ownership or worker retention.
+
+Memo label collision placement is local to ImageViewer in scene-pixel coordinates.
+It uses the existing range/geometry lifecycle, ignores plot auto-bounds, and never
+changes ROI or numerical requests. Its stable range callback is disconnected on
+graphics disposal. Candidate fallback is lazy and bounded by visible viewport
+space; no new QObject helper graph, timer or cache authority is installed.
+
+Memo HTML version-three styling derives from frozen v2/legacy renderers. Historical
+ZIP validation accepts only exact known renderings; presentation changes must not
+retroactively change those trusted templates. Frozen baseline archives and a
+report-tampering test with recomputed manifest digest guard this boundary. Folder
+map/schema, preview pixel data and Statistics CSV generation remain unchanged.
+
+Memo HTML v4 presentation is isolated in io/memo_html_presentation.py. Frozen
+v3/v2/legacy renderers remain exact historical ZIP-validation alternatives. The
+only executable report script is a constant SHA-256 CSP-pinned, explicit-click
+copy helper; user text is never interpolated into JavaScript. Crop downloads
+resolve to the same stored bytes as displayed images after folder publication.
+Statistics tables escape the existing CSV output without recalculating values.
+
+Late Memo Statistics inclusion validates resident source ID/generation and exact
+ROI/source order/channel before copying the current-presented token snapshot.
+ReviewLibrary.attach_analysis replaces only evidence on the same immutable Finding;
+ReviewDocument retains interpretation/fingerprint validation. Pending attachment
+uses analysis_settled and canonical cancellation, with no new timer or worker.
+V5 compact presentation retains exact v4 ZIP validation via compact=False.
+
+Memo HTML v7 freezes the complete v6 renderer for exact prior ZIP validation.
+The HTML report now renders a single source-by-channel native Statistics table,
+with per-metric signed direction/delta relative to the first image; this is
+presentation-only and never changes the evidence CSV's precision or native
+sample definitions. Display precision is bounded to four decimal places.
+CSV downloads share the accessible icon affordance and align to the Statistics
+section's bottom-right. A separate Qt-free `io/memo_preview_metrics.py`
+computes bounded, read-only PSNR of the **recorded 8-bit preview PNG samples**
+(peak 255, identical shape/channel layout required) during offline report
+generation. It does not read originals, register images or modify numerical
+native Statistics; MSE is pooled across three channels or grayscale and
+noncomparable/absent previews are explicitly N/A. Both zip and folder report
+paths use this presentation, while historical v4/v5/v6 ZIPs remain verifiable
+against frozen templates.
+
+Current Memo HTML v10 retains frozen v5-v9 renderers in addition to the earlier
+exact ZIP validation alternatives. A constant CSP-hash-pinned asset click handler
+opens only escaped report-relative assets in a new tab; non-navigating buttons
+preserve the report even if popup creation is blocked. Folder publication rewrites
+the stored asset root to src/ and crop references to src/crops/.
+
+The coordinator keeps at most128 ready native ROI Statistics captures keyed by
+ROI, durable source order and loaded source ID/generation. Immutable Finding
+validation still guards attachment; source-context reset clears the cache. Checked
+Save requires feature=statistics and matching ROI/channel/source measurements for
+all records, so another captured feature cannot satisfy the Statistics contract.
+The footer report action opens existing non-symlink folder-mode index.html without
+mutating notes or regenerating output; availability refreshes on Save/Open/reset
+and dock display/click. It does not authorize historical metrics as live analysis.
+Memo ROI navigation also remembers and backfills matching ready evidence after
+canonical flush_pending_analysis: native cache hits do not emit analysis_settled.
+This allows revisiting records whose bounded Memo evidence entry was evicted,
+without new computation, source/cache mutation or a second completion producer.

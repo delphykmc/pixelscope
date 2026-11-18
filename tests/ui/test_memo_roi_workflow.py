@@ -1,0 +1,763 @@
+from dataclasses import replace
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pytest
+from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtWidgets import QFileDialog, QLabel, QPushButton
+from test_memo_evidence import windows as memo_windows
+
+from pixelscope.core.roi import RoiBounds
+from pixelscope.io.memo_archive import MemoArchive, load_memo_archive
+
+windows = memo_windows
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
+
+
+def test_roi_notes_edit_in_memory_save_and_reset(qtbot, monkeypatch, tmp_path, request):
+    windows = request.getfixturevalue("windows")
+    paths = []
+    for i in range(2):
+        path = tmp_path / f"source{i}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 40 + i, np.uint8))
+        paths.append(path)
+    w, m = windows()
+    m.show()
+    assert not m.panel.open_html_button.isEnabled()
+    w.open_image_paths(paths)
+    w.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(w.multi_compare_view.occupied_viewers) == 2
+        and all(
+            v.document is not None
+            and v.document.loading_state == "ready"
+            and v.measure_physical_zoom().valid
+            and not v._geometry_timer.isActive()
+            for v in w.multi_compare_view.occupied_viewers
+        ),
+        timeout=15000,
+    )
+    first = RoiBounds(2, 3, 16, 12)
+    second = RoiBounds(30, 20, 20, 16)
+    assert w._shared_roi_changed(first)
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 1, m.panel.last_status
+    m.panel.note_edit.setPlainText("First ROI note")
+    assert m.library.document.findings[0].note == "First ROI note"
+    assert w._shared_roi_changed(second)
+    assert not m.panel.note_edit.toPlainText()
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 2, m.panel.last_status
+    first_finding = m.library.document.findings[0]
+    long_title = "Long inspection title that must remain in Memo, not cover the Viewer"
+    m.edit(first_finding.id, long_title, first_finding.note, ())
+    assert m.library.document.findings[0].title == long_title
+    assert long_title in m.panel.findings.item(0).text()
+    for viewer in w.multi_compare_view.occupied_viewers:
+        assert len(viewer._memo_items) == 2
+        assert [item[0] for item in viewer._memo_regions] == ["ROI 1", "ROI 2"]
+    m.panel.note_edit.setPlainText("Second ROI note")
+    m.panel.findings.setCurrentRow(0)
+    qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
+    assert w._shared_roi == first
+    assert all(v._memo_regions[0][2] for v in w.multi_compare_view.occupied_viewers)
+    assert m.panel.note_edit.toPlainText() == "First ROI note"
+    from pixelscope.app.main_window import MainWindow
+
+    generations = [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
+
+    def forbidden_reload(*_args, **_kwargs):
+        raise AssertionError("Cached Memo selection must not rebuild or reload viewers")
+
+    with monkeypatch.context() as patch:
+        for method in ("_render_selection", "_register_input", "_mark_document_for_reload"):
+            patch.setattr(MainWindow, method, forbidden_reload)
+        for row in (1, 0, 1, 0):
+            m.panel.findings.setCurrentRow(row)
+            assert w._shared_roi == (first if row == 0 else second)
+            roi = first if row == 0 else second
+            for viewer in w.multi_compare_view.occupied_viewers:
+                ranges = viewer.view_box.viewRange()
+                assert ranges[0][0] <= roi.x and ranges[0][1] >= roi.x + roi.width
+                assert ranges[1][0] <= roi.y and ranges[1][1] >= roi.y + roi.height
+                assert (
+                    max(
+                        roi.width / (ranges[0][1] - ranges[0][0]),
+                        roi.height / (ranges[1][1] - ranges[1][0]),
+                    )
+                    > 0.5
+                )
+    assert generations == [(d.generation, id(d.source)) for d in w.current_comparison_documents()]
+    m.panel.note_edit.setPlainText("Edited immediately")
+    target = tmp_path / "notes" / "notes.pxmemo"
+    from PySide6.QtGui import QDesktopServices
+
+    opened_reports = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened_reports.append(url) or True)
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
+    m.save_dialog()
+    qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
+    assert not m.library.dirty
+    loaded, _ = load_memo_archive(target)
+    assert loaded.review.findings[0].note == "Edited immediately"
+    assert len(loaded.crops) == 4
+    report_folder = target.parent
+    assert (report_folder / "index.html").is_file()
+    assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
+    assert m.panel.open_html_button.isEnabled()
+    assert m.panel.open_html_button.toolTip().startswith("Open last saved")
+    opened_before = len(opened_reports)
+    m.panel.open_html_button.click()
+    assert len(opened_reports) == opened_before + 1
+    assert Path(opened_reports[-1].toLocalFile()) == report_folder / "index.html"
+    assert not m.library.dirty
+    assert len(list((report_folder / "src/crops").glob("*.png"))) == 4
+    assert m.panel.findChild(QLabel, "reviewStatusLabel") is None
+    w.set_layout_mode("Single View")
+    assert len(w.viewer._memo_items) == 2
+    w.set_layout_mode("Multi View")
+    assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
+    report = (report_folder / "index.html").read_text(encoding="utf-8")
+    assert "Edited immediately" in report
+    assert str(tmp_path) not in report
+
+    assert m.panel.header.text() == "● Saved"
+    assert all(
+        "Export" not in b.text() and "Update" not in b.text()
+        for b in m.panel.findChildren(QPushButton)
+    )
+    ids = [d.document_id for d in w.current_comparison_documents()]
+    old_snapshot = MemoArchive(m.library.document, m._crops)
+    w._select_document_ids(list(reversed(ids)))
+    assert not m.panel.open_html_button.isEnabled()
+    assert not m.library.document.findings
+    assert not any(v._memo_items for v in (w.viewer, *w.multi_compare_view.viewers))
+    assert not m.panel.note_edit.toPlainText()
+    # A late Open callback cannot repopulate notes after the user's file reset.
+    reset_document = m.library.document
+    m._io_path = target
+    m._io_snapshot = old_snapshot
+    m._io_operation = "open"
+    m._io_task_id = "superseded-open"
+    m._io_succeeded("superseded-open", None, 0, (loaded, None, {}))
+    assert m.library.document is reset_document
+    w._select_document_ids(ids)
+    assert not m.library.document.findings
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(target), ""))
+    m.open_dialog()
+    qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
+    assert m.panel.open_html_button.isEnabled()
+    qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
+    assert len(m.library.document.findings) == 2
+    assert all(len(v._memo_items) == 2 for v in w.multi_compare_view.occupied_viewers)
+    assert m.panel.note_edit.toPlainText() == "Edited immediately"
+    m.panel.findings.setCurrentRow(1, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    qtbot.waitUntil(lambda: m.restore.phase == "applied", timeout=15000)
+    assert w._shared_roi == second
+    assert m.panel.note_edit.toPlainText() == "Second ROI note"
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 1
+    assert all(len(v._memo_items) == 1 for v in w.multi_compare_view.occupied_viewers)
+    m.dock.hide()
+    assert w._shared_roi is None
+    assert not any(v._memo_items for v in (w.viewer, *w.multi_compare_view.viewers))
+    assert w._shared_roi_changed(RoiBounds(45, 40, 10, 10))
+    assert m._capture_worker is None
+    assert len(m.library.document.findings) == 1  # hidden Memo does no capture work
+    m.show()
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 1  # reopening does not capture an old ROI
+    assert m.panel.record_button.isChecked()
+    assert w._shared_roi_changed(RoiBounds(46, 40, 10, 10))
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 2
+    assert not m.panel.note_edit.toPlainText()
+    for finding in tuple(m.library.document.findings):
+        m.delete(finding.id)
+    assert m.library.dirty and not m.library.document.findings
+    m.save_dialog()
+    qtbot.waitUntil(lambda: m._io_worker is None, timeout=10000)
+    assert m.panel.header.text() == "● Saved"
+    assert not load_memo_archive(target)[0].review.findings
+    assert m.panel.open_html_button.isEnabled()
+    (report_folder / "index.html").unlink()
+    m.show()  # Recheck on dock exposure after external report removal.
+    assert not m.panel.open_html_button.isEnabled()
+    w.close()
+
+
+def test_evicted_memo_statistics_backfill_on_cached_roi_visits(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    """Every visited cached ROI must qualify, not only the ROI current at Save."""
+    from pixelscope.ui.review_window_integration import _has_roi_statistics
+
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"cached-revisit-{index}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 40 + index, np.uint8))
+        paths.append(path)
+    window, memo = windows()
+    window.open_image_paths(paths)
+    window.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(window.current_comparison_documents()) == 2
+        and all(d.loading_state == "ready" for d in window.current_comparison_documents()),
+        timeout=10000,
+    )
+    panel = window.comparison_analysis_panel
+    rois = (RoiBounds(3, 4, 16, 12), RoiBounds(25, 20, 18, 14), RoiBounds(50, 40, 20, 15))
+
+    def ready_at(roi):
+        token = panel.get_current_analysis_token()
+        return (
+            token is not None
+            and token.roi_ref == (roi.x, roi.y, roi.width, roi.height)
+            and token == panel.get_presented_analysis_token()
+            and panel._worker is None
+        )
+
+    for count, roi in enumerate(rois, 1):
+        assert window._shared_roi_changed(roi)
+        qtbot.waitUntil(
+            lambda count=count, roi=roi: len(memo.library.document.findings) == count
+            and memo._capture_worker is None
+            and ready_at(roi),
+            timeout=15000,
+        )
+        memo.panel.note_edit.setPlainText(f"Retain note {count}")
+    assert not memo.panel.include_statistics.isChecked()
+    assert all(not _has_roi_statistics(f) for f in memo.library.document.findings)
+    frozen = dict(memo._crops)
+    bindings = [(d.document_id, d.generation) for d in window.current_comparison_documents()]
+    native_caches = [
+        {key: id(value) for key, value in d.statistics_cache.items()}
+        for d in window.current_comparison_documents()
+    ]
+    destination = tmp_path / "cached-revisit" / "cached-revisit.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    assert destination.is_file(), memo.panel.last_status
+    # Model eviction from Memo's bounded capture cache, while canonical native
+    # analysis remains cached. No source identity or analysis result is changed.
+    memo._statistics_evidence.clear()
+    memo.panel.findings.setCurrentRow(0)
+    qtbot.waitUntil(lambda: ready_at(rois[0]), timeout=10000)
+    assert bindings == [
+        (d.document_id, d.generation) for d in window.current_comparison_documents()
+    ]
+    memo.panel.include_statistics.setChecked(True)
+    assert _has_roi_statistics(memo.library.document.findings[0])
+    from PySide6.QtTest import QSignalSpy
+
+    settled = QSignalSpy(panel.analysis_settled)
+    for index, roi in enumerate(rois[1:], 1):
+        memo.panel.findings.setCurrentRow(index)
+        qtbot.waitUntil(lambda roi=roi: ready_at(roi), timeout=10000)
+        assert settled.count() == 0, "Warm ROI navigation must use the native cache"
+        assert _has_roi_statistics(
+            memo.library.document.findings[index]
+        ), "Visiting ready cached Statistics must attach this ROI's evidence"
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    saved, _ = load_memo_archive(destination)
+    assert all(_has_roi_statistics(f) for f in saved.review.findings)
+    assert [f.note for f in saved.review.findings] == [f"Retain note {i}" for i in (1, 2, 3)]
+    assert dict(saved.crops) == frozen
+    assert native_caches == [
+        {key: id(value) for key, value in d.statistics_cache.items()}
+        for d in window.current_comparison_documents()
+    ]
+    assert len(list((destination.parent / "src/statistics").glob("*.csv"))) == 3
+    window.close()
+
+
+def test_roi_statistics_waits_for_existing_analysis_without_extra_user_command(
+    qtbot,
+    tmp_path,
+    request,
+):
+    create = request.getfixturevalue("windows")
+    path = tmp_path / "stats.png"
+    assert cv2.imwrite(str(path), np.full((72, 96, 3), (15, 40, 80), np.uint8))
+    w, memo = create()
+    w.open_image_paths([path])
+    qtbot.waitUntil(
+        lambda: w.viewer.document is not None
+        and w.viewer.document.loading_state == "ready"
+        and w.viewer.measure_physical_zoom().valid
+        and not w.viewer._geometry_timer.isActive(),
+        timeout=10000,
+    )
+    memo.panel.include_statistics.setChecked(True)
+    assert w._shared_roi_changed(RoiBounds(3, 4, 16, 12))
+    qtbot.waitUntil(
+        lambda: len(memo.library.document.findings) == 1 and memo._capture_worker is None,
+        timeout=15000,
+    )
+    assert not memo._pending_statistics
+    assert memo.library.document.findings[0].analysis[0].status == "captured"
+    assert memo.panel.note_edit.isEnabled()
+    memo.panel.note_edit.setPlainText("ROI statistics are stored with this note")
+    assert memo.library.document.findings[0].note == "ROI statistics are stored with this note"
+    w.close()
+
+
+@pytest.mark.parametrize("floating", [False, True])
+def test_recording_toggle_escape_and_delete_are_independent(
+    qtbot, monkeypatch, tmp_path, windows, floating
+):
+    from PySide6.QtWidgets import QApplication
+
+    path = tmp_path / "record.png"
+    assert cv2.imwrite(str(path), np.full((72, 96, 3), 80, np.uint8))
+    w, m = windows()
+    m.dock.setFloating(floating)
+    m.show()
+    w.open_image_paths([path])
+    qtbot.waitUntil(
+        lambda: w.viewer.document is not None
+        and w.viewer.document.loading_state == "ready"
+        and w.viewer.measure_physical_zoom().valid
+        and not w.viewer._geometry_timer.isActive(),
+        timeout=15000,
+    )
+    assert m.panel.record_button.isChecked()
+    assert not any(b.text() in ("Add ROI", "Delete") for b in m.panel.findChildren(QPushButton))
+    assert w._shared_roi_changed(RoiBounds(2, 3, 16, 12))
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 1, m.panel.last_status
+    m.panel.note_edit.setPlainText("Keep this note")
+    m._wait_for_statistics("Waiting for ROI Statistics")
+    m.panel.record_button.click()
+    assert not m.panel.record_button.isChecked()
+    assert not m._pending_statistics and not m._pending_roi
+    epoch = m._capture_epoch
+    assert w._shared_roi_changed(RoiBounds(30, 20, 20, 16))
+    assert m._capture_epoch == epoch and m._capture_worker is None
+    assert len(m.library.document.findings) == 1
+    # Viewing/editing old notes is independent of recording new ROIs.
+    m.panel.findings.setCurrentRow(-1)
+    m.panel.findings.setCurrentRow(0)
+    assert w._shared_roi == RoiBounds(2, 3, 16, 12)
+    assert m.panel.note_edit.toPlainText() == "Keep this note"
+    m.panel.record_button.click()
+    assert len(m.library.document.findings) == 1  # enabling does not recapture
+    m._wait_for_statistics("Waiting for ROI Statistics")
+    m._pending_roi = True
+    epoch = m._capture_epoch
+    restore_epoch = m.restore.epoch
+    w.action_map["Clear ROI"].trigger()  # the canonical Esc command
+    assert w._shared_roi is None
+    assert not m._pending_statistics and not m._pending_roi
+    assert m._capture_worker is None and m._capture_epoch > epoch
+    assert m.restore.epoch > restore_epoch and m.restore.phase == "idle"
+    assert m.panel.selected_finding_id is None and not m.panel.note_edit.toPlainText()
+    assert len(m.library.document.findings) == 1
+    with monkeypatch.context() as patch:
+        patch.setattr(m, "add", lambda: pytest.fail("cancelled work must not restart"))
+        m._resume_statistics()
+    m.panel.findings.setCurrentRow(0)
+    QApplication.setActiveWindow(m.dock if floating else w)
+    m.panel.note_edit.setFocus()
+    qtbot.keyClick(m.panel.note_edit, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 1  # text Delete never deletes an ROI
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert not m.library.document.findings and m.library.dirty
+    assert not w.viewer._memo_items
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)  # empty list is harmless
+    w.close()
+
+
+def test_memo_cache_fit_bulk_delete_and_empty_recording(qtbot, monkeypatch, tmp_path, windows):
+    from PySide6.QtWidgets import QApplication
+
+    from pixelscope.ui import comparison_analysis_panel as analysis
+
+    paths = []
+    for index in range(2):
+        path = tmp_path / f"cache{index}.png"
+        assert cv2.imwrite(str(path), np.full((240, 320, 3), 30 + index, np.uint8))
+        paths.append(path)
+    w, m = windows()
+    assert not m.panel.record_button.isEnabled() and not m.panel.record_button.isChecked()
+    qtbot.keyClick(m.panel.record_button, Qt.Key.Key_Space)
+    assert not m.panel.record_button.isChecked()
+    w.open_image_paths(paths)
+    w.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(w.multi_compare_view.occupied_viewers) == 2
+        and all(
+            v.document is not None
+            and v.document.loading_state == "ready"
+            and v.measure_physical_zoom().valid
+            and not v._geometry_timer.isActive()
+            for v in w.multi_compare_view.occupied_viewers
+        ),
+        timeout=15000,
+    )
+    panel = w.comparison_analysis_panel
+    qtbot.waitUntil(
+        lambda: not w.multi_compare_view._layout_refit_active
+        and not panel._refresh_timer.isActive()
+        and panel._worker is None
+        and all(not v._geometry_timer.isActive() for v in w.multi_compare_view.occupied_viewers),
+        timeout=15000,
+    )
+    rois = [RoiBounds(2, 3, 24, 18), RoiBounds(120, 90, 30, 20), RoiBounds(260, 190, 28, 24)]
+    results = []
+    for index, roi in enumerate(rois):
+        assert w._shared_roi_changed(roi)
+        qtbot.waitUntil(
+            lambda: m._capture_worker is None
+            and panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=15000,
+        )
+        assert len(m.library.document.findings) == index + 1, (
+            m.panel.last_status,
+            m.panel.record_button.isChecked(),
+        )
+        results.append(panel.last_results)
+    assert len(m.library.document.findings) == 3
+    original_analyze = analysis.analyze_roi
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            analysis, "analyze_roi", lambda *_a, **_k: pytest.fail("must reuse cached numerics")
+        )
+        for sync in (False, True):
+            w.multi_compare_view.set_sync_enabled(sync)
+            for row in (0, 1, 2, 0):
+                m.panel.findings.setCurrentRow(
+                    row, QItemSelectionModel.SelectionFlag.ClearAndSelect
+                )
+                assert all(a is b for a, b in zip(panel.last_results, results[row], strict=True))
+                assert not panel._refresh_timer.isActive() and panel._worker is None
+                assert panel.get_current_analysis_token() == panel.get_presented_analysis_token()
+                assert panel.get_current_histogram_token() == panel.get_presented_histogram_token()
+                assert w.multi_compare_view.sync_enabled == sync
+                roi = rois[row]
+                for viewer in w.multi_compare_view.occupied_viewers:
+                    x, y = viewer.view_box.viewRange()
+                    assert x[0] <= roi.x and x[1] >= roi.x + roi.width
+                    assert y[0] <= roi.y and y[1] >= roi.y + roi.height
+                    assert max(roi.width / (x[1] - x[0]), roi.height / (y[1] - y[0])) > 0.5
+    calls = []
+
+    def counted(*args, **kwargs):
+        calls.append(True)
+        return original_analyze(*args, **kwargs)
+
+    monkeypatch.setattr(analysis, "analyze_roi", counted)
+    panel.histogram_bins.setCurrentText("1024")
+    qtbot.waitUntil(
+        lambda: bool(calls) and panel.get_current_analysis_token() is not None, timeout=15000
+    )
+    assert panel.last_results[0] is not results[0][0]  # bin change invalidates the cache key
+    QApplication.setActiveWindow(w)
+    m.panel.findings.setFocus()
+    m.panel.findings.setCurrentRow(0, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 2
+    assert w._shared_roi == rois[1]  # next record replaces the deleted yellow box
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert len(m.library.document.findings) == 1 and w._shared_roi == rois[2]
+    m.dock.hide()
+    assert w._shared_roi is None and not m.panel.record_button.isChecked()
+    assert len(m.library.document.findings) == 1
+    assert not any(
+        v._memo_items or v.roi_enabled for v in (w.viewer, *w.multi_compare_view.viewers)
+    )
+    m.show()
+    assert m.panel.record_button.isChecked()
+    assert w._shared_roi_changed(rois[0])
+    qtbot.waitUntil(lambda: m._capture_worker is None, timeout=15000)
+    assert len(m.library.document.findings) == 2
+    QApplication.setActiveWindow(w)
+    m.panel.findings.setFocus()
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    assert len(m.panel.findings.selectedItems()) == 2
+    qtbot.keyClick(m.panel.findings, Qt.Key.Key_Delete)
+    assert not m.library.document.findings and w._shared_roi is None
+    assert not any(
+        v._memo_items or v.roi_enabled for v in (w.viewer, *w.multi_compare_view.viewers)
+    )
+    w._select_document_ids([])
+    assert not m.panel.record_button.isEnabled() and not m.panel.record_button.isChecked()
+    w.close()
+
+
+def test_memo_fit_keeps_sync_scale_in_unequal_focus_tiles(qtbot, tmp_path, windows):
+    paths = []
+    for index in range(3):
+        path = tmp_path / f"focus{index}.png"
+        assert cv2.imwrite(str(path), np.full((300, 400, 3), index, np.uint8))
+        paths.append(path)
+    w, m = windows()
+    w.open_image_paths(paths)
+    w.set_layout_mode("Multi View")
+    multi = w.multi_compare_view
+    qtbot.waitUntil(
+        lambda: len(multi.occupied_viewers) == 3
+        and not multi._layout_refit_active
+        and all(
+            v.document.source is not None
+            and v.measure_physical_zoom().valid
+            and not v._geometry_timer.isActive()
+            for v in multi.occupied_viewers
+        ),
+        timeout=15000,
+    )
+    w.quick_compare_controller.set_three_view_variant("Focus")
+    qtbot.waitUntil(
+        lambda: len({tuple(v.size().toTuple()) for v in multi.occupied_viewers}) > 1
+        and all(not v._geometry_timer.isActive() for v in multi.occupied_viewers),
+        timeout=15000,
+    )
+    roi = RoiBounds(1, 2, 18, 80)
+    multi.set_sync_enabled(True)
+    multi.fit_roi(roi)
+    scales = [v.measure_physical_zoom().percent for v in multi.occupied_viewers]
+    np.testing.assert_allclose(scales, scales[0])
+    centers = []
+    for v in multi.occupied_viewers:
+        x, y = v.view_box.viewRange()
+        centers.append([sum(x) / 2, sum(y) / 2])
+        assert x[0] <= roi.x and x[1] >= roi.x + roi.width
+        assert y[0] <= roi.y and y[1] >= roi.y + roi.height
+    np.testing.assert_allclose(centers, [centers[0]] * 3)
+    assert multi.sync_enabled and not multi._syncing_range
+    multi.set_sync_enabled(False)
+    multi.fit_roi(roi)
+    scales = [v.measure_physical_zoom().percent for v in multi.occupied_viewers]
+    assert max(scales) > min(scales) * 1.1
+    assert not multi.sync_enabled and not multi._syncing_range
+    w.close()
+
+
+@pytest.mark.parametrize("count", [1, 2])
+@pytest.mark.parametrize("timing", ["after", "during", "pending"])
+def test_statistics_checked_after_roi_updates_same_item_and_saved_report(
+    qtbot, monkeypatch, tmp_path, windows, count, timing
+):
+    paths = []
+    for i in range(count):
+        path = tmp_path / f"late-stat-{i}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 40 + i, np.uint8))
+        paths.append(path)
+    w, memo = windows()
+    w.open_image_paths(paths)
+    if count > 1:
+        w.set_layout_mode("Multi View")
+    qtbot.waitUntil(
+        lambda: len(w.current_comparison_documents()) == count
+        and all(d.loading_state == "ready" for d in w.current_comparison_documents()),
+        timeout=10000,
+    )
+    assert w._shared_roi_changed(RoiBounds(3, 4, 16, 12))
+    if timing == "during":
+        assert memo._capture_worker is not None
+        memo.panel.include_statistics.setChecked(True)
+    qtbot.waitUntil(
+        lambda: len(memo.library.document.findings) == 1 and memo._capture_worker is None,
+        timeout=15000,
+    )
+    first = memo.library.document.findings[0]
+    frozen = dict(memo._crops)
+    if timing != "during":
+        assert not any(c.status == "captured" for c in first.analysis)
+    memo.panel.note_edit.setPlainText("Keep my note")
+    if timing == "pending":
+        panel = w.comparison_analysis_panel
+        qtbot.waitUntil(
+            lambda: panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=10000,
+        )
+        # Simulate genuinely unavailable evidence. A previously captured ready
+        # snapshot can now be reused, even while the live presentation is pending.
+        memo._statistics_evidence.clear()
+        with monkeypatch.context() as patch:
+            patch.setattr(type(panel), "get_presented_analysis_token", lambda _self: None)
+            memo.panel.include_statistics.setChecked(True)
+            assert memo._pending_statistics
+            assert not any(c.status == "captured" for c in memo.library.get(first.id).analysis)
+            memo.panel.include_statistics.setChecked(False)
+            assert not memo._pending_statistics and memo._statistics_target_id is None
+            assert memo.panel.note_edit.isEnabled()
+            memo.panel.include_statistics.setChecked(True)
+            assert memo._pending_statistics
+        panel.analysis_settled.emit()
+    else:
+        memo.panel.include_statistics.setChecked(True)
+    qtbot.waitUntil(
+        lambda: any(c.status == "captured" for c in memo.library.get(first.id).analysis),
+        timeout=3000,
+    )
+    assert len(memo.library.document.findings) == 1
+    assert memo.library.get(first.id).note == "Keep my note" and memo._crops == frozen
+    target = tmp_path / "saved" / "saved.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_kw: (str(target), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    loaded, _ = load_memo_archive(target)
+    assert loaded.review.findings[0].analysis[0].status == "captured"
+    assert loaded.review.findings[0].availability == "available"
+    assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 1
+    assert '<table class="stat-table">' in (target.parent / "index.html").read_text(
+        encoding="utf-8"
+    )
+    w.close()
+
+
+def test_late_statistics_option_includes_all_previously_recorded_rois(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    paths = []
+    for i in range(2):
+        path = tmp_path / f"bulk-native-{i}.png"
+        assert cv2.imwrite(str(path), np.full((72, 96, 3), 45 + i, np.uint8))
+        paths.append(path)
+    w, memo = windows()
+    memo.show()
+    w.open_image_paths(paths)
+    qtbot.waitUntil(
+        lambda: len(w.current_comparison_documents()) == 2
+        and all(d.loading_state == "ready" for d in w.current_comparison_documents()),
+        timeout=10000,
+    )
+    panel = w.comparison_analysis_panel
+    for index, roi in enumerate((RoiBounds(3, 4, 16, 12), RoiBounds(25, 20, 18, 14)), 1):
+        assert w._shared_roi_changed(roi)
+        qtbot.waitUntil(
+            lambda expected=index: len(memo.library.document.findings) == expected
+            and memo._capture_worker is None
+            and panel.get_current_analysis_token() is not None
+            and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+            timeout=15000,
+        )
+        panel.analysis_settled.emit()  # production owner signal retains immutable evidence
+    assert len(memo.library.document.findings) == 2
+    assert len(memo._statistics_evidence) == 2
+    assert all(
+        not any(c.status == "captured" for c in f.analysis) for f in memo.library.document.findings
+    )
+    memo.panel.include_statistics.setChecked(True)
+    assert all(
+        any(c.status == "captured" for c in f.analysis) for f in memo.library.document.findings
+    )
+    target = tmp_path / "bulk-saved" / "bulk-saved.pxmemo"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kwargs: (str(target), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    saved, _ = load_memo_archive(target)
+    assert len(saved.review.findings) == 2
+    assert all(f.analysis[0].status == "captured" for f in saved.review.findings)
+    assert len(list((target.parent / "src/statistics").glob("*.csv"))) == 2
+    html = (target.parent / "index.html").read_text(encoding="utf-8")
+    assert html.count('<table class="stat-table">') == 2
+    assert html.count('href="src/statistics/') == 2
+    assert "RGB mean comparison" not in html
+    w.close()
+
+
+def test_histogram_evidence_does_not_satisfy_checked_statistics_save(
+    qtbot, monkeypatch, tmp_path, windows
+):
+    """A valid captured Histogram is not native Statistics, even if status=captured."""
+    from pixelscope.core.review_analysis import AnalysisSeriesV1, capture_presented_analysis
+    from pixelscope.core.review_record import ReviewAnalysisCaptureV1
+    from pixelscope.ui.review_window_integration import _has_roi_statistics
+
+    path = tmp_path / "histogram-only.png"
+    assert cv2.imwrite(str(path), np.full((72, 96, 3), 40, np.uint8))
+    w, memo = windows()
+    w.open_image_paths([path])
+    qtbot.waitUntil(
+        lambda: w.viewer.document is not None and w.viewer.document.loading_state == "ready",
+        timeout=10000,
+    )
+    assert w._shared_roi_changed(RoiBounds(3, 4, 16, 12))
+    qtbot.waitUntil(
+        lambda: len(memo.library.document.findings) == 1 and memo._capture_worker is None,
+        timeout=15000,
+    )
+    panel = w.comparison_analysis_panel
+    qtbot.waitUntil(
+        lambda: panel.get_current_analysis_token() is not None
+        and panel.get_current_analysis_token() == panel.get_presented_analysis_token(),
+        timeout=15000,
+    )
+    token = panel.get_current_analysis_token()
+    assert token is not None and token.feature == "statistics"
+    result = capture_presented_analysis(panel, token)
+    assert result.snapshot is not None
+    snapshot = result.snapshot
+    native = ReviewAnalysisCaptureV1.from_snapshot(snapshot)
+    series = AnalysisSeriesV1(
+        source_key=snapshot.sources[0].source_key,
+        channel="R",
+        kind="histogram",
+        coordinates=(0.0, 1.0),
+        values=(1,),
+        value_states=("finite",),
+        sample_count=1,
+        definition_revision="native-bin-counts-v1",
+    )
+    histogram = ReviewAnalysisCaptureV1.from_snapshot(
+        replace(
+            snapshot,
+            token=replace(snapshot.token, feature="histogram"),
+            measurements=(),
+            series=(series,),
+        )
+    )
+    finding = memo.library.document.findings[0]
+    assert not _has_roi_statistics(replace(finding, analysis=(histogram,)))
+    assert _has_roi_statistics(replace(finding, analysis=(native,)))
+    memo.library.attach_analysis(finding.id, histogram)
+    assert memo.library.get(finding.id).analysis[0].status == "captured"
+
+    # Reproduce previously saved Histogram evidence with Include Stats checked.
+    # Suppress the checkbox event so this test isolates the authoritative
+    # save gate, rather than auto-backfilling a newly ready live Statistics ROI.
+    previous = memo.panel.include_statistics.blockSignals(True)
+    try:
+        memo.panel.include_statistics.setChecked(True)
+    finally:
+        memo.panel.include_statistics.blockSignals(previous)
+    memo._statistics_evidence.clear()
+    destination = tmp_path / "must-not-save" / "notes.pxmemo"
+    # QFileDialog returns a path inside an existing parent directory. The
+    # folder publisher stages its temporary directory in that parent.
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda *_a, **_k: pytest.fail("Save dialog must not open for Histogram-only data"),
+    )
+    with monkeypatch.context() as patch:
+        patch.setattr(type(panel), "get_presented_analysis_token", lambda _self: None)
+        memo.save_dialog()
+    assert "Statistics missing for ROI 1" in memo.panel.last_status
+    assert memo._io_worker is None and not destination.exists()
+
+    # A correctly captured native Statistics token qualifies the same ROI.
+    memo.library.attach_analysis(finding.id, native)
+    assert _has_roi_statistics(memo.library.get(finding.id))
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_k: (str(destination), ""))
+    memo.save_dialog()
+    qtbot.waitUntil(lambda: memo._io_worker is None, timeout=10000)
+    from pixelscope.io.memo_folder import metadata_path
+
+    published = metadata_path(destination).parent
+    assert memo.library.path == metadata_path(destination), memo.panel.last_status
+    assert (published / "src/statistics").is_dir()
+    assert len(list((published / "src/statistics").glob("*.csv"))) == 1
+    assert '<table class="stat-table">' in (published / "index.html").read_text(encoding="utf-8")
+    w.close()

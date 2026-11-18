@@ -16,6 +16,14 @@ Histogram compares value distributions for the Current Comparison Page and follo
 
 Line Profile compares values along the current shared line. Define a line with **Shift+drag** in Image View.
 
+## Resize and restore
+
+Resize the image and Statistics panels directly, and dock, float or close
+Plots as needed. The existing dock/splitter/QSettings layout is canonical;
+there are no separate Compare/Analyze/Review layout snapshots. After a monitor
+is removed, an off-screen floating window is recovered onto an available
+display when its native title region cannot be reached.
+
 ## Resetting the workspace
 
 Use the application's workspace reset command when a floating/docked layout becomes inconvenient. Resetting layout does not change the source images.

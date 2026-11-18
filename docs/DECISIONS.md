@@ -1058,3 +1058,52 @@ Only validation actually observed for a named head may be recorded as PASS.
   saved bounds through the same strict fit validation before any Active-ROI Difference.
 - Named/multiple ROI management remains deferred and Issue #77 remains the primary
   planning authority for WP-A/WP-B/WP-C.
+
+## 2026-11-12 — Memo folder map and resident ROI selection
+
+Owner feedback supersedes #228's ZIP-plus-report dual output. New Save produces
+one named folder with same-named JSON `.pxmemo`, root HTML and relative `src/`
+assets. The map records metadata, paths, hashes and directory inventory, not PNG
+or CSV bytes. Exact and annotated previews remain distinct so annotation does not
+alter evidence. Old ZIP/Review reading stays supported; old files are preserved
+when saving into the new format. New saves stage a complete generation and retain
+previous data/recovery on failure; no separate report-only success state is used.
+
+Memo is a lightweight ROI/note convenience. An explicitly verified resident page
+may change ROI without replaying source registration or Session-like layout/view
+restoration. Disk verification remains necessary when explicitly opening saved
+work or when runtime bindings are unavailable. No filename matching is added.
+
+## 2026-11-12 - Memo exact crops and stable repeat-save directory
+
+Export exact ROI PNG bytes without margins or text; put descriptions in HTML and
+metadata. New folders use src/crops without duplicate originals. Remove embedded
+preview/coordinate summary; ROI selection centers resident viewers preserving zoom.
+Missing originals leave notes readable without an image fallback.
+
+Windows reproduction confirmed WinError5 when an open index.html lacks delete
+sharing and its parent is renamed. Repeat saving retains the root, backs up files,
+skips unchanged assets and commits metadata last. Write-sharing HTML handles permit
+in-place derived HTML writes; true write locks require retry. Rollback restores old
+files or retains recovery data. Concurrent readers can reject intermediate
+inventories; crash-atomic publication is not promised.
+
+### Memo recording intent and deletion keys
+
+An explicit Record ROI toggle separates new-note capture from keeping the dock open.
+Opening defaults On; hiding defaults Off. Neither reopening nor enabling recaptures
+an old ROI. Remove redundant Add/Delete buttons and scope Delete to the focused ROI
+list. Esc keeps its ROI-clear meaning, also canceling Memo work/deselecting the note
+without deleting existing records. Internal restore clears remain separate from user
+intent, so restoring legacy records cannot cancel itself.
+
+### Memo switch, fit and clean footer follow-up
+
+Replace the recording button with an accessible pill switch, unavailable without
+ready selected images. Batch Delete supports Ctrl+A and selects the next record;
+clear the removed active box. Hiding clears current analysis ROI and passive Memo
+boxes, retaining notes. Fit ROI plus context through existing physical-zoom and
+MultiCompareView sync ownership rather than a separate viewport authority. Reuse
+existing native Statistics/Histogram caches and flush canonical pending analysis on
+explicit list navigation. Remove inline status/report links; successful Save opens
+HTML automatically, errors remain warning dialogs and the header marker remains.

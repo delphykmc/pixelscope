@@ -316,10 +316,41 @@ Legacy `recent/comparison_sets` may be consumed only as migration/read fallback.
 Recent history remains outside ApplicationSettings schema v5 and Reset Settings.
 Each typed submenu owns its own clear command.
 
+History normalization and identity are lexical: absolute paths collapse dot segments
+and use platform case normalization without resolve/stat/existence checks. Loading,
+menu composition, record/remove and Session history notification never probe stored
+paths, including disconnected UNC paths. Startup does not rewrite or discard stale
+entries. Local symlink aliases remain distinct history identities; actual registration
+discovery owns canonical source identity, and `stage_canonical` retains its supplied
+canonical paths without resolving them again.
+
 Missing entries use explicit **Remove / Keep**. Wrong filesystem kind and existing
 invalid Session artifacts remain history unless explicitly removed. Recent
 bookkeeping is best-effort observer metadata: QSettings/history failure cannot turn
 a successful canonical Image/Folder/Session workflow into failure.
+
+Production Recent Images checks path existence/kind on the existing registration
+worker so a slow network `stat` does not block command dispatch. Missing/wrong-kind
+feedback remains on the GUI thread and cannot mutate Selected or register a
+directory as images. Cancellation/close revokes late feedback; a pending network
+system call still has to return before the owned pool can physically drain.
+Recent Folders use that same bounded registration queue with a folder-kind preflight.
+Recent Sessions and the production Open Session dialog read/validate the artifact and
+prepare canonical source identities on a separate single-worker preparation pool.
+GUI restore consumes those identities without resolving the source paths again;
+programmatic `open_from_path` retains its established synchronous contract. Missing,
+wrong-kind and invalid-artifact feedback stays on the GUI thread. Preparation can be
+cancelled through **Cancel path check**; a superseding preparation retains only the
+latest pending request. Open Images/Folder dispatch also revokes pending Session
+authority. Cancellation or close rejects late results, and close keeps the window
+alive until the owned pool physically drains without blocking the event loop.
+
+Configured and last-used file-dialog directories are validated during explicit
+command preparation off-thread. Missing/inaccessible configured paths fall back to
+the last usable location, then the home directory. The chooser opens only after
+preparation; cancellation prevents it opening. Passive startup does not preflight
+these paths. Native chooser interaction after opening and later OS network calls
+are not made interruptible by this preparation step.
 
 Recent owns no source, selection, curation, residency, preload, Difference, analysis,
 or Current Comparison Page authority. Absolute paths may disclose local filesystem

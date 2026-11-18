@@ -62,6 +62,7 @@ def test_recent_image_wrong_kind_is_not_reinterpreted_as_folder_input(
     )
 
     controller.open_recent(RecentEntryKind.IMAGE, recent_path)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
 
     assert tuple(window.documents) == before_documents
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
@@ -94,6 +95,10 @@ def test_recent_folder_wrong_kind_stays_history_only(
     )
 
     controller.open_recent(RecentEntryKind.FOLDER, recent_path)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)
+    preparation = getattr(window, "path_preparation_controller", None)
+    if preparation is not None:
+        qtbot.waitUntil(lambda: preparation.is_idle)
 
     assert tuple(window.documents) == before_documents
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
@@ -142,6 +147,10 @@ def test_recent_session_partial_open_restores_saved_workspace_and_promotes_mru(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)
+    preparation = getattr(window, "path_preparation_controller", None)
+    if preparation is not None:
+        qtbot.waitUntil(lambda: preparation.is_idle)
 
     assert [item.source_path for item in window.selected_documents] == [
         a.source_path,
@@ -197,6 +206,10 @@ def test_recent_session_zero_loadable_keeps_workspace_and_mru_position(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)
+    preparation = getattr(window, "path_preparation_controller", None)
+    if preparation is not None:
+        qtbot.waitUntil(lambda: preparation.is_idle)
 
     assert tuple(window.documents) == before_documents
     assert tuple(item.document_id for item in window.selected_documents) == before_selected

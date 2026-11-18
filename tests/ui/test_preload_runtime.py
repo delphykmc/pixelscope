@@ -457,3 +457,77 @@ def test_raw_profile_and_generation_change_rejects_old_preload_result(
     assert loaded.generation == changed_generation
     assert loaded.raw_profile == new_profile
     assert window.preload_controller.diagnostics.stale_drop_count >= 1
+
+
+def test_single_catalog_document_does_not_plan_folder_preload(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    def forbidden_navigation(_step: int) -> None:
+        raise AssertionError("single catalog document must not plan folder navigation")
+
+    monkeypatch.setattr(window, "_plan_folder_navigation", forbidden_navigation)
+    image = ImageDocument.from_array(
+        np.zeros((6, 8), dtype=np.uint8),
+        "only.png",
+        source_path=(tmp_path / "only.png").resolve(),
+    )
+    window.add_document(image, select=True)
+    assert window.preload_controller.current_plan is None
+    assert not window._preload_workers
+
+    second = ImageDocument.from_array(
+        np.ones((6, 8), dtype=np.uint8),
+        "second.png",
+        source_path=(tmp_path / "second.png").resolve(),
+    )
+    window.add_document(second, select=False)
+    calls: list[int] = []
+
+    def observed_navigation(step: int) -> None:
+        calls.append(step)
+
+    monkeypatch.setattr(window, "_plan_folder_navigation", observed_navigation)
+    window._refresh_preload_plan()
+    assert calls == [1]
+    window.close()
+
+
+def test_selected_folder_metadata_uses_registered_key_without_re_resolving(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    folder = tmp_path / "canonical"
+    folder.mkdir()
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    first = ImageDocument.from_array(
+        np.zeros((3, 4), dtype=np.uint8),
+        "first.png",
+        source_path=folder / "first.png",
+    )
+    second = ImageDocument.from_array(
+        np.ones((3, 4), dtype=np.uint8),
+        "second.png",
+        source_path=folder / "second.png",
+    )
+    window.add_document(first, select=False)
+    window.add_document(second, select=False)
+    key = window._document_folder_keys[first.document_id]
+
+    def unexpected_canonicalization(_path: Path) -> str:
+        raise AssertionError("registered folder key must be reused")
+
+    monkeypatch.setattr(window, "_folder_key", unexpected_canonicalization)
+    window._select_document_ids([first.document_id])
+    assert window._folder_navigation_selection() == [(key, first.document_id)]
+    plan = window._plan_folder_navigation(1)
+    assert plan is not None
+    assert plan.document_ids == (second.document_id,)
+    window._remove_document_ids([first.document_id])
+    assert first.document_id not in window._document_folder_keys
+    assert second.document_id in window._document_folder_keys
+    window.close()

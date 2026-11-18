@@ -12,6 +12,8 @@ Use **Open Images** when you want specific files to become the current ordered c
 
 Supported extensions are summarized in [Supported formats](../reference/supported-formats.md). RAW-like files may require interpretation metadata; see [RAW](../formats/raw.md) and [YUV](../formats/yuv.md).
 
+Open Images and Open Recent Images register through the same background queue while the interface remains available. The opened files replace the selection when registration finishes, in natural filename order with duplicates removed. Cancelling registration, or skipping every unsupported/profile-dependent source, keeps the previous selection. These Open commands do not start Quick Compare Difference automatically.
+
 ## Drag and drop files
 
 Direct-file drag and drop follows comparison intent rather than folder-registration intent:

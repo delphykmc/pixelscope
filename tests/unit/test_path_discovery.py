@@ -2,11 +2,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from pixelscope.io.path_discovery import (
     SUPPORTED_IMAGE_FILTER,
     SUPPORTED_IMAGE_SUFFIXES,
     discover_image_inputs,
+    recent_path_state,
 )
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError])
+def test_recent_inaccessible_path_is_not_reported_missing(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+) -> None:
+    def inaccessible(_path: Path) -> None:
+        raise error("unavailable network share")
+
+    monkeypatch.setattr(Path, "stat", inaccessible)
+    assert recent_path_state(Path("network.png")) == "unknown"
 
 
 def test_supported_image_contract_matches_unified_picker() -> None:

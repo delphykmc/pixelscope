@@ -1,13 +1,92 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 from PySide6.QtCore import QSettings
 
 from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
-from pixelscope.core.recent_entries import RecentEntryKind, merge_recent_paths
+from pixelscope.core.recent_entries import (
+    RecentEntry,
+    RecentEntryKind,
+    merge_recent_paths,
+    normalize_recent_path,
+    recent_path_identity,
+)
+
+
+def test_history_load_merge_record_remove_and_legacy_do_not_probe_paths(tmp_path, monkeypatch):
+    storage = _Storage()
+    first = tmp_path / "offline" / "first.png"
+    alias = tmp_path / "offline" / "unused" / ".." / "first.png"
+    second = tmp_path / "offline" / "second.png"
+    storage.values["recent/images"] = json.dumps([str(first), str(alias), str(second)])
+    storage.values["recent/folders"] = [str(first.parent)]
+    storage.values["recent/comparison_sets"] = [str(tmp_path / "offline.pixelscope")]
+    before = dict(storage.values)
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("Recent history must not access the filesystem")
+
+    with monkeypatch.context() as patch:
+        for method in ("resolve", "stat", "exists", "is_file", "is_dir"):
+            patch.setattr(Path, method, forbidden)
+        repository = RecentEntriesRepository(storage)
+        assert repository.load(RecentEntryKind.IMAGE) == (first, second)
+        assert repository.load(RecentEntryKind.FOLDER) == (first.parent,)
+        assert repository.load(RecentEntryKind.SESSION) == (tmp_path / "offline.pixelscope",)
+        assert storage.values == before and storage.sync_count == 0
+        assert RecentEntry(RecentEntryKind.IMAGE, alias).path == first
+        repository.stage(RecentEntryKind.IMAGE, [alias])
+        assert repository.load(RecentEntryKind.IMAGE) == (first, second)
+        repository.record(RecentEntryKind.IMAGE, [second])
+        assert repository.load(RecentEntryKind.IMAGE) == (second, first)
+        repository.remove(RecentEntryKind.IMAGE, alias)
+        assert repository.load(RecentEntryKind.IMAGE) == (second,)
+        repository.stage_canonical(RecentEntryKind.FOLDER, [tmp_path / "canonical"])
+
+
+def test_history_alias_is_distinct_from_worker_canonical_target(tmp_path):
+    alias = tmp_path / "alias.png"
+    canonical = tmp_path / "target.png"
+    with patch.object(Path, "resolve", return_value=canonical) as resolve:
+        repository = RecentEntriesRepository(_Storage())
+        repository.stage(RecentEntryKind.IMAGE, [alias])
+        repository.stage_canonical(RecentEntryKind.IMAGE, [canonical])
+        assert repository.load(RecentEntryKind.IMAGE) == (canonical, alias)
+        resolve.assert_not_called()
+
+
+def test_recent_path_normalization_is_lexical_for_unc_drive_and_relative_paths(monkeypatch):
+    samples = (
+        (
+            (r"\\offline.invalid\share\folder\..\frame.png", r"\\offline.invalid\share\frame.png"),
+            (r"Z:\offline\folder\..\frame.png", r"Z:\offline\frame.png"),
+        )
+        if os.name == "nt"
+        else (
+            ("//offline.invalid/share/folder/../frame.png", "//offline.invalid/share/frame.png"),
+            ("/offline/folder/../frame.png", "/offline/frame.png"),
+        )
+    )
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("Path resolution is not lexical")
+
+    with monkeypatch.context() as patch:
+        for method in ("resolve", "stat", "exists", "is_file", "is_dir"):
+            patch.setattr(Path, method, forbidden)
+        for supplied, expected in samples:
+            assert normalize_recent_path(supplied) == Path(expected)
+            assert recent_path_identity(supplied) == os.path.normcase(str(Path(expected)))
+        assert normalize_recent_path("relative/../frame.png") == Path.cwd() / "frame.png"
+        if os.name == "nt":
+            assert recent_path_identity(r"Z:\Offline\FRAME.PNG") == recent_path_identity(
+                r"z:\offline\frame.png"
+            )
 
 
 class _Storage:
@@ -205,3 +284,101 @@ def test_real_qsettings_history_survives_reconstruction_and_clear(
     assert after_clear_settings.value("settings/files/default_open_directory") == str(
         tmp_path / "owned"
     )
+
+
+def test_staged_mru_keeps_order_without_early_disk_write(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    a, b = tmp_path / "a.png", tmp_path / "b.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [a])
+    repository.stage(RecentEntryKind.IMAGE, [b])
+
+    assert repository.load(RecentEntryKind.IMAGE) == (b.resolve(), a.resolve())
+    assert storage.values == {}
+    assert storage.sync_count == 0
+
+    repository.flush_staged()
+
+    assert storage.sync_count == 1
+    assert json.loads(storage.values["recent/images"]) == [str(b.resolve()), str(a.resolve())]
+    repository.flush_staged()
+    assert storage.sync_count == 1
+
+
+def test_clear_before_staged_flush_does_not_resurrect_history(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    repository.stage(RecentEntryKind.IMAGE, [tmp_path / "a.png"])
+    repository.clear(RecentEntryKind.IMAGE)
+    count = storage.sync_count
+
+    repository.flush_staged()
+    assert storage.sync_count == count
+    assert repository.load(RecentEntryKind.IMAGE) == ()
+    assert "recent/images" not in storage.values
+
+
+def test_staged_real_qsettings_persists_after_flushing(tmp_path: Path) -> None:
+    settings_path = tmp_path / "staged.ini"
+    settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    repository = RecentEntriesRepository(QSettingsAdapter(settings))
+    path = tmp_path / "some.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [path])
+    assert repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+    repository.flush_staged()
+
+    recovered = RecentEntriesRepository(
+        QSettingsAdapter(QSettings(str(settings_path), QSettings.Format.IniFormat))
+    )
+    assert recovered.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+
+
+def test_staged_recent_can_publish_without_synchronous_flush(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    path = tmp_path / "quick.png"
+
+    repository.stage(RecentEntryKind.IMAGE, [path])
+    repository.flush_staged(sync=False)
+
+    assert storage.sync_count == 0
+    assert json.loads(storage.values["recent/images"]) == [str(path.resolve())]
+    assert repository.load(RecentEntryKind.IMAGE) == (path.resolve(),)
+
+
+def test_canonical_stage_reuses_resolved_paths_without_stat_calls(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage, limit=3)
+    earlier = (tmp_path / "old.png").resolve()
+    current = (tmp_path / "new.png").resolve()
+    repository.record(RecentEntryKind.IMAGE, [earlier])
+    syncs_before = storage.sync_count
+
+    # Registration discovery already produced canonical input paths. No
+    # filesystem resolution is necessary when updating the bounded MRU list.
+    with patch.object(Path, "resolve", side_effect=AssertionError("no re-resolve")):
+        result = repository.stage_canonical(RecentEntryKind.IMAGE, [current, earlier])
+
+    assert result == (current, earlier)
+    assert repository.load(RecentEntryKind.IMAGE) == result
+    assert storage.sync_count == syncs_before
+    repository.flush_staged(sync=False)
+    assert storage.sync_count == syncs_before
+    assert json.loads(storage.values["recent/images"]) == [str(current), str(earlier)]
+
+
+def test_canonical_stage_requires_absolute_paths(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+
+    with patch.object(Path, "resolve", side_effect=AssertionError("no re-resolve")):
+        try:
+            repository.stage_canonical(RecentEntryKind.IMAGE, [Path("relative.png")])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("relative path accepted for canonical stage")
+
+    assert storage.sync_count == 0

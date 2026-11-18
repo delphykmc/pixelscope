@@ -103,6 +103,22 @@ def test_single_view_capture_depends_on_visible_files_and_statistics(manifest: d
         assert len(report(manifest, path)["selected_ids"]) == 14
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/pixelscope/core/review_analysis.py",
+        "src/pixelscope/io/analysis_bundle.py",
+        "src/pixelscope/ui/analysis_export.py",
+    ],
+)
+def test_analysis_bundle_dependencies_have_explicit_conservative_ownership(
+    manifest: dict, path: str
+) -> None:
+    result = report(manifest, path)
+    assert result["warnings"] == []
+    assert len(result["selected_ids"]) == len(manifest["screenshots"])
+
+
 def test_single_feature_owner_and_shared_shell(manifest: dict) -> None:
     scoped = report(manifest, "src/pixelscope/ui/raw_open_dialog.py")
     assert scoped["selected_ids"] == ["raw-profile-dialog"]

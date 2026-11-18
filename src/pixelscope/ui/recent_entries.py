@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import stat
 import weakref
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -11,14 +10,17 @@ from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QMessageBox
 
+from pixelscope.app.path_preparation import path_preparation
 from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
-from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
+from pixelscope.io.path_discovery import ImageInput, recent_path_state
+from pixelscope.io.session_preparation import PreparedSession, prepare_recent_session
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
+from pixelscope.workers.task_worker import TaskError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +39,12 @@ class RecentEntriesController:
         if not isinstance(session, SessionControllerBase):
             raise RuntimeError("Recent Entries requires the Session controller")
         self._session_controller_ref = weakref.ref(session)
+        self._pending_session_restore: tuple[int, PreparedSession] | None = None
+        self._session_restore_timer = QTimer(window)
+        self._session_restore_timer.setSingleShot(True)
+        self._session_restore_timer.timeout.connect(  # type: ignore[attr-defined]
+            WeakOwnerHook(self, lambda owner: owner._continue_session_restore())
+        )
         self.session_controller.set_recent_entry_callback(
             WeakOwnerHook(self, lambda current, path: current._record_session(path))
         )
@@ -128,9 +136,17 @@ class RecentEntriesController:
         self,
         kind: RecentEntryKind,
         paths: Sequence[str | Path],
+        *,
+        stage_only: bool = False,
+        canonical: bool = False,
     ) -> None:
         try:
-            self.repository.record(kind, paths)
+            if canonical:
+                self.repository.stage_canonical(kind, (Path(path) for path in paths))
+            elif stage_only:
+                self.repository.stage(kind, paths)
+            else:
+                self.repository.record(kind, paths)
             QTimer.singleShot(0, self.refresh_menu)
         except Exception:  # noqa: BLE001 - optional history must not break runtime work
             LOGGER.warning("Unable to update Recent %s history", kind.value, exc_info=True)
@@ -200,6 +216,16 @@ class RecentEntriesController:
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if kind is RecentEntryKind.IMAGE and callable(getattr(registration, "enqueue", None)):
+            self.window.open_image_paths([path], recent_image=True)
+            return
+        if kind is RecentEntryKind.FOLDER and callable(getattr(registration, "enqueue", None)):
+            registration.enqueue([path], recent_folder=True)  # type: ignore[union-attr]
+            return
+        if kind is RecentEntryKind.SESSION:
+            self._prepare_recent_session(path)
+            return
         path_state = self._recent_path_state(kind, path)
         if path_state == "missing":
             self._handle_missing_entry(kind, path)
@@ -224,51 +250,77 @@ class RecentEntriesController:
                     4000,
                 )
             return
-        self._open_recent_session(path)
 
-    def _open_image_paths(self, paths: list[Path]) -> list[str]:
-        if not paths:
-            return []
-        self._remember_directory(paths[0].parent)
-        document_ids = list(
-            self.window._register_inputs(
-                discover_image_inputs(paths),
-                resolve_raw_profiles=True,
-            )
+    def _open_image_paths(self, paths: list[Path]) -> None:
+        self.window.open_image_paths(paths)
+
+    def _prepare_recent_session(self, path: Path) -> None:
+        self._session_restore_timer.stop()
+        self._pending_session_restore = None
+        path_preparation(self.window).submit(
+            prepare_recent_session,
+            (path, self.session_controller.repository),
+            self._session_prepared,
+            self._session_preparation_failed,
         )
-        if document_ids:
-            self.window._select_document_ids(document_ids)
-            self.window.statusBar().showMessage(
-                f"Opened {len(document_ids)} image(s)",
-                4000,
-            )
-        else:
-            self.window.statusBar().showMessage("No supported images opened", 4000)
-        return document_ids
 
-    def _open_recent_session(self, path: Path) -> None:
+    def _session_preparation_failed(self, error: TaskError) -> None:
+        QMessageBox.warning(self.window, "Cannot open Session", error.message)
+
+    def _session_prepared(self, prepared: PreparedSession) -> None:
+        if prepared.state == "missing":
+            self._handle_missing_entry(RecentEntryKind.SESSION, prepared.path)
+            return
+        if prepared.state == "wrong_type":
+            self._show_wrong_type(RecentEntryKind.SESSION, prepared.path)
+            return
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if prepared.sources and registration is not None:
+            epoch = registration.revoke_for_session_restore()
+            if not registration.can_commit_prepared_session(epoch):
+                self._pending_session_restore = (epoch, prepared)
+                path_preparation(self.window).cancel_button.show()
+                self._session_restore_timer.start(100)
+                return
+        self._commit_prepared_session(prepared)
+
+    def _continue_session_restore(self) -> None:
+        pending = self._pending_session_restore
+        if pending is None:
+            return
+        epoch, prepared = pending
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        if (
+            getattr(self.window, "_closing", False)
+            or registration is None
+            or not registration.is_current_session_restore(epoch)
+        ):
+            self._pending_session_restore = None
+            path_preparation(self.window).cancel_button.hide()
+            return
+        if not registration.can_commit_prepared_session(epoch):
+            # An uninterruptible SMB OS call may delay restore indefinitely.
+            # Use a bounded wait interval; never spin or block the GUI thread.
+            self._session_restore_timer.start(100)
+            return
+        self._pending_session_restore = None
+        path_preparation(self.window).cancel_button.hide()
+        self._commit_prepared_session(prepared)
+
+    def _commit_prepared_session(self, prepared: PreparedSession) -> None:
         try:
-            loaded, missing = self.session_controller.open_from_path(path)
+            loaded, missing = self.session_controller.open_prepared(prepared)
         except (OSError, ComparisonSetError) as exc:
             QMessageBox.warning(self.window, "Cannot open Session", str(exc))
             return
-        if loaded == 0:
-            return
-        self._remember_directory(path.parent)
-        self._observe_history(RecentEntryKind.SESSION, [path])
-        self.session_controller.show_open_feedback(path, loaded, missing)
+        if loaded:
+            self._remember_directory(prepared.path.parent)
+            self._observe_history(RecentEntryKind.SESSION, [prepared.path])
+            self.session_controller.show_open_feedback(prepared.path, loaded, missing)
 
     @staticmethod
     def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:
-        try:
-            path_stat = path.stat()
-        except FileNotFoundError:
-            return "missing"
-        except OSError:
-            return "unknown"
-        if kind is RecentEntryKind.FOLDER:
-            return "usable" if stat.S_ISDIR(path_stat.st_mode) else "wrong_type"
-        return "usable" if stat.S_ISREG(path_stat.st_mode) else "wrong_type"
+        return recent_path_state(path, is_folder=kind is RecentEntryKind.FOLDER)
 
     def _show_wrong_type(self, kind: RecentEntryKind, path: Path) -> None:
         expected = "folder" if kind is RecentEntryKind.FOLDER else "file"

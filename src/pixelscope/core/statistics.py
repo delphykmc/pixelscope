@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import inf, log10
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.diff_engine import signed_difference
 
 
@@ -140,11 +142,40 @@ def histogram(
         floating = image.astype(np.float64, copy=False)
         minimum, maximum = float(np.nanmin(floating)), float(np.nanmax(floating))
         value_range = (minimum, maximum if maximum > minimum else minimum + 1.0)
+    # OpenCV processes interleaved uint8 channels without making an HxW
+    # contiguous copy per channel. Keep this fast path deliberately narrow:
+    # only the exact one-bin-per-code 8-bit native histogram qualifies.
+    # calcHist accumulates float32 counts, which represent integers exactly
+    # only up to 2**24 samples per channel. Larger inputs retain NumPy's
+    # exact int64 counting path.
+    sample_count = int(image.shape[0]) * int(image.shape[1])
+    if (
+        image.dtype == np.uint8
+        and bins == 256
+        and value_range == (0.0, 256.0)
+        and 0 < sample_count <= (1 << 24)
+        and (image.ndim == 2 or image.shape[2] in (3, 4))
+    ):
+        channel_count = 1 if image.ndim == 2 else image.shape[2]
+        channel_names = ("Gray",) if image.ndim == 2 else ("R", "G", "B", "A")[:channel_count]
+        counts_cv: list[NDArray[np.int64]] = []
+        for channel_index in range(channel_count):
+            cancellation_checkpoint()
+            float_counts = cv2.calcHist([image], [channel_index], None, [256], [0.0, 256.0])
+            cancellation_checkpoint()
+            counts_cv.append(float_counts.reshape(256).astype(np.int64))
+        return HistogramResult(
+            tuple(counts_cv),
+            np.arange(257, dtype=np.float64),
+            channel_names,
+        )
+
     channels = (image,) if image.ndim == 2 else tuple(np.moveaxis(image, -1, 0))
     names = ("Gray",) if image.ndim == 2 else ("R", "G", "B", "A")[: len(channels)]
     counts: list[NDArray[np.int64]] = []
     edges: NDArray[np.float64] | None = None
     for channel in channels:
+        cancellation_checkpoint()
         use_integer_codes = (
             np.issubdtype(channel.dtype, np.integer)
             and value_range is not None
@@ -176,6 +207,7 @@ def histogram(
             channel_edges = np.arange(lower, upper + 1, dtype=np.float64)
         else:
             channel_counts, channel_edges = np.histogram(channel, bins=bins, range=value_range)
+        cancellation_checkpoint()
         counts.append(channel_counts.astype(np.int64, copy=False))
         edges = channel_edges
     assert edges is not None

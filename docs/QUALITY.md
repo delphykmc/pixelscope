@@ -85,6 +85,13 @@ canaries remain part of that contract and must not be split, skipped, or masked 
 to reduce accumulated runtime. When Windows/native behavior is part of the risk, the
 owner/local Windows result is authoritative.
 
+Pytest prepends this checkout's `src/` through `pyproject.toml` so the tests exercise
+the checked-out implementation even when `PYTHONPATH` or an editable installation
+points to an older checkout. If a reported missing method exists in source, inspect
+the imported module's `__file__` before changing product behavior. This test setting
+does not change application launch outside pytest; keep the development editable
+installation pointed at the intended checkout (`python -m pip install -e .`).
+
 A bounded low-risk PR may close with applicable PR evidence when the project workflow
 explicitly accepts that scope, but it must say that full validation was not run and
 must not imply a repository-wide PASS. Conversely, a focused CI PASS never overrides a

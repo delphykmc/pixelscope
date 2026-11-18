@@ -31,13 +31,25 @@ Resident when required
   Page membership follows Selected ordering and page offset; it is not a second
   independently owned document collection.
 - **Presented** means the current viewer representation. Multi View presents the
-  current page; Single View presents one active image within that page.
+  current page by default; Single View presents one active image within that page.
+  Difference results may be presented via the existing explicit Difference commands
+  without changing the Current Comparison Page or Analysis Working Set.
 - **Resident** means decoded native source is currently retained under the P2
   source-memory budget because current runtime correctness requires it.
 
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are always local `1..6` within the Current Comparison Page. Global
 Selected ordinal and viewer slot are distinct concepts.
+
+### Canonical source, layout and Difference controls
+
+W05-specific runtime comparison presets and W06-specific dock layout presets
+have been retired. Ordinary Single/Multi View (2/4/6 source page), Primary,
+Active and Difference pair selection remain the only visible comparison controls.
+The existing native QDockWidget/QSplitter layout is saved once and restored
+without an additional preset-specific cache. **Reset Workspace Layout** does
+not mutate the image/ROI/analysis authorities. An explicit Calculate is needed
+for a new Difference; legacy two-file Drop-to-Prepare remains separate.
 
 Statistics `1. Region` exposes compact X/Y/W/H entry for the same application-owned
 shared ROI created by Ctrl+drag. Numeric values are reference/full-resolution
@@ -70,6 +82,14 @@ silently interpreted as RAW.
 registered and becomes part of the ordered Selected set. If more than six files are
 supplied, none are discarded: the initial Current Comparison Page contains the
 first six and later pages preserve the same Selected membership/order.
+
+In the composed application, Open Images and Recent Images use background discovery
+and bounded registration so the interface remains responsive. When registration
+finishes, the naturally ordered, deduplicated opened set replaces Selected and
+starts on its first page. These Open commands do not auto-calculate Difference.
+Reopening an existing path retains its catalog identity and explicitly reloads the
+source with a new generation. Cancelled/zero-loadable registration leaves the prior
+Selected set intact.
 
 **Open Folder...** uses the native single-folder picker and registers one existing
 directory per invocation. Multiple folders remain supported through folder
@@ -310,6 +330,12 @@ their canonical workflows; missing paths use explicit Remove/Keep. A folder is a
 to Recent Folders only when registration finds at least one supported image; a
 zero-image Open Folder operation leaves folder history unchanged. Recent history was
 introduced outside Settings schema v5 and owns no source/runtime state.
+
+Production Recent Folder/Session checks and Session artifact/source preparation run
+in bounded background work before GUI commit. Configured/last-used dialog locations
+are also validated off-thread before opening the chooser. **Cancel path check**
+cancels pending Session/dialog preparation; supersession and close revoke late
+results. A blocked OS call may still need to finish before final window teardown.
 
 ### RAW input resolution
 
@@ -681,7 +707,28 @@ Folder Position deep, on a dedicated max-one worker; an exact matching physicall
 RUNNING preload may transfer logical authority to foreground without duplicate
 decode. P5-C/P5-D add no Remote-IQA-owned preload system.
 
+## Source Primary cycling
+
+`T` rotates only real source documents within the current six-image Comparison Page:
+the last source in presentation order becomes Primary and precedes the retained
+relative order of the other sources. Files/Selected order and Difference's A/B
+binding remain unchanged. In Single View the same rotation changes the visible
+source without traversing Difference. Split-derived tiles and Difference are
+excluded; a one-source page is a no-op. The former hold-B Blink presentation is
+removed. T belongs only to the Image View and Files focus scopes, preventing
+plain-text editor interception; held-key autorepeat cannot cause repeated cycles.
+
 ## Difference contract
+
+Eligible explicit two-source drops in Files or Image View show the sources while
+Quick Compare prepares the Difference map and metrics in the background. Difference
+display starts off; the toolbar Diff action becomes available when a matching map
+is cached. Explicit display may render its first preview, without recomputing the
+cached numerical map. Repeated Calculate reuses matching map/metrics/preview caches;
+Calculate during passive computation promotes that worker rather than duplicating
+it. Ordinary Files selection remains passive, and three-or-more-file drops do not
+choose an arbitrary new pair. Failures, cancellation, or stale requests must not
+freeze source repaint or display a superseded pair.
 
 Difference compatibility is family-based: Gray compares only with Gray,
 RGB/RGBA compares only with RGB/RGBA with alpha ignored, and Bayer compares only
@@ -876,3 +923,151 @@ Arbitrary-angle Line Profile is also deferred. Line Profile is an observation/
 sampling tool, so a future arbitrary-angle design requires an explicit discrete
 pixel-sampling/path and coordinate-display contract rather than implicitly adopting
 interpolation.
+
+## Memo inspection evidence
+
+**View > Memo** is an optional ROI list for the current image comparison. A manual
+ROI gesture with Record ROI enabled captures a blank note and per-source 8-bit PNG crops.
+Title/note edits update memory immediately; selecting an ROI row revisits that
+record. Delete works on the focused ROI list. There is no Add/Delete or Update button,
+file catalog, source matching or file browsing inside Memo.
+
+All current Memo ROI entries are visible as passive rectangles with numbered
+top-left labels in their verified original viewers. The selected entry is
+emphasized; these decorations do not edit the analysis ROI, intercept mouse input
+or affect Fit bounds. Selection/reset/source-generation changes revoke their
+bindings rather than matching files by path or basename.
+
+Changing Selected membership/order or comparison page discards the temporary
+notebook and clears its editor. Selecting the old files never retrieves notes.
+Open Memo is the explicit way to reopen saved work; verified navigation remains
+one-way from Memo to the original viewer. Missing originals leave notes readable, without an in-app fallback image. RAW/YUV input settings can be supplied through the existing File workflow.
+
+Save Memo is the single persistence command: a named folder contains a same-named
+metadata-only JSON `.pxmemo`, root `index.html` and relative `src/` assets.
+No separate Export controls are exposed. Amber Unsaved and
+green Saved markers identify memory versus persisted state. Unsaved notes are
+not retained across image-context changes or application close. Text edits do not
+replace crop pixels or recompute metrics. HTML omits automatic original paths;
+the editable local record can contain them. Single View captures its visible
+original, while Multi View captures the comparison page. Session v1 remains unchanged.
+
+Save suggests `Memo_<first-source>_YYYYMMDD_HHMMSS.pxmemo` using local time and
+creates the matching folder. The map inventories files, directories, source/ROI
+metadata and content digests; it embeds no PNG/CSV payload. Successful Save
+opens the HTML in the default browser automatically. Exact undecorated ROI PNGs are in `src/crops/`,
+without text or margins. HTML and metadata contain source basename and ROI
+x/y/width/height. New saves omit duplicate src/originals assets. Optional native CSVs
+are in `src/statistics/`. Relative paths support moving the whole
+folder. Save stages and validates the complete generation before publication;
+failed installation restores the previous folder, or retains a recovery copy if
+rollback itself fails. Edited/foreign files/directories and linked asset paths
+are refused. Old ZIP `.pxmemo` and `.pxreview` remain readable; saving a legacy
+notebook creates the new folder without replacing its old file.
+If only temporary backup cleanup fails after publication, the new folder remains
+Saved with its committed revision and an explicit cleanup warning/recovery location;
+retrying Save does not falsely report an external revision conflict.
+
+**Ctrl+Shift+M** toggles View > Memo, including while its floating window has focus.
+Memo uses the common opaque dock chrome and painted controls. Selecting a Memo
+whose explicit runtime source IDs/generations are still ready applies only its ROI
+and note, fitting visible viewers around the ROI with context through canonical
+physical zoom while preserving tool context. It does not hash/re-register,
+decode/reload or reconstruct the viewers. Opening a saved notebook, or unavailable
+runtime bindings, still uses the verified restore path. Active-ROI analysis can
+update normally; historical saved Statistics never replace live numerical authority.
+
+See [the ROI simplification plan](exec-plans/active/memo-roi-simplification.md)
+for acceptance evidence and inherited native environment limitations.
+
+Memo has no embedded crop preview or redundant coordinate/source summary. Repeat
+saves retain the root directory, back up files and commit metadata last.
+
+Memo exposes an accessible pill **Record ROI** switch, disabled without ready
+selected originals. Opening enables recording
+of future user-drawn ROIs; hiding disables it, cancels pending capture, clears the
+active analysis ROI and hides all Memo boxes while retaining note records. Off keeps
+notes visible/editable while ROI gestures follow ordinary analysis behavior. Turning
+on or reopening does not capture a pre-existing ROI. Add/Delete buttons are removed;
+Delete removes selected records only when the ROI list has keyboard focus, then
+selects the next remaining record. Ctrl+A selects all; deleting clears old analysis
+boxes before showing the next ROI.
+Esc/analysis Clear cancels Memo capture/statistics/restore and clears its selection
+without deleting records, before the canonical analysis ROI clear runs.
+
+Memo has no routine footer notifications or report link: only Open/Save buttons.
+Errors use a warning dialog; header Saved/Unsaved remains. Native Statistics and
+Histogram share the existing per-document cache; explicit list navigation flushes
+the canonical pending request without creating a second producer or cache.
+
+### Narrow ROI context presentation
+
+The existing Analysis Region summary reflows below Bounds/Edit when the sidebar
+cannot fit the full context row. It returns to the compact two-row form when width
+allows. The narrow layout omits the redundant Scope caption while keeping the
+selected scope value and accessible control name. Edit remains reachable and full coordinates remain in
+tooltip/accessibility. This changes presentation only; the sidebar remains
+collapsible, and numerical ROI/source/analysis identities are unchanged. Extremely
+small collapsed widths can still elide content.
+
+### Analysis source label context
+
+Images/Statistics context, Histogram titles and Line Profile retain an already
+resolved source alias or explicit tag without prepending the immediate folder
+again. Standalone inputs with only a bare basename retain their legacy folder/name
+fallback. Labels are presentation only; source IDs, generations, arrays, cache
+keys and numerical requests remain unchanged.
+
+### Compact Memo bookmark labels
+
+The main toolbar includes a Memo button next to Plots, using the same line-icon
+style and checked-state treatment. It shares the View > Memo / Ctrl+Shift+M action;
+closing or floating the dock keeps its checked state synchronized with visibility.
+
+Memo Viewer bookmark labels use compact ROI ordinals. Full titles remain in the
+ROI list, editor and saved evidence; changing a title does not widen the overlay.
+Labels use compact normal-weight type and minimal background padding. Colliding
+labels move below or beside their ROI and stay within the visible viewer where
+space allows; zoom and resize update placement without moving ROI rectangles.
+If all labels cannot physically fit, placement minimizes overlap without dropping
+records.
+Labels for offscreen ROI rectangles hide and reappear with the rectangle. Dense
+placement uses a fixed work budget to keep pan/zoom responsive, preferring the
+best tested position if the budget is exhausted.
+
+Generated Memo HTML wraps long titles, note tokens and filenames within the report
+width. Stored text and note line breaks remain intact; figures constrain preview
+display width without changing saved crop PNGs or metadata/CSV assets.
+
+### Native UI sizing and retained physical view
+
+RAW profile auto sizing reserves native window chrome within the available screen
+height. The body scrolls when necessary while the action footer stays reachable;
+manual user sizing is retained. GRAY/BAYER content expands independently of the
+outer window when the available height already caps both layouts.
+
+When a synchronized comparison changes tile geometry while preserving its view,
+retain the pre-layout physical zoom and reference center. Reinterpreting the old
+range using new viewport dimensions must not change that scale. Saved-range
+restoration and unsynchronized viewer navigation retain their existing contracts.
+
+Generated Memo reports use ROI cards, metadata badges and a local Copy memo action.
+Crop icon buttons open the exact stored preview in a new tab without navigating
+the report; browser popup policy may prevent the extra tab. A folder button before
+the ROI jump links opens the saved assets directory (`src/` in folder reports).
+When saved native ROI Statistics are available, an escaped channel-grouped table
+shows the seven saved metrics and compatible signed deltas relative to image 01.
+HTML numbers use at most four decimals; the downloadable CSV retains full evidence.
+Narrow tables scroll within their own region. Separately labeled 8-bit Preview
+PSNR compares stored, pixel-aligned crops with peak255; it is not native RAW PSNR.
+
+Memo report crop captions do not repeat shared ROI coordinates; those appear only
+in the ROI header. Checking Statistics after an existing resident ROI is selected
+attaches matching ready native evidence to all eligible recorded ROIs without
+recropping. A bounded, generation-matched evidence cache supports earlier ROIs;
+missing evidence requires revisiting that ROI. Pending inclusion waits for analysis
+settlement, and checked Save requires native Statistics for every recorded ROI.
+Histogram evidence cannot satisfy this requirement. Unchecking cancels pending
+inclusion and future capture, retaining already stored historical Statistics.
+The Memo footer can reopen the last saved folder-mode HTML without saving current
+edits. Its report icon is disabled before Save/Open or when the HTML is unavailable.

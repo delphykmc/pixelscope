@@ -1,5 +1,139 @@
 # PixelScope current state
 
+### 2026-11-18 Memo closeout and remaining UNC paths
+
+Memo HTML v10 PR #241 merged as `41ef9ff0` after owner acceptance, independent
+source review, 174 combined Memo/Recent/Session tests and three successful final CI
+workflows. #240 is closed. Existing baseline RAW height failure remains explicitly
+deferred under #236; historical HOLD/full-test records are retained.
+
+Issue #242 follow-up now moves Recent Folder/Session checks and configured-dialog
+directory validation off the GUI thread, with bounded preparation, cancellation
+and late-result fencing. See the [active plan](exec-plans/active/issue-242-explicit-open.md)
+for actual validation and remaining limits. #242 remains open pending review.
+
+### 2026-11-18 disconnected UNC Recent startup correction
+
+PR #243 merged as `f72d1b74` after independent source review and final CI success,
+with owner-approved separate disposition of the existing RAW height failure.
+Owner next prioritizes Memo PR #241 closeout, then #242 explicit-open/dialog-path
+work, before the separate RAW follow-up. Historical HOLD records remain preserved.
+
+Issue #242's startup slice replaces filesystem resolution with lexical Recent-path
+normalization and removes Session history callback re-resolution. Stored missing
+paths remain listed; source discovery still owns canonical identity. See the
+[execution plan](exec-plans/active/issue-242-recent-startup.md) for validation and
+limits. Explicit Recent Folder/Session open and dialog-directory checks remain
+synchronous follow-up work; this slice does not close all of #242 or change Memo
+PR #241's independent merge gate.
+
+> **Memo folder/live-selection candidate (2026-11-12, unmerged):**
+> `codex/memo-folder-live-switch-20261112` stores a metadata-only map and root HTML
+> with relative `src/` evidence in one guarded folder generation. Old ZIP reading
+> is retained. Resident ROI selections avoid reload/registration/viewer rebuilding;
+> Memo uses opaque common dock chrome and Ctrl+Shift+M. See
+> [the execution record](exec-plans/active/memo-folder-live-switch.md) for validation
+> and remaining PR/completion evidence. Earlier #228 format notes are historical.
+> Source/test `909f8932` passed **1,955 tests, 1 warning in 468.49s** with normal
+> Windows GC. Independent code re-review accepted cleanup-revision and folder-name
+> fixes. PR creation is the final delivery step; this branch is not merged.
+
+> **Memo Viewer/report feedback candidate (2026-11-12, unmerged):**
+> `codex/memo-viewer-report-20261112` adds passive labeled outlines for all current
+> Memo ROIs, a default save filename, a generated sibling HTML/PNG/CSV report folder
+> with an Open report link, and crop filename/coordinate footers. Canonical archive
+> crops, Session and one-way/reset semantics remain unchanged. Focused regression
+> Source/test `785659db` passed **1,936 tests, 1 warning in 450.57s** with normal
+> Windows GC. Independent code review found no actionable issue; its pure
+> archive/report selection passed 25 tests. Full evidence and actual screenshots
+> are in [the feedback plan](exec-plans/active/memo-viewer-report-feedback.md).
+> PR #228 tracks final review/merge. This is separate from the completed
+> eleven-failure check.
+
+> **Historical eleven-failure verification complete (2026-11-12):** at merged
+> `main@97a356f0`, the exact eleven previously failing tests passed in 8.27s and
+> the subsequent normal-GC Windows full suite passed **1,918 tests, 1 warning in
+> 449.51s**. No production defect reproduced and no source/test changes were made.
+> Per the owner's bounded completion rule, this investigation is complete; no
+> further root-cause work is pending for those eleven failures. The original cause
+> remains unconfirmed. Issue #210 stays open for its broader scope. See
+> [the completion record](exec-plans/active/issue-210-review-merge-followup.md#bounded-eleven-failure-verification-complete).
+
+> **ROI Memo review / Windows validation (2026-11-12):** PR #227 source/test
+> `5cc63835` passed **1,918 tests, 1 warning in 447.33s**, normal Windows GC.
+> Independent review accepted the source after fixing a reproduced external-save
+> revision race; the archive regression preserves the newer external bytes.
+> Tracked Ruff (402 files), mypy (132 files), docs, strict MkDocs and dependency
+> checks passed. The historical eleven UI failures did not reproduce on today's
+> 3440x1392 desktop with available native clipboard access; they are not claimed
+> repaired by the Memo change. PR #227 / Issue #210 track the merge outcome and
+> post-wake investigation. See [the review/follow-up record](exec-plans/active/issue-210-review-merge-followup.md).
+> Earlier candidate/Draft statements below are dated historical checkpoints.
+
+> **Memo evidence / preset cleanup candidate (2026-11-09, unmerged):**
+> `codex/memo-evidence-cleanup-20261109` consolidates W09b #222 and actual W05/W06
+> retirement from #224. Preset engines and hide-only toolbar compatibility are
+> removed. Memo captures per-ROI PNGs and optional presented native Statistics,
+> saves `.pxmemo` with HTML/PNG/CSV, reopens evidence without originals, and now
+> uses one current-context ROI list with immediate memory edits and selection reset.
+> Separate Export/Update/source browsing controls are retired; see
+> [the current simplification](exec-plans/active/memo-roi-simplification.md). Legacy `.pxreview` stays readable. Earlier W05/W09b records
+> below are historical acceptance for their named SHAs, not acceptance of this
+> reshaped implementation. See [the active plan](exec-plans/active/memo-evidence-cleanup.md)
+> for current scope, evidence and remaining validation. No MAIN merge is claimed.
+
+> **W09b Named Findings — PR #222 Windows integration accepted (2026-11-06):**
+> production bootstrap/terminal/teardown wiring is exercised with independent
+> save/restart processes and 3 Findings over 2/4/6 RAW/YUV sources. `Side by Side`
+> capture and restored Sync button state are fixed. Source/test `1536689f` passed
+> **1,951 tests, 1 warning** under normal Windows GC; no implicit Difference
+> Calculate during restoration. [Acceptance and environment limits](exec-plans/active/issue-210-w09b-owner-acceptance.md)
+> distinguish automated native UI evidence from independent review, which remains
+> pending. PR preparation is complete; this does not state W09b is merged into MAIN.
+
+> **W05 comparison presets — PR #218 prepared for merge (2026-11-05):**
+> runtime Original 2/4, A/B/Diff and Diff Focus now use canonical MainWindow
+> Presented/Active/residency publication and verified per-source physical-view
+> continuity with Sync Off. No Session schema or implicit Difference Calculate.
+> Code commit `b45a28f4` passed 1,846 normal-GC Windows tests and independent review.
+> Validation limits and the W06/W09 handoff are recorded in
+> [the W05 completion plan](exec-plans/completed/issue-210-w05-completion.md).
+> This is PR preparation evidence; W05 is not yet merged into MAIN.
+
+> **Source cycling convenience validated (2026-10-20):** T rotates the last
+> page-local source to Primary in both Single and Multi View. Hold-B Blink is
+> retired; Difference/derived tiles are excluded. Windows full validation passed
+> 1,567 tests, including replacement of stale Blink runtime coverage; native keyboard
+> checks confirmed source cycling and Display Gain preservation. See the
+> [validation record](exec-plans/completed/pr194-source-cycle-validation.md), including
+> the non-terminating Windows diagnostic and unrelated untracked-lint limitations.
+
+> **Network interaction performance follow-up (2026-10-16, owner accepted):**
+> [PR #188](https://github.com/delphykmc/pixelscope/pull/188) addresses the owner's post-#187 interaction
+> report. Resident 4K RGB pair selection identified redundant pyqtgraph RGB
+> rescaling during GUI paint. The accepted first slice removes it, uses a 256-code uint8
+> display-transform lookup, and moves image-surface drop classification into the
+> existing registration worker. The owner confirmed improvement and authorized
+> merge; Windows full validation passed 1,513 tests. Detailed SMB/Explorer matrix, coordinated gain
+> publication and explicit Folder Position Difference intent remain open. See
+> [the measurements and validation plan](exec-plans/active/network-interaction-performance.md).
+
+> **Issue #180 performance integration (2026-10-16):** reviewed PRs #182, #183,
+> and #184 merged in order, ending at `main@c453789574be6a68d24736a3bd2ed01748168522`.
+> Their combined source passed all 1,467 Windows tests under CPython 3.10.11 and
+> normal automatic GC. Explicit two-source Quick Compare drops prepare Difference
+> in the background with display initially off; Files drag selection commits once
+> at release; exact native uint8 histograms use the bounded OpenCV fast path.
+> Primary styling #185 and stable Histogram/Analysis presentation #186 also merged,
+> ending at `main@f549c24342ce05ed96f7fa9ae3e0597e90324f1a`. #186 records 1,471
+> pre-merge tests and 130 post-merge integration tests passing. The completed
+> [stack/Primary record](exec-plans/completed/issue-180-performance-followup.md)
+> preserves its measurements. PR #187 routes production Open Images/Recent Images
+> through queued registration, including worker-side Recent Image network-path
+> validation and rejection of late Difference callbacks after shutdown. #180 remains
+> open for final real-network/human acceptance evidence in
+> [the active plan](exec-plans/active/issue-180-open-images.md).
+
 > **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.
 Snapshot date: 2026-09-10
 Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
@@ -621,3 +755,130 @@ P7-E Final Release Qualification                   DEFERRED
 
 Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate from MAIN gates
 ```
+
+### 2026-11-12 Memo feedback candidate (historical pre-merge record)
+
+Exact crop-only PNGs, simpler Memo, ROI-centered navigation and native Windows
+locked-HTML repeat-save fix are tracked in
+[the feedback plan](exec-plans/active/memo-simple-crops-resave.md).
+
+Additional controls: [explicit Memo recording](exec-plans/active/memo-recording-controls.md)
+adds On/Off, list-only Delete, removes redundant Add/Delete buttons and cancels
+pending Memo work on Esc while retaining notes. This was the pre-merge state.
+
+Latest PR #229 follow-up: [switch/fit/clean-footer plan](exec-plans/active/memo-switch-fit-clean-footer.md)
+tracks accessible recording, bulk deletion, ROI fit, native cache reuse and automatic
+HTML opening. This historical candidate preceded the resolved gate recorded below.
+
+### 2026-11-13 Memo final review and validation
+
+Owner accepted the visible workflow and authorized review, merge and six-hour sleep.
+PR #229 source/test HEAD `db351ef863ae6da4fd2a9d9139723fd6b361dfa7` passed normal-GC
+native Windows full pytest: **1961 passed, 1 intentional ZIP-tamper warning in
+467.40s**. Independent read-only source review is **PASS**. All executed CI checks,
+tracked-Python Ruff/format and pip check passed. The earlier native gate is resolved;
+older failure records remain historical rather than current blockers.
+The [merge-readiness closeout](exec-plans/active/memo-switch-fit-clean-footer.md#2026-11-13-merge-readiness-closeout)
+records exact commands, reviewed scope and remaining physical DPI/SMB/packaged
+execution limits. Only documentation follows that tested source. PR #229 records
+the actual merge outcome; Issue #210 receives a comment without changing its
+already-closed state. No automatic work continuation is authorized after wake.
+
+### 2026-11-13 screenshot-led sequential UI follow-up
+
+PR #229 merged at `603626d14a479a2a7ad3de74d5b23f57a50abc0c`; Memo implementation
+and its independent review/full local gate are complete. Historical #210 is closed;
+its latest summary links [#230](https://github.com/delphykmc/pixelscope/issues/230).
+The original W00-W13 table is not the current implementation queue. Retired presets,
+multiple Memo exports and automatic matching remain retired; format/matching
+expansion still requires concrete needs. Current work is
+[the sequential readability plan](exec-plans/active/ui-readability-sequential.md).
+UI-01 (#231) reflows only the ROI summary at narrow sidebar widths; other visual
+candidates require their own capture evidence. No new merge/sleep is authorized.
+
+UI-02 (#233) follows on a separate branch stacked on UI-01 Draft #232. Actual
+long/duplicate-name captures found redundant immediate-parent prefixes in analysis
+labels despite resolved Files/Viewer aliases. The
+[source-label plan](exec-plans/active/ui-source-labels.md) preserves resolved aliases
+and standalone basename fallback without changing source/cache authority. Focused
+results do not imply new whole-repository validation or merge approval.
+
+### 2026-11-14 recurring native UI failure audit
+
+Owner approved UI-01/UI-02 screenshots but raised the repeated eleven failures as
+a merge concern. The [native failure audit](exec-plans/active/native-ui-failure-audit.md)
+supersedes any inference that their earlier non-reproduction resolved their cause;
+dated historical PASS records remain intact. Merge is held. Clipboard access fails
+in a fresh Win32-only process before Qt import. RAW screen-clamp auto-fit and
+Difference relayout physical-scale preservation defects are reproduced and being
+fixed on a separate branch; focused results are not a whole-repository PASS.
+
+### 2026-11-15 owner-authorized sequential integration
+
+Owner explicitly accepts recording the nine clipboard failures with session lock
+as a potential environmental cause and authorizes sequential integration of
+#232, #234, #237 and #238 after checking other tests. This supersedes the merge
+hold above, not the unresolved cause: clipboard success in an unlocked session
+has not been established. No clean full-suite or comprehensive lifecycle claim.
+Reviewed source41b49b3f includes narrow ROI summaries, source-label consistency,
+RAW screen fit/physical-zoom fixes, compact collision-aware Memo labels and the
+canonical toolbar Memo action. See the [audit closeout](exec-plans/active/native-ui-failure-audit.md)
+for exact results, exceptions and later test/docs-only successor; PR comments
+record actual sequential merge SHAs. Historical failure records are preserved.
+
+### 2026-11-16 unlocked native clipboard verification
+
+At merged main ba0afd00, owner unlocked Windows and requested the failed cases be
+rerun. WTS SessionFlags changed from0 (locked) to1 (unlocked); the unchanged
+Qt-free native probe now opens the clipboard successfully with both NULL and its
+own window handle. The exact nine previously failing clipboard nodes passed
+**9 tests in8.68s**. This supplies the missing unlocked-session control and supports
+classifying this recurrence as lock-dependent native execution behavior, without
+a clipboard product-code fix. Historical failures remain recorded; this focused
+PASS does not replace the repository-wide validation record. See the
+[audit](exec-plans/active/native-ui-failure-audit.md) for context and limits.
+
+### 2026-11-17 Memo HTML readability candidate
+
+After PR239 merge e6e2265a, actual Chrome review reproduced long report text
+overflow (1689px viewport/4760px document). A bounded HTML style change wraps text
+and constrains figure width without changing crops, CSV/map data or Save workflow.
+Browser2/4/6-source fixtures and960px width are recorded in the
+[HTML readability plan](exec-plans/active/memo-html-readability.md). This candidate
+is separate from merged work and remains subject to UI review; file-URL automation
+was policy-blocked, so browser evidence uses permitted synthetic-only loopbackHTTP.
+
+### Memo HTML cards candidate — PR #241 (2026-11-17, unmerged)
+
+Owner feedback extends the report with prominent ROI cards, metadata badges,
+per-crop PNG download and explicit memo copy. Saved Statistics now appear in a
+readable table alongside CSV. Historical v3/v2/legacy ZIP readers remain guarded.
+See [execution evidence](exec-plans/active/memo-html-readability.md). Owner UI
+acceptance and merge remain pending.
+
+PR241 owner follow-up (unmerged): compact crop presentation removes repeated
+coordinates/card borders; late Statistics opt-in now targets the selected existing
+ROI. Before-fix one/two-image tests reproduced the omission; exact behavior and
+validation remain in the Memo HTML execution record.
+
+Owner-requested verification at source57863aba: actual app late-toggle/Save and
+Chrome report checks confirmed shared coordinates plus saved Statistics/CSV.
+Native normal-GC full pytest: **1999 passed,1 failed,1 warning in647.31s**; the sole
+RAW compact-height failure also reproduces unchanged on pre-Memo e6e2265a.
+This is not a clean full-suite PASS. See the same execution record for baseline,
+independent review, command details and remaining owner acceptance. No merge.
+
+### 2026-11-18 Memo v10 owner acceptance and current gate
+
+Owner checked the later PR241 behavior and authorizes merge only after validation
+finds no issue. Latest fetched source7dbc72f2 includes unified Statistics/preview
+PSNR, strict all-ROI evidence, saved-HTML reopening and stable new-tab assets.
+Independent re-review found cached ROI revisits did not reattach Memo evidence
+after bounded-cache eviction. The narrow navigation-flush correction has a failing
+before/passing-after regression; **85 focused tests passed in40.11s**. Source897221d5
+normal-GC Windows full pytest: **2012 passed,1 failed,1 warning in634.31s**. The sole
+failure remains RAW compact-height1078vs955, with RAW source/tests unchanged since
+pre-Memo e6e2265a. Independent source review and three CI workflows pass, but the
+owner's no-issue merge condition is unmet. PR241 remains Draft/unmerged; the native
+0x8001010d diagnostic is retained and no clean whole-repository PASS is claimed.
+See [the current execution record](exec-plans/active/memo-html-readability.md).

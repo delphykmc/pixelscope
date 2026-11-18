@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Final, Protocol
@@ -47,6 +48,7 @@ class RecentEntriesRepository:
         self._storage = storage
         self._limit = limit
         self._cache: dict[RecentEntryKind, tuple[Path, ...]] = {}
+        self._staged: set[RecentEntryKind] = set()
 
     def load(self, kind: RecentEntryKind) -> tuple[Path, ...]:
         cached = self._cache.get(kind)
@@ -94,6 +96,59 @@ class RecentEntriesRepository:
             self._storage.sync()
         return merged
 
+    def stage(
+        self,
+        kind: RecentEntryKind,
+        paths: Iterable[str | Path],
+    ) -> tuple[Path, ...]:
+        """Update MRU immediately without synchronous persistent I/O."""
+
+        merged = merge_recent_paths(self.load(kind), paths, limit=self._limit)
+        self._cache[kind] = merged
+        self._staged.add(kind)
+        return merged
+
+    def stage_canonical(
+        self,
+        kind: RecentEntryKind,
+        paths: Iterable[Path],
+    ) -> tuple[Path, ...]:
+        """Stage worker-resolved paths without repeating filesystem lookups.
+
+        Only call with canonical paths returned from registration discovery.
+        Existing entries are already normalized when the repository loads them.
+        This does not change the general-purpose stage/record path contract.
+        """
+
+        existing = self.load(kind)
+        merged: list[Path] = []
+        seen: set[str] = set()
+        for candidate in (*tuple(paths), *existing):
+            if not candidate.is_absolute() or "\x00" in str(candidate):
+                raise ValueError("canonical recent paths must be absolute and valid")
+            identity = os.path.normcase(str(candidate))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(candidate)
+            if len(merged) >= self._limit:
+                break
+        result = tuple(merged)
+        self._cache[kind] = result
+        self._staged.add(kind)
+        return result
+
+    def flush_staged(self, *, sync: bool = True) -> None:
+        """Write the latest staged snapshots with one durable sync."""
+
+        if not self._staged:
+            return
+        for kind in sorted(self._staged, key=lambda item: item.value):
+            self._write_value(kind, self._cache[kind])
+        if sync:
+            self._storage.sync()
+        self._staged.clear()
+
     def remove(self, kind: RecentEntryKind, path: str | Path) -> tuple[Path, ...]:
         target = recent_path_identity(path)
         remaining = tuple(
@@ -104,11 +159,13 @@ class RecentEntriesRepository:
 
     def clear(self, kind: RecentEntryKind | None = None) -> None:
         if kind is None:
+            self._staged.clear()
             for candidate in RecentEntryKind:
                 self._storage.remove(self._key(candidate))
                 self._cache[candidate] = ()
             self._storage.remove(LEGACY_RECENT_COMPARISON_SETS_KEY)
         else:
+            self._staged.discard(kind)
             self._storage.remove(self._key(kind))
             self._cache[kind] = ()
             if kind is RecentEntryKind.SESSION:
@@ -130,6 +187,12 @@ class RecentEntriesRepository:
         return []
 
     def _write(self, kind: RecentEntryKind, paths: tuple[Path, ...]) -> None:
+        self._write_value(kind, paths)
+        self._storage.sync()
+        self._cache[kind] = paths
+        self._staged.discard(kind)
+
+    def _write_value(self, kind: RecentEntryKind, paths: tuple[Path, ...]) -> None:
         key = self._key(kind)
         if paths:
             payload = json.dumps(
@@ -140,8 +203,6 @@ class RecentEntriesRepository:
             self._storage.set_value(key, payload)
         else:
             self._storage.remove(key)
-        self._storage.sync()
-        self._cache[kind] = paths
 
     @staticmethod
     def _key(kind: RecentEntryKind) -> str:

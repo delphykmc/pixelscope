@@ -1,0 +1,43 @@
+{
+  "application_version": "0.1.0",
+  "callback_errors": [],
+  "capture_profile": "windows-e1-poc-v1",
+  "error_detail": null,
+  "error_type": null,
+  "fixture_sha256": "895f9930b95aba43dd489c40ff132e41240bdad1d5e5a8ef45ef213bb8e4545d",
+  "geometry": {
+    "device_pixel_ratio": 1.0,
+    "logical_widget": [
+      1680,
+      980
+    ],
+    "pixel_png": [
+      1680,
+      980
+    ]
+  },
+  "image_sha256": "d38f9c7f16739fc7b085f0f907f2954a00f28a2ad99c33463ae427bc5a3ae14f",
+  "os": "Windows-10-10.0.26200-SP0",
+  "pyqtgraph": "0.13.7",
+  "pyside6": "6.4.2",
+  "python": "3.10.11",
+  "qt": "6.4.2",
+  "scenario": "six_image_multiview",
+  "schema_version": 1,
+  "screen": {
+    "available_geometry": [
+      1024,
+      720
+    ],
+    "device_pixel_ratio": 1.0,
+    "geometry": [
+      1024,
+      768
+    ],
+    "logical_dpi": 96.0,
+    "name": "S34J55x",
+    "physical_dpi": 45.60727955056688
+  },
+  "source_sha": "603626d14a479a2a7ad3de74d5b23f57a50abc0c",
+  "status": "captured"
+}
