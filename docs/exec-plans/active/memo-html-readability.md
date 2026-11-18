@@ -335,3 +335,42 @@ Issue triage snapshot (2026-11-18; read-only issue review, no automatic closures
   PRIVATE reader/writer roundtrip and Full conversion/package acceptance remain
   downstream gates. Their latest comments supersede older body checkpoints; none
   authorizes importing Enterprise work into PUBLIC main or packaging in this task.
+
+### Final current-source validation and merge disposition
+
+The cached-revisit correction and narrow document reconciliation were committed
+and pushed as897221d5d53b12288458065bb228d7637701ca20 with the configured owner identity
+and ChatGPT co-author trailer. Exact-source independent re-review is **PASS**; no
+Memo source finding remains. Three current-source GitHub workflows also completed
+successfully (Change-scoped validation, User Guide validation, pinned Windows
+screenshot comparison). Their scoped pytest skip does not substitute for local
+execution.
+
+Observed full command, ordinary native Windows/default external temp/normal GC:
+`.venv/Scripts/python.exe -m pytest -q --junitxml=temp/pr241-merge-corrected-full-20261118.xml`
+→ **1 failed,2012 passed,1 warning in634.31s**, exit1. Sole failure:
+`tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_gray_bayer_gray_restores_compact_height`,
+**1078vs955** at line283. RAW production/test diff against pre-Memo e6e2265a is
+empty; the earlier valid focused controls remain historical evidence, not a new
+root-cause claim. Native0x8001010d and the intentional ZIP-tamper duplicate-entry
+warning remain in temp/pr241-merge-corrected-full-20261118.log. No tests were
+deselected, asserted more weakly, timed out more generously or silently waived.
+All Memo tests, including the new cached-revisit regression, passed in this run.
+
+**Merge disposition: HOLD.** The owner's instruction is conditional on no issues;
+the known full-suite failure is not an approved exception. Keep PR241 Draft and
+unmerged. A bounded Memo source-review PASS and green CI do not override this
+known full failure under QUALITY.md. RAW compact-height root-cause/fix is the
+remaining local gate; stale-UNC startup #242 remains the next separate P1 product
+issue. Owner-reported v10 visual acceptance is retained. No new browser, physical
+DPI/SMB, package build or security-setting acceptance is asserted by this turn.
+
+Changed tracked files in this turn: `src/pixelscope/ui/review_window_integration.py`,
+`tests/ui/test_memo_roi_workflow.py`, `docs/ARCHITECTURE.md`, `docs/CURRENT_STATE.md`,
+`docs/PRODUCT_SPEC.md`, this execution record and
+`docs/user-guide/workflows/review-findings.md`. No unrelated untracked file changed.
+Final docs contract and whitespace checks passed; strict MkDocs built in1.27s.
+Independent evidence re-review verified XML2013 tests with one failure and zero
+errors/skips, the1078vs955 assertion and unchanged RAW diff. It retains the bounded
+source PASS and merge-gate HOLD. PR update/comment is explicitly ChatGPT-assisted; no issue is
+automatically closed, no merge or packaging command is run.

@@ -848,7 +848,10 @@ finds no issue. Latest fetched source7dbc72f2 includes unified Statistics/previe
 PSNR, strict all-ROI evidence, saved-HTML reopening and stable new-tab assets.
 Independent re-review found cached ROI revisits did not reattach Memo evidence
 after bounded-cache eviction. The narrow navigation-flush correction has a failing
-before/passing-after regression; **85 focused tests passed in40.11s**. Native full
-validation of the immutable correction is pending. Prior RAW/COM evidence remains
-unwaived; no merge or clean whole-repository PASS is claimed at this checkpoint.
+before/passing-after regression; **85 focused tests passed in40.11s**. Source897221d5
+normal-GC Windows full pytest: **2012 passed,1 failed,1 warning in634.31s**. The sole
+failure remains RAW compact-height1078vs955, with RAW source/tests unchanged since
+pre-Memo e6e2265a. Independent source review and three CI workflows pass, but the
+owner's no-issue merge condition is unmet. PR241 remains Draft/unmerged; the native
+0x8001010d diagnostic is retained and no clean whole-repository PASS is claimed.
 See [the current execution record](exec-plans/active/memo-html-readability.md).
