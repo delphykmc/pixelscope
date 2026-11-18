@@ -97,6 +97,7 @@ from pixelscope.ui.design_tokens import (
     panel_heading_style,
     toolbar_style,
 )
+from pixelscope.ui.dialog_preparation import prepared_dialog
 from pixelscope.ui.difference_panel import DifferencePanel, DifferenceSamplingSnapshot
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
@@ -190,6 +191,7 @@ class MainWindow(QMainWindow):
         self._normal_load_stale_drop_count = 0
         self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
+        self._close_confirmed = False
         self._review_terminal_notifying = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
@@ -767,6 +769,7 @@ class MainWindow(QMainWindow):
         self.plots_action.setChecked(True)
         self._set_plots_visible(True)
 
+    @prepared_dialog(export=True)
     def export_statistics(self) -> None:
         if self.comparison_analysis_panel.table.columnCount() == 0:
             self.statusBar().showMessage("No statistics to export", 3000)
@@ -1141,6 +1144,7 @@ class MainWindow(QMainWindow):
             self._update_empty_workspace_state()
             self._evict_resident_documents()
 
+    @prepared_dialog()
     def open_images(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self,
@@ -1180,6 +1184,7 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("No supported images opened", 4000)
 
+    @prepared_dialog()
     def open_folders(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self,
@@ -4162,12 +4167,12 @@ class MainWindow(QMainWindow):
         return session
 
     def _preferred_dialog_directory(self, configured: str) -> str:
-        configured = configured.strip()
-        if configured:
-            path = Path(configured).expanduser()
-            if path.is_dir():
-                return str(path)
-        return self._last_directory
+        prepared = getattr(self, "_prepared_dialog_directory", None)
+        if isinstance(prepared, str):
+            return prepared
+        # Command entry points validate candidates off-thread before showing a
+        # chooser. This presentation helper must never probe a network path.
+        return configured.strip() or self._last_directory
 
     def _open_dialog_directory(self) -> str:
         return self._preferred_dialog_directory(self.application_settings.default_open_directory)
@@ -4267,11 +4272,25 @@ class MainWindow(QMainWindow):
         self.set_layout_mode("Auto")
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def _confirm_close_request(self) -> bool:
+        """Accept a close before either close filter revokes workers.
+
+        A rejected review prompt must leave both worker controllers usable.
+        Accepted confirmation is cached across deferred worker-drain closes.
+        """
+        if self._close_confirmed:
+            return True
         named_review = self.__dict__.get("named_review_coordinator")
         if named_review is not None and not named_review.confirm_close():
+            return False
+        self._close_confirmed = True
+        return True
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._confirm_close_request():
             event.ignore()
             return
+        named_review = self.__dict__.get("named_review_coordinator")
         self._closing = True
         if named_review is not None:
             # Stop Review epochs/workers before disposing source viewports.

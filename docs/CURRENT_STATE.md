@@ -1,5 +1,17 @@
 # PixelScope current state
 
+### 2026-11-18 Memo closeout and remaining UNC paths
+
+Memo HTML v10 PR #241 merged as `41ef9ff0` after owner acceptance, independent
+source review, 174 combined Memo/Recent/Session tests and three successful final CI
+workflows. #240 is closed. Existing baseline RAW height failure remains explicitly
+deferred under #236; historical HOLD/full-test records are retained.
+
+Issue #242 follow-up now moves Recent Folder/Session checks and configured-dialog
+directory validation off the GUI thread, with bounded preparation, cancellation
+and late-result fencing. See the [active plan](exec-plans/active/issue-242-explicit-open.md)
+for actual validation and remaining limits. #242 remains open pending review.
+
 ### 2026-11-18 disconnected UNC Recent startup correction
 
 PR #243 merged as `f72d1b74` after independent source review and final CI success,

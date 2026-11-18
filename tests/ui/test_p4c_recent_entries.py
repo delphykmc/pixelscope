@@ -34,6 +34,13 @@ def _ready_document(path: Path, value: int = 1) -> ImageDocument:
     )
 
 
+def _wait_recent(qtbot: object, window: MainWindow) -> None:
+    qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
+    preparation = getattr(window, "path_preparation_controller", None)
+    if preparation is not None:
+        qtbot.waitUntil(lambda: preparation.is_idle)  # type: ignore[attr-defined]
+
+
 def _register(window: MainWindow, *documents: ImageDocument) -> None:
     for document in documents:
         window.add_document(document, select=False)
@@ -247,13 +254,15 @@ def test_recent_session_delegates_to_session_loader_and_promotes_mru(
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
     target = tmp_path / "review.pixelscope"
-    target.write_text("{}", encoding="utf-8")
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window.session_controller.save_to_path(target)
     calls: list[Path] = []
     feedback: list[tuple[Path, int, tuple[Path, ...]]] = []
     monkeypatch.setattr(
         window.session_controller,
-        "open_from_path",
-        lambda path: (calls.append(Path(path)) or (3, ())),
+        "open_prepared",
+        lambda prepared: (calls.append(prepared.path) or (3, ())),
     )
     monkeypatch.setattr(
         window.session_controller,
@@ -262,6 +271,7 @@ def test_recent_session_delegates_to_session_loader_and_promotes_mru(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    _wait_recent(qtbot, window)
 
     assert calls == [target]
     assert feedback == [(target, 3, ())]
@@ -357,6 +367,7 @@ def test_missing_recent_entry_remove_and_keep_preserve_workspace(
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: False)
     controller.open_recent(kind, missing)
+    _wait_recent(qtbot, window)
     qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind)[0] == missing.resolve()
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
@@ -364,6 +375,7 @@ def test_missing_recent_entry_remove_and_keep_preserve_workspace(
 
     monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: True)
     controller.open_recent(kind, missing)
+    _wait_recent(qtbot, window)
     qtbot.waitUntil(lambda: window.large_folder_registration_controller.is_idle)  # type: ignore[attr-defined]
     assert controller.repository.load(kind) == (other.resolve(),)
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
@@ -389,6 +401,7 @@ def test_existing_invalid_session_stays_in_history_on_open_error(
     )
 
     controller.open_recent(RecentEntryKind.SESSION, target)
+    _wait_recent(qtbot, window)
 
     assert controller.repository.load(RecentEntryKind.SESSION) == (target.resolve(),)
     assert warnings

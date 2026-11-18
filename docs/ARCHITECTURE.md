@@ -2,6 +2,16 @@
 
 ## Current boundaries and data flow
 
+Explicit Session and file-dialog path preparation uses a window-owned
+`PathPreparationController`: one physically running worker, at most one latest
+pending request, weak GUI continuations and deterministic close deferral. Worker
+functions in `io/session_preparation.py` and `io/dialog_directory.py` receive only
+plain data/repository objects. A definition-time `prepared_dialog` command decorator
+reuses this owner without runtime instance-method replacement. Session GUI commit
+uses registration's `register_prepared_input` metadata context; registration discovery
+itself also receives a standalone callable instead of a bound controller method.
+No filesystem canonicalization is repeated during prepared Session registration.
+
 `io` discovers and decodes files into source arrays. `core.ImageDocument` owns
 native source arrays, metadata, canonical preview data, generation state, and
 source-local caches. `core` performs Bayer handling, display conversion,

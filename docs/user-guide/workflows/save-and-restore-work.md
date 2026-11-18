@@ -34,8 +34,12 @@ Legacy `pixelscope-comparison-set` v1 files remain readable through **Open Sessi
 The File menu provides typed recent entries for Images, Folders, and Sessions. They are best-effort path history and do not own selection, source residency, Difference, or analysis state.
 
 Unavailable network paths remain listed without being checked during startup or menu
-display. Opening a Recent Folder or Session still accesses its location synchronously
-and can wait for an unavailable network connection.
+display. Recent Images and Folders check their locations in the background. Sessions
+are read and their source paths checked in the background before restoring the
+workspace. **Cancel path check** cancels pending Session or file-dialog preparation;
+cancelled results cannot replace your workspace or open a chooser later. A network
+operation already running in Windows may still take time to return, including while
+the application finishes closing.
 
 ## Troubleshooting keywords
 

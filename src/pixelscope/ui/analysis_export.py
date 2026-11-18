@@ -41,6 +41,7 @@ from pixelscope.io.analysis_export import (
     write_line_profile_csv,
 )
 from pixelscope.ui.clipboard_support import set_clipboard_text
+from pixelscope.ui.dialog_preparation import prepared_dialog
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -697,6 +698,7 @@ class AnalysisExportController(QObject):
             _FrozenFeatureAdapter(self.window.difference_panel, "difference"),
         )
 
+    @prepared_dialog(export=True)
     def export_analysis_bundle(self) -> None:
         """Freeze all *currently presented* feature-specific numerical results.
 
@@ -826,6 +828,7 @@ class AnalysisExportController(QObject):
         if not self._shutting_down:
             self.refresh_actions()
 
+    @prepared_dialog(export=True)
     def export_statistics_csv(self) -> None:
         if not self._statistics_ready():
             self.window.statusBar().showMessage("No current statistics to export", 3000)
@@ -847,6 +850,7 @@ class AnalysisExportController(QObject):
         self._remember_success(target)
         self.window.statusBar().showMessage(f"Exported Statistics · {target.name}", 4000)
 
+    @prepared_dialog(export=True)
     def export_histogram_csv(self) -> None:
         series = self._histogram_snapshot()
         if not series:
@@ -869,6 +873,7 @@ class AnalysisExportController(QObject):
         self._remember_success(target)
         self.window.statusBar().showMessage(f"Exported Histogram · {target.name}", 4000)
 
+    @prepared_dialog(export=True)
     def export_line_profile_csv(self) -> None:
         series = self._line_profile_snapshot()
         if not series:
@@ -891,6 +896,7 @@ class AnalysisExportController(QObject):
         self._remember_success(target)
         self.window.statusBar().showMessage(f"Exported Line Profile · {target.name}", 4000)
 
+    @prepared_dialog(export=True)
     def export_difference_metrics_csv(self) -> None:
         result = self._difference_metrics_snapshot()
         if result is None:
@@ -916,6 +922,7 @@ class AnalysisExportController(QObject):
             4000,
         )
 
+    @prepared_dialog(export=True)
     def export_difference_image(self) -> None:
         preview = self._difference_preview()
         if preview is None or self._difference_worker is not None:

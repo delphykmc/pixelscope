@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QMessageBox
 from pixelscope.core.comparison_set import Session
 from pixelscope.io.comparison_set_repository import parse_session_input_profile
 from pixelscope.io.path_discovery import image_input_for_path
+from pixelscope.io.session_preparation import PreparedSession
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.session_restore_overlay import SessionRestoreOverlay
@@ -77,7 +78,18 @@ class SessionController(SessionControllerBase):
         self._progress_update(1, 1.0, "Session validated")
         return self._restore(session)
 
-    def _restore(self, session: Session) -> tuple[int, tuple[Path, ...]]:
+    def open_prepared(self, prepared: PreparedSession) -> tuple[int, tuple[Path, ...]]:
+        if prepared.session is None:
+            raise ValueError("Prepared Session has no validated artifact")
+        self._progress_begin(f"Restoring {prepared.path.name}")
+        self._progress_update(1, 1.0, "Session validated")
+        return self._restore(prepared.session, prepared)
+
+    def _restore(
+        self,
+        session: Session,
+        prepared: PreparedSession | None = None,
+    ) -> tuple[int, tuple[Path, ...]]:
         self._restore_timer.stop()
         self._pending_primary_id = None
         self._pending_active_id = None
@@ -90,7 +102,9 @@ class SessionController(SessionControllerBase):
         missing: list[Path] = []
         source_count = len(session.registered_sources)
         self._progress_update(2, 0.0, f"Checking source paths · 0 / {source_count}")
-        for index, source in enumerate(session.registered_sources, start=1):
+        for index, source in enumerate(
+            session.registered_sources if prepared is None else (), start=1
+        ):
             image_input = image_input_for_path(Path(source.path))
             if image_input is None:
                 missing.append(Path(source.path))
@@ -101,6 +115,11 @@ class SessionController(SessionControllerBase):
                 0.5 * index / max(1, source_count),
                 f"Checking source paths · {index} / {source_count}",
             )
+        prepared_records = {}
+        if prepared is not None:
+            loadable = [(source, record.image_input) for source, record in prepared.sources]
+            missing = list(prepared.missing)
+            prepared_records = {source.path: record for source, record in prepared.sources}
         if not loadable:
             self._progress_update(2, 1.0, "No saved source is currently available")
             self._progress_abort()
@@ -115,10 +134,14 @@ class SessionController(SessionControllerBase):
         path_to_id: dict[str, str] = {}
         loadable_count = len(loadable)
         for index, (source, image_input) in enumerate(loadable, start=1):
-            document_id = self.window._register_input(
-                image_input,
-                resolve_raw_profile=False,
-            )
+            if prepared is None:
+                document_id = self.window._register_input(image_input, resolve_raw_profile=False)
+            else:
+                document_id = (
+                    self.window.large_folder_registration_controller.register_prepared_input(
+                        prepared_records[source.path]
+                    )
+                )
             if document_id is None:
                 missing.append(Path(source.path))
             else:
@@ -151,12 +174,21 @@ class SessionController(SessionControllerBase):
         self._progress_update(3, 0.0, "Restoring Selected, page, and layout")
         self._reset_active_difference()
         self._clear_picks()
-        desired = set(path_to_id)
+        desired = (
+            {str(record.image_input.path).casefold() for _source, record in prepared.sources}
+            if prepared is not None
+            else set(path_to_id)
+        )
         remove_ids = [
             document_id
             for document_id, document in self.window.documents.items()
             if document.source_path is None
-            or str(document.source_path.resolve(strict=False)).casefold() not in desired
+            or str(
+                document.source_path
+                if prepared is not None
+                else document.source_path.resolve(strict=False)
+            ).casefold()
+            not in desired
         ]
         if remove_ids:
             self.window._remove_document_ids(remove_ids)
