@@ -870,7 +870,10 @@ class RawOpenDialog(QDialog):
             # The previous page may have left cached height hints in the
             # scroll area's inner layout. Recompute bottom-up before asking
             # the dialog for its new compact size.
-            signal_levels_layout = self.black_level_stack.parentWidget().layout()
+            signal_levels_group = self.black_level_stack.parentWidget()
+            signal_levels_layout = (
+                signal_levels_group.layout() if signal_levels_group is not None else None
+            )
             if signal_levels_layout is not None:
                 signal_levels_layout.invalidate()
             body_layout = body.layout()
