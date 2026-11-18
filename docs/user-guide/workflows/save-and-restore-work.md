@@ -33,6 +33,10 @@ Legacy `pixelscope-comparison-set` v1 files remain readable through **Open Sessi
 
 The File menu provides typed recent entries for Images, Folders, and Sessions. They are best-effort path history and do not own selection, source residency, Difference, or analysis state.
 
+Unavailable network paths remain listed without being checked during startup or menu
+display. Opening a Recent Folder or Session still accesses its location synchronously
+and can wait for an unavailable network connection.
+
 ## Troubleshooting keywords
 
 **Session**, **Comparison Set**, **Open Recent**, **missing source**, **restore**, **RAW profile**, **YUV profile**, **.pixelscope**.

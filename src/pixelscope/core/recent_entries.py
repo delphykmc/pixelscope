@@ -30,12 +30,18 @@ class RecentEntry:
 
 
 def normalize_recent_path(path: str | Path) -> Path:
-    """Return a normalized absolute path without requiring it to exist."""
+    """Normalize history lexically, without resolving symlinks or probing paths.
+
+    Path.resolve(strict=False) still reaches the filesystem on Windows and may
+    block on disconnected UNC shares before the first window is shown. Actual
+    input discovery owns canonical filesystem identity; passive MRU history does
+    not. abspath collapses dot segments and makes relative callers absolute.
+    """
 
     value = str(path)
     if not value or "\x00" in value:
         raise ValueError("recent entry path must be a non-empty path without NUL characters")
-    return Path(value).expanduser().resolve(strict=False)
+    return Path(os.path.abspath(Path(value).expanduser()))
 
 
 def recent_path_identity(path: str | Path) -> str:
