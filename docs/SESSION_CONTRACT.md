@@ -316,6 +316,14 @@ Legacy `recent/comparison_sets` may be consumed only as migration/read fallback.
 Recent history remains outside ApplicationSettings schema v5 and Reset Settings.
 Each typed submenu owns its own clear command.
 
+History normalization and identity are lexical: absolute paths collapse dot segments
+and use platform case normalization without resolve/stat/existence checks. Loading,
+menu composition, record/remove and Session history notification never probe stored
+paths, including disconnected UNC paths. Startup does not rewrite or discard stale
+entries. Local symlink aliases remain distinct history identities; actual registration
+discovery owns canonical source identity, and `stage_canonical` retains its supplied
+canonical paths without resolving them again.
+
 Missing entries use explicit **Remove / Keep**. Wrong filesystem kind and existing
 invalid Session artifacts remain history unless explicitly removed. Recent
 bookkeeping is best-effort observer metadata: QSettings/history failure cannot turn

@@ -1,5 +1,15 @@
 # PixelScope current state
 
+### 2026-11-18 disconnected UNC Recent startup correction
+
+Issue #242's startup slice replaces filesystem resolution with lexical Recent-path
+normalization and removes Session history callback re-resolution. Stored missing
+paths remain listed; source discovery still owns canonical identity. See the
+[execution plan](exec-plans/active/issue-242-recent-startup.md) for validation and
+limits. Explicit Recent Folder/Session open and dialog-directory checks remain
+synchronous follow-up work; this slice does not close all of #242 or change Memo
+PR #241's independent merge gate.
+
 > **Memo folder/live-selection candidate (2026-11-12, unmerged):**
 > `codex/memo-folder-live-switch-20261112` stores a metadata-only map and root HTML
 > with relative `src/` evidence in one guarded folder generation. Old ZIP reading
