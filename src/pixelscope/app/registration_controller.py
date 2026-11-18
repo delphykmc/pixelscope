@@ -418,6 +418,11 @@ class RegistrationController(QObject):
         self._direct_document_id_set.clear()
         self._direct_paths.clear()
         self._set_progress("scanning", 0, None)
+        # progress_changed is a synchronous Qt signal. Its observers can close
+        # the window, cancel registration, or commit a prepared Session before
+        # a worker exists. Never start a worker for that revoked generation.
+        if self._closing or self._active_generation != generation:
+            return
         worker = TaskWorker(
             _discover_paths,
             self._discovery_function,
@@ -916,6 +921,8 @@ class _RegistrationCloseFilter(QObject):
         self._close_state = "open"
         self._drain_timer = QTimer(self)
         self._drain_timer.setSingleShot(True)
+        # An uninterruptible SMB OS call must not generate a zero-delay hot loop.
+        self._drain_timer.setInterval(100)
         self._drain_timer.timeout.connect(self._continue_close)  # type: ignore[attr-defined]
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
@@ -943,7 +950,7 @@ class _RegistrationCloseFilter(QObject):
         self._close_state = "draining"
         event.ignore()
         if not self._drain_timer.isActive():
-            self._drain_timer.start(0)
+            self._drain_timer.start()
         return True
 
     def _continue_close(self) -> None:
@@ -953,7 +960,7 @@ class _RegistrationCloseFilter(QObject):
         if controller is None:
             return
         if not controller.is_shutdown_drained:
-            self._drain_timer.start(0)
+            self._drain_timer.start()
             return
         window = self.parent()
         if window is None:

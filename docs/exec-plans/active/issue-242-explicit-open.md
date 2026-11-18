@@ -103,3 +103,18 @@ PASS is claimed; the owner observed one RAW compact-height failure (tracked #236
 New close-veto, queued-registration, chunk interleaving, supersession, and MRU
 regressions were added for Windows validation. This is an implementation update,
 not an independent approval; PR #244 remains Draft until tested/reviewed.
+
+### Exact-head re-review follow-up (2026-11-18)
+
+Review of `98ad29fd` accepted the earlier two P1 corrections but found one new
+reentrancy blocker: the `progress_changed("scanning")` callback can synchronously
+revoke or close RegistrationController before `TaskWorker` is constructed. After
+emitting the signal, the controller now rechecks the active generation and close
+flag before constructing/starting any worker. Deterministic tests trigger both
+Session restore and accepted close *inside* that scanning observer and assert no
+stale worker or mutation follows. Registration close-drain polling is bounded to
+100 ms while an uninterruptible OS call runs, tested with a held discovery
+worker and a live GUI event-loop heartbeat. A blocked call can still delay close
+indefinitely; this is an explicit lifetime-safety tradeoff, not a completed
+physical disconnected-SMB acceptance test. New exact-head local validation and
+independent re-review remain outstanding; keep PR Draft.

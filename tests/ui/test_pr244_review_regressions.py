@@ -250,3 +250,116 @@ def test_blocked_session_a_is_fenced_when_session_b_opens(qtbot, monkeypatch, tm
     finally:
         release.set()
         window.close()
+
+
+def test_scanning_progress_reentrant_session_revokes_worker_before_start(qtbot, tmp_path):
+    """The scanning signal may synchronously commit Session before worker creation."""
+    window = _window(qtbot)
+    seed = _document(tmp_path, "reentry-saved.png", 17)
+    window.add_document(seed)
+    saved = tmp_path / "reentry.pixelscope"
+    window.session_controller.save_to_path(saved)
+    prepared = prepare_recent_session(saved, window.session_controller.repository)
+    extra = _document(tmp_path, "reentry-extra.png", 38)
+    window.add_document(extra)
+
+    controller = window.large_folder_registration_controller
+    dispatched = []
+    observed = []
+
+    def unexpected_discovery(_paths, *, checkpoint):
+        del checkpoint
+        dispatched.append(True)
+        return RegistrationDiscovery((), 0, 0, ())
+
+    def on_progress(phase, _completed, _total):
+        if phase == "scanning" and not observed:
+            observed.append(True)
+            window.recent_entries_controller._session_prepared(prepared)
+
+    controller._discovery_function = unexpected_discovery
+    controller.progress_changed.connect(on_progress)
+    try:
+        controller.enqueue((tmp_path / "should-not-scan",))
+        assert observed == [True]
+        assert controller.is_idle
+        assert controller._worker is None
+        assert controller.pool.activeThreadCount() == 0
+        qtbot.wait(50)
+        assert not dispatched
+        assert set(window.documents) == {seed.document_id}
+        assert [doc.source_path for doc in window.selected_documents] == [seed.source_path]
+    finally:
+        window.close()
+
+
+def test_scanning_progress_reentrant_close_never_starts_worker(qtbot, tmp_path):
+    """Close can finish during the scanning signal, before TaskWorker.start."""
+    window = _window(qtbot)
+    controller = window.large_folder_registration_controller
+    observed = []
+    dispatched = []
+
+    def unexpected_discovery(_paths, *, checkpoint):
+        del checkpoint
+        dispatched.append(True)
+        return RegistrationDiscovery((), 0, 0, ())
+
+    def close_on_scanning(phase, _completed, _total):
+        if phase == "scanning" and not observed:
+            observed.append(True)
+            window.close()
+
+    controller._discovery_function = unexpected_discovery
+    controller.progress_changed.connect(close_on_scanning)
+    try:
+        controller.enqueue((tmp_path / "should-not-scan",))
+        assert observed == [True]
+        assert window._closing
+        assert controller._closing
+        assert controller._worker is None
+        assert controller.pool.activeThreadCount() == 0
+        qtbot.wait(50)
+        assert not dispatched
+        assert not window.documents
+    finally:
+        window.close()
+
+
+def test_blocked_registration_close_drains_without_zero_timer_poll(qtbot, tmp_path):
+    """Close stays responsive and does not hot-poll a stalled filesystem worker."""
+    window = _window(qtbot)
+    controller = window.large_folder_registration_controller
+    started, release = Event(), Event()
+
+    def blocked_discovery(_paths, *, checkpoint):
+        del checkpoint
+        started.set()
+        assert release.wait(5)
+        return RegistrationDiscovery((), 0, 0, ())
+
+    controller._discovery_function = blocked_discovery
+    close_filter = window._large_folder_registration_close_filter
+    gui_turns = []
+    try:
+        controller.enqueue((tmp_path / "blocked",))
+        qtbot.waitUntil(started.is_set, timeout=2000)
+        QTimer.singleShot(0, lambda: gui_turns.append(True))
+        window.close()
+        assert close_filter._close_state == "draining"
+        assert controller._closing
+        assert not window._closing
+        assert close_filter._drain_timer.interval() == 100
+        assert close_filter._drain_timer.isActive()
+        qtbot.wait(250)
+        assert gui_turns == [True]
+        assert close_filter._close_state == "draining"
+        assert not window._closing
+
+        release.set()
+        qtbot.waitUntil(lambda: window._closing, timeout=5000)
+        assert close_filter._close_state == "closed"
+        assert controller.pool.activeThreadCount() == 0
+    finally:
+        release.set()
+        window.close()
