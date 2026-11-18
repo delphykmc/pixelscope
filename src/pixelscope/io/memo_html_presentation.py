@@ -76,7 +76,7 @@ main{max-width:1240px;margin:0 auto;padding:40px 28px 56px}a{color:#285ec7}
 h1{font-size:32px;letter-spacing:-.035em;line-height:1.2;margin:8px 0}h2{font-size:22px;line-height:1.35;margin:0}
 .subtle{color:#64748b;font-size:13px;margin:6px 0}.summary,.badges,.roi-index{display:flex;flex-wrap:wrap;gap:8px}
 .summary{justify-content:flex-end}.pill{display:inline-flex;align-items:center;gap:5px;border:1px solid #dae3ef;border-radius:7px;padding:4px 9px;font-size:12px;background:#f8fafd;color:#50617c}
-.pill strong{color:#243b61;font-weight:650}.roi-index{margin:0 0 24px}.roi-index a{text-decoration:none;background:white;border:1px solid #dbe4f0;border-radius:6px;padding:5px 11px;font-size:12px;font-weight:650}
+.pill strong{color:#243b61;font-weight:650}.roi-index{margin:0 0 24px;align-items:center}.roi-index a{text-decoration:none;background:white;border:1px solid #dbe4f0;border-radius:6px;padding:5px 11px;font-size:12px;font-weight:650}
 .roi-card{background:white;border:1px solid #dce5ef;border-radius:14px;margin:20px 0;box-shadow:0 4px 18px #24477306;overflow:hidden;scroll-margin-top:16px}
 .roi-header{padding:24px 26px 20px;border-bottom:1px solid #e8edf4}.title-row{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
 .roi-number{background:#eaf1ff;color:#285ec7;padding:6px 10px;border-radius:7px;white-space:nowrap;font-size:12px;font-weight:750;letter-spacing:.04em}
@@ -135,7 +135,6 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:7px}
 @media(max-width:640px){.stat-table th,.stat-table td{padding:7px 7px}}
 .summary{align-items:center}
-.report-tools{display:flex;justify-content:flex-end;align-items:center;margin:-11px 0 12px}
 .source-folder-link{width:32px;height:32px;background:#eef3ff;border-color:#c3d4f5}
 @media print{.stat-psnr,.stat-table-box{break-inside:avoid}.stat-table{min-width:0}.stat-table th,.stat-table td{padding:4px}.stat-footer,.source-folder-link{display:none}}
 
@@ -405,16 +404,15 @@ def render_memo_report(
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<meta name="pixelscope-report-version" content="{9 if compact else 4}">'
+        f'<meta name="pixelscope-report-version" content="{10 if compact else 4}">'
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(policy, quote=True)}">'
         f'<title>PixelScope Memo</title><style>{style}</style></head><body><main>'
         '<header class="masthead"><div><div class="brand">PixelScope</div><h1>ROI inspection notes</h1>'
         '<p class="subtle">Saved 8-bit ROI previews and comparison notes</p></div><div class="summary">'
         f'<span class="pill"><strong>{len(archive.review.findings)}</strong> ROIs</span>'
         f'<span class="pill"><strong>{len(sources)}</strong> images</span></div></header>'
-        f'<nav class="roi-index" aria-label="ROI index">{"".join(index)}</nav>'
-        f'<div class="report-tools" aria-label="Saved source assets">{source_folder_action}</div>'
-        f'{"".join(sections)}'
+        f'<nav class="roi-index" aria-label="ROI index and saved files">'
+        f'{source_folder_action}{"".join(index)}</nav>{"".join(sections)}'
         '<footer class="footer">PixelScope · ROI inspection notebook</footer></main>'
         f'<script>{_COPY_SCRIPT}</script></body></html>'
     )

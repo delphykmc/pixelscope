@@ -66,7 +66,8 @@ it reopens the last saved report without saving pending note edits. Newly
 created/unsaved Memo sessions and legacy ZIP/.pxreview files have no standalone
 HTML icon action.
 
-Above the ROI cards, a folder icon opens the saved report's **`src/` assets
+Directly below the report title, the folder icon appears **before the ROI jump
+buttons on the same wrapping row**. It opens the saved report's **`src/` assets
 directory** in a new browser tab. The directory contains stored `crops/` and
 optional native `statistics/`, not full original input source files.
 Each crop's icon is a dedicated button: it explicitly opens its exact PNG in a

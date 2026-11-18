@@ -213,11 +213,17 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
     assert len(folder_buttons) == 1
     assert folder_buttons[0]["data-open-report-asset"] == "images/"
     assert folder_buttons[0]["type"] == "button"
-    assert markup.index('class="report-tools"') < markup.index('class="roi-card"')
+    nav = markup.split('<nav class="roi-index" aria-label="ROI index and saved files">', 1)[1]
+    nav = nav.split("</nav>", 1)[0]
+    assert nav.startswith('<button type="button" class="icon-button source-folder-link"')
+    assert nav.index('data-open-report-asset="images/"') < nav.index('href="#roi-1"')
+    assert 'class="report-tools"' not in markup
+    assert markup.index("</nav>") < markup.index('class="roi-card"')
+    assert ".roi-index{margin:0 0 24px;align-items:center}" in markup
     assert "window.open(new URL(relative, document.baseURI).href" in script
     assert "'_blank', 'noopener,noreferrer'" in script
     assert markup.count('class="crop-card"') == len(archive.crops)
-    assert 'name="pixelscope-report-version" content="9"' in markup
+    assert 'name="pixelscope-report-version" content="10"' in markup
     assert '<svg viewBox="0 0 24 24" aria-hidden="true">' in markup
     assert markup.count("width <strong>") == len(archive.review.findings)
     assert markup.count("height <strong>") == len(archive.review.findings)

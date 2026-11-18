@@ -342,6 +342,20 @@ def _v8_memo_html(
     return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
 
 
+def _v9_memo_html(
+    archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
+) -> bytes:
+    """Frozen V9 renderer for byte-exact historical ZIP verification."""
+    from pixelscope.io.memo_html_presentation_v9 import render_memo_report
+
+    paths = (
+        image_paths
+        if image_paths is not None
+        else {key: _asset_path(*key) for key in archive.crops}
+    )
+    return render_memo_report(archive, paths, statistics_csvs(archive.review), compact=True)
+
+
 def memo_html(
     archive: MemoArchive, *, image_paths: Mapping[tuple[str, str], str] | None = None
 ) -> bytes:
@@ -542,6 +556,7 @@ def load_memo_archive(path: Path) -> tuple[MemoArchive, str]:
         with zipfile.ZipFile(io.BytesIO(raw), "r") as z:
             if z.read("index.html") not in (
                 memo_html(archive),
+                _v9_memo_html(archive),
                 _v8_memo_html(archive),
                 _v7_memo_html(archive),
                 _v6_memo_html(archive),
