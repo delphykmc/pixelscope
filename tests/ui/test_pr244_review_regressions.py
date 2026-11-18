@@ -164,7 +164,9 @@ def test_session_supersedes_scheduled_registration_chunk(qtbot, tmp_path):
         registration.enqueue((folder,))
         qtbot.waitUntil(
             lambda: (
-                invoked and registration.is_idle and set(window.documents) == {seed.document_id}
+                bool(invoked)
+                and registration.is_idle
+                and set(window.documents) == {seed.document_id}
             ),
             timeout=6000,
         )
@@ -220,6 +222,12 @@ def test_blocked_session_a_is_fenced_when_session_b_opens(qtbot, monkeypatch, tm
         return original(path, repository)
 
     monkeypatch.setattr(recent_module, "prepare_recent_session", blocked_prepare)
+    # An unexpected modal warning must not hang the regression indefinitely.
+    warnings = []
+    monkeypatch.setattr(
+        "PySide6.QtWidgets.QMessageBox.warning",
+        lambda *_args: warnings.append(str(_args[2])),
+    )
     try:
         recent = window.recent_entries_controller
         recent.open_recent(RecentEntryKind.SESSION, path_a)
@@ -229,11 +237,16 @@ def test_blocked_session_a_is_fenced_when_session_b_opens(qtbot, monkeypatch, tm
         qtbot.waitUntil(
             lambda: (
                 window.path_preparation_controller.is_idle
-                and [doc.document_id for doc in window.selected_documents] == [b.document_id]
+                and [doc.source_path for doc in window.selected_documents] == [b.source_path]
             ),
             timeout=6000,
         )
-        assert a.document_id not in window.documents
+        # Session persistence addresses source paths, not runtime document IDs.
+        # Removing B before restore discards its UUID; re-registration generates
+        # a new one. Verify the complete catalog and the absence of late A state.
+        assert {doc.source_path for doc in window.documents.values()} == {b.source_path}
+        assert a.source_path not in {doc.source_path for doc in window.documents.values()}
+        assert not warnings
     finally:
         release.set()
         window.close()
