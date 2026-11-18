@@ -66,12 +66,15 @@ it reopens the last saved report without saving pending note edits. Newly
 created/unsaved Memo sessions and legacy ZIP/.pxreview files have no standalone
 HTML icon action.
 
-The report header has a folder icon opening the **stored crop PNG** directory
-(`src/crops/`) in a new browser tab. Each crop's action opens its exact PNG
-in a **new tab** rather than replacing the report; use the browser's Save image
-as command if a copy is needed. The directory is a list of saved 8-bit crops,
-not the original input source files. Browser directory-listing presentation
-depends on local `file://` handling.
+Above the ROI cards, a folder icon opens the saved report's **`src/` assets
+directory** in a new browser tab. The directory contains stored `crops/` and
+optional native `statistics/`, not full original input source files.
+Each crop's icon is a dedicated button: it explicitly opens its exact PNG in a
+new tab rather than navigating the current report, even when a browser prevents
+opening the extra tab. Use the browser's Save image as command if needed.
+Browser local `file://` navigation and directory-listing presentation vary;
+if the new tab is blocked, enable pop-ups for the local report or browse
+`src/` beside `index.html` directly.
 
 Open the `.pxmemo` in PixelScope to edit notes. Move/copy the whole folder
 together; moving only the map loses its referenced evidence. No extraction is

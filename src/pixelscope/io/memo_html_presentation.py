@@ -57,6 +57,15 @@ _COPY_SCRIPT = """document.querySelectorAll('[data-copy-note]').forEach(button =
     button.disabled = false;
     window.setTimeout(() => { button.dataset.state = 'ready'; button.setAttribute('aria-label', 'Copy memo'); button.title = 'Copy memo'; }, 1600);
   });
+});
+document.querySelectorAll('[data-open-report-asset]').forEach(button => {
+  button.addEventListener('click', () => {
+    // A button has no link-navigation default. The report tab is never replaced,
+    // even if the browser blocks a local-file popup.
+    const relative = button.getAttribute('data-open-report-asset');
+    if (!relative) return;
+    window.open(new URL(relative, document.baseURI).href, '_blank', 'noopener,noreferrer');
+  });
 });"""
 
 _STYLE = """*{box-sizing:border-box}html{color-scheme:light;scroll-behavior:smooth}
@@ -126,7 +135,8 @@ img{display:block;max-width:100%;height:auto;max-height:460px;object-fit:contain
 .stat-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:7px}
 @media(max-width:640px){.stat-table th,.stat-table td{padding:7px 7px}}
 .summary{align-items:center}
-.source-folder-link{width:30px;height:30px;background:#eef3ff;border-color:#c3d4f5}
+.report-tools{display:flex;justify-content:flex-end;align-items:center;margin:-11px 0 12px}
+.source-folder-link{width:32px;height:32px;background:#eef3ff;border-color:#c3d4f5}
 @media print{.stat-psnr,.stat-table-box{break-inside:avoid}.stat-table{min-width:0}.stat-table th,.stat-table td{padding:4px}.stat-footer,.source-folder-link{display:none}}
 
 
@@ -330,9 +340,9 @@ def render_memo_report(
                 f'<figcaption class="crop-caption"><p class="source-name">{number:02d} · {basename}{tag_html}</p>'
                 + ("" if compact else f'<div class="badges">{badges}</div>')
                 + '<div class="crop-footer"><span class="file-type">PNG · 8-bit preview</span>'
-                f'<a class="icon-button" href="{_url(relative)}" target="_blank" rel="noopener noreferrer" '
+                f'<button type="button" class="icon-button" data-open-report-asset="{_url(relative)}" '
                 f'aria-label="Open ROI {ordinal} image {number} PNG in a new tab" '
-                f'title="Open PNG in new tab (save from browser)">{_DOWNLOAD_ICON}</a></div></figcaption></figure>'
+                f'title="Open PNG in new tab (save from browser)">{_DOWNLOAD_ICON}</button></div></figcaption></figure>'
             )
         csv = f"statistics/{finding.id}.csv"
         table = _statistics_table(statistics_paths[csv]) if csv in statistics_paths else ""
@@ -367,17 +377,15 @@ def render_memo_report(
             f'{copy}</div><p class="note">{html.escape(finding.note)}</p><div class="copy-status" role="status" aria-live="polite"></div></div>'
             f'<div class="crop-grid">{"".join(cards) or "<p>No stored crop (legacy memo).</p>"}</div>{statistics}</div></section>'
         )
-    crop_folder_link = ""
-    if image_paths:
-        # Both ZIP reports and published folders use one relative crop root.
-        # The folder publisher rewrites href="images/" to href="src/crops/".
-        crop_root = f"{PurePosixPath(next(iter(image_paths.values()))).parts[0]}/"
-        crop_folder_link = (
-            f'<a class="icon-button source-folder-link" href="{_url(crop_root)}" '
-            'target="_blank" rel="noopener noreferrer" '
-            'aria-label="Browse saved crop PNG folder in a new tab" '
-            f'title="Browse saved crop PNGs">{_FOLDER_ICON}</a>'
-        )
+    # ZIP reports refer to the images folder. The published folder rewrites
+    # this one exact attribute to src/, exposing both crops/ and statistics/.
+    asset_root = f"{PurePosixPath(next(iter(image_paths.values()))).parts[0]}/" if image_paths else "images/"
+    source_folder_action = (
+        f'<button type="button" class="icon-button source-folder-link" '
+        f'data-open-report-asset="{_url(asset_root)}" '
+        'aria-label="Browse saved source assets folder in a new tab" '
+        f'title="Browse saved files (src/)">{_FOLDER_ICON}</button>'
+    )
     script_hash = base64.b64encode(hashlib.sha256(_COPY_SCRIPT.encode()).digest()).decode("ascii")
     policy = (
         "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
@@ -395,14 +403,16 @@ def render_memo_report(
     markup = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<meta name="pixelscope-report-version" content="{8 if compact else 4}">'
+        f'<meta name="pixelscope-report-version" content="{9 if compact else 4}">'
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(policy, quote=True)}">'
         f'<title>PixelScope Memo</title><style>{style}</style></head><body><main>'
         '<header class="masthead"><div><div class="brand">PixelScope</div><h1>ROI inspection notes</h1>'
         '<p class="subtle">Saved 8-bit ROI previews and comparison notes</p></div><div class="summary">'
         f'<span class="pill"><strong>{len(archive.review.findings)}</strong> ROIs</span>'
-        f'<span class="pill"><strong>{len(sources)}</strong> images</span>{crop_folder_link}</div></header>'
-        f'<nav class="roi-index" aria-label="ROI index">{"".join(index)}</nav>{"".join(sections)}'
+        f'<span class="pill"><strong>{len(sources)}</strong> images</span></div></header>'
+        f'<nav class="roi-index" aria-label="ROI index">{"".join(index)}</nav>'
+        f'<div class="report-tools" aria-label="Saved source assets">{source_folder_action}</div>'
+        f'{"".join(sections)}'
         '<footer class="footer">PixelScope · ROI inspection notebook</footer></main>'
         f'<script>{_COPY_SCRIPT}</script></body></html>'
     )

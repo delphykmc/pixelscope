@@ -201,7 +201,7 @@ def test_cleanup_failure_keeps_committed_revision_and_allows_retry(tmp_path, mon
     assert cleanup is module._remove_staging
 
 
-def test_saved_folder_new_tab_crop_links_resolve_to_exact_displayed_crops(tmp_path):
+def test_saved_folder_crop_buttons_resolve_to_exact_displayed_crops(tmp_path):
     from html.parser import HTMLParser
     from urllib.parse import unquote
 
@@ -209,33 +209,31 @@ def test_saved_folder_new_tab_crop_links_resolve_to_exact_displayed_crops(tmp_pa
         def __init__(self):
             super().__init__()
             self.images = []
-            self.crop_links = []
-            self.folder_link = None
+            self.crop_buttons = []
+            self.folder_button = None
 
         def handle_starttag(self, tag, attributes):
             attrs = dict(attributes)
             if tag == "img":
                 self.images.append(attrs["src"])
-            if tag == "a" and attrs.get("aria-label", "").startswith("Open ROI"):
-                self.crop_links.append(attrs)
-            if tag == "a" and attrs.get("class") == "icon-button source-folder-link":
-                self.folder_link = attrs
+            if tag == "button" and attrs.get("aria-label", "").startswith("Open ROI"):
+                self.crop_buttons.append(attrs)
+            if tag == "button" and attrs.get("class") == "icon-button source-folder-link":
+                self.folder_button = attrs
 
     path, archive = notebook_setup(tmp_path)
     module.save_folder_memo(path, archive, None)
     parsed = Assets()
     parsed.feed((path.parent / "index.html").read_text(encoding="utf-8"))
-    assert parsed.images == [attrs["href"] for attrs in parsed.crop_links]
-    assert all(
-        attrs.get("target") == "_blank"
-        and attrs.get("rel") == "noopener noreferrer"
-        and "download" not in attrs
-        for attrs in parsed.crop_links
-    )
-    assert parsed.folder_link is not None
-    assert parsed.folder_link["href"] == "src/crops/"
-    assert parsed.folder_link["target"] == "_blank"
-    assert (path.parent / parsed.folder_link["href"]).is_dir()
+    assert parsed.images == [attrs["data-open-report-asset"] for attrs in parsed.crop_buttons]
+    assert all(attrs.get("type") == "button" and "href" not in attrs for attrs in parsed.crop_buttons)
+    assert parsed.folder_button is not None
+    assert parsed.folder_button["data-open-report-asset"] == "src/"
+    assert parsed.folder_button["type"] == "button"
+    assert (path.parent / parsed.folder_button["data-open-report-asset"]).is_dir()
+    assert (path.parent / "src/crops").is_dir()
+    assert (path.parent / "src/statistics").is_dir() or not (path.parent / "src/statistics").exists()
     assert sorted(
-        (path.parent / unquote(attrs["href"])).read_bytes() for attrs in parsed.crop_links
+        (path.parent / unquote(attrs["data-open-report-asset"])).read_bytes()
+        for attrs in parsed.crop_buttons
     ) == sorted(archive.crops.values())

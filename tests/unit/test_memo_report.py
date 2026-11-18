@@ -192,30 +192,31 @@ def test_report_actions_are_scoped_and_script_is_hash_pinned(tmp_path):
     assert all(not key.startswith("on") for _, attrs in parsed.tags for key in attrs)
     assert all("src" not in attrs for tag, attrs in parsed.tags if tag == "script")
     images = [attrs["src"] for tag, attrs in parsed.tags if tag == "img"]
-    crop_links = [
+    crop_buttons = [
+        attrs
+        for tag, attrs in parsed.tags
+        if tag == "button" and attrs.get("aria-label", "").startswith("Open ROI")
+    ]
+    assert [attrs["data-open-report-asset"] for attrs in crop_buttons] == images
+    assert len(images) == len(archive.crops)
+    assert all(attrs.get("type") == "button" and "href" not in attrs for attrs in crop_buttons)
+    assert not [
         attrs
         for tag, attrs in parsed.tags
         if tag == "a" and attrs.get("aria-label", "").startswith("Open ROI")
     ]
-    assert [attrs["href"] for attrs in crop_links] == images
-    assert len(images) == len(archive.crops)
-    assert all(
-        attrs.get("target") == "_blank"
-        and attrs.get("rel") == "noopener noreferrer"
-        and "download" not in attrs
-        for attrs in crop_links
-    )
-    crop_browser = [
+    folder_buttons = [
         attrs
         for tag, attrs in parsed.tags
-        if tag == "a" and attrs.get("class") == "icon-button source-folder-link"
+        if tag == "button" and attrs.get("class") == "icon-button source-folder-link"
     ]
-    assert len(crop_browser) == 1
-    assert crop_browser[0]["href"] == "images/"
-    assert crop_browser[0]["target"] == "_blank"
-    assert crop_browser[0]["rel"] == "noopener noreferrer"
+    assert len(folder_buttons) == 1
+    assert folder_buttons[0]["data-open-report-asset"] == "images/"
+    assert folder_buttons[0]["type"] == "button"
+    assert markup.index('class="report-tools"') < markup.index('class="roi-card"')
+    assert "window.open(new URL(relative, document.baseURI).href, '_blank', 'noopener,noreferrer')" in script
     assert markup.count('class="crop-card"') == len(archive.crops)
-    assert 'name="pixelscope-report-version" content="8"' in markup
+    assert 'name="pixelscope-report-version" content="9"' in markup
     assert '<svg viewBox="0 0 24 24" aria-hidden="true">' in markup
     assert markup.count("width <strong>") == len(archive.review.findings)
     assert markup.count("height <strong>") == len(archive.review.findings)
