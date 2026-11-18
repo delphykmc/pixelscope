@@ -1,8 +1,10 @@
 # Execution plan: filesystem-free Recent startup
 
-Status: Startup slice implemented; review pending; explicit-open follow-up remains  
-Owner: ChatGPT-assisted  
-Branch: codex/fix-recent-startup-20261118 (from main e6e2265a)  
+Status: Startup slice implemented; merge validation in progress; explicit-open follow-up remains
+
+Owner: ChatGPT-assisted
+
+Branch: codex/fix-recent-startup-20261118 (from main e6e2265a)
 Last updated: 2026-11-18
 
 ## Goal
@@ -25,7 +27,8 @@ paths. No owner settings or real network shares are changed for verification.
   dialog-directory validation. Those secondary #242 requirements remain open;
   do not close the whole issue on a startup-only fix.
 - No Memo PR241 changes, RAW-height repair, packaging, network settings or history
-  clearing. No automatic merge is requested for this separate branch.
+  clearing. On 2026-11-18 the owner authorized independent review and merge if no
+  problems remain, with #242 kept open for subsequent explicit-open work.
 
 ## Current state and invariants
 
@@ -93,3 +96,16 @@ merely by startup. Relative public-API paths become absolute lexically.
 - Attribution: owner Git identity `mc.kang <delphykmc@gmail.com>` with
   `Co-authored-by: ChatGPT <noreply@openai.com>` on the new commit; Draft PR body
   marked ChatGPT-assisted. Existing human commits are not rewritten.
+
+## 2026-11-18 independent review and merge validation
+
+- Independent read-only review found three trailing-space errors in this new plan
+  at `8682aa7e`; initial working-tree diff checks had missed the untracked plan.
+  CI Change-scoped validation and User Guide validation failed on exactly those
+  lines, while source typecheck and screenshot-impact workflow passed. Removed
+  Markdown two-space breaks; subsequent validation must check the base-to-head diff.
+- Independent focused run on source `8682aa7e`: Recent unit/startup UI **19 passed
+  in 3.69s**, exit 0, with the same nonterminating `0x8001010d` diagnostic. It briefly
+  overlapped the parent's full-suite process; no further concurrent UI runs requested.
+- Source/test content remains identical to `8682aa7e`; only this evidence document
+  changes. Full-suite and final CI disposition pending.
