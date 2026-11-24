@@ -633,8 +633,10 @@ def _roi_editor_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], 
     if dialog is None:
         raise RuntimeError("ROI editor did not open")
     dialog._capture_parent_window = window  # type: ignore[attr-defined]
-    return dialog, lambda: dialog.bounds() == bounds, _fixture_identity(
-        documents, "roi_editor_dialog"
+    return (
+        dialog,
+        lambda: dialog.bounds() == bounds,
+        _fixture_identity(documents, "roi_editor_dialog"),
     )
 
 
@@ -675,6 +677,10 @@ def _memo_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str
             return False
         if memo._capture_worker is not None:
             return False
+        if not memo.panel.record_button.isChecked():
+            if not memo.panel.record_button.isEnabled():
+                return False
+            memo.panel.record_button.setChecked(True)
         findings = memo.library.document.findings
         if started > annotated:
             if len(findings) != started:

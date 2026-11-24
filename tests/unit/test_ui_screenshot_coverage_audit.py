@@ -58,9 +58,10 @@ def test_blanket_defer_without_reason_owner_reference_followup_is_rejected() -> 
     for record in records["gaps"]:
         record["decision"] = "deferred"
     errors = decision_problems(manifest, records, ROOT / ASSETS)
-    assert sum("owner review reference required" in error for error in errors) == len(records["gaps"])
-    assert sum("rationale required" in error for error in errors) == len(records["gaps"])
-    assert sum("future follow-up URL" in error for error in errors) == len(records["gaps"])
+    count = len(records["gaps"])
+    assert sum("owner review reference required" in error for error in errors) == count
+    assert sum("rationale required" in error for error in errors) == count
+    assert sum("future follow-up URL" in error for error in errors) == count
 
 
 def test_a_url_does_not_make_unapproved_image_a_promoted_capture() -> None:

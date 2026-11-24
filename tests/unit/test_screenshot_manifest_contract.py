@@ -48,13 +48,13 @@ def repo(tmp_path: Path) -> Path:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "capture_ui_scene.py").write_text(
-        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
-        '"difference_analysis": object(), "histogram_docked": object(), '
-        '"line_profile_docked": object(), "plots_floating": object(), '
-        '"raw_profile_dialog": object(), "window_overview": object(), '
-        '"files_workspace": object(), "roi_exact": object(), '
-        '"statistics_workspace": object(), "settings_dialog": object(), '
-        '"iqa_neutral": object(), "yuv_profile_dialog": object()}\n',
+        "BUILDERS = {"
+        + ", ".join(
+            repr(row["scenario"]) + ": object()"
+            for row in document["screenshots"]
+            if row["capture_mode"] == "isolated"
+        )
+        + "}\n",
         encoding="utf-8",
     )
     legacy = [s["legacy_output"] for s in document["screenshots"] if "legacy_output" in s]
@@ -215,17 +215,6 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
 
 
 def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path) -> None:
-    scene_source = repo / "scripts/capture_ui_scene.py"
-    scene_source.write_text(
-        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
-        '"difference_analysis": object(), "histogram_docked": object(), '
-        '"line_profile_docked": object(), "plots_floating": object(), '
-        '"raw_profile_dialog": object(), "window_overview": object(), '
-        '"files_workspace": object(), "roi_exact": object(), '
-        '"statistics_workspace": object(), "settings_dialog": object(), '
-        '"iqa_neutral": object(), "yuv_profile_dialog": object()}\n',
-        encoding="utf-8",
-    )
     _modify(
         repo,
         lambda m: m["screenshots"][7].update(

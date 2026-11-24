@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import html
 import json
 import os
@@ -33,10 +32,6 @@ def git(*args: str) -> str:
     return subprocess.check_output(["git", "-C", str(ROOT), *args], text=True).strip()
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -46,7 +41,7 @@ def write_json(path: Path, value: dict) -> None:
 
 
 def require_clean() -> str:
-    if git("status", "--porcelain", "--untracked-files=no"):
+    if git("status", "--porcelain"):
         raise RuntimeError("Tracked worktree is dirty; commit or stash before capture/promotion")
     problems = find_problems(ROOT)
     if problems:
@@ -205,7 +200,9 @@ def capture(packet: Path, manifest: dict, source: str) -> None:
         except (OSError, RuntimeError, ValueError, KeyError, subprocess.TimeoutExpired) as exc:
             failures.append(f"{key}: {exc}")
     if failures:
-        raise RuntimeError("Capture failures (rerun same command to resume):\n" + "\n".join(failures))
+        raise RuntimeError(
+            "Capture failures (rerun same command to resume):\n" + "\n".join(failures)
+        )
     results = candidate_rows(packet, manifest, source)
     review(packet, manifest, source, results)
     print(f"Review: {packet / 'review.html'}")
@@ -248,13 +245,42 @@ def promote(packet: Path, manifest: dict, source: str, approval: str) -> None:
         if errors:
             raise RuntimeError("\n".join(errors))
         targets = [ROOT / ASSETS / row["filename"] for row in manifest["screenshots"]]
-        targets += [ROOT / MANIFEST, ROOT / DECISIONS]
+        index = ROOT / "docs/user-guide/index.md"
+        release = ROOT / "docs/releases/2026-11-24-v0.2.1.md"
+        targets += [ROOT / MANIFEST, ROOT / DECISIONS, index, release]
         originals = {path: path.read_bytes() if path.exists() else None for path in targets}
         try:
             for row in manifest["screenshots"]:
                 shutil.copyfile(staging / row["filename"], ROOT / ASSETS / row["filename"])
             write_json(ROOT / MANIFEST, manifest)
             write_json(ROOT / DECISIONS, decisions)
+            index_text = index.read_text(encoding="utf-8")
+            before = (
+                "The existing approved illustrative screenshots were captured with "
+                "v0.1.0 and may show earlier labels or layouts until recaptured and reviewed. "
+                "Use the current text and command descriptions rather than inferring "
+                "shortcuts from older images."
+            )
+            after = (
+                f"The {len(manifest['screenshots'])} approved screenshots were captured "
+                f"with Core {VERSION} using real application widgets and public-safe fixtures. "
+                "Use the current text for keyboard shortcuts and focus conditions."
+            )
+            if before not in index_text:
+                raise ValueError("Unexpected User Guide version note; review before promotion")
+            index.write_text(index_text.replace(before, after), encoding="utf-8")
+            release_text = release.read_text(encoding="utf-8")
+            before = (
+                "The existing approved v0.1.0 screenshot assets have not been recaptured "
+                "by this patch; do not represent them as new captures."
+            )
+            after = (
+                f"All {len(manifest['screenshots'])} guide screenshots are owner-reviewed "
+                f"Core {VERSION} captures; their exact provenance is in the manifest."
+            )
+            if before not in release_text:
+                raise ValueError("Unexpected release screenshot note; review before promotion")
+            release.write_text(release_text.replace(before, after), encoding="utf-8")
             errors = audit(ROOT, require_complete=True)["errors"]
             if errors:
                 raise RuntimeError("\n".join(errors))

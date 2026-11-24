@@ -50,7 +50,7 @@ generate, replace or approve any PNG.
 The [WP-Help-E execution plan](../../../exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
 documents the manifest, real-QWidget scene registry, Windows hosted capture
 feasibility gate, main/PR visual comparisons, conditional Markdown insertion, and
-human-reviewed promotion. All fourteen current PNGs were captured from the real application and have exact provenance in the manifest. The legacy `scripts/capture_ui_review.py` remains historical input ownership; isolated capture uses manifest scenarios and guide filenames.
+human-reviewed promotion. The fourteen original E6 PNGs were captured from the real application and have exact provenance in the manifest. The v0.2.1 refresh adds six registered real-UI scenes; their PNGs remain absent until owner approval. The legacy `scripts/capture_ui_review.py` remains historical input ownership; isolated capture uses manifest scenarios and guide filenames.
 
 E1 proved hosted Windows capture for real Single View and RAW Dialog in separate processes (PR #94). E2 introduced the versioned [Screenshot Manifest](manifest.json), capture ownership and three non-guide diagnostic outputs. E3 provides conservative screenshot impact selection, E4 provides pinned native Windows candidate comparison, and E5 converts topic embeds to conditional ID markers. E6 adds isolated coverage for all fourteen guide scenes and records the owner-reviewed promotions. A PR-produced
 candidate is never an approved User Guide image until its content and provenance have
@@ -63,6 +63,12 @@ been checked and the PNG plus manifest changes have been committed through revie
 `capture_mode: planned` has no registered real-UI builder. After a real isolated builder is implemented and validated, a *new* scene can transition to `capture_mode: isolated`, `placement: required`, and `status: capture-ready` **without `legacy_output`**. That status reserves an insertion marker but does not authorize committing an unapproved PNG. `legacy_output` is required only for genuinely historical/manual assets and must match the exact old script scene output. Existing guide PNGs retain `legacy-unverified` unless approved through E6. The three diagnostics are disjoint from guide-owned manual output names.
 
 The E2 PNG validator intentionally accepts only verified non-interlaced 8-bit RGB/RGBA encodings, checking CRC, bounded IDAT decompression, scanline length and filters. Indexed/Adam7/other formats are rejected **even if otherwise legal PNG** until supported by an explicit decoder contract and regression tests. This is a conservative documentation-image format gate, not a general-purpose PNG decoder.
+
+## Core v0.2.1 Windows refresh
+
+From the clean candidate branch, install the pinned runtime and documentation dependencies. Run `python scripts/refresh_user_guide_screenshots.py capture --packet-dir build/guide-captures-v021`. Each manifest scene is captured in two fresh native processes; the local packet contains a before/after `review.html`, exact `approval.md` hashes, and a real generated Memo report. A rerun resumes valid captures at the same source SHA. Review each original-size candidate and its privacy before posting the approval hash list in the PR.
+
+After explicit owner approval, run `python scripts/refresh_user_guide_screenshots.py promote --packet-dir build/guide-captures-v021 --approval-ref <owner-PR-comment-URL>` (replace the placeholder). The script verifies the packet, copies exact approved bytes, updates the manifest and coverage decisions, and validates the results before returning. The approval reference is supplied by the owner, not independently fetched by the script. Commit only the approved PNGs, manifest, coverage decisions and updated guide/release text. Do not commit the capture packet or local logs. Memo HTML is available for visual review, not a registered browser screenshot.
 
 ## E6 owner-reviewed refresh
 
