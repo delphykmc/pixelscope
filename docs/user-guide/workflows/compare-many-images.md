@@ -8,7 +8,7 @@ Select as many registered sources as the workflow requires. PixelScope keeps the
 
 ## Navigate pages
 
-Use the Previous/Next Comparison Page controls. The page indicator shows which slice of the Selected set is currently visible. Page-local number keys `1` through `6` activate only the visible slots on that page.
+Use the Previous/Next Comparison Page controls or `Ctrl+Left` / `Ctrl+Right`. The page indicator shows which slice of the Selected set is currently visible. Page-local number keys `1` through `6` activate only the visible slots on that page.
 
 Statistics, Histogram, and Line Profile follow the **Current Comparison Page**, not every Selected source across all pages at once. This keeps analysis bounded and makes the visible comparison set explicit.
 

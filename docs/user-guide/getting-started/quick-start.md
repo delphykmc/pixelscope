@@ -4,7 +4,7 @@ Use this workflow to reach PixelScope's main comparison and analysis tools in ab
 
 ## 1. Start PixelScope
 
-Open PixelScope. The **Files** workspace is the source list; **Image View** is the visual comparison area; Statistics, Plots, Difference, and IQA are analysis workspaces.
+Open PixelScope. The **Files** workspace is the source list; **Image View** is the visual comparison area; Statistics, Plots and Difference are Core analysis workspaces. IQA is optional and depends on the installed edition.
 
 ## 2. Register images
 
@@ -22,7 +22,7 @@ A Comparison Page can show at most six images. If more than six are Selected, us
 
 Use **Single View** (`Ctrl+1`) to focus on one selected source or **Multi View** (`Ctrl+2`) to see the current Comparison Page together. In a visible page, number keys `1` through `6` activate the corresponding page-local slot.
 
-Zoom and pan in Image View to inspect detail. Pixel/cursor readout follows the native source coordinate system where the format supports it.
+Zoom and pan in Image View to inspect detail. Use `F` to fit, `Ctrl+0` for physical 100% zoom, or `+` / `-` in Image View to adjust supported Display Gain. Pixel/cursor readout follows the native source coordinate system where the format supports it.
 
 <!-- pixelscope:screenshot six-image-multiview -->
 
@@ -44,7 +44,11 @@ Open **Plots > Line Profile**, then **Shift+drag** in Image View to create a hor
 
 ## 9. Calculate Difference
 
-Choose the two images by setting **Primary** and **Active**, open **Difference**, choose the valid channel/options, and press **Calculate**. Difference is explicit: changing a viewer state does not silently recalculate a new pair.
+Choose the two images, open **Difference**, confirm the two image selectors, choose the valid channel/options, and press **Calculate**. Difference is explicit: changing a viewer state does not silently recalculate a new pair.
+
+## 10. Save evidence
+
+Open **View > Memo** (`Ctrl+Shift+M`) to record ROI notes and exact crop PNGs. Use **Save Memo…** for a portable HTML report and **File > Save Session...** to resume the wider workspace. See [Memo](../workflows/review-findings.md) and [Session](../workflows/save-and-restore-work.md).
 
 ## Next steps
 

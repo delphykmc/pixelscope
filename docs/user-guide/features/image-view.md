@@ -16,7 +16,7 @@ Use **Left/Right** to move through the complete ordered Selected set. Crossing a
 
 ## Zoom, pan, and inspection
 
-Use the viewer controls and pointer interactions to inspect source detail. Shared comparison coordinates support synchronized cursor, ROI, and Line Profile workflows where the participating source geometry allows it.
+Use the viewer controls and pointer interactions to inspect source detail. Press `F` for Fit Image or `Ctrl+0` for 100% Zoom. Shared comparison coordinates support synchronized cursor, ROI, and Line Profile workflows where the participating source geometry allows it.
 
 **Fit** frames the image in the available tile; it is not a 100% scale.
 **100% (1:1)** means one source *reference* pixel spans one physical monitor pixel, with the active screen's device-pixel ratio taken into account. 200% and 400% span two and four physical pixels per reference pixel respectively. The tile zoom label is measured from the displayed image's transform, not the requested command. A nonuniform, mirrored, rotated, or sheared image mapping has no trustworthy single zoom percentage and is shown as unavailable. Small images may have empty canvas around them at 100%; they are not enlarged to fill the tile. Bayer and subsampled YUV views retain their reference-grid coordinate scale.
@@ -25,12 +25,9 @@ On synchronized Multi View tiles, zoom/pan uses a common reference-space center 
 
 ## Display gain
 
-Display gain changes presentation only; it does not rewrite native source values used by Statistics or Difference.
+The **Gain** selector (Display Gain) provides `1×`, `2×`, `4×`, `8×`, and `16×`. Press `+` to increase or `-` to decrease one step while keyboard focus is inside Image View. The value stops at either end; choose `1×` to reset. This is a shared application-session setting, not an independent per-tile or Before/After adjustment.
 
-- `[` / `]`: decrease/increase all visible display gains by 0.5 EV.
-- `\`: reset display gains.
-- Single View: `Alt+[` / `Alt+]` adjust the selected Before pane, and `Shift+[` / `Shift+]` adjust the selected After pane.
-- Multi View: `Alt+[` / `Alt+]` adjust the active slot.
+Gain applies to supported Gray/RGB/RGBA and channel views, and profiled Bayer RAW. RAW preview gain is black-level anchored; ordinary images use a zero anchor. Native source data and analysis values are unchanged. Difference Gain is a separate control. When the Files tree has focus, `+` and `-` expand/collapse its items instead. If Gain is disabled, the presented source does not support it.
 
 ## Split channels
 

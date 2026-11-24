@@ -146,46 +146,8 @@ Statistics settle. Save is blocked while the checkbox is enabled and any recorde
 ROI lacks captured Statistics. Uncheck it to save images/notes without requiring
 complete Statistics; already attached evidence remains in the Memo.
 
-HTML report version 7 displays each crop in a separate card with accessible icon
-actions. Per-ROI native CSVs remain complete; the report pivots Min, Max, Mean, Std,
-P1, P50 and P99 into per-image RGB rows, with display-only RGB Mean deltas relative
-to image 01 when native formats and definition match. Historical v4/v5 report
-validation uses frozen templates.
+## Read the saved report
 
-HTML v7 uses a single channel-grouped native Statistics table. The first image is
-the baseline; subsequent image rows show colored up/down Δ for **all** seven
-measures when native dtype/domain/effective-bit/definition are compatible. Color
-indicates direction, not quality. Display numbers are rounded to at most four
-decimals; saved CSV precision remains unchanged. The CSV action is an icon
-aligned to the bottom-right of the ROI Statistics section.
+Each recorded ROI has its own section and crop cards. Use the ROI jump buttons to navigate; each image action opens the stored PNG separately. The optional native Statistics section groups measurements by channel (Min, Max, Mean, Std, P1, P50 and P99) and uses the first image as the baseline for compatible deltas. Direction colors do not imply quality. The CSV action retains full numerical precision and native metadata.
 
-When at least two stored crops exist, the report also shows **8-bit preview PSNR**
-for image 01 against each subsequent image, computed directly from the saved,
-pixel-aligned 8-bit PNG values (peak = 255, pooling RGB channels). Identical
-previews display infinite PSNR. Different sizes/channel layouts or missing
-previews display N/A. This preview-domain measurement is not native RAW PSNR,
-not geometrically registered, and does not imply perceptual quality ordering.
-The original crops are not changed; no new evidence is written to the CSV.
-Prior v6 ZIP HTML is still validated by a frozen byte-identical renderer.
-
-V7 presentation refinement: ROI PSNR badges show **the dB value only**;
-source-pair identity stays in each badge's accessible name and hover title.
-The two brief PSNR caveat lines are aligned beneath the values. Redundant
-introductory native Statistics labels and per-source metadata paragraphs between
-PSNR and the unified table are omitted; original CSV remains the complete
-typed, unrounded evidence.
-
-Compact layout review: the 8-bit PSNR numbers remain unchanged, but their
-standalone bordered panel is replaced by a small right-aligned summary in the
-same row as the ROI Statistics heading. Two short provenance lines remain under
-the dB values; on narrow screens the summary stacks and left-aligns. Repeated
-ROI spacing, memo empty-status gaps and table row padding are tightened without
-altering crop pixels, source labels or numerical evidence.
-
-Review P1 follow-up: a generic captured Histogram/Line/Difference context does
-**not** satisfy the Include Statistics requirement. Only valid ROI-native
-Statistics for the exact source keys, channel and ROI with source measurements
-qualify at initial capture, late backfill and save. The exported CSV retains
-the native dtype/definition metadata even though the deliberately compact HTML
-table omits them. HTML layout tests assert the V7 table semantics rather than
-legacy literal table tags or deleted overview prose.
+When at least two compatible saved crops exist, the report shows **8-bit Preview PSNR** for image 01 against subsequent images. It uses the stored pixel-aligned PNG values (peak 255), not original RAW samples. Identical previews yield infinite PSNR; incompatible or missing previews yield N/A. No spatial registration or perceptual quality ranking is implied. Use native Difference when native-domain PSNR is required.

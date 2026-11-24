@@ -4,6 +4,10 @@ PixelScope is a desktop image comparison and analysis tool for quickly registeri
 
 This guide is organized around **what you want to do**, not around PixelScope's implementation. Use the search box for commands, concepts, formats, and troubleshooting terms.
 
+## Version and screenshots
+
+This guide describes Core v0.2.1, a documentation patch based on v0.2.0 behavior. The existing approved illustrative screenshots were captured with v0.1.0 and may show earlier labels or layouts until recaptured and reviewed. Use the current text and command descriptions rather than inferring shortcuts from older images.
+
 ## Start here
 
 New users should follow the [Quick start](getting-started/quick-start.md). It covers the shortest path from opening files to Statistics, Histogram, Line Profile, and Difference.
