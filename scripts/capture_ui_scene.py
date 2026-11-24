@@ -543,6 +543,159 @@ def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     )
 
 
+def _statistics_pivot(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    panel = window.comparison_analysis_panel
+
+    def ready() -> bool:
+        if not _documents_presented(window, documents) or not _analysis_ready(panel, documents):
+            return False
+        panel.statistics_view.setCurrentText("Pivot")
+        panel.pivot_reference.setCurrentIndex(1)
+        panel.pivot_delta.setCurrentText("Absolute Δ")
+        return bool(
+            panel.statistics_stack.currentWidget() is panel.pivot_table
+            and panel.pivot_table.rowCount() >= 3
+            and panel.pivot_export_button.isEnabled()
+        )
+
+    return window, ready, _fixture_identity(documents, "statistics_pivot")
+
+
+def _six_image_difference(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 6, "Multi View")
+    started = False
+
+    def ready() -> bool:
+        nonlocal started
+        if not started:
+            if not _documents_presented(window, documents):
+                return False
+            window.analysis_tabs.setCurrentWidget(window.difference_panel)
+            window.difference_panel.calculate_difference()
+            started = True
+            return False
+        return bool(
+            window._difference_document is not None
+            and window.viewer.document is window._difference_document
+            and window.diff_action.isChecked()
+            and window._six_image_diff_locked()
+            and len(window.selected_documents) == 6
+            and window.difference_panel._worker is None
+        )
+
+    return window, ready, _fixture_identity(documents, "six_image_difference")
+
+
+def _gain_control(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    combo = window._display_gain_control
+
+    def ready() -> bool:
+        if not _documents_presented(window, documents) or not combo.isEnabled():
+            return False
+        combo.setCurrentText("4×")
+        return combo.currentText() == "4×" and _analysis_ready(
+            window.comparison_analysis_panel, documents
+        )
+
+    return window, ready, _fixture_identity(documents, "gain_control")
+
+
+def _pick_curation(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 6, "Multi View")
+    controller = window.review_selection_controller
+    picked = False
+
+    def ready() -> bool:
+        nonlocal picked
+        if not _documents_presented(window, documents):
+            return False
+        if not picked:
+            viewers = window.multi_compare_view.occupied_viewers
+            controller._pick_requested(viewers[0], True)
+            controller._pick_requested(viewers[2], True)
+            picked = True
+            return False
+        return bool(controller.picked_count == 2 and controller.keep_button.isEnabled())
+
+    return window, ready, _fixture_identity(documents, "pick_curation")
+
+
+def _roi_editor_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    window.show()
+    _wait_until_ready(app, window, lambda: _documents_presented(window, documents))
+    bounds = RoiBounds(96, 72, 320, 180)
+    if not window._apply_shared_roi(bounds, allow_channel_split=False):
+        raise RuntimeError("ROI editor capture could not establish the shared ROI")
+    dialog = window.issue77_ui_design_followup._show_roi_editor()
+    if dialog is None:
+        raise RuntimeError("ROI editor did not open")
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
+    return dialog, lambda: dialog.bounds() == bounds, _fixture_identity(
+        documents, "roi_editor_dialog"
+    )
+
+
+def _memo_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    # Memo attests real source files, not merely the in-memory preview fixtures.
+    import cv2
+
+    window, _ = _populated_window(app, 0, "Multi View")
+    fixtures = [review_document(index) for index in range(2)]
+    source_dir = Path(QSettings().fileName()).parent / "public-guide-fixtures"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for document in fixtures:
+        path = source_dir / document.display_name
+        if not cv2.imwrite(str(path), cv2.cvtColor(document.source, cv2.COLOR_RGB2BGR)):
+            raise RuntimeError("could not write public Memo fixture")
+        paths.append(path)
+    window.open_image_paths(paths)
+    window.set_layout_mode("Multi View")
+    memo = window.named_review_coordinator
+    memo.show()
+    memo.panel.include_statistics.setChecked(False)
+    rois = (RoiBounds(96, 72, 160, 100), RoiBounds(320, 180, 144, 96))
+    notes = ("Compare edge detail and texture.", "Inspect local color and noise.")
+    started = 0
+    annotated = 0
+
+    def ready() -> bool:
+        nonlocal started, annotated
+        viewers = window.multi_compare_view.occupied_viewers
+        if len(viewers) != 2 or not all(
+            viewer.document is not None
+            and viewer.document.loading_state == "ready"
+            and viewer.measure_physical_zoom().valid
+            and not viewer._geometry_timer.isActive()
+            for viewer in viewers
+        ):
+            return False
+        if memo._capture_worker is not None:
+            return False
+        findings = memo.library.document.findings
+        if started > annotated:
+            if len(findings) != started:
+                return False
+            memo.panel.note_edit.setPlainText(notes[annotated])
+            annotated += 1
+        if started < len(rois):
+            if not window._shared_roi_changed(rois[started]):
+                raise RuntimeError("Memo capture ROI was rejected")
+            started += 1
+            return False
+        return bool(
+            memo.dock.isVisible()
+            and memo.panel.findings.count() == 2
+            and len(memo._crops) == 4
+            and annotated == 2
+        )
+
+    return window, ready, _fixture_identity(fixtures, "memo_workspace")
+
+
 BUILDERS = {
     "single_image": _single_image,
     "six_image_multiview": _six_image_multiview,
@@ -558,6 +711,12 @@ BUILDERS = {
     "settings_dialog": _settings_dialog,
     "iqa_neutral": _iqa_neutral,
     "yuv_profile_dialog": _yuv_profile_dialog,
+    "statistics_pivot": _statistics_pivot,
+    "six_image_difference": _six_image_difference,
+    "gain_control": _gain_control,
+    "pick_curation": _pick_curation,
+    "roi_editor_dialog": _roi_editor_dialog,
+    "memo_workspace": _memo_workspace,
 }
 
 SCENARIOS = tuple(BUILDERS)
@@ -583,7 +742,13 @@ def _wait_until_ready(app: QApplication, widget: QWidget, ready: Callable[[], bo
     raise TimeoutError("scene did not reach a visible and ready QWidget state")
 
 
-def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> int:
+def capture(
+    scene: str,
+    output: Path,
+    metadata_path: Path,
+    source_sha: str,
+    memo_report: Path | None = None,
+) -> int:
     if scene not in BUILDERS:
         raise ValueError("unknown capture scenario")
     if not output.parent.is_dir() or not metadata_path.parent.is_dir():
@@ -655,6 +820,16 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
             "device_pixel_ratio": pixmap.devicePixelRatio(),
         }
         report["image_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
+        if memo_report is not None:
+            if scene != "memo_workspace":
+                raise ValueError("Memo report requires the memo_workspace scene")
+            from pixelscope.io.memo_archive import MemoArchive
+            from pixelscope.io.memo_folder import save_folder_memo
+
+            memo = widget.named_review_coordinator
+            save_folder_memo(
+                memo_report, MemoArchive(memo.library.document, memo._crops), None
+            )
         report["status"] = "captured"
     except Exception as exc:
         report["error_type"] = type(exc).__name__
@@ -699,10 +874,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--metadata", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--memo-report", type=Path)
     args = parser.parse_args()
     if len(args.source_sha) != 40 or not all(ch in "0123456789abcdef" for ch in args.source_sha):
         parser.error("--source-sha requires the exact lowercase 40-character Git SHA")
-    return capture(args.scene, args.output, args.metadata, args.source_sha)
+    return capture(args.scene, args.output, args.metadata, args.source_sha, args.memo_report)
 
 
 if __name__ == "__main__":

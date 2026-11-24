@@ -21,6 +21,8 @@ When the Current Comparison Page contains six original images, **Calculate** or 
 
 Turn **Diff** off in the toolbar to return to the previous comparison page, layout and view state. To change the layout, hide Difference first. See [Compare More Than Six Images](compare-many-images.md).
 
+<!-- pixelscope:screenshot six-image-difference -->
+
 ## Compatibility rules
 
 A valid pair must satisfy the Difference domain rules. Examples include compatible dimensions and source families. Gray uses Gray; Bayer exposes Mosaic, R, Gr, Gb and B; RGB exposes All, R, G and B; native YUV Difference is available only for matching YUV layout/subsampling and exposes Y/U/V channels. Mixed YUV subsampling and YUV-versus-non-YUV pairs are rejected.

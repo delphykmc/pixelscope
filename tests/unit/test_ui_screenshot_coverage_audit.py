@@ -32,11 +32,13 @@ def _fixtures() -> tuple[dict, dict]:
 def test_real_e6_entry_is_valid_and_complete_after_owner_approval() -> None:
     result = audit()
     assert result["errors"] == []
-    assert result["complete"] is True
-    assert result["pending_ids"] == []
+    manifest = json.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
+    pending = [row["id"] for row in manifest["screenshots"] if row["status"] == "capture-ready"]
+    assert result["pending_ids"] == pending
+    assert result["complete"] is (not pending)
     strict = audit(require_complete=True)
-    assert strict["complete"] is True
-    assert strict["errors"] == []
+    assert strict["complete"] is (not pending)
+    assert bool(strict["errors"]) is bool(pending)
 
 
 def test_each_gap_requires_its_own_record_and_real_owner_decision() -> None:
@@ -56,9 +58,9 @@ def test_blanket_defer_without_reason_owner_reference_followup_is_rejected() -> 
     for record in records["gaps"]:
         record["decision"] = "deferred"
     errors = decision_problems(manifest, records, ROOT / ASSETS)
-    assert sum("owner review reference required" in error for error in errors) == 7
-    assert sum("rationale required" in error for error in errors) == 7
-    assert sum("future follow-up URL" in error for error in errors) == 7
+    assert sum("owner review reference required" in error for error in errors) == len(records["gaps"])
+    assert sum("rationale required" in error for error in errors) == len(records["gaps"])
+    assert sum("future follow-up URL" in error for error in errors) == len(records["gaps"])
 
 
 def test_a_url_does_not_make_unapproved_image_a_promoted_capture() -> None:

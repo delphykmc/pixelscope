@@ -25,6 +25,8 @@ Use **Clear** (Clear Selection) to clear the temporary picks without changing Se
 
 A separate operation that replaces Selected membership can invalidate the temporary curation baseline so stale picks are not applied to a different selection.
 
+<!-- pixelscope:screenshot pick-curation -->
+
 ## Analysis scope
 
 Pick does not expand Statistics, Histogram, or Line Profile beyond the Current Comparison Page. Picking also does not itself load images, calculate Difference, or make picked off-page sources resident merely because they are picked.

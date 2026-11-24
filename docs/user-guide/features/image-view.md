@@ -29,6 +29,8 @@ The **Gain** selector (Display Gain) provides `1×`, `2×`, `4×`, `8×`, and `1
 
 Gain applies to supported Gray/RGB/RGBA and channel views, and profiled Bayer RAW. RAW preview gain is black-level anchored; ordinary images use a zero anchor. Native source data and analysis values are unchanged. Difference Gain is a separate control. When the Files tree has focus, `+` and `-` expand/collapse its items instead. If Gain is disabled, the presented source does not support it.
 
+<!-- pixelscope:screenshot gain-control -->
+
 ## Split channels
 
 `S` toggles the Split-channel action when it is applicable. Available split/channel views depend on the source family; do not interpret a display transform as a change to native numeric analysis.

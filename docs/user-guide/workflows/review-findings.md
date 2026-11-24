@@ -146,6 +146,8 @@ Statistics settle. Save is blocked while the checkbox is enabled and any recorde
 ROI lacks captured Statistics. Uncheck it to save images/notes without requiring
 complete Statistics; already attached evidence remains in the Memo.
 
+<!-- pixelscope:screenshot memo-workspace -->
+
 ## Read the saved report
 
 Each recorded ROI has its own section and crop cards. Use the ROI jump buttons to navigate; each image action opens the stored PNG separately. The optional native Statistics section groups measurements by channel (Min, Max, Mean, Std, P1, P50 and P99) and uses the first image as the baseline for compatible deltas. Direction colors do not imply quality. The CSV action retains full numerical precision and native metadata.

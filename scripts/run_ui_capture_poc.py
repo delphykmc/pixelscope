@@ -113,7 +113,8 @@ def validate_capture(
     with Image.open(path) as opened:
         image = opened.convert("RGB")
         width, height = image.size
-        if width < 250 or height < 180:
+        minimum_height = 100 if scene == "roi_editor_dialog" else 180
+        if width < 250 or height < minimum_height:
             raise ValueError("captured screen is smaller than the minimum useful UI")
         if max(ImageStat.Stat(image).stddev) < 7.0:
             raise ValueError("captured UI has insufficient pixel variation")

@@ -553,6 +553,148 @@
       },
       "geometry_policy": "resizable",
       "coverage_note": "Owner-approved real-UI capture promoted in E6."
+    },
+    {
+      "id": "statistics-pivot",
+      "filename": "statistics-pivot.png",
+      "pages": [
+        "features/statistics.md"
+      ],
+      "placement": "required",
+      "scenario": "statistics_pivot",
+      "capture_mode": "isolated",
+      "alt": "Statistics Pivot with absolute delta",
+      "features": [
+        "statistics"
+      ],
+      "source_globs": [
+        "src/pixelscope/ui/comparison_analysis_panel.py"
+      ],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "capture-ready",
+      "geometry_policy": "fixed"
+    },
+    {
+      "id": "six-image-difference",
+      "filename": "six-image-difference.png",
+      "pages": [
+        "workflows/use-difference.md"
+      ],
+      "placement": "required",
+      "scenario": "six_image_difference",
+      "capture_mode": "isolated",
+      "alt": "Difference-only Single View with six original sources",
+      "features": [
+        "difference"
+      ],
+      "source_globs": [
+        "src/pixelscope/app/main_window.py",
+        "src/pixelscope/ui/difference_curation_lifecycle.py"
+      ],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "capture-ready",
+      "geometry_policy": "fixed"
+    },
+    {
+      "id": "gain-control",
+      "filename": "gain-control.png",
+      "pages": [
+        "features/image-view.md"
+      ],
+      "placement": "required",
+      "scenario": "gain_control",
+      "capture_mode": "isolated",
+      "alt": "Shared Image View Gain at 4×",
+      "features": [
+        "image-view"
+      ],
+      "source_globs": [
+        "src/pixelscope/ui/display_gain*.py",
+        "src/pixelscope/ui/presentation_controls.py"
+      ],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "capture-ready",
+      "geometry_policy": "fixed"
+    },
+    {
+      "id": "pick-curation",
+      "filename": "pick-curation.png",
+      "pages": [
+        "workflows/curate-selection.md"
+      ],
+      "placement": "required",
+      "scenario": "pick_curation",
+      "capture_mode": "isolated",
+      "alt": "Two picked images with Keep and Clear controls",
+      "features": [
+        "curation"
+      ],
+      "source_globs": [
+        "src/pixelscope/ui/review_selection.py",
+        "src/pixelscope/ui/presentation_controls.py"
+      ],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "capture-ready",
+      "geometry_policy": "fixed"
+    },
+    {
+      "id": "roi-editor-dialog",
+      "filename": "roi-editor-dialog.png",
+      "pages": [
+        "workflows/inspect-roi.md"
+      ],
+      "placement": "required",
+      "scenario": "roi_editor_dialog",
+      "capture_mode": "isolated",
+      "alt": "Exact ROI coordinate editor",
+      "features": [
+        "roi"
+      ],
+      "source_globs": [
+        "src/pixelscope/ui/issue77_ui_design_followup.py"
+      ],
+      "viewport": {
+        "width": 320,
+        "height": 200
+      },
+      "status": "capture-ready",
+      "geometry_policy": "resizable"
+    },
+    {
+      "id": "memo-workspace",
+      "filename": "memo-workspace.png",
+      "pages": [
+        "workflows/review-findings.md"
+      ],
+      "placement": "required",
+      "scenario": "memo_workspace",
+      "capture_mode": "isolated",
+      "alt": "Memo workspace with two recorded ROI notes",
+      "features": [
+        "memo"
+      ],
+      "source_globs": [
+        "src/pixelscope/ui/review*.py",
+        "src/pixelscope/io/memo*.py"
+      ],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "capture-ready",
+      "geometry_policy": "fixed"
     }
   ],
   "shared_source_globs": [

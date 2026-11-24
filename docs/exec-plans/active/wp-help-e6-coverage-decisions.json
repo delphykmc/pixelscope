@@ -101,6 +101,48 @@
       "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
       "reason": null,
       "follow_up": null
+    },
+    {
+      "id": "statistics-pivot",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "six-image-difference",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "gain-control",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "pick-curation",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "roi-editor-dialog",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "memo-workspace",
+      "decision": "pending",
+      "review_ref": null,
+      "reason": null,
+      "follow_up": null
     }
   ]
 }
