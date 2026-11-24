@@ -21,6 +21,6 @@ RAW supports unpacked `uint8`, unpacked `uint16`, generic 1-16-bit packed stream
 
 Native YUV supports current 8-bit YUV444, YUV422, and YUV420 semantics described in the [YUV Guide](../formats/yuv.md).
 
-## Remote IQA submission
+## Optional IQA
 
-Remote IQA submission is a separate contract from local viewing. The current submission input surface is limited to `.png`, `.bmp`, `.jpg`, and `.jpeg`; local RAW/YUV support does not imply an automatic remote conversion path.
+Core has no IQA implementation. The separate Reference package uses mock results; real Enterprise submission formats and conversion behavior are downstream-owned. Local RAW/YUV viewing support does not establish an IQA submission contract.

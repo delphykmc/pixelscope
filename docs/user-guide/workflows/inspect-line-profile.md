@@ -12,7 +12,7 @@ The shared line uses source/reference coordinates so that the same spatial locat
 
 ## Clear the line
 
-Use **Edit > Clear Line**. When the Line Profile tab is current, `Shift+Esc` clears the line profile.
+Use **Edit > Clear Line Profile**. When the Line Profile tab is current, `Shift+Esc` clears the line profile.
 
 A context change that makes the line invalid can clear it rather than silently remapping it to unrelated coordinates.
 

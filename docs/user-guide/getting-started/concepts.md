@@ -20,7 +20,7 @@ The **Current Comparison Page** is the page-sized window over Selected sources t
 
 ## Primary
 
-**Primary** is an explicitly chosen reference role. Difference compares Primary with Active when both roles form a valid pair. Changing Active does not implicitly replace Primary.
+**Primary** is an explicitly chosen reference role. Primary and Active provide comparison context; confirm the two selectors in Difference before calculating. Changing Active does not implicitly replace Primary.
 
 ## ROI
 
@@ -33,6 +33,10 @@ A **Region of Interest (ROI)** is a shared rectangular source-coordinate region 
 ## Folder Position
 
 **Folder Position** is the natural-order ordinal of an image inside a registered folder. `PageUp` and `PageDown` move a valid multi-folder comparison to the previous or next matching position as one operation.
+
+## Memo and Session
+
+A **Memo** keeps ROI notes and captured crop evidence for the current comparison; it can be saved as a folder with an offline report. A **Session** stores the broader working context and references the original files rather than embedding them.
 
 ## IQA Reference
 

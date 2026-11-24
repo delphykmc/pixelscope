@@ -1,16 +1,16 @@
 # Terminology
 
 ## Active
-The source currently in focus for page-local interaction and the comparison side used with Primary for Difference.
+The source currently in focus for page-local interaction.
 
 ## Comparison Page
 A page-sized slice of the ordered Selected set. The Current Comparison Page contains at most six sources.
 
 ## Comparison Set
-A persisted reusable comparison/source-selection artifact, narrower than a full Session.
+A legacy persisted comparison/source-selection artifact, readable through Open Session.
 
 ## Difference
-An explicit comparison result between a compatible Primary/Active pair.
+An explicit comparison result between two compatible sources chosen in the Difference panel.
 
 ## Folder Position
 The natural-order ordinal of a source within a registered folder, used by synchronized `PageUp`/`PageDown` navigation.
@@ -32,3 +32,9 @@ The ordered logical comparison set. It can contain more than six sources.
 
 ## Session
 A broader persisted resume artifact that can restore source identity plus applicable workspace/view/analysis state.
+
+## Memo
+ROI notes and captured crop evidence, saved with a portable HTML report and optional native Statistics.
+
+## Display Gain
+Shared viewer-only amplification, separate from native measurements and Difference Gain.
