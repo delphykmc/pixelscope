@@ -6,6 +6,10 @@ PixelScope exports the current analysis state; export does not silently recalcul
 
 Use **File > Export Statistics CSV...** to save the current Statistics table for the active full-image/ROI analysis context.
 
+## Pivot Statistics CSV
+
+Use **Export Pivot CSV…** in Statistics for the typed Pivot table, including values, units and deltas. The ordinary Statistics CSV remains the legacy Raw export. See [Statistics](../features/statistics.md).
+
 ## Histogram CSV
 
 Use **Export Histogram CSV...** to save the exact currently plotted Histogram series, including analysis scope/bounds, source/series/channel identity, bin information, counts, and current plot modes.
@@ -60,8 +64,7 @@ status and archive. The destination extension is resolved before overwrite
 confirmation. The ZIP is written to a temporary sibling and published
 atomically; cancellation or an I/O error does not publish an incomplete bundle.
 
-This bundle is **not** a full HTML/PNG Review Report. Named findings and report
-composition belong to the separate Review workflow. Existing individual CSV/PNG
+This bundle is **not** a Memo report. Use [Memo](review-findings.md) for ROI notes, captured crop PNGs and the portable HTML report. Existing individual CSV/PNG
 commands remain available, with their original file layouts and numerical rules.
 
 ## Export folder and failures

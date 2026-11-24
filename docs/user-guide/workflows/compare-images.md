@@ -12,7 +12,7 @@ This workflow covers ordinary visual comparison of two to six sources on the cur
 
 ## Choose a reference
 
-Set a source as **Primary** when you need a stable reference role. **Active** follows the source currently in focus. Difference uses these roles but ordinary visual comparison does not require a Difference calculation.
+Set a source as **Primary** when you need a stable reference role. **Active** follows the source currently in focus. Difference has its own explicit source selectors; ordinary visual comparison does not require a Difference calculation.
 
 ## Native layouts and Difference
 
@@ -21,7 +21,7 @@ current comparison page contains at most six sources and is the sole analysis
 working set. Use the Files workspace to choose sources and **Primary** for the
 source reference; **Active** is the currently focused source.
 
-Use the existing Difference panel's Reference/Target selectors and an explicit
+Use the Difference panel's Image 1/Image 2 (A/B) selectors and an explicit
 **Calculate** request for new differences. Cached results remain generation
 and channel bound. There is no additional Original 2/4, A/B/Diff, or Diff Focus
 preset state or hidden toolbar selector. Physical zoom, Sync and reference ROI

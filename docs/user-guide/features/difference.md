@@ -6,7 +6,7 @@ Difference compares two explicitly assigned, compatible sources and provides bot
 
 ## Roles
 
-**Primary** is the reference role and **Active** is the focused comparison role. Both must identify a valid current-page pair before a new calculation can be established.
+**Primary** is the viewer reference role and **Active** is the focused source. Confirm the actual pair in the Difference panel's **Image 1** and **Image 2** selectors before Calculate; the selected pair is the calculation authority.
 
 ## Explicit calculation and cache
 
@@ -14,7 +14,7 @@ Press **Calculate** to establish the current Difference result. PixelScope may r
 
 ## Domains
 
-Gray/Bayer comparisons use Gray semantics. RGB/RGBA comparisons exclude alpha from color Difference semantics and expose color channels. Native YUV Difference is limited to matching native YUV layout/subsampling and exposes Y, U, and V. Unsupported family/size/CFA/subsampling combinations remain unavailable.
+Gray exposes Gray; Bayer exposes Mosaic, R, Gr, Gb and B. RGB/RGBA comparisons expose All, R, G and B and exclude alpha from color Difference semantics. Native YUV Difference is limited to matching native YUV layout/subsampling and exposes Y, U, and V. Unsupported family/size/CFA/subsampling combinations remain unavailable.
 
 ## Metric units
 
@@ -22,6 +22,8 @@ The Difference metric table distinguishes **Value** and **Unit** without changin
 
 ## Display versus analysis
 
-Display gain is presentation-only. An ROI can restrict Difference metrics while the Difference map remains a full-frame preview.
+Image View Display Gain is presentation-only and separate from the Difference panel's Gain. Difference supports Absolute and Mask display modes, a threshold and its own Gain control. Choose Full image or Active ROI for numeric metrics; the Difference map remains a full-frame preview.
 
-See [Use Difference](../workflows/use-difference.md) for the procedure and compatibility checks.
+On a page of six original images, Difference is displayed alone in Single View. Hide it with **Diff** to restore the previous layout. **Keep** in Pick curation closes the active Difference without purging its numerical cache.
+
+See [Use Difference](../workflows/use-difference.md) for the procedure, six-image display behavior and compatibility checks, and [Curate a Large Selection](../workflows/curate-selection.md) for Keep/Clear.

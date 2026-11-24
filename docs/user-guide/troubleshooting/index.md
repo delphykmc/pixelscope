@@ -4,7 +4,7 @@ Search this page using the symptom or concept shown in the UI.
 
 ## Difference is unavailable
 
-Verify that both **Primary** and **Active** identify valid, distinct current-page sources. Check dimensions and source family. Bayer pairs must satisfy CFA compatibility. Native YUV pairs must use matching layout/subsampling; YUV-versus-non-YUV and mixed-subsampling Difference are not supported.
+Verify that the two Difference image selectors identify valid, distinct current-page sources. Check dimensions and source family. Bayer pairs must satisfy CFA compatibility. Native YUV pairs must use matching layout/subsampling; YUV-versus-non-YUV and mixed-subsampling Difference are not supported.
 
 ## PageUp or PageDown does nothing
 
@@ -20,7 +20,11 @@ PixelScope clears an ROI when a new source/comparison context cannot represent t
 
 ## Line Profile is empty or needs reset
 
-Open the Line Profile tab and `Shift+drag` a horizontal or vertical line. Use **Edit > Clear Line** or `Shift+Esc` while the Line Profile tab is current, then draw it again.
+Open the Line Profile tab and `Shift+drag` a horizontal or vertical line. Use **Edit > Clear Line Profile** or `Shift+Esc` while the Line Profile tab is current, then draw it again.
+
+## Gain shortcut does not work
+
+Click Image View, then press `+` or `-`. These keys change shared Display Gain by one step only when the control is enabled. When Files has focus they expand/collapse tree items. Select 1× in Gain to reset. Difference Gain is separate.
 
 ## RAW file will not open
 

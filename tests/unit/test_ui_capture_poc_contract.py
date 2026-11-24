@@ -110,6 +110,22 @@ def test_poc_validator_accepts_compact_real_dialog_but_rejects_tiny_ui(tmp_path:
         validate_capture(png, metadata, "single_image", sha)
 
 
+def test_real_compact_roi_editor_geometry_has_a_scene_specific_gate(tmp_path: Path) -> None:
+    png, metadata = tmp_path / "roi.png", tmp_path / "roi.json"
+    sha = "4" * 40
+    size = (242, 107)
+    _pattern(png, size)
+    _metadata(metadata, png, sha, size)
+    record = json.loads(metadata.read_text(encoding="utf-8"))
+    record["scenario"] = "roi_editor_dialog"
+    metadata.write_text(json.dumps(record), encoding="utf-8")
+    assert validate_capture(png, metadata, "roi_editor_dialog", sha)["status"] == "captured"
+    record["scenario"] = "single_image"
+    metadata.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(ValueError, match="minimum useful UI"):
+        validate_capture(png, metadata, "single_image", sha)
+
+
 def test_manifest_geometry_policy_allows_native_yuv_dialog_size() -> None:
     assert EXPECTED_LOGICAL_SIZE["yuv_profile_dialog"] == [299, 200]
     assert ALLOW_WIDGET_RESIZE["yuv_profile_dialog"] is True
@@ -218,3 +234,57 @@ def test_scene_wait_times_out_without_async_completion(monkeypatch: pytest.Monke
     monkeypatch.setattr(capture_ui_scene, "TIMEOUT_SECONDS", 0.0)
     with pytest.raises(TimeoutError, match="visible and ready"):
         capture_ui_scene._wait_until_ready(WaitingApp(), VisibleWidget(), lambda: False)
+
+
+def test_pick_capture_waits_for_analysis_after_picking(monkeypatch: pytest.MonkeyPatch) -> None:
+    picked = []
+    controller = SimpleNamespace(
+        _pick_requested=lambda viewer, value: picked.append(viewer),
+        picked_count=2,
+        keep_button=SimpleNamespace(isEnabled=lambda: True),
+    )
+    window = SimpleNamespace(
+        review_selection_controller=controller,
+        multi_compare_view=SimpleNamespace(occupied_viewers=[0, 1, 2, 3, 4, 5]),
+        comparison_analysis_panel=object(),
+    )
+    monkeypatch.setattr(capture_ui_scene, "_populated_window", lambda *args: (window, []))
+    monkeypatch.setattr(capture_ui_scene, "_documents_presented", lambda *args: True)
+    monkeypatch.setattr(capture_ui_scene, "_fixture_identity", lambda *args: "fixture")
+    analysis_complete = False
+    monkeypatch.setattr(capture_ui_scene, "_analysis_ready", lambda *args: analysis_complete)
+    _, ready, _ = capture_ui_scene._pick_curation(None)
+    assert not ready()
+    assert picked == [0, 2]
+    assert not ready()
+    analysis_complete = True
+    assert ready()
+    assert picked == [0, 2]
+
+
+def test_iqa_capture_waits_for_statistics(monkeypatch: pytest.MonkeyPatch) -> None:
+    dock = SimpleNamespace(
+        setMinimumWidth=lambda value: None,
+        show=lambda: None,
+        raise_=lambda: None,
+        isVisible=lambda: True,
+    )
+    workspace = SimpleNamespace(
+        status_label=SimpleNamespace(text=lambda: "Reference IQA ready."),
+        submit_button=SimpleNamespace(isEnabled=lambda: True),
+    )
+    monkeypatch.setattr(
+        capture_ui_scene,
+        "ReferenceIqaExtension",
+        lambda: SimpleNamespace(dock=dock, widget=workspace),
+    )
+    window = SimpleNamespace(comparison_analysis_panel=object())
+    monkeypatch.setattr(capture_ui_scene, "_populated_window", lambda *args, **kwargs: (window, []))
+    monkeypatch.setattr(capture_ui_scene, "_documents_presented", lambda *args: True)
+    monkeypatch.setattr(capture_ui_scene, "_fixture_identity", lambda *args: "fixture")
+    complete = False
+    monkeypatch.setattr(capture_ui_scene, "_analysis_ready", lambda *args: complete)
+    _, ready, _ = capture_ui_scene._iqa_neutral(None)
+    assert not ready()
+    complete = True
+    assert ready()

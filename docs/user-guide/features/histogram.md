@@ -12,6 +12,10 @@ Histogram analyzes the Current Comparison Page. It uses the full image when no R
 
 Channel controls follow source semantics. RGB, Gray/Bayer, and native YUV sources do not necessarily expose the same channel set.
 
+## Plot controls
+
+Choose Separate or Overlay, Count / Normalized / Log count, Native range or Normalized 0–1, and Auto / 256 / 1024 / 4096 bins. These options control the plotted distribution; they do not change the original pixel data.
+
 ## When to use it
 
 Use Histogram to compare exposure/value distributions, clipping, channel balance, or distribution changes between sources. Use Statistics for scalar summaries and Line Profile for spatial variation.

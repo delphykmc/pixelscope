@@ -8,7 +8,7 @@ Select as many registered sources as the workflow requires. PixelScope keeps the
 
 ## Navigate pages
 
-Use the Previous/Next Comparison Page controls. The page indicator shows which slice of the Selected set is currently visible. Page-local number keys `1` through `6` activate only the visible slots on that page.
+Use the Previous/Next Comparison Page controls or `Ctrl+Left` / `Ctrl+Right`. The page indicator shows which slice of the Selected set is currently visible. Page-local number keys `1` through `6` activate only the visible slots on that page.
 
 Statistics, Histogram, and Line Profile follow the **Current Comparison Page**, not every Selected source across all pages at once. This keeps analysis bounded and makes the visible comparison set explicit.
 
@@ -30,6 +30,10 @@ Long labels are shortened in the tile, with the full source path in its
 tooltip. Statistics, Histogram, Line and Difference use the same resolved
 source names. Analysis does not add the parent folder again to an already
 resolved alias or tag.
+
+## Show Difference on a full page
+
+With six originals on the Current Comparison Page, showing Difference temporarily switches to Difference-only Single View. Turn **Diff** off to restore the previous page, layout and view state; the Selected set is not lost. See [Display Difference on a six-image page](use-difference.md#display-difference-on-a-six-image-page).
 
 ## Preserve selection
 

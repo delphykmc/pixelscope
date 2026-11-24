@@ -10,7 +10,11 @@ Open the Line Profile tab and **Shift+drag** in Image View. PixelScope records t
 
 ## Clear the line
 
-Use **Edit > Clear Line**. `Shift+Esc` is available while the Line Profile tab is current.
+Use **Edit > Clear Line Profile**. `Shift+Esc` is available while the Line Profile tab is current.
+
+## Plot controls
+
+Use Overlay, Separate by image or Separate by channel. The Y axis supports Native value, Normalized 0–1 and Difference from reference; choose the reference when that mode is active. The X axis supports Distance px or Normalized distance. These plot choices do not alter the original source samples.
 
 ## Scope
 

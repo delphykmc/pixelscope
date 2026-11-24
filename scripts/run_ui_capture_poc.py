@@ -113,7 +113,10 @@ def validate_capture(
     with Image.open(path) as opened:
         image = opened.convert("RGB")
         width, height = image.size
-        if width < 250 or height < 180:
+        # The real compact ROI editor is 242 × 107 on the pinned Windows runner.
+        # Its scene-specific lower bound does not relax other GUI captures.
+        minimum_width, minimum_height = (220, 96) if scene == "roi_editor_dialog" else (250, 180)
+        if width < minimum_width or height < minimum_height:
             raise ValueError("captured screen is smaller than the minimum useful UI")
         if max(ImageStat.Stat(image).stddev) < 7.0:
             raise ValueError("captured UI has insufficient pixel variation")
@@ -274,7 +277,7 @@ def run(output: Path, source_sha: str) -> int:
         "# WP-Help-E1 hosted Windows GUI proof of concept\n\n"
         f"- Source SHA: `{source_sha}`\n"
         f"- Result: **{report['status']}**\n"
-        "- Scenes: real Single View and RAW profile dialog; two fresh processes each.\n"
+        f"- Scenes: {len(SCENES)} real registered scenes; two fresh processes each.\n"
         "- Pixel repeatability tolerance: 1% changed pixels after ignoring per-channel "
         "delta <= 3 renderer jitter; exact fraction in report.json.\n"
         "- Generated PNGs are candidate artifacts, not reviewed User Guide images.\n",

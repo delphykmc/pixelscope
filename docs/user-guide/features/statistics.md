@@ -16,11 +16,17 @@ Statistics is based on source analysis data, not on presentation-only display ga
 
 ## Raw and Pivot
 
+In **Analysis > Statistics > Channel statistics**, use the **View** dropdown to
+switch between **Raw** and **Pivot**. This changes the table view; it does not
+select a workspace layout preset. No dedicated keyboard shortcut is required.
+
 **Raw** preserves the original per-image/channel table and its CSV format. **Pivot** presents metrics as rows (Mean, Std, P99 by default), with one column per Current Comparison Page source (up to six). Select **All metrics** or **Percentiles** and filter the channel without triggering new analysis. Column headers use the source's current qualified Display Alias; reordering images changes column order, not source identity.
 
-Select a **Pivot reference** independently of the primary image or Difference A/B pair. Choose **Values**, **Absolute Δ** (target − reference, native unit), or **Relative Δ (%)** (absolute Δ / |reference| × 100). Deltas are calculated from full-precision W02 measurement values, not the rounded screen text. Incompatible native format/effective bits, CFA phase, YUV chroma footprint, unequal sample counts, mismatched metric definition or ROI, and unavailable/nonfinite values disable Delta; hover to see the reason. Zero reference retains absolute Δ but makes relative Δ unavailable.
+Select a **Pivot reference** independently of the primary image or Difference A/B pair. Choose **Values**, **Absolute Δ** (target − reference, native unit), or **Relative Δ (%)** (absolute Δ / |reference| × 100). Deltas are calculated from full-precision captured measurement values, not the rounded screen text. Incompatible native format/effective bits, CFA phase, YUV chroma footprint, unequal sample counts, mismatched metric definition or ROI, and unavailable/nonfinite values disable Delta; hover to see the reason. Zero reference retains absolute Δ but makes relative Δ unavailable.
 
-Native statistics use **native code values**, not normalized [0,1] presentation values. The metric unit is shown separately; a native sample count, complete numeric state, effective precision and captured ROI are available in the tooltip. W02 results that are pending, cancelled or stale cannot appear in Pivot as current measurements.
+Native statistics use **native code values**, not normalized [0,1] presentation values. The metric unit is shown separately; a native sample count, complete numeric state, effective precision and captured ROI are available in the tooltip. Analysis results that are pending, cancelled or stale cannot appear in Pivot as current measurements.
+
+<!-- pixelscope:screenshot statistics-pivot -->
 
 ## Export
 

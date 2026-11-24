@@ -14,6 +14,8 @@ For repeatable measurements, open **Statistics > Region > Edit**, enter **X**, *
 
 Region shows a compact bounds summary with full coordinates in its tooltip. In a narrow sidebar, the summary moves below Bounds/Edit to use the available width; widening restores the compact layout. This does not change the selected ROI or its numerical results.
 
+<!-- pixelscope:screenshot roi-editor-dialog -->
+
 ## Clear the ROI
 
 Use `Esc` or **Edit > Clear ROI** for the application action.

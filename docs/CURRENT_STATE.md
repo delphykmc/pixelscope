@@ -1,5 +1,19 @@
 # PixelScope current state
 
+### 2026-11-24 Core v0.2.1 guide and screenshot acceptance
+
+PR #252 corrects the released v0.2.0 User Guide and sets the canonical Core
+version to 0.2.1. The owner approved twenty real Windows screenshots captured
+at `2d1512690be88fb3fdf7d08865bce8f516179e62`; forty successful child processes
+passed the existing repeatability comparison with zero changed fraction.
+The manifest and individual coverage decisions now identify those exact bytes.
+See the [approval record](exec-plans/active/v0.2.1-screenshot-approval.md) and
+[release validation record](exec-plans/active/v0.2.1-user-guide-audit.md).
+This is source/documentation acceptance; no new binary qualification or live
+Pages deployment is implied. Normal-GC Windows CPython 3.10.11 full validation at
+screenshot-promotion source e155e51d passed **2052 tests, 1 warning in 523.36s**;
+all four PR workflows also passed. Final main/tag identity is recorded at delivery.
+
 ### 2026-11-18 Memo closeout and remaining UNC paths
 
 Memo HTML v10 PR #241 merged as `41ef9ff0` after owner acceptance, independent

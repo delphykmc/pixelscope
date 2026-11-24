@@ -83,7 +83,7 @@ def test_known_transitive_rendering_paths_never_silently_omit_the_scene(
         f"feature-owner:{affected_id}"
         in result["selected_screenshots"][result["selected_ids"].index(affected_id)]["reasons"]
     )
-    assert len(result["selected_ids"]) < 14
+    assert len(result["selected_ids"]) < len(manifest["screenshots"])
 
 
 def test_single_view_capture_depends_on_visible_files_and_statistics(manifest: dict) -> None:
@@ -100,7 +100,7 @@ def test_single_view_capture_depends_on_visible_files_and_statistics(manifest: d
         "src/pixelscope/ui/responsive_control_layout.py",
         "src/pixelscope/ui/session_restore_overlay.py",
     ):
-        assert len(report(manifest, path)["selected_ids"]) == 14
+        assert len(report(manifest, path)["selected_ids"]) == len(manifest["screenshots"])
 
 
 @pytest.mark.parametrize(
@@ -126,7 +126,7 @@ def test_single_feature_owner_and_shared_shell(manifest: dict) -> None:
     assert scoped["selected_screenshots"][0]["capture_eligible"] is True
 
     shared = report(manifest, "src/pixelscope/app/main_window.py")
-    assert len(shared["selected_ids"]) == 14
+    assert len(shared["selected_ids"]) == len(manifest["screenshots"])
     assert "shared-rendering-or-capture-dependency" in shared["changed_paths"][0]["reasons"]
     for path in (
         "src/pixelscope/ui/design_tokens.py",
@@ -135,7 +135,7 @@ def test_single_feature_owner_and_shared_shell(manifest: dict) -> None:
         "src/pixelscope/core/image_document.py",
         "scripts/capture_ui_scene.py",
     ):
-        assert len(report(manifest, path)["selected_ids"]) == 14
+        assert len(report(manifest, path)["selected_ids"]) == len(manifest["screenshots"])
 
 
 @pytest.mark.parametrize(
@@ -172,7 +172,7 @@ def test_rendering_beyond_ui_maps_to_correct_surfaces(
 )
 def test_unmapped_rendering_source_fails_open(manifest: dict, path: str) -> None:
     selection = report(manifest, path)
-    assert len(selection["selected_ids"]) == 14
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert selection["warnings"] == [f"unmapped-ui-impact: {path}"]
 
 
@@ -228,7 +228,7 @@ def test_mixed_rename_reasons_belong_to_affected_ids_only(manifest: dict) -> Non
         base_sha=FULL,
         head_sha=NEXT,
     )
-    assert len(selection["selected_ids"]) == 14
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert selection["warnings"] == [f"unmapped-ui-impact: {new_unmapped}"]
     assert selection["changed_paths"][0]["reasons"] == [
         "feature-owner:raw-profile-dialog",
@@ -260,7 +260,8 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
     )
     assert selection["requires_image_review"]
     assert len(selection["committed_png_changes"]) == 5
-    assert len(selection["selected_ids"]) == 14  # unknown PNG name -> all, with warning
+    # Unknown PNG name -> all, with warning.
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert any("unmapped-screenshot-asset" in x for x in selection["warnings"])
     exact = report(manifest, base + "raw-profile-dialog.png")
     assert exact["selected_ids"] == ["raw-profile-dialog"]
@@ -295,7 +296,7 @@ def test_old_page_ownership_survives_no_reader_fallback(manifest: dict) -> None:
 
 def test_screenshot_validator_edits_select_all(manifest: dict) -> None:
     selection = report(manifest, "scripts/check_screenshot_manifest.py")
-    assert len(selection["selected_ids"]) == 14
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert "screenshot-automation-contract" in selection["changed_paths"][0]["reasons"]
 
 
@@ -308,7 +309,7 @@ def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> 
     assert change["requires_image_review"] is True
     manifest["target_capture_profile"] = "new-profile"
     result = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
-    assert len(result["selected_ids"]) == 14
+    assert len(result["selected_ids"]) == len(manifest["screenshots"])
     assert result["target_profile_changed"] is True
     assert result["requires_image_review"] is True
 
@@ -319,7 +320,7 @@ def test_all_capture_ready_scenes_are_eligible_without_capture_debt(manifest: di
     assert scoped["capture_deferred"] == []
 
     full = report(manifest, "src/pixelscope/app/main_window.py")
-    assert len(full["capture_eligible_ids"]) == 14
+    assert len(full["capture_eligible_ids"]) == len(manifest["screenshots"])
     assert full["capture_deferred"] == []
 
 
@@ -342,7 +343,7 @@ def test_removed_scene_is_not_reported_as_capture_ready(manifest: dict) -> None:
 
 def test_screenshot_readme_and_no_changes(manifest: dict) -> None:
     result = report(manifest, "docs/user-guide/assets/screenshots/README.md")
-    assert len(result["selected_ids"]) == 14
+    assert len(result["selected_ids"]) == len(manifest["screenshots"])
     empty = select_changes([], manifest, manifest, base_sha=FULL, head_sha=NEXT)
     assert empty["selected_ids"] == []
     assert empty["no_selection_reason"] == "no changed paths"
@@ -391,7 +392,7 @@ def test_real_git_pinned_rename_deletion_and_new_file(tmp_path: Path, manifest: 
     assert any(x.status == "D" for x in entries)
     assert any(x.status == "A" for x in entries)
     selection = select_changes(entries, manifest, manifest, base_sha=base, head_sha=head)
-    assert len(selection["selected_ids"]) == 14
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert any(x.startswith("unmapped-ui-impact:") for x in selection["warnings"])
     with pytest.raises(ValueError, match="40-character"):
         resolve_sha(tmp_path, "HEAD")

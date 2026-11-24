@@ -28,6 +28,7 @@ GUIDE = Path("docs/user-guide")
 ASSETS = GUIDE / "assets/screenshots"
 _MANIFEST = json.loads((ROOT / ASSETS / "manifest.json").read_text(encoding="utf-8"))
 _REGISTERED = [row for row in _MANIFEST["screenshots"] if row["placement"] != "planned"]
+_PRESENT = [row for row in _REGISTERED if (ROOT / ASSETS / row["filename"]).is_file()]
 _REFERENCED = [row for row in _REGISTERED if row["placement"] == "required"]
 
 
@@ -68,12 +69,15 @@ def _assert_clean_repo(clone: Path) -> None:
     """The shared clone may not retain generated site/cache, PNG or source edits."""
     assert not (clone / "site").exists()
     assert not (clone / ".cache/plugin/privacy").exists()
-    for shot in _REGISTERED:
+    for shot in _PRESENT:
         image = clone / ASSETS / shot["filename"]
         assert image.is_file(), f"unrestored screenshot: {shot['id']}"
         assert (
             hashlib.sha256(image.read_bytes()).hexdigest() == shot["approved"]["image_sha256"]
         ), f"modified approved screenshot: {shot['id']}"
+    for shot in _REGISTERED:
+        if shot not in _PRESENT:
+            assert not (clone / ASSETS / shot["filename"]).exists()
     for page in {name for shot in _REGISTERED for name in shot["pages"]}:
         source = GUIDE / page
         assert (clone / source).read_bytes() == (
@@ -114,7 +118,7 @@ def _clear_generated_site(clone: Path) -> None:
     shutil.rmtree(clone / ".cache/plugin/privacy", ignore_errors=True)
 
 
-@pytest.mark.parametrize("screenshot", _REGISTERED, ids=lambda row: row["id"])
+@pytest.mark.parametrize("screenshot", _PRESENT, ids=lambda row: row["id"])
 def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
     _clean_repo: Path, screenshot: dict
 ) -> None:
@@ -141,7 +145,7 @@ def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
                 )
             assert screenshot["filename"] not in rendered
             assert f"<!-- pixelscope:screenshot {screenshot['id']} -->" not in rendered
-            for other in _REFERENCED:
+            for other in _PRESENT:
                 if other["id"] != screenshot["id"] and page in other["pages"]:
                     assert other["filename"] in rendered
     finally:
@@ -155,7 +159,7 @@ def test_all_declared_pngs_absent_keeps_real_offline_site_valid(_clean_repo: Pat
     try:
         with ExitStack() as missing:
             with measure_phase("all-absent-remove-pngs"):
-                for row in _REGISTERED:
+                for row in _PRESENT:
                     missing.enter_context(_without_png(clone / ASSETS / row["filename"]))
             with measure_phase("all-absent-check-docs"):
                 assert find_problems(clone) == []

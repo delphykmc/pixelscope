@@ -1,38 +1,41 @@
 # Keyboard Shortcuts
 
-This reference lists shortcuts and interaction keys confirmed by the current application/workflow contract.
+The focused widget determines which command receives a key. Actions may be disabled when their required source or analysis context is unavailable.
 
 | Shortcut | Action / scope |
 |---|---|
-| `F1` | Open local User Guide topic for the focused workspace or Settings/RAW/YUV dialog; fall back to guide home when no topic is available |
+| `F1` | Open local context Help for the focused workspace or Settings/RAW/YUV dialog; otherwise guide home |
 | `Ctrl+O` | Open Images |
 | `Ctrl+Shift+O` | Open Folder |
+| `Alt+F4` | Exit |
 | `Ctrl+Shift+M` | Show/hide Memo, including from its floating window |
-| `Ctrl+Q` | Exit |
 | `Ctrl+1` | Single View |
 | `Ctrl+2` | Multi View |
+| `M` | Show Selected in Multi View |
+| `F` | Fit Image |
+| `Ctrl+0` | 100% physical-pixel Zoom |
 | `1` … `6` | Activate the corresponding visible slot on the Current Comparison Page |
-| `T` | Rotate the last actual source on the Current Comparison Page to Primary; works in Single/Multi View, never selects Difference or split-derived tiles |
+| `T` | Cycle the last actual current-page source to Primary; Image View or Files focus; excludes Difference and split-derived tiles |
 | `Left` / `Right` | Previous / next image in the complete ordered Selected set |
-| `Up` / `Down` | Normal row navigation while the Files tree has keyboard focus |
-| `PageUp` | Previous Folder Position; application-wide folder-position move |
-| `PageDown` | Next Folder Position; application-wide folder-position move |
-| `Alt+PageUp` | Add same-position source from the nearest eligible previous registered folder |
-| `Alt+PageDown` | Add same-position source from the nearest eligible next registered folder |
-| `Ctrl+Shift+R` | Clear ROI application action |
-| `Esc` | Clear/cancel ROI interaction when the ROI context owns the key |
-| `Shift+Esc` | Clear Line while the Line Profile tab is current |
+| `Ctrl+Left` / `Ctrl+Right` | Previous / next Comparison Page |
+| `Up` / `Down` | Normal row navigation with Files tree focus |
+| `PageUp` / `PageDown` | Previous / next Folder Position (application-wide) |
+| `Alt+PageUp` / `Alt+PageDown` | Add same-position source from the nearest eligible previous / next registered folder |
+| `Ctrl+A` | Select all in the focused Files tree or Memo ROI list |
+| `Delete` | Remove selected Files registrations or selected Memo ROI records, according to focus; never delete original image files |
+| `Esc` | Clear/cancel ROI interaction; in Memo also clears ROI-list selection and cancels pending Memo work |
+| `Shift+Esc` | Clear Line Profile; use with the Line Profile tab current |
 | `S` | Split Channels when applicable |
-| `[` / `]` | Decrease/increase all visible display gains by 0.5 EV |
-| `\` | Reset display gains |
-| `Alt+[` / `Alt+]` | Single: selected Before; Multi: active slot, ±0.5 EV |
-| `Shift+[` / `Shift+]` | Single View selected After, ±0.5 EV |
+| `+` / `-` | Increase/decrease shared Display Gain by one step with Image View focus; Files tree expands/collapses instead |
+| `Ctrl+C` | Copy selected Statistics table cells with table focus |
+
+## Display Gain
+
+The gain options are 1×, 2×, 4×, 8×, 16×. Select 1× to reset. See [Image View](../features/image-view.md#display-gain). Difference Gain is separate.
 
 ## Pointer gestures
 
-- `Ctrl+drag`: create a shared ROI in Image View.
-- `Shift+drag`: define a Line Profile while using the line workflow.
+- `Ctrl+drag`: create a shared ROI in Image View; Memo records the ROI when Record ROI is enabled.
+- `Shift+drag`: define a horizontal or vertical Line Profile.
 
-## Shortcut context matters
-
-Some shortcuts are application-wide, while others are deliberately active only in a specific view/tab or widget focus. If a shortcut appears inactive, first confirm the relevant workspace, view mode, or keyboard focus.
+If a key appears inactive, click the relevant Image View, Files tree or analysis widget and check that the associated action is enabled.
