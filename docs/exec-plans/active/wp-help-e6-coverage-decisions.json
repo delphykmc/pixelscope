@@ -5,49 +5,49 @@
     {
       "id": "single-image",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "six-image-multiview",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "difference-analysis",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "histogram-docked",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "line-profile-docked",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "plots-floating",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "raw-profile-dialog",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     }
@@ -56,91 +56,91 @@
     {
       "id": "window-overview",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "files-workspace",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "roi-exact",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "statistics-workspace",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "settings-dialog",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "iqa-neutral",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "yuv-profile-dialog",
       "decision": "promoted",
-      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "statistics-pivot",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "six-image-difference",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "gain-control",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "pick-curation",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "roi-editor-dialog",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "memo-workspace",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/blob/main/docs/exec-plans/active/v0.2.1-screenshot-approval.md",
       "reason": null,
       "follow_up": null
     }

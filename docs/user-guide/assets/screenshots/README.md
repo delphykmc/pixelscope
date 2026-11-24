@@ -50,7 +50,7 @@ generate, replace or approve any PNG.
 The [WP-Help-E execution plan](../../../exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
 documents the manifest, real-QWidget scene registry, Windows hosted capture
 feasibility gate, main/PR visual comparisons, conditional Markdown insertion, and
-human-reviewed promotion. The fourteen original E6 PNGs were captured from the real application and have exact provenance in the manifest. The v0.2.1 refresh adds six registered real-UI scenes; their PNGs remain absent until owner approval. The legacy `scripts/capture_ui_review.py` remains historical input ownership; isolated capture uses manifest scenarios and guide filenames.
+human-reviewed promotion. The fourteen original E6 PNGs were captured from the real application and have exact provenance in the manifest. The v0.2.1 refresh adds six registered real-UI scenes; all twenty refreshed PNGs now have owner approval recorded below. The legacy `scripts/capture_ui_review.py` remains historical input ownership; isolated capture uses manifest scenarios and guide filenames.
 
 E1 proved hosted Windows capture for real Single View and RAW Dialog in separate processes (PR #94). E2 introduced the versioned [Screenshot Manifest](manifest.json), capture ownership and three non-guide diagnostic outputs. E3 provides conservative screenshot impact selection, E4 provides pinned native Windows candidate comparison, and E5 converts topic embeds to conditional ID markers. E6 adds isolated coverage for all fourteen guide scenes and records the owner-reviewed promotions. A PR-produced
 candidate is never an approved User Guide image until its content and provenance have
@@ -71,5 +71,13 @@ From the clean candidate branch, install the pinned runtime and documentation de
 After explicit owner approval, run `python scripts/refresh_user_guide_screenshots.py promote --packet-dir build/guide-captures-v021 --approval-ref <owner-PR-comment-URL>` (replace the placeholder). The script verifies the packet, copies exact approved bytes, updates the manifest and coverage decisions, and validates the results before returning. The approval reference is supplied by the owner, not independently fetched by the script. Commit only the approved PNGs, manifest, coverage decisions and updated guide/release text. Do not commit the capture packet or local logs. Memo HTML is available for visual review, not a registered browser screenshot.
 
 ## E6 owner-reviewed refresh
+
+The v0.2.1 owner-approved refresh replaces the fourteen earlier PNGs and adds six
+new scenes, for twenty current images. Exact hashes, capture source and the
+owner's chat approval are retained in the
+[v0.2.1 approval record](../../../exec-plans/active/v0.2.1-screenshot-approval.md).
+This promotion used that explicit chat approval and verified packet directly;
+the CLI's PR-comment-only approval input was not used and no GitHub approval
+comment was fabricated. The original E6 history below remains historical.
 
 On 2026-09-25 the owner reviewed the complete temporary guide and approved all fourteen refreshed screenshots. They were captured from source `631779bb91278e846f39e376dd1bef8210df1e5c` in two independent processes per scene with identical pixels and public-safe fixtures. The approval reference and per-image hashes are stored in the manifest; future staleness is selected by E3 ownership mapping rather than inferred from file age.

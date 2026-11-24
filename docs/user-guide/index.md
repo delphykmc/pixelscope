@@ -6,7 +6,7 @@ This guide is organized around **what you want to do**, not around PixelScope's 
 
 ## Version and screenshots
 
-This guide describes Core v0.2.1, a documentation patch based on v0.2.0 behavior. The existing approved illustrative screenshots were captured with v0.1.0 and may show earlier labels or layouts until recaptured and reviewed. Use the current text and command descriptions rather than inferring shortcuts from older images.
+This guide describes Core v0.2.1, a documentation patch based on v0.2.0 behavior. The 20 approved screenshots were captured with Core 0.2.1 using real application widgets and public-safe fixtures. Use the current text for keyboard shortcuts and focus conditions.
 
 ## Start here
 
