@@ -303,6 +303,7 @@ def _line_profile_docked(app: QApplication) -> tuple[QWidget, Callable[[], bool]
             and panel._worker is None
             and len(panel.last_results) == len(documents)
             and any(panel._profile_series)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
         )
 
     return window, ready, _fixture_identity(documents, "line_profile_docked")
@@ -481,6 +482,7 @@ def _iqa_neutral(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
             and dock.isVisible()
             and workspace.status_label.text() == "Reference IQA ready."
             and workspace.submit_button.isEnabled()
+            and _analysis_ready(window.comparison_analysis_panel, documents)
         ),
         _fixture_identity(documents, "iqa_neutral"),
     )

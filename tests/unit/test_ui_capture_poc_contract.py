@@ -260,3 +260,31 @@ def test_pick_capture_waits_for_analysis_after_picking(monkeypatch: pytest.Monke
     analysis_complete = True
     assert ready()
     assert picked == [0, 2]
+
+
+def test_iqa_capture_waits_for_statistics(monkeypatch: pytest.MonkeyPatch) -> None:
+    dock = SimpleNamespace(
+        setMinimumWidth=lambda value: None,
+        show=lambda: None,
+        raise_=lambda: None,
+        isVisible=lambda: True,
+    )
+    workspace = SimpleNamespace(
+        status_label=SimpleNamespace(text=lambda: "Reference IQA ready."),
+        submit_button=SimpleNamespace(isEnabled=lambda: True),
+    )
+    monkeypatch.setattr(
+        capture_ui_scene,
+        "ReferenceIqaExtension",
+        lambda: SimpleNamespace(dock=dock, widget=workspace),
+    )
+    window = SimpleNamespace(comparison_analysis_panel=object())
+    monkeypatch.setattr(capture_ui_scene, "_populated_window", lambda *args, **kwargs: (window, []))
+    monkeypatch.setattr(capture_ui_scene, "_documents_presented", lambda *args: True)
+    monkeypatch.setattr(capture_ui_scene, "_fixture_identity", lambda *args: "fixture")
+    complete = False
+    monkeypatch.setattr(capture_ui_scene, "_analysis_ready", lambda *args: complete)
+    _, ready, _ = capture_ui_scene._iqa_neutral(None)
+    assert not ready()
+    complete = True
+    assert ready()
