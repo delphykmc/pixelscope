@@ -10,7 +10,9 @@ The manifest and individual coverage decisions now identify those exact bytes.
 See the [approval record](exec-plans/active/v0.2.1-screenshot-approval.md) and
 [release validation record](exec-plans/active/v0.2.1-user-guide-audit.md).
 This is source/documentation acceptance; no new binary qualification or live
-Pages deployment is implied. Final main/tag identity is recorded at delivery.
+Pages deployment is implied. Normal-GC Windows CPython 3.10.11 full validation at
+screenshot-promotion source e155e51d passed **2052 tests, 1 warning in 523.36s**;
+all four PR workflows also passed. Final main/tag identity is recorded at delivery.
 
 ### 2026-11-18 Memo closeout and remaining UNC paths
 
