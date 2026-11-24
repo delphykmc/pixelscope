@@ -14,18 +14,35 @@ import sys
 import tempfile
 from pathlib import Path
 
-from audit_ui_screenshot_coverage import DECISIONS, audit
-from check_screenshot_manifest import find_problems
-from run_ui_capture_poc import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.audit_ui_screenshot_coverage import DECISIONS, audit  # noqa: E402
+from scripts.check_screenshot_manifest import find_problems  # noqa: E402
+from scripts.run_ui_capture_poc import (  # noqa: E402
     MAX_CHANGED_FRACTION,
     assess_capture_process,
     changed_fraction,
     validate_capture,
 )
-from verify_ui_screenshot_capture_packet import ASSETS, MANIFEST, packet_problems
+from scripts.verify_ui_screenshot_capture_packet import (  # noqa: E402
+    ASSETS,
+    MANIFEST,
+    packet_problems,
+)
 
-ROOT = Path(__file__).resolve().parents[1]
 VERSION = runpy.run_path(str(ROOT / "src/pixelscope/version.py"))["__version__"]
+
+
+def capture_environment() -> dict[str, str]:
+    """Execute this checkout even when editable installs point elsewhere."""
+    env = dict(os.environ, QT_SCALE_FACTOR="1", PYTHONHASHSEED="0", PYTHONIOENCODING="utf-8")
+    source = str(ROOT / "src")
+    inherited = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = source + (os.pathsep + inherited if inherited else "")
+    env.pop("QT_QPA_PLATFORM", None)
+    return env
 
 
 def git(*args: str) -> str:
@@ -150,8 +167,7 @@ def capture(packet: Path, manifest: dict, source: str) -> None:
     packet.mkdir(parents=True, exist_ok=True)
     repeat = packet / "repeat"
     repeat.mkdir(exist_ok=True)
-    env = dict(os.environ, QT_SCALE_FACTOR="1", PYTHONHASHSEED="0", PYTHONIOENCODING="utf-8")
-    env.pop("QT_QPA_PLATFORM", None)
+    env = capture_environment()
     profile = manifest["target_capture_profile"]
     failures = []
     for row in manifest["screenshots"]:
