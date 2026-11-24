@@ -24,4 +24,6 @@ The Difference metric table distinguishes **Value** and **Unit** without changin
 
 Image View Display Gain is presentation-only and separate from the Difference panel's Gain. Difference supports Absolute and Mask display modes, a threshold and its own Gain control. Choose Full image or Active ROI for numeric metrics; the Difference map remains a full-frame preview.
 
-See [Use Difference](../workflows/use-difference.md) for the procedure and compatibility checks.
+On a page of six original images, Difference is displayed alone in Single View. Hide it with **Diff** to restore the previous layout. **Keep** in Pick curation closes the active Difference without purging its numerical cache.
+
+See [Use Difference](../workflows/use-difference.md) for the procedure, six-image display behavior and compatibility checks, and [Curate a Large Selection](../workflows/curate-selection.md) for Keep/Clear.

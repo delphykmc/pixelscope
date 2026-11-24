@@ -31,6 +31,10 @@ tooltip. Statistics, Histogram, Line and Difference use the same resolved
 source names. Analysis does not add the parent folder again to an already
 resolved alias or tag.
 
+## Show Difference on a full page
+
+With six originals on the Current Comparison Page, showing Difference temporarily switches to Difference-only Single View. Turn **Diff** off to restore the previous page, layout and view state; the Selected set is not lost. See [Display Difference on a six-image page](use-difference.md#display-difference-on-a-six-image-page).
+
 ## Preserve selection
 
 Moving to another Comparison Page does not discard the larger Selected set. If you curate or save the comparison, confirm whether you intend to persist the entire Selected set or a reduced subset.

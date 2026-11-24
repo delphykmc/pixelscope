@@ -19,7 +19,9 @@ Ordinary image activation, pan, ROI drawing, and Line Profile gestures do not to
 
 Use **Keep** (Keep Selection) to replace the logical Selected set with the picked subset, preserving baseline order. If nothing is picked, Keep Selection remains unavailable rather than clearing the comparison accidentally.
 
-Use **Clear** (Clear Selection) to clear the temporary picks without changing the underlying source files.
+Keep also closes the active Difference and clears its active result binding before applying the picked subset, even if the same Difference pair is retained. It does not automatically show a new Difference or purge the numerical cache. After Keep, confirm the intended pair in Difference and press **Calculate**, or explicitly show a matching valid cached result with **Diff** if available.
+
+Use **Clear** (Clear Selection) to clear the temporary picks without changing Selected membership or closing the active Difference. Neither Keep nor Clear deletes original source files.
 
 A separate operation that replaces Selected membership can invalidate the temporary curation baseline so stale picks are not applied to a different selection.
 
