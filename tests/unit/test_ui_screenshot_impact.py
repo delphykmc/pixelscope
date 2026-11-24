@@ -260,7 +260,8 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
     )
     assert selection["requires_image_review"]
     assert len(selection["committed_png_changes"]) == 5
-    assert len(selection["selected_ids"]) == len(manifest["screenshots"])  # unknown PNG name -> all, with warning
+    # Unknown PNG name -> all, with warning.
+    assert len(selection["selected_ids"]) == len(manifest["screenshots"])
     assert any("unmapped-screenshot-asset" in x for x in selection["warnings"])
     exact = report(manifest, base + "raw-profile-dialog.png")
     assert exact["selected_ids"] == ["raw-profile-dialog"]

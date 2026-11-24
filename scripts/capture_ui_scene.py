@@ -833,9 +833,7 @@ def capture(
             from pixelscope.io.memo_folder import save_folder_memo
 
             memo = widget.named_review_coordinator
-            save_folder_memo(
-                memo_report, MemoArchive(memo.library.document, memo._crops), None
-            )
+            save_folder_memo(memo_report, MemoArchive(memo.library.document, memo._crops), None)
         report["status"] = "captured"
     except Exception as exc:
         report["error_type"] = type(exc).__name__

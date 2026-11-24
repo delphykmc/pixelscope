@@ -113,8 +113,10 @@ def validate_capture(
     with Image.open(path) as opened:
         image = opened.convert("RGB")
         width, height = image.size
-        minimum_height = 100 if scene == "roi_editor_dialog" else 180
-        if width < 250 or height < minimum_height:
+        # The real compact ROI editor is 242 × 107 on the pinned Windows runner.
+        # Its scene-specific lower bound does not relax other GUI captures.
+        minimum_width, minimum_height = (220, 96) if scene == "roi_editor_dialog" else (250, 180)
+        if width < minimum_width or height < minimum_height:
             raise ValueError("captured screen is smaller than the minimum useful UI")
         if max(ImageStat.Stat(image).stddev) < 7.0:
             raise ValueError("captured UI has insufficient pixel variation")
