@@ -38,9 +38,7 @@ def test_added_mkdocs_nav_page_must_be_in_agent_index() -> None:
 def test_display_gain_guide_matches_runtime_source() -> None:
     # Documentation CI intentionally has no Qt/runtime dependency.
     source = ROOT / "src/pixelscope/ui"
-    shortcuts = ast.parse(
-        (source / "display_gain_shortcuts.py").read_text(encoding="utf-8")
-    )
+    shortcuts = ast.parse((source / "display_gain_shortcuts.py").read_text(encoding="utf-8"))
     keys = {
         node.args[0].value
         for node in ast.walk(shortcuts)
