@@ -546,17 +546,25 @@ def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
 def _statistics_pivot(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     window, documents = _populated_window(app, 2, "Multi View")
     panel = window.comparison_analysis_panel
+    configured = False
 
     def ready() -> bool:
+        nonlocal configured
         if not _documents_presented(window, documents) or not _analysis_ready(panel, documents):
             return False
-        panel.statistics_view.setCurrentText("Pivot")
-        panel.pivot_reference.setCurrentIndex(1)
-        panel.pivot_delta.setCurrentText("Absolute Δ")
+        if not configured:
+            panel.statistics_view.setCurrentText("Pivot")
+            panel.pivot_reference.setCurrentIndex(1)
+            panel.pivot_delta.setCurrentText("Absolute Δ")
+            # Show both source values and deltas rather than a clipped first column.
+            window.main_splitter.setSizes([740, WINDOW_SIZE[0] - 740])
+            configured = True
+            return False
         return bool(
             panel.statistics_stack.currentWidget() is panel.pivot_table
             and panel.pivot_table.rowCount() >= 3
             and panel.pivot_export_button.isEnabled()
+            and panel.pivot_table.horizontalScrollBar().maximum() == 0
         )
 
     return window, ready, _fixture_identity(documents, "statistics_pivot")
@@ -617,7 +625,11 @@ def _pick_curation(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]
             controller._pick_requested(viewers[2], True)
             picked = True
             return False
-        return bool(controller.picked_count == 2 and controller.keep_button.isEnabled())
+        return bool(
+            controller.picked_count == 2
+            and controller.keep_button.isEnabled()
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+        )
 
     return window, ready, _fixture_identity(documents, "pick_curation")
 

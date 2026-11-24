@@ -234,3 +234,29 @@ def test_scene_wait_times_out_without_async_completion(monkeypatch: pytest.Monke
     monkeypatch.setattr(capture_ui_scene, "TIMEOUT_SECONDS", 0.0)
     with pytest.raises(TimeoutError, match="visible and ready"):
         capture_ui_scene._wait_until_ready(WaitingApp(), VisibleWidget(), lambda: False)
+
+
+def test_pick_capture_waits_for_analysis_after_picking(monkeypatch: pytest.MonkeyPatch) -> None:
+    picked = []
+    controller = SimpleNamespace(
+        _pick_requested=lambda viewer, value: picked.append(viewer),
+        picked_count=2,
+        keep_button=SimpleNamespace(isEnabled=lambda: True),
+    )
+    window = SimpleNamespace(
+        review_selection_controller=controller,
+        multi_compare_view=SimpleNamespace(occupied_viewers=[0, 1, 2, 3, 4, 5]),
+        comparison_analysis_panel=object(),
+    )
+    monkeypatch.setattr(capture_ui_scene, "_populated_window", lambda *args: (window, []))
+    monkeypatch.setattr(capture_ui_scene, "_documents_presented", lambda *args: True)
+    monkeypatch.setattr(capture_ui_scene, "_fixture_identity", lambda *args: "fixture")
+    analysis_complete = False
+    monkeypatch.setattr(capture_ui_scene, "_analysis_ready", lambda *args: analysis_complete)
+    _, ready, _ = capture_ui_scene._pick_curation(None)
+    assert not ready()
+    assert picked == [0, 2]
+    assert not ready()
+    analysis_complete = True
+    assert ready()
+    assert picked == [0, 2]
