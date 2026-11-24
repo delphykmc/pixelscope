@@ -69,6 +69,18 @@ def validate_row(row: dict, png: Path, meta: Path, source: str, profile: str) ->
     return result
 
 
+def verified_row(row: dict, png: Path, source: str, profile: str) -> dict:
+    result = validate_row(row, png, png.with_suffix(".json"), source, profile)
+    marker = read_json(png.with_suffix(".validated.json"))
+    if marker != {
+        "source_sha": source,
+        "image_sha256": result["image_sha256"],
+        "process_exit": 0,
+    }:
+        raise ValueError("missing matching successful child-process validation")
+    return result
+
+
 def candidate_rows(packet: Path, manifest: dict, source: str) -> list[dict]:
     results = []
     profile = manifest["target_capture_profile"]
@@ -76,8 +88,8 @@ def candidate_rows(packet: Path, manifest: dict, source: str) -> list[dict]:
         key = row["id"]
         first = packet / f"{key}.png"
         second = packet / "repeat" / f"{key}.png"
-        a = validate_row(row, first, first.with_suffix(".json"), source, profile)
-        b = validate_row(row, second, second.with_suffix(".json"), source, profile)
+        a = verified_row(row, first, source, profile)
+        b = verified_row(row, second, source, profile)
         if a["fixture_sha256"] != b["fixture_sha256"]:
             raise ValueError(f"{key}: fixture changed between captures")
         if changed_fraction(first, second) > MAX_CHANGED_FRACTION:
@@ -150,15 +162,18 @@ def capture(packet: Path, manifest: dict, source: str) -> None:
                 png = folder / f"{key}.png"
                 meta = png.with_suffix(".json")
                 try:
-                    validate_row(row, png, meta, source, profile)
-                    if folder != packet or key != "memo-workspace" or (
-                        packet / "memo-report/index.html"
-                    ).is_file():
+                    verified_row(row, png, source, profile)
+                    if (
+                        folder != packet
+                        or key != "memo-workspace"
+                        or (packet / "memo-report/index.html").is_file()
+                    ):
                         continue
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
                 png.unlink(missing_ok=True)
                 meta.unlink(missing_ok=True)
+                png.with_suffix(".validated.json").unlink(missing_ok=True)
                 cmd = [
                     sys.executable,
                     str(ROOT / "scripts/capture_ui_scene.py"),
@@ -191,7 +206,15 @@ def capture(packet: Path, manifest: dict, source: str) -> None:
                     expected_logical_size=[size["width"], size["height"]],
                     allow_widget_resize=row.get("geometry_policy") == "resizable",
                 )
-                validate_row(row, png, meta, source, profile)
+                result = validate_row(row, png, meta, source, profile)
+                write_json(
+                    png.with_suffix(".validated.json"),
+                    {
+                        "source_sha": source,
+                        "image_sha256": result["image_sha256"],
+                        "process_exit": process.returncode,
+                    },
+                )
             if changed_fraction(packet / f"{key}.png", repeat / f"{key}.png") > (
                 MAX_CHANGED_FRACTION
             ):
@@ -210,9 +233,7 @@ def capture(packet: Path, manifest: dict, source: str) -> None:
 
 
 def promote(packet: Path, manifest: dict, source: str, approval: str) -> None:
-    if not re.fullmatch(
-        r"https://github\.com/[^/]+/[^/]+/pull/\d+#issuecomment-\d+", approval
-    ):
+    if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/pull/\d+#issuecomment-\d+", approval):
         raise ValueError("Supply the actual owner approval PR comment URL")
     results = candidate_rows(packet, manifest, source)
     # Require the reviewed hash list to match these exact bytes before copying.

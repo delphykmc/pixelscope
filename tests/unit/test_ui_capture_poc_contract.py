@@ -110,6 +110,22 @@ def test_poc_validator_accepts_compact_real_dialog_but_rejects_tiny_ui(tmp_path:
         validate_capture(png, metadata, "single_image", sha)
 
 
+def test_real_compact_roi_editor_geometry_has_a_scene_specific_gate(tmp_path: Path) -> None:
+    png, metadata = tmp_path / "roi.png", tmp_path / "roi.json"
+    sha = "4" * 40
+    size = (242, 107)
+    _pattern(png, size)
+    _metadata(metadata, png, sha, size)
+    record = json.loads(metadata.read_text(encoding="utf-8"))
+    record["scenario"] = "roi_editor_dialog"
+    metadata.write_text(json.dumps(record), encoding="utf-8")
+    assert validate_capture(png, metadata, "roi_editor_dialog", sha)["status"] == "captured"
+    record["scenario"] = "single_image"
+    metadata.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(ValueError, match="minimum useful UI"):
+        validate_capture(png, metadata, "single_image", sha)
+
+
 def test_manifest_geometry_policy_allows_native_yuv_dialog_size() -> None:
     assert EXPECTED_LOGICAL_SIZE["yuv_profile_dialog"] == [299, 200]
     assert ALLOW_WIDGET_RESIZE["yuv_profile_dialog"] is True

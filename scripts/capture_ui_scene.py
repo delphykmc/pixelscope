@@ -697,6 +697,9 @@ def _memo_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str
             and memo.panel.findings.count() == 2
             and len(memo._crops) == 4
             and annotated == 2
+            and _analysis_ready(
+                window.comparison_analysis_panel, list(window.current_comparison_documents())
+            )
         )
 
     return window, ready, _fixture_identity(fixtures, "memo_workspace")
